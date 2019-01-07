@@ -1,9 +1,7 @@
 use std::fmt;
-use std::collections;
 use itertools::Itertools;
 use crate::formula::syntax::*;
 
-// Variables
 // Variables
 pub fn _x() -> V { V::new("x") }
 
@@ -25,9 +23,17 @@ pub fn g() -> Func { Func::new("g") }
 pub fn h() -> Func { Func::new("h") }
 
 // Constants
+pub fn _a() -> C { C::new("a") }
+
+pub fn _b() -> C { C::new("b") }
+
+pub fn _c() -> C { C::new("c") }
+
 pub fn a() -> Term { C::new("a").r#const() }
 
 pub fn b() -> Term { C::new("b").r#const() }
+
+pub fn c() -> Term { C::new("c").r#const() }
 
 // Predicates
 pub fn P() -> Pred { Pred::new("P") }
@@ -61,7 +67,25 @@ impl fmt::Debug for C {
     }
 }
 
+impl fmt::Debug for Func {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl fmt::Debug for Formula {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
 impl fmt::Debug for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_string())
     }
