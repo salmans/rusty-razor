@@ -192,7 +192,7 @@ impl Term {
     }
 }
 
-type Terms = Vec<Term>;
+pub type Terms = Vec<Term>;
 
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -336,6 +336,8 @@ pub fn forall5(first: V, second: V, third: V, fourth: V, fifth: V, formula: Form
 impl Formula {
     fn parens(&self) -> String {
         match self {
+            Formula::Top => self.to_string(),
+            Formula::Bottom => self.to_string(),
             Formula::Atom { .. } => self.to_string(),
             _ => format!("({})", self),
         }
@@ -431,6 +433,27 @@ impl fmt::Display for Formula {
                 let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
                 write!(f, "∀ {}. {}", vs.join(", "), formula.parens())
             }
+        }
+    }
+}
+
+impl PartialEq for Formula {
+    fn eq(&self, other: &Formula) -> bool {
+        match (self, other) {
+            (Formula::Top, Formula::Top) => true,
+            (Formula::Bottom, Formula::Bottom) => true,
+            (Formula::Atom { predicate: p1, terms: ts1 }, Formula::Atom { predicate: p2, terms: ts2 }) => {
+                p1 == p2 && ts1.iter().zip(ts2).all(|(x, y)| x == y)
+            },
+            (Formula::Equals { left: l1, right: r1 }, Formula::Equals { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
+            (Formula::Not { formula: f1 }, Formula::Not { formula: f2 }) => f1 == f2,
+            (Formula::And { left: l1, right: r1 }, Formula::And { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
+            (Formula::Or { left: l1, right: r1 }, Formula::Or { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
+            (Formula::Implies { left: l1, right: r1 }, Formula::Implies { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
+            (Formula::Iff { left: l1, right: r1 }, Formula::Iff { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
+            (Formula::Exists { variables: vs1, formula: f1 }, Formula::Exists { variables: vs2, formula: f2 }) => vs1 == vs2 && f1 == f2,
+            (Formula::Forall { variables: vs1, formula: f1 }, Formula::Forall { variables: vs2, formula: f2 }) => vs1 == vs2 && f1 == f2,
+            _ => false
         }
     }
 }
