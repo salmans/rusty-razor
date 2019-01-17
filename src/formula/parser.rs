@@ -340,8 +340,9 @@ mod test_parser {
         remaining: &str) {
         let parsed = parser(CompleteStr(parse_str));
         assert!(parsed.is_ok());
-        let (remaining, result) = parsed.unwrap();
-        assert_eq!(result, expected);
+        let (rem, res) = parsed.unwrap();
+        assert_eq!(expected, res);
+        assert_eq!(CompleteStr(remaining), rem);
     }
 
     fn success_to_string<R: ToString>(

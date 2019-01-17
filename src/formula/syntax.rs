@@ -171,11 +171,6 @@ pub enum Term {
 }
 
 impl Term {
-    pub fn r#const(name: &str) -> Term {
-        Term::Const { constant: C::new(name) }
-    }
-
-    // TODO make free_vars lazy
     /// Returns a list of free variables in the term.
     /// * For efficiency reasons, `free_vars` returns references to the free variables in the term but it
     /// is supposed to eliminate duplicate variables.

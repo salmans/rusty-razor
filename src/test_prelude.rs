@@ -3,12 +3,24 @@ use itertools::Itertools;
 use crate::formula::syntax::*;
 
 // Variables
+pub fn _u() -> V { V::new("u") }
+
+pub fn _v() -> V { V::new("v") }
+
+pub fn _w() -> V { V::new("w") }
+
 pub fn _x() -> V { V::new("x") }
 pub fn _x_1() -> V { V::new("x`") }
 
 pub fn _y() -> V { V::new("y") }
 
 pub fn _z() -> V { V::new("z") }
+
+pub fn u() -> Term { V::new("u").var() }
+
+pub fn v() -> Term { V::new("v").var() }
+
+pub fn w() -> Term { V::new("w").var() }
 
 pub fn x() -> Term { V::new("x").var() }
 pub fn x_1() -> Term { V::new("x`").var() }
@@ -38,10 +50,13 @@ pub fn b() -> Term { C::new("b").r#const() }
 pub fn c() -> Term { C::new("c").r#const() }
 
 // Predicates
+//noinspection RsFunctionNaming
 pub fn P() -> Pred { Pred::new("P") }
 
+//noinspection RsFunctionNaming
 pub fn Q() -> Pred { Pred::new("Q") }
 
+//noinspection RsFunctionNaming
 pub fn R() -> Pred { Pred::new("R") }
 
 

@@ -3,14 +3,12 @@ use super::syntax::Term::*;
 use super::syntax::Formula::*;
 use std::collections::HashMap;
 
-const EXPECTED_NNF_FORMULA: &str = "Internal Error: Expecting a formula in negation normal form.";
-
 /// ## Substitution
 /// A *substitution* is a function from variables to terms. A *variable renaming* function is a
 /// function from variables to variables as a special case of substitution.
 
 /// A substitution map converts a map (collections::HashMap) from variables to terms to a Substitution.
-fn substitution_map<'t>(sub: &'t HashMap<V, Term>) -> impl Fn(&V) -> Term + 't {
+fn substitution_map<'t>(sub: &'t HashMap<&V, Term>) -> impl Fn(&V) -> Term + 't {
     move |v: &V| {
         let lookup = sub.get(v);
         if let Some(t) = lookup { (*t).clone() } else { (*v).clone().var() }
@@ -42,6 +40,37 @@ impl Term {
         }
     }
 }
+
+/// SkolemGenerator generates Skolem function names. To assure uniqueness of Skolem functions in a
+/// theory, a unique instance of this generator must be used when Skolemizing the theory.
+pub struct SkolemGenerator {
+    prefix: String,
+    index: i32,
+}
+
+impl SkolemGenerator {
+    /// Creates a new SkolemGenerator with the default prefix `sk#`.
+    pub fn new() -> SkolemGenerator {
+        SkolemGenerator {
+            prefix: "sk#".to_string(),
+            index: 0,
+        }
+    }
+    /// Creates a new SkolemGenerator with a custom `prefix`.
+    pub fn new_with(prefix: &str) -> SkolemGenerator {
+        SkolemGenerator {
+            prefix: prefix.to_string(),
+            index: 0,
+        }
+    }
+    /// Returns the next Skolem function name.
+    pub fn next(&mut self) -> String {
+        let result = format!("{}{}", self.prefix, self.index);
+        self.index += 1;
+        result
+    }
+}
+
 
 impl Formula {
     /// Applies a variable renaming function on **all** (free and bound) variables of the formula.
@@ -124,6 +153,10 @@ impl Formula {
         }
     }
 
+    /// ## Prenex Normal Form (PNF)
+    /// A Prenex Normal Form (PNF) is a formula with all quantifiers (existential and universal) and
+    /// bound variables at the front, followed by a quantifier-free part.
+    /// `Formula.pnf()` returns a PNF equivalent to the given formula.
     pub fn pnf(&self) -> Formula {
         use itertools::Itertools;
         // Renames the input variable until it's not in the list of input variables.
@@ -161,7 +194,7 @@ impl Formula {
                 let mut all_free_variables = right_free_variables.clone();
                 all_free_variables.append(&mut left_free_variables.clone());
 
-                if let Forall { ref variables, ref formula } = left {
+                if let Forall { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| right_free_variables.contains(v))
                         .collect();
@@ -182,7 +215,7 @@ impl Formula {
                     } else {
                         panic!("something went wrong!")
                     }
-                } else if let Exists { ref variables, ref formula } = left {
+                } else if let Exists { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| right_free_variables.contains(v))
                         .collect();
@@ -203,7 +236,7 @@ impl Formula {
                     } else {
                         panic!("something went wrong!")
                     }
-                } else if let Forall { ref variables, ref formula } = right {
+                } else if let Forall { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| left_free_variables.contains(v))
                         .collect();
@@ -224,7 +257,7 @@ impl Formula {
                     } else {
                         panic!("something went wrong!")
                     }
-                } else if let Exists { ref variables, ref formula } = right {
+                } else if let Exists { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| left_free_variables.contains(v))
                         .collect();
@@ -257,7 +290,7 @@ impl Formula {
                 let mut all_free_variables = right_free_variables.clone();
                 all_free_variables.append(&mut left_free_variables.clone());
 
-                if let Forall { ref variables, ref formula } = left {
+                if let Forall { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| right_free_variables.contains(v))
                         .collect();
@@ -278,7 +311,7 @@ impl Formula {
                     } else {
                         panic!("something went wrong!")
                     }
-                } else if let Exists { ref variables, ref formula } = left {
+                } else if let Exists { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| right_free_variables.contains(v))
                         .collect();
@@ -299,7 +332,7 @@ impl Formula {
                     } else {
                         panic!("something went wrong!")
                     }
-                } else if let Forall { ref variables, ref formula } = right {
+                } else if let Forall { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| left_free_variables.contains(v))
                         .collect();
@@ -320,7 +353,7 @@ impl Formula {
                     } else {
                         panic!("something went wrong!")
                     }
-                } else if let Exists { ref variables, ref formula } = right {
+                } else if let Exists { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
                         .filter(|v| left_free_variables.contains(v))
                         .collect();
@@ -457,6 +490,42 @@ impl Formula {
             },
         }
     }
+
+    pub fn snf(&self) -> Formula {
+        self.snf_with(&mut SkolemGenerator::new())
+    }
+
+    pub fn snf_with(&self, generator: &mut SkolemGenerator) -> Formula {
+        fn helper(formula: Formula, skolem_vars: Vec<V>, generator: &mut SkolemGenerator) -> Formula {
+            match formula {
+                Forall { variables, formula } => {
+                    let mut vars = skolem_vars.clone();
+                    vars.append(&mut variables.clone());
+                    Forall {
+                        variables: variables.to_vec(),
+                        formula: Box::new(helper(*formula, vars, generator)),
+                    }
+                }
+                Exists { variables, formula } => {
+                    let mut map: HashMap<&V, Term> = HashMap::new();
+                    variables.iter().for_each(|v| {
+                        if skolem_vars.is_empty() {
+                            map.insert(&v, C::new(&generator.next()).r#const());
+                        } else {
+                            let vars: Vec<Term> = skolem_vars.iter().map(|v| v.clone().var()).collect();
+                            map.insert(&v, Func::new(&generator.next()).app(vars));
+                        }
+                    });
+                    let substituted = formula.substitute(&substitution_map(&map));
+                    helper(substituted, skolem_vars, generator)
+                }
+                _ => formula
+            }
+        }
+
+        // Skolemization only makes sense for PNF formulas.
+        helper(self.pnf(), vec![], generator) // TODO: if we do substitution in place, helper doesn't have to create copies.
+    }
 }
 
 #[cfg(test)]
@@ -468,18 +537,26 @@ mod test_transform {
     #[test]
     fn test_substitution_map() {
         {
-            let map: HashMap<V, Term> = HashMap::new();
+            let map: HashMap<&V, Term> = HashMap::new();
             assert_eq!(x(), x().substitute(&substitution_map(&map)));
         }
         {
-            let mut map: HashMap<V, Term> = HashMap::new();
-            map.insert(_x(), y());
+            let mut map: HashMap<&V, Term> = HashMap::new();
+            let x_v = &_x();
+            let y_var = y();
+
+            map.insert(x_v, y_var);
             assert_eq!(y(), x().substitute(&substitution_map(&map)));
         }
         {
-            let mut map: HashMap<V, Term> = HashMap::new();
-            map.insert(_x(), g().app1(z()));
-            map.insert(_y(), h().app2(z(), y()));
+            let mut map: HashMap<&V, Term> = HashMap::new();
+            let x_v = &_x();
+            let y_v = &_y();
+            let term_1 = g().app1(z());
+            let term_2 = h().app2(z(), y());
+
+            map.insert(x_v, term_1);
+            map.insert(y_v, term_2);
             assert_eq!(f().app2(g().app1(z()), h().app2(z(), y())),
                        f().app2(x(), y()).substitute(&substitution_map(&map)));
         }
@@ -1125,14 +1202,14 @@ mod test_transform {
         assert_debug_string("! x. (? x`. (! x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
                             parse_formula("(? x. P(x)) <=> (? x. Q(x))").pnf());
         // multiple steps
-        assert_debug_string("? x. (~(~P(x)))",parse_formula("~~?x.P(x)").pnf());
-        assert_debug_string("! x. (~(~P(x)))",parse_formula("~~!x.P(x)").pnf());
-        assert_debug_string("! x`. (P(x) & (Q(x`) & R(x)))",parse_formula("P(x) & ((! x. Q(x)) & R(x))").pnf());
-        assert_debug_string("? x`. (P(x) & (Q(x`) & R(x)))",parse_formula("P(x) & ((? x. Q(x)) & R(x))").pnf());
-        assert_debug_string("! x`. (P(x) | (Q(x`) | R(x)))",parse_formula("P(x) | ((! x. Q(x)) | R(x))").pnf());
-        assert_debug_string("? x`. (P(x) | (Q(x`) | R(x)))",parse_formula("P(x) | ((? x. Q(x)) | R(x))").pnf());
-        assert_debug_string("? x`. (P(x) -> (Q(x`) -> R(x)))",parse_formula("P(x) -> ((! x. Q(x)) -> R(x))").pnf());
-        assert_debug_string("! x`. (P(x) -> (Q(x`) -> R(x)))",parse_formula("P(x) -> ((? x. Q(x)) -> R(x))").pnf());
+        assert_debug_string("? x. (~(~P(x)))", parse_formula("~~?x.P(x)").pnf());
+        assert_debug_string("! x. (~(~P(x)))", parse_formula("~~!x.P(x)").pnf());
+        assert_debug_string("! x`. (P(x) & (Q(x`) & R(x)))", parse_formula("P(x) & ((! x. Q(x)) & R(x))").pnf());
+        assert_debug_string("? x`. (P(x) & (Q(x`) & R(x)))", parse_formula("P(x) & ((? x. Q(x)) & R(x))").pnf());
+        assert_debug_string("! x`. (P(x) | (Q(x`) | R(x)))", parse_formula("P(x) | ((! x. Q(x)) | R(x))").pnf());
+        assert_debug_string("? x`. (P(x) | (Q(x`) | R(x)))", parse_formula("P(x) | ((? x. Q(x)) | R(x))").pnf());
+        assert_debug_string("? x`. (P(x) -> (Q(x`) -> R(x)))", parse_formula("P(x) -> ((! x. Q(x)) -> R(x))").pnf());
+        assert_debug_string("! x`. (P(x) -> (Q(x`) -> R(x)))", parse_formula("P(x) -> ((? x. Q(x)) -> R(x))").pnf());
         assert_debug_string("? x`. (! x``. (! x```. (? x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))",
                             parse_formula("P(x) <=> ((! x. Q(x)) <=> R(x))").pnf());
         assert_debug_string("! x`. (? x``. (? x```. (! x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))",
@@ -1150,5 +1227,47 @@ mod test_transform {
                             parse_formula("!x.?y.(!z.Q(x) & ~?x.R(x)) | (~Q(y) -> !w. R(y))").pnf());
         assert_debug_string("! x. (? y. (? y`. (P(x, y) -> Q(x, y`))))",
                             parse_formula("!x. (!y. P(x, y) -> ?y. Q(x, y))").pnf());
+    }
+
+    #[test]
+    fn test_snf() {
+        assert_debug_string("P('sk#0)"
+                            , exists1(_x(), P().app1(x())).snf());
+        assert_debug_string("! x. P(x, sk#0(x))"
+                            , forall1(_x()
+                                      , exists1(_y(), P().app2(x(), y()))).snf());
+        assert_debug_string("! x. P(x, f(g(sk#0(x)), h(sk#0(x))))"
+                            , forall1(_x()
+                                      , exists1(_y()
+                                                , P().app2(x(), f().app2(g().app1(y()), h().app1(y()))))).snf());
+        assert_debug_string("('sk#0 = 'sk#1) & ('sk#1 = 'sk#2)",
+                            exists3(_x(), _y(), _z(), x().equals(y()).and(y().equals(z()))).snf());
+        assert_debug_string("! y. (Q('sk#0, y) | P(sk#1(y), y, sk#2(y)))"
+                            , exists1(_x()
+                                      , forall1(_y()
+                                                , Q().app2(x(), y())
+                                                    .or(exists2(_x(), _z(), P().app3(x(), y(), z()))))).snf());
+        assert_debug_string("! x. (! z. P(x, sk#0(x), z))",
+                            forall1(_x()
+                                    , exists1(_y()
+                                              , forall1(_z()
+                                                        , P().app3(x(), y(), z())))).snf());
+        assert_debug_string("! x. (R(g(x)) | R(x, sk#0(x)))"
+                            , forall1(_x(),
+                                      R().app1(g().app1(x()))
+                                          .or(exists1(_y(), R().app2(x(), y())))).snf());
+        assert_debug_string("! y. (! z. (! v. P('sk#0, y, z, sk#1(y, z), v, sk#2(y, z, v))))"
+                            , exists1(_x()
+                                      , forall1(_y()
+                                                , forall1(_z()
+                                                          , exists1(_u()
+                                                                    , forall1(_v()
+                                                                              , exists1(_w()
+                                                                                         , P().app(vec![x(), y(), z(), u(), v(), w()]))))))).snf());
+        {
+            let mut generator = SkolemGenerator::new();
+            assert_debug_string("P('sk#0)", exists1(_x(), P().app1(x())).snf_with(&mut generator));
+            assert_debug_string("Q('sk#1)", exists1(_x(), Q().app1(x())).snf_with(&mut generator));
+        }
     }
 }
