@@ -491,10 +491,16 @@ impl Formula {
         }
     }
 
+    /// ## Skolem Normal Form (SNF)
+    /// A Skolem Normal Form (SNF) is a PNF with only universal quantifiers.
+    /// (see: https://en.wikipedia.org/wiki/Skolem_normal_form)
+    /// `Formula.snf()` returns an SNF equivalent to the given formula.
     pub fn snf(&self) -> Formula {
         self.snf_with(&mut SkolemGenerator::new())
     }
 
+    /// When generating Skolem function names (including Skolem constants), `Formula.snf_with(generator)`
+    /// uses an existing `SkolemGenerator` to avoid collision in naming.
     pub fn snf_with(&self, generator: &mut SkolemGenerator) -> Formula {
         fn helper(formula: Formula, skolem_vars: Vec<V>, generator: &mut SkolemGenerator) -> Formula {
             match formula {
@@ -525,6 +531,84 @@ impl Formula {
 
         // Skolemization only makes sense for PNF formulas.
         helper(self.pnf(), vec![], generator) // TODO: if we do substitution in place, helper doesn't have to create copies.
+    }
+
+    /// ## Skolem Normal Form (SNF)
+    /// A Negation Normal Form (NNF) is a formula where negation is only applied to its atomic
+    /// (including equations) subformulas.
+    /// `Formula.nnf()` returns an NNF equivalent to the given formula.
+    fn nnf(&self) -> Formula {
+        match self {
+            Top | Bottom | Atom { .. } | Equals { .. } => self.clone(),
+            Not { ref formula } => {
+                match **formula {
+                    Top => Bottom,
+                    Bottom => Top,
+                    Atom { .. } | Equals { .. } => self.clone(),
+                    Not { ref formula } => *formula.clone(),
+                    And { ref left, ref right } => Or {
+                        left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
+                        right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
+                    },
+                    Or { ref left, ref right } => And {
+                        left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
+                        right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
+                    },
+                    Implies { ref left, ref right } => And {
+                        left: Box::new(left.nnf()),
+                        right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
+                    },
+                    Iff { ref left, ref right } => Or {
+                        left: Box::new(And {
+                            left: Box::new(left.nnf()),
+                            right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
+                        }),
+                        right: Box::new(And {
+                            left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
+                            right: Box::new(right.nnf()),
+                        }),
+                    },
+                    Exists { ref variables, ref formula } => Forall {
+                        variables: variables.to_vec(),
+                        formula: Box::new(Not { formula: Box::new(*formula.clone()) }.nnf()),
+                    },
+                    Forall { ref variables, ref formula } => Exists {
+                        variables: variables.to_vec(),
+                        formula: Box::new(Not { formula: Box::new(*formula.clone()) }.nnf()),
+                    }
+                }
+            }
+            And { left, right } => And {
+                left: Box::new(left.nnf()),
+                right: Box::new(right.nnf()),
+            },
+            Or { left, right } => Or {
+                left: Box::new(left.nnf()),
+                right: Box::new(right.nnf()),
+            },
+            Implies { left, right } => Or {
+                left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
+                right: Box::new(right.nnf()),
+            },
+            Iff { left, right } => And {
+                left: Box::new(Or {
+                    left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
+                    right: Box::new(right.nnf()),
+                }),
+                right: Box::new(Or {
+                    left: Box::new(left.nnf()),
+                    right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
+                }),
+            },
+            Exists { variables, formula } => Exists {
+                variables: variables.to_vec(),
+                formula: Box::new(formula.nnf()),
+            },
+            Forall { variables, formula } => Forall {
+                variables: variables.to_vec(),
+                formula: Box::new(formula.nnf()),
+            }
+        }
     }
 }
 
@@ -1263,11 +1347,58 @@ mod test_transform {
                                                           , exists1(_u()
                                                                     , forall1(_v()
                                                                               , exists1(_w()
-                                                                                         , P().app(vec![x(), y(), z(), u(), v(), w()]))))))).snf());
+                                                                                        , P().app(vec![x(), y(), z(), u(), v(), w()]))))))).snf());
         {
             let mut generator = SkolemGenerator::new();
             assert_debug_string("P('sk#0)", exists1(_x(), P().app1(x())).snf_with(&mut generator));
             assert_debug_string("Q('sk#1)", exists1(_x(), Q().app1(x())).snf_with(&mut generator));
         }
+    }
+
+    #[test]
+    fn test_nnf() {
+        assert_debug_string("TRUE", parse_formula("TRUE").nnf());
+        assert_debug_string("FALSE", parse_formula("FALSE").nnf());
+        assert_debug_string("P(x)", parse_formula("P(x)").nnf());
+        assert_debug_string("x = y", parse_formula("x = y").nnf());
+        assert_debug_string("~P(x)", parse_formula("~P(x)").nnf());
+        assert_debug_string("P(x) & Q(y)", parse_formula("P(x) & Q(y)").nnf());
+        assert_debug_string("P(x) | Q(y)", parse_formula("P(x) | Q(y)").nnf());
+        assert_debug_string("(~P(x)) | Q(y)", parse_formula("P(x) -> Q(y)").nnf());
+        assert_debug_string("((~P(x)) | Q(y)) & (P(x) | (~Q(y)))", parse_formula("P(x) <=> Q(y)").nnf());
+        assert_debug_string("? x. P(x)", parse_formula("?x. P(x)").nnf());
+        assert_debug_string("! x. P(x)", parse_formula("!x. P(x)").nnf());
+        // sanity checking
+        assert_debug_string("FALSE", parse_formula("~TRUE").nnf());
+        assert_debug_string("TRUE", parse_formula("~FALSE").nnf());
+        assert_debug_string("P(x)", parse_formula("~~P(x)").nnf());
+        assert_debug_string("x = y", parse_formula("~~x = y").nnf());
+        assert_debug_string("(~P(x)) | (~Q(y))", parse_formula("~(P(x) & Q(y))").nnf());
+        assert_debug_string("(~P(x)) & (~Q(y))", parse_formula("~(P(x) | Q(y))").nnf());
+        assert_debug_string("P(x) & (~Q(y))", parse_formula("~(P(x) -> Q(y))").nnf());
+        assert_debug_string("(P(x) & (~Q(y))) | ((~P(x)) & Q(y))", parse_formula("~(P(x) <=> Q(y))").nnf());
+        assert_debug_string("((~P(x)) & (~Q(y))) | R(z)", parse_formula("(P(x) | Q(y)) -> R(z)").nnf());
+        assert_debug_string("(((~P(x)) & (~Q(y))) | R(z)) & ((P(x) | Q(y)) | (~R(z)))",
+                            parse_formula("(P(x) | Q(y)) <=> R(z)").nnf());
+        assert_debug_string("! x. (~P(x))", parse_formula("~?x. P(x)").nnf());
+        assert_debug_string("? x. (~P(x))", parse_formula("~!x. P(x)").nnf());
+        // recursive application
+        assert_debug_string("P(x) & Q(y)", parse_formula("~~P(x) & ~~Q(y)").nnf());
+        assert_debug_string("P(x) | Q(y)", parse_formula("~~P(x) | ~~Q(y)").nnf());
+        assert_debug_string("(~P(x)) | Q(y)", parse_formula("~~P(x) -> ~~Q(y)").nnf());
+        assert_debug_string("((~P(x)) | Q(y)) & (P(x) | (~Q(y)))", parse_formula("~~P(x) <=> ~~Q(y)").nnf());
+        assert_debug_string("? x. P(x)", parse_formula("?x. ~~P(x)").nnf());
+        assert_debug_string("! x. P(x)", parse_formula("!x. ~~P(x)").nnf());
+        assert_debug_string("~P(x)", parse_formula("~~~P(x)").nnf());
+        assert_debug_string("P(x) | Q(y)", parse_formula("~(~P(x) & ~Q(y))").nnf());
+        assert_debug_string("P(x) & Q(y)", parse_formula("~(~P(x) | ~Q(y))").nnf());
+        assert_debug_string("(~P(x)) & Q(y)", parse_formula("~(~P(x) -> ~Q(y))").nnf());
+        assert_debug_string("(P(x) & Q(x)) | (P(y) & Q(y))", parse_formula("~(~(P(x) & Q(x)) & ~(P(y) & Q(y)))").nnf());
+        assert_debug_string("(P(x) & Q(x)) & (P(y) & Q(y))", parse_formula("~(~(P(x) & Q(x)) | ~(P(y) & Q(y)))").nnf());
+        assert_debug_string("((~P(x)) | (~Q(x))) & (P(y) & Q(y))", parse_formula("~(~(P(x) & Q(x)) -> ~(P(y) & Q(y)))").nnf());
+        assert_debug_string("(((~P(x)) | (~Q(x))) & (P(y) & Q(y))) | ((P(x) & Q(x)) & ((~P(y)) | (~Q(y))))",
+                            parse_formula("~(~(P(x) & Q(x)) <=> ~(P(y) & Q(y)))").nnf());
+        assert_debug_string("! x. (? y. (P(x) & (~Q(y))))", parse_formula("~?x. !y. (P(x) -> Q(y))").nnf());
+        assert_debug_string("(! x. (~P(x))) | (? y. (~Q(y)))", parse_formula("~((?x. P(x)) & (!y. Q(y)))").nnf());
     }
 }
