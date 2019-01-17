@@ -31,8 +31,10 @@ const IFF: &str = "iff";
 const CHAR_DOUBLE_ARROW: &str = "<=>";
 const DOUBLE_ARROW: &str = "⇔";
 const EXISTS: &str = "exists";
+const QUESTION: &str = "?";
 const CHAR_EXISTS: &str = "∃";
 const FORALL: &str = "forall";
+const EXCLAMATION: &str = "!";
 const CHAR_FORALL: &str = "∀";
 const DOT: &str = ".";
 const SEMI_COLON: &str = ";";
@@ -258,10 +260,10 @@ named!(
                 alt!(
                     value!(
                         FORALL,
-                        alt!(tag!(FORALL) | tag!(CHAR_FORALL))
+                        alt!(tag!(FORALL) | tag!(EXCLAMATION) | tag!(CHAR_FORALL))
                     ) | value!(
                         EXISTS,
-                        alt!(tag!(EXISTS) | tag!(CHAR_EXISTS))
+                        alt!(tag!(EXISTS) | tag!(QUESTION) | tag!(CHAR_EXISTS))
                     )
                 )
             ) >>
@@ -281,7 +283,7 @@ named!(
 );
 
 named!(
-    formula<CompleteStr, Formula>,
+    pub formula<CompleteStr, Formula>,
     do_parse!(
         first: quantified >>
         second: fold_many0!(
@@ -313,7 +315,7 @@ named!(
 );
 
 named!(
-    theory<CompleteStr, Theory>,
+    pub theory<CompleteStr, Theory>,
     map!(
         many0!(
             terminated!(
@@ -338,8 +340,9 @@ mod test_parser {
         remaining: &str) {
         let parsed = parser(CompleteStr(parse_str));
         assert!(parsed.is_ok());
-        let (remaining, result) = parsed.unwrap();
-        assert_eq!(result, expected);
+        let (rem, res) = parsed.unwrap();
+        assert_eq!(expected, res);
+        assert_eq!(CompleteStr(remaining), rem);
     }
 
     fn success_to_string<R: ToString>(
@@ -601,6 +604,18 @@ mod test_parser {
         success_to_string(
             formula,
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            ""
+        );
+        success_to_string(
+            formula,
+            "! x. ? y. ((x = y) & ~P(y)) | (Q(x) -> R(y))",
+            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            ""
+        );
+        success_to_string(
+            formula,
+            "! x. (? y. (((x = y) & (~P(y))) | (Q(x) -> R(y))))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             ""
         );

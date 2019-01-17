@@ -7,6 +7,7 @@ pub trait Symbol {}
 
 /// ### Function
 /// Function symbols.
+#[derive(Clone)]
 pub struct Func {
     pub name: String,
 }
@@ -61,7 +62,7 @@ impl Symbol for Func {}
 
 /// ### Variable
 /// Variable symbols.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct V(pub String);
 
 impl V {
@@ -84,7 +85,7 @@ impl Symbol for V {}
 
 /// ### Constant
 /// Constant symbols.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct C(String);
 
 impl C {
@@ -107,7 +108,7 @@ impl Symbol for C {}
 
 /// ### Predicate
 /// Predicate symbols.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Pred(String);
 
 impl Pred {
@@ -153,6 +154,7 @@ impl fmt::Display for Pred {
 impl Symbol for Pred {}
 
 /// ## Term
+#[derive(Clone)]
 pub enum Term {
     /// ### Variable
     /// Variable term; e.g., `x`.
@@ -169,11 +171,6 @@ pub enum Term {
 }
 
 impl Term {
-    pub fn r#const(name: &str) -> Term {
-        Term::Const { constant: C::new(name) }
-    }
-
-    // TODO make free_vars lazy
     /// Returns a list of free variables in the term.
     /// * For efficiency reasons, `free_vars` returns references to the free variables in the term but it
     /// is supposed to eliminate duplicate variables.
@@ -222,6 +219,7 @@ impl PartialEq for Term {
 
 /// ## Formula
 /// A first order formula.
+#[derive(Clone)]
 pub enum Formula {
     /// ### Top
     /// Top (⊤) or Turth
@@ -334,15 +332,6 @@ pub fn forall5(first: V, second: V, third: V, fourth: V, fifth: V, formula: Form
 }
 
 impl Formula {
-    fn parens(&self) -> String {
-        match self {
-            Formula::Top => self.to_string(),
-            Formula::Bottom => self.to_string(),
-            Formula::Atom { .. } => self.to_string(),
-            _ => format!("({})", self),
-        }
-    }
-
     /// Returns the result of the conjunction between this formula and `formula`.
     pub fn and(self, formula: Formula) -> Formula {
         Formula::And { left: Box::new(self), right: Box::new(formula) }
@@ -412,6 +401,14 @@ impl Formula {
 
 impl fmt::Display for Formula {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fn parens(formula: &Formula) -> String {
+            match formula {
+                Formula::Top => formula.to_string(),
+                Formula::Bottom => formula.to_string(),
+                Formula::Atom { .. } => formula.to_string(),
+                _ => format!("({})", formula),
+            }
+        }
         match self {
             Formula::Top => write!(f, "{}", "⊤"),
             Formula::Bottom => write!(f, "{}", "⟘"),
@@ -420,18 +417,18 @@ impl fmt::Display for Formula {
                 write!(f, "{}({})", predicate.to_string(), ts.join(", "))
             }
             Formula::Equals { left, right } => write!(f, "{} = {}", left, right),
-            Formula::Not { formula } => write!(f, "¬{}", formula.parens()),
-            Formula::And { left, right } => write!(f, "{} ∧ {}", left.parens(), right.parens()),
-            Formula::Or { left, right } => write!(f, "{} ∨ {}", left.parens(), right.parens()),
-            Formula::Implies { left, right } => write!(f, "{} → {}", left.parens(), right.parens()),
-            Formula::Iff { left, right } => write!(f, "{} ⇔ {}", left.parens(), right.parens()),
+            Formula::Not { formula } => write!(f, "¬{}", parens(formula)),
+            Formula::And { left, right } => write!(f, "{} ∧ {}", parens(left), parens(right)),
+            Formula::Or { left, right } => write!(f, "{} ∨ {}", parens(left), parens(right)),
+            Formula::Implies { left, right } => write!(f, "{} → {}", parens(left), parens(right)),
+            Formula::Iff { left, right } => write!(f, "{} ⇔ {}", parens(left), parens(right)),
             Formula::Exists { variables, formula } => {
                 let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
-                write!(f, "∃ {}. {}", vs.join(", "), formula.parens())
+                write!(f, "∃ {}. {}", vs.join(", "), parens(formula))
             }
             Formula::Forall { variables, formula } => {
                 let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
-                write!(f, "∀ {}. {}", vs.join(", "), formula.parens())
+                write!(f, "∀ {}. {}", vs.join(", "), parens(formula))
             }
         }
     }
@@ -481,7 +478,6 @@ impl fmt::Display for Theory {
 #[cfg(test)]
 mod test_syntax {
     use super::*;
-    use super::Term::*;
     use super::Formula::*;
     use crate::test_prelude::*;
 
