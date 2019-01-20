@@ -7,7 +7,7 @@ pub trait Symbol {}
 
 /// ### Function
 /// Function symbols.
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash)]
 pub struct Func {
     pub name: String,
 }
@@ -154,7 +154,7 @@ impl fmt::Display for Pred {
 impl Symbol for Pred {}
 
 /// ## Term
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash)]
 pub enum Term {
     /// ### Variable
     /// Variable term; e.g., `x`.
@@ -219,7 +219,7 @@ impl PartialEq for Term {
 
 /// ## Formula
 /// A first order formula.
-#[derive(Clone)]
+#[derive(Clone, Eq, Hash)]
 pub enum Formula {
     /// ### Top
     /// Top (⊤) or Turth

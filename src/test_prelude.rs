@@ -253,3 +253,8 @@ pub fn parse_formula(string: &str) -> Formula {
 pub fn assert_debug_string<T: fmt::Debug>(expected: &str, value: T) {
     debug_assert_eq!(expected, format!("{:?}", value));
 }
+
+pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
+    let mut strings = value.iter().map(|v| format!("{:?}", v));
+    debug_assert_eq!(expected, strings.join("\n"));
+}

@@ -533,7 +533,7 @@ impl Formula {
         helper(self.pnf(), vec![], generator) // TODO: if we do substitution in place, helper doesn't have to create copies.
     }
 
-    /// ## Skolem Normal Form (SNF)
+    /// ## Negation Normal Form (SNF)
     /// A Negation Normal Form (NNF) is a formula where negation is only applied to its atomic
     /// (including equations) subformulas.
     /// `Formula.nnf()` returns an NNF equivalent to the given formula.
@@ -609,6 +609,243 @@ impl Formula {
                 formula: Box::new(formula.nnf()),
             }
         }
+    }
+
+    /// ## Conjunctive Normal Form (SNF)
+    /// A Conjunctive Normal Form (CNF) is a formula that is the conjunction of zero or more clauses.
+    /// A clause is a disjunction of atomic formulas (including equations). All of the variables
+    /// are assumed to be universally quantified.
+    /// `Formula.cnf()` returns a CNF equivalent to the given formula.
+    pub fn cnf(&self) -> Formula {
+        self.cnf_with(&mut SkolemGenerator::new())
+    }
+
+    /// `Formula.cnf_with(generator)` uses an existing `SkolemGenerator` to avoid collision in the
+    /// names of the Skolem function (and constant) for formulas in the same theory.
+    pub fn cnf_with(&self, generator: &mut SkolemGenerator) -> Formula {
+        // The following distributes conjunctions in the given formula. The function assumes that
+        // its input is an NNF.
+        fn distribute_or(formula: &Formula) -> Formula {
+            match formula {
+                Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(), // already NNF
+                And { left, right } => And {
+                    left: Box::new(distribute_or(left)),
+                    right: Box::new(distribute_or(right)),
+                },
+                Or { left, right } => {
+                    let left = distribute_or(left);
+                    let right = distribute_or(right);
+                    if let And { left: l, right: r } = left {
+                        let l = distribute_or(&Or {
+                            left: l,
+                            right: Box::new(right.clone()),
+                        });
+                        let r = distribute_or(&Or {
+                            left: r,
+                            right: Box::new(right.clone()),
+                        });
+                        And {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else if let And { left: l, right: r } = right {
+                        let l = distribute_or(&Or {
+                            left: Box::new(left.clone()),
+                            right: l,
+                        });
+                        let r = distribute_or(&Or {
+                            left: Box::new(left.clone()),
+                            right: r,
+                        });
+                        And {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else {
+                        Or { left: Box::new(left), right: Box::new(right) }
+                    }
+                }
+                Forall { variables, formula } => Forall {
+                    variables: variables.to_vec(),
+                    formula: Box::new(distribute_or(formula)),
+                },
+                _ => panic!("Internal Error: Expecting a formula in negation normal form.") // already NNF
+            }
+        }
+
+        // The following eliminates the existential quantifiers of the input formula.
+        fn remove_forall(formula: Formula) -> Formula {
+            if let Forall { variables: _, formula } = formula {
+                remove_forall(*formula)
+            } else {
+                formula
+            }
+        }
+
+        let nnf = self.snf_with(generator).nnf();
+        remove_forall(distribute_or(&nnf))
+    }
+
+    /// Applies syntactic transformations to simplify the input formula.
+    pub fn simplify(&self) -> Formula {
+        match self {
+            Top | Bottom | Atom { .. } | Equals { .. } => self.clone(),
+            Not { formula } => {
+                let formula = formula.simplify();
+                match formula {
+                    Top => Bottom,
+                    Bottom => Top,
+                    Not { formula } => formula.simplify(),
+                    _ => Not { formula: Box::new(formula) }
+                }
+            }
+            And { left, right } => {
+                let left = left.simplify();
+                let right = right.simplify();
+                if let Bottom = left {
+                    Bottom
+                } else if let Bottom = right {
+                    Bottom
+                } else if let Top = left {
+                    right
+                } else if let Top = right {
+                    left
+                } else {
+                    And { left: Box::new(left), right: Box::new(right) }
+                }
+            }
+            Or { left, right } => {
+                let left = left.simplify();
+                let right = right.simplify();
+                if let Top = left {
+                    Top
+                } else if let Top = right {
+                    Top
+                } else if let Bottom = left {
+                    right
+                } else if let Bottom = right {
+                    left
+                } else {
+                    Or { left: Box::new(left), right: Box::new(right) }
+                }
+            }
+            Implies { left, right } => {
+                let left = left.simplify();
+                let right = right.simplify();
+                if let Bottom = left {
+                    Top
+                } else if let Top = right {
+                    Top
+                } else if let Top = left {
+                    right
+                } else if let Bottom = right {
+                    Not { formula: Box::new(left) }.simplify()
+                } else {
+                    Implies { left: Box::new(left), right: Box::new(right) }
+                }
+            }
+            Iff { left, right } => {
+                let left = left.simplify();
+                let right = right.simplify();
+                if let Top = left {
+                    right
+                } else if let Top = right {
+                    left
+                } else if let Bottom = left {
+                    Not { formula: Box::new(right) }.simplify()
+                } else if let Bottom = right {
+                    Not { formula: Box::new(left) }.simplify()
+                } else {
+                    Iff { left: Box::new(left), right: Box::new(right) }
+                }
+            }
+            Exists { variables, formula } => {
+                let formula = formula.simplify();
+                let free_vars = formula.free_vars();
+                let vs: Vec<V> = free_vars.iter()
+                    .filter(|v| variables.contains(v))
+                    .map(|v| (*v).clone())
+                    .collect();
+                if vs.is_empty() {
+                    formula
+                } else {
+                    Exists { variables: vs, formula: Box::new(formula) }
+                }
+            }
+            Forall { variables, formula } => {
+                let formula = formula.simplify();
+                let free_vars = formula.free_vars();
+                let vs: Vec<V> = free_vars.iter()
+                    .filter(|v| variables.contains(v))
+                    .map(|v| (*v).clone())
+                    .collect();
+                if vs.is_empty() {
+                    formula
+                } else {
+                    Forall { variables: vs, formula: Box::new(formula) }
+                }
+            }
+            _ => self.clone()
+        }
+    }
+
+    /// ## Geometric Normal Form (GNF)
+    /// `Formula.gnf()` returns a list of formulas in GNF, equivalent to the given formula.
+    /// (see https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf)
+    fn gnf(&self) -> Vec<Formula> {
+        self.gnf_with(&mut SkolemGenerator::new())
+    }
+
+    /// `Formula.gnf_with(generator)` uses an existing `SkolemGenerator` to avoid collision in the
+    /// names of the Skolem function (and constant) for formulas in the same theory.
+    fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
+        use itertools::Itertools;
+        // For any disjunct of the CNF, the negative literals form the body of the geometric form
+        // and the positive literals form the head of the geometric form:
+        fn split_sids(disjunct: Formula) -> (Vec<Formula>, Vec<Formula>) {
+            match disjunct {
+                Or { left, right } => {
+                    let (mut left_body, mut left_head) = split_sids(*left);
+                    let (mut right_body, mut right_head) = split_sids(*right);
+                    left_body.append(&mut right_body);
+                    let body: Vec<Formula> = left_body.into_iter().unique().collect();
+                    left_head.append(&mut right_head);
+                    let head: Vec<Formula> = left_head.into_iter().unique().collect();
+                    (body, head)
+                }
+                Not { formula } => (vec![*formula], vec![]),
+                _ => (vec![], vec![disjunct])
+            }
+        }
+
+        // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
+        fn to_implication(disjunct: Formula) -> Formula {
+            let (body, head) = split_sids(disjunct);
+            let body = body.into_iter().fold(Top, |x, y| And {
+                left: Box::new(x),
+                right: Box::new(y),
+            }).simplify();
+            let head = head.into_iter().fold(Bottom, |x, y| Or {
+                left: Box::new(x),
+                right: Box::new(y),
+            }).simplify();
+            return Implies { left: Box::new(body), right: Box::new(head) };
+        }
+
+        // Split the CNF to a set of disjuncts.
+        fn get_disjuncts(cnf: Formula) -> Vec<Formula> {
+            match cnf {
+                And { left, right } => {
+                    let mut left = get_disjuncts(*left);
+                    let mut right = get_disjuncts(*right);
+                    left.append(&mut right);
+                    left.into_iter().unique().collect()
+                }
+                _ => vec![cnf]
+            }
+        }
+
+        get_disjuncts(self.cnf_with(generator)).into_iter().map(to_implication).collect()
     }
 }
 
@@ -1400,5 +1637,165 @@ mod test_transform {
                             parse_formula("~(~(P(x) & Q(x)) <=> ~(P(y) & Q(y)))").nnf());
         assert_debug_string("! x. (? y. (P(x) & (~Q(y))))", parse_formula("~?x. !y. (P(x) -> Q(y))").nnf());
         assert_debug_string("(! x. (~P(x))) | (? y. (~Q(y)))", parse_formula("~((?x. P(x)) & (!y. Q(y)))").nnf());
+    }
+
+    #[test]
+    fn test_cnf() {
+        assert_debug_string("TRUE", parse_formula("TRUE").cnf());
+        assert_debug_string("FALSE", parse_formula("FALSE").cnf());
+        assert_debug_string("P(f(), g(f(), f()))", parse_formula("P(f(), g(f(), f()))").cnf());
+        assert_debug_string("P(x)", parse_formula("P(x)").cnf());
+        assert_debug_string("x = y", parse_formula("x=y").cnf());
+        assert_debug_string("P(x) & Q(y)", parse_formula("P(x) & Q(y)").cnf());
+        assert_debug_string("P(x) | Q(y)", parse_formula("P(x) | Q(y)").cnf());
+        assert_debug_string("(~P(x)) | Q(y)", parse_formula("P(x) -> Q(y)").cnf());
+        assert_debug_string("((~P(x)) | Q(y)) & ((~Q(y)) | P(x))", parse_formula("P(x) <=> Q(y)").cnf());
+        assert_debug_string("P(x)", parse_formula("!x. P(x)").cnf());
+        assert_debug_string("P(f(), g(f(), x))", parse_formula("!x. P(f(), g(f(), x))").cnf());
+        // quantifier-free formulas
+        assert_debug_string("((~P(x1)) | (~Q(y))) & ((~P(x2)) | (~Q(y)))",
+                            parse_formula("~((P(x1) | P(x2)) and Q(y))").cnf());
+        assert_debug_string("(P(x) | Q(x)) & (P(x) | (~Q(y)))",
+                            parse_formula("P(x) | ~(Q(x) -> Q(y))").cnf());
+        assert_debug_string("((~P(x)) | R(z)) & ((~Q(y)) | R(z))",
+                            parse_formula("(P(x) | Q(y)) -> R(z)").cnf());
+        assert_debug_string("((P(x) | (Q(x) | Q(y))) & (P(x) | (Q(x) | (~Q(x))))) & ((P(x) | ((~Q(y)) | Q(y))) & (P(x) | ((~Q(y)) | (~Q(x)))))",
+                            parse_formula("P(x) | ~(Q(x) <=> Q(y))").cnf());
+        assert_debug_string("(((~P(x)) | R(z)) & ((~Q(y)) | R(z))) & ((~R(z)) | (P(x) | Q(y)))",
+                            parse_formula("(P(x) | Q(y)) <=> R(z)").cnf());
+        assert_debug_string("(P(x) | (Q(x) | R(y))) & (P(x) | (Q(x) | R(z)))",
+                            parse_formula("P(x) | (Q(x) | (R(y) & R(z)))").cnf());
+        assert_debug_string("((P(x1) | Q(x1)) & (P(x1) | Q(x2))) & ((P(x2) | Q(x1)) & (P(x2) | Q(x2)))",
+                            parse_formula("(P(x1) & P(x2)) | (Q(x1) & Q(x2))").cnf());
+        //random formulas
+        assert_debug_string("P('sk#0)", parse_formula("?x. P(x)").cnf());
+        assert_debug_string("P('sk#0) & Q(f(), 'sk#0)", parse_formula("?x. (P(x) & Q(f(), x))").cnf());
+        assert_debug_string("((~P(y)) | (~Q(x, y))) | R(x)",
+                            parse_formula("!x. ((? y. P(y) & Q(x, y))  -> R(x))").cnf());
+        assert_debug_string("(~P(x)) | ((~Q(y)) | (~R(x, y)))",
+                            parse_formula("!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))").cnf());
+        assert_debug_string("((~P(y, sk#0(y))) | Q(y)) & ((~Q(sk#0(y))) | Q(y))",
+                            parse_formula("!y. (!x. (P(y, x) | Q(x)) -> Q(y))").cnf());
+        assert_debug_string("P('sk#0, 'sk#1)", parse_formula("?x. ?y. P(x, y)").cnf());
+        assert_debug_string("P('sk#0, 'sk#1)", parse_formula("?x, y. P(x, y)").cnf());
+        assert_debug_string("P(x, sk#0(x))", parse_formula("!x. ?y. P(x, y)").cnf());
+        assert_debug_string("((~R(z)) | P('sk#0, x)) & (((~R(z)) | (~Q(u`, x`, y))) & ((~R(z)) | (~(w = f(u`)))))",
+                            parse_formula("R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))").cnf());
+        assert_debug_string("(P(sk#0(x)) | Q(sk#1(x), x)) & ((~Q(x, sk#0(x))) | Q(sk#1(x), x))",
+                            parse_formula("!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))").cnf());
+        assert_debug_string("P('sk#0) & (((~Q('sk#0, y)) | (y = z)) | (~Q('sk#0, z)))",
+                            parse_formula("?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))").cnf());
+        assert_debug_string("((~P(x)) | ((~P(y)) | P(f(x, y)))) & (((~P(x)) | Q(x, sk#0(x, y))) & ((~P(x)) | (~P(sk#0(x, y)))))",
+                            parse_formula("!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))").cnf());
+    }
+
+    #[test]
+    fn test_simplify() {
+        assert_debug_string("FALSE", parse_formula("~TRUE").simplify());
+        assert_debug_string("TRUE", parse_formula("~FALSE").simplify());
+        assert_debug_string("~P(x)", parse_formula("~P(x)").simplify());
+        assert_debug_string("TRUE", parse_formula("TRUE & TRUE").simplify());
+        assert_debug_string("FALSE", parse_formula("FALSE & FALSE").simplify());
+        assert_debug_string("FALSE", parse_formula("FALSE & TRUE").simplify());
+        assert_debug_string("FALSE", parse_formula("TRUE & FALSE").simplify());
+        assert_debug_string("P(x)", parse_formula("P(x) & TRUE").simplify());
+        assert_debug_string("FALSE", parse_formula("FALSE & P(x)").simplify());
+        assert_debug_string("FALSE", parse_formula("P(x) & FALSE").simplify());
+        assert_debug_string("P(x)", parse_formula("TRUE & P(x)").simplify());
+        assert_debug_string("P(x) & Q(x)", parse_formula("P(x) & Q(x)").simplify());
+        assert_debug_string("TRUE", parse_formula("TRUE | TRUE").simplify());
+        assert_debug_string("FALSE", parse_formula("FALSE | FALSE").simplify());
+        assert_debug_string("TRUE", parse_formula("FALSE | TRUE").simplify());
+        assert_debug_string("TRUE", parse_formula("TRUE | FALSE").simplify());
+        assert_debug_string("TRUE", parse_formula("P(x) | TRUE").simplify());
+        assert_debug_string("P(x)", parse_formula("FALSE | P(x)").simplify());
+        assert_debug_string("P(x)", parse_formula("P(x) | FALSE").simplify());
+        assert_debug_string("TRUE", parse_formula("TRUE | P(x)").simplify());
+        assert_debug_string("P(x) | Q(x)", parse_formula("P(x) | Q(x)").simplify());
+        assert_debug_string("TRUE", parse_formula("TRUE -> TRUE").simplify());
+        assert_debug_string("TRUE", parse_formula("FALSE -> FALSE").simplify());
+        assert_debug_string("TRUE", parse_formula("FALSE -> TRUE").simplify());
+        assert_debug_string("FALSE", parse_formula("TRUE -> FALSE").simplify());
+        assert_debug_string("TRUE", parse_formula("P(x) -> TRUE").simplify());
+        assert_debug_string("TRUE", parse_formula("FALSE -> P(x)").simplify());
+        assert_debug_string("~P(x)", parse_formula("P(x) -> FALSE").simplify());
+        assert_debug_string("P(x)", parse_formula("TRUE -> P(x)").simplify());
+        assert_debug_string("P(x) -> Q(x)", parse_formula("P(x) -> Q(x)").simplify());
+        assert_debug_string("TRUE", parse_formula("TRUE <=> TRUE").simplify());
+        assert_debug_string("TRUE", parse_formula("FALSE <=> FALSE").simplify());
+        assert_debug_string("FALSE", parse_formula("FALSE <=> TRUE").simplify());
+        assert_debug_string("FALSE", parse_formula("TRUE <=> FALSE").simplify());
+        assert_debug_string("P(x)", parse_formula("P(x) <=> TRUE").simplify());
+        assert_debug_string("~P(x)", parse_formula("FALSE <=> P(x)").simplify());
+        assert_debug_string("~P(x)", parse_formula("P(x) <=> FALSE").simplify());
+        assert_debug_string("P(x)", parse_formula("TRUE <=> P(x)").simplify());
+        assert_debug_string("P(x) <=> Q(x)", parse_formula("P(x) <=> Q(x)").simplify());
+        assert_debug_string("? y. P(y, z)", parse_formula("?x, y. P(y, z)").simplify());
+        assert_debug_string("? x. P(x)", parse_formula("?x. P(x)").simplify());
+        assert_debug_string("P(y)", parse_formula("?x. P(y)").simplify());
+        assert_debug_string("! y. P(y, z)", parse_formula("!x, y. P(y, z)").simplify());
+        assert_debug_string("! x. P(x)", parse_formula("!x. P(x)").simplify());
+        assert_debug_string("P(y)", parse_formula("!x. P(y)").simplify());
+        // random formulas
+        assert_debug_string("P(x)", parse_formula("~~P(x)").simplify());
+        assert_debug_string("~P(x)", parse_formula("~~~P(x)").simplify());
+        assert_debug_string("TRUE", parse_formula("~(TRUE -> FALSE)").simplify());
+        assert_debug_string("P(x)", parse_formula("FALSE | (P(x) & TRUE)").simplify());
+        assert_debug_string("TRUE", parse_formula("?x. P(x) | TRUE").simplify());
+        assert_debug_string("~P(x)", parse_formula("?y. (P(x) -> FALSE) & (FALSE -> Q(x))").simplify());
+        assert_debug_string("TRUE", parse_formula("!x. ?y. P(x, y) | TRUE").simplify());
+        assert_debug_string("x = y", parse_formula("(((x = y -> FALSE) -> FALSE) -> FALSE) -> FALSE").simplify());
+        assert_debug_string("! x. (P(x) | (w = x))", parse_formula("!x, y, z. ?z. P(x) | w = x").simplify());
+        assert_debug_string("TRUE", parse_formula("(P(x) | FALSE) | (P(x) | TRUE)").simplify());
+        assert_debug_string("FALSE", parse_formula("(P(x) & FALSE) & (P(x) & TRUE)").simplify());
+    }
+
+    #[test]
+    fn test_gnf() {
+        assert_debug_strings("TRUE -> TRUE", parse_formula("TRUE").gnf());
+        assert_debug_strings("TRUE -> FALSE", parse_formula("FALSE").gnf());
+        assert_debug_strings("TRUE -> P(x)", parse_formula("P(x)").gnf());
+        assert_debug_strings("TRUE -> (x = y)", parse_formula("x = y").gnf());
+        assert_debug_strings("P(x) -> FALSE", parse_formula("~P(x)").gnf());
+        assert_debug_strings("P(x) -> Q(x)", parse_formula("P(x) -> Q(x)").gnf());
+        assert_debug_strings("TRUE -> P(x)\n\
+        TRUE -> Q(x)", parse_formula("P(x) & Q(x)").gnf());
+        assert_debug_strings("TRUE -> (P(x) | Q(x))", parse_formula("P(x) | Q(x)").gnf());
+        assert_debug_strings("TRUE -> P(x)", parse_formula("! x. P(x)").gnf());
+        assert_debug_strings("TRUE -> P('sk#0)", parse_formula("? x. P(x)").gnf());
+        assert_debug_strings("(P(x) & Q(x)) -> (P(y) | Q(y))", parse_formula("P(x) & Q(x) -> P(y) | Q(y)").gnf());
+        assert_debug_strings("P(x) -> P(y)\n\
+        P(x) -> Q(y)\n\
+        Q(x) -> P(y)\n\
+        Q(x) -> Q(y)", parse_formula("P(x) | Q(x) -> P(y) & Q(y)").gnf());
+        assert_debug_strings("P(x) -> P(y)\n\
+        P(x) -> Q(y)\n\
+        Q(x) -> P(y)\n\
+        Q(x) -> Q(y)\n\
+        (P(y) & Q(y)) -> (P(x) | Q(x))", parse_formula("P(x) | Q(x) <=> P(y) & Q(y)").gnf());
+        assert_debug_strings("P(x) -> Q(x, sk#0(x))", parse_formula("!x. (P(x) -> ?y. Q(x,y))").gnf());
+        assert_debug_strings("P(x) -> (Q(sk#0(x)) | P(sk#1(x)))\n\
+        P(x) -> (Q(sk#0(x)) | S(x, sk#1(x)))\n\
+        P(x) -> (R(x, sk#0(x)) | P(sk#1(x)))\n\
+        P(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))",
+                             parse_formula("!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))").gnf());
+        assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)",
+                             parse_formula("!x, y. ((P(x) & Q(y)) -> (R(x, y) -> S(x, y)))").gnf());
+        assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)\n\
+        ((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n\
+        TRUE -> ((R(x, y) | S(x, y)) | P(x))\n\
+        TRUE -> ((R(x, y) | S(x, y)) | Q(y))\n\
+        R(x, y) -> (R(x, y) | P(x))\n\
+        R(x, y) -> (R(x, y) | Q(y))\n\
+        S(x, y) -> (S(x, y) | P(x))\n\
+        S(x, y) -> (S(x, y) | Q(y))\n\
+        (S(x, y) & R(x, y)) -> P(x)\n\
+        (S(x, y) & R(x, y)) -> Q(y)", parse_formula("!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))").gnf());
+        assert_debug_strings("P(x`) -> Q(x)",
+                             parse_formula("? x. P(x) -> Q(x)").gnf());
+        assert_debug_strings("P('sk#0) -> Q('sk#0)",
+                             parse_formula("? x. (P(x) -> Q(x))").gnf());
+        assert_debug_strings("TRUE -> TRUE",
+                             parse_formula("FALSE -> P(x)").gnf());
     }
 }
