@@ -1,6 +1,7 @@
 use std::fmt;
 use itertools::Itertools;
 use crate::formula::syntax::*;
+use crate::chase::chase::*;
 
 // Variables
 pub fn _u() -> V { V::new("u") }
@@ -10,24 +11,26 @@ pub fn _v() -> V { V::new("v") }
 pub fn _w() -> V { V::new("w") }
 
 pub fn _x() -> V { V::new("x") }
+
 pub fn _x_1() -> V { V::new("x`") }
 
 pub fn _y() -> V { V::new("y") }
 
 pub fn _z() -> V { V::new("z") }
 
-pub fn u() -> Term { V::new("u").var() }
+pub fn u() -> Term { V::new("u").into() }
 
-pub fn v() -> Term { V::new("v").var() }
+pub fn v() -> Term { V::new("v").into() }
 
-pub fn w() -> Term { V::new("w").var() }
+pub fn w() -> Term { V::new("w").into() }
 
-pub fn x() -> Term { V::new("x").var() }
-pub fn x_1() -> Term { V::new("x`").var() }
+pub fn x() -> Term { V::new("x").into() }
 
-pub fn y() -> Term { V::new("y").var() }
+pub fn x_1() -> Term { V::new("x`").into() }
 
-pub fn z() -> Term { V::new("z").var() }
+pub fn y() -> Term { V::new("y").into() }
+
+pub fn z() -> Term { V::new("z").into() }
 
 // Functions
 pub fn f() -> Func { Func::new("f") }
@@ -43,11 +46,36 @@ pub fn _b() -> C { C::new("b") }
 
 pub fn _c() -> C { C::new("c") }
 
-pub fn a() -> Term { C::new("a").r#const() }
+pub fn _d() -> C { C::new("d") }
 
-pub fn b() -> Term { C::new("b").r#const() }
+pub fn a() -> Term { C::new("a").into() }
 
-pub fn c() -> Term { C::new("c").r#const() }
+pub fn b() -> Term { C::new("b").into() }
+
+pub fn c() -> Term { C::new("c").into() }
+
+// Elements
+pub fn e_0() -> E { E::new(0) }
+
+pub fn e_1() -> E { E::new(1) }
+
+pub fn e_2() -> E { E::new(2) }
+
+// Witness Elements
+pub fn _e_0() -> WitnessTerm { e_0().into() }
+
+pub fn _e_1() -> WitnessTerm { e_1().into() }
+
+pub fn _e_2() -> WitnessTerm { e_2().into() }
+
+// Witness Constants
+pub fn _a_() -> WitnessTerm { WitnessTerm::Const { constant: _a() } }
+
+pub fn _b_() -> WitnessTerm { WitnessTerm::Const { constant: _b() } }
+
+pub fn _c_() -> WitnessTerm { WitnessTerm::Const { constant: _c() } }
+
+pub fn _d_() -> WitnessTerm { WitnessTerm::Const { constant: _d() } }
 
 // Predicates
 //noinspection RsFunctionNaming
@@ -58,6 +86,16 @@ pub fn Q() -> Pred { Pred::new("Q") }
 
 //noinspection RsFunctionNaming
 pub fn R() -> Pred { Pred::new("R") }
+
+// Relations
+//noinspection RsFunctionNaming
+pub fn _P_() -> Rel { Rel::new("P") }
+
+//noinspection RsFunctionNaming
+pub fn _Q_() -> Rel { Rel::new("Q") }
+
+//noinspection RsFunctionNaming
+pub fn _R_() -> Rel { Rel::new("R") }
 
 
 impl PartialOrd for V {
@@ -85,6 +123,12 @@ impl fmt::Debug for C {
 }
 
 impl fmt::Debug for Func {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl fmt::Debug for E {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_string())
     }
@@ -235,6 +279,24 @@ impl fmt::Debug for Term {
 }
 
 impl fmt::Debug for Pred {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl fmt::Debug for WitnessTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl fmt::Debug for Rel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_string())
+    }
+}
+
+impl fmt::Debug for Observation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_string())
     }

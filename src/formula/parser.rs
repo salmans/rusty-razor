@@ -131,10 +131,10 @@ named!(
                     ws!(tag!(L_PAREN))
                 )
             ),
-            |v| v.var()
+            |v| v.into()
         ) | map!(  // constant
             r#const,
-            |c| c.r#const()
+            |c| c.into()
         ) | map!( // complex term
             pair!(
                 func,
