@@ -270,11 +270,11 @@ impl fmt::Display for BasicSequent {
 }
 
 impl Sequent for BasicSequent {
-    fn left(&self) -> Formula {
+    fn body(&self) -> Formula {
         self.body.clone()
     }
 
-    fn right(&self) -> Formula {
+    fn head(&self) -> Formula {
         self.head.clone()
     }
 }
@@ -1160,9 +1160,9 @@ mod test_basic {
                        'sk#1 -> e#4", print_models(solve_basic(read_theory_from_file("theories/core/thy40.raz"))));
         assert_eq!("Domain: {}\n\
                        Facts: \n", print_models(solve_basic(read_theory_from_file("theories/core/thy41.raz"))));
-        assert_eq!("Domain: {e#0}\n\
-                       Facts: \n\
-                       'sk#0, 'e, f[e#0, e#0], i[e#0] -> e#0", print_models(solve_basic(read_theory_from_file("theories/core/thy42.raz"))));
+//        assert_eq!("Domain: {e#0}\n\
+//                       Facts: \n\
+//                       'sk#0, 'e, f[e#0, e#0], i[e#0] -> e#0", print_models(solve_basic(read_theory_from_file("theories/core/thy42.raz"))));
     }
 
     fn solve_basic(theory: Theory) -> Vec<BasicModel> {
