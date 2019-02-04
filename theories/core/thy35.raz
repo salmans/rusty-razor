@@ -1,0 +1,20 @@
+TRUE -> (exists x . P(x));
+P(x) ->  (exists x . P1(x) ) | (exists x . P2(x));
+
+P1(x) ->  (exists x . P11(x) ) | (exists x . P12(x));
+P2(x) ->  (exists x . P21(x) ) | (exists x . P22(x));
+
+P11(x) ->  (exists x . P111(x) ) | (exists x . P112(x));
+P12(x) ->  (exists x . P121(x) ) | (exists x . P122(x));
+P21(x) ->  (exists x . P211(x) ) | (exists x . P212(x));
+P22(x) ->  (exists x . P221(x) ) | (exists x . P222(x));
+
+P111(x) ->  (exists x . P1111(x) ) | (exists x . P1112(x));
+P112(x) ->  (exists x . P1121(x) ) | (exists x . P1122(x));
+P121(x) ->  (exists x . P1211(x) ) | (exists x . P1212(x));
+P122(x) ->  (exists x . P1221(x) ) | (exists x . P1222(x));
+
+P211(x) ->  (exists x . P2111(x) ) | (exists x . P2112(x));
+P212(x) ->  (exists x . P2121(x) ) | (exists x . P2122(x));
+P221(x) ->  (exists x . P2211(x) ) | (exists x . P2212(x));
+P222(x) ->  (exists x . P2221(x) ) | (exists x . P2222(x));

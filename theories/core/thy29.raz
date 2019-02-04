@@ -1,0 +1,4 @@
+P() or Q();
+Q() -> R() or S();
+R() -> T() and V() or U() and V();
+S() -> W() or X() or Y();

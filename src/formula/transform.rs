@@ -791,13 +791,13 @@ impl Formula {
     /// ## Geometric Normal Form (GNF)
     /// `Formula.gnf()` returns a list of formulas in GNF, equivalent to the given formula.
     /// (see https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf)
-    fn gnf(&self) -> Vec<Formula> {
+    pub fn gnf(&self) -> Vec<Formula> {
         self.gnf_with(&mut SkolemGenerator::new())
     }
 
     /// `Formula.gnf_with(generator)` uses an existing `SkolemGenerator` to avoid collision in the
     /// names of the Skolem function (and constant) for formulas in the same theory.
-    fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
+    pub fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
         use itertools::Itertools;
         // For any disjunct of the CNF, the negative literals form the body of the geometric form
         // and the positive literals form the head of the geometric form:
@@ -848,11 +848,22 @@ impl Formula {
     }
 }
 
+impl Theory {
+    /// ## Geometric Normal Form (GNF)
+    /// `Theory.gnf()` transforms the given theory to a geometric theory (with all formulas in
+    /// geometric normal form).
+    pub fn gnf(&self) -> Theory {
+        let formulas: Vec<Formula> = self.formulas.iter().flat_map(|f| f.gnf()).collect();
+        Theory::new(formulas)
+    }
+}
+
 #[cfg(test)]
 mod test_transform {
     use super::*;
     use crate::test_prelude::*;
     use std::collections::HashMap;
+    use crate::formula::parser::parse_formula;
 
     #[test]
     fn test_substitution_map() {

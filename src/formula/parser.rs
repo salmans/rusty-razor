@@ -327,6 +327,14 @@ named!(
     )
 );
 
+pub fn parse_formula(string: &str) -> Formula {
+    formula(CompleteStr(string)).ok().unwrap().1
+}
+
+pub fn parse_theory(string: &str) -> Theory {
+    theory(CompleteStr(string)).ok().unwrap().1
+}
+
 #[cfg(test)]
 mod test_parser {
     use super::*;

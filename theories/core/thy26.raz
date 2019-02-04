@@ -1,0 +1,1 @@
+exists x . P(x) | exists x . P(x);

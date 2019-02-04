@@ -1,0 +1,4 @@
+TRUE -> exists a . Q(f(a));
+Q(f(x)) -> R(x,f(x));
+Q(x) -> R(x, f(f(x)));
+R(x, f(f(x))) -> exists b . S(b) & P(x);

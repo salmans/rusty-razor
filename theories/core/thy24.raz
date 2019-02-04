@@ -1,0 +1,6 @@
+exists w, x, y, z . P(w) & Q(x) & R(y) & S(z);
+
+P(x) & S(x) -> T(x);
+P(x) & Q(y) -> x = y;
+R(x) & S(y) -> x = y;
+Q(x) & R(y) -> x = y;

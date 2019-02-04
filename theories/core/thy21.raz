@@ -1,0 +1,2 @@
+f(f(f(f(f(f(f(f(f(f('a)))))))))) = 'b;
+f(x0) = x1 and f(x1) = x2 implies P(x0);
