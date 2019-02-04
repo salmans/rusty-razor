@@ -3,6 +3,9 @@ use itertools::Itertools;
 use crate::formula::syntax::*;
 use crate::chase::chase::*;
 use crate::chase::r#impl::basic::*;
+use crate::formula::parser::parse_theory;
+use std::fs::File;
+use std::io::Read;
 
 // Variables
 pub fn _u() -> V { V::new("u") }
@@ -344,6 +347,16 @@ pub fn assert_debug_string<T: fmt::Debug>(expected: &str, value: T) {
 pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
     let mut strings = value.iter().map(|v| format!("{:?}", v));
     debug_assert_eq!(expected, strings.join("\n"));
+}
+
+pub fn read_theory_from_file(filename: &str) -> Theory {
+    let mut f = File::open(filename).expect("file not found");
+
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)
+        .expect("something went wrong reading the file");
+
+    parse_theory(contents.as_str())
 }
 
 pub fn print_models<M: Model>(models: Vec<M>) -> String {

@@ -853,7 +853,8 @@ impl Theory {
     /// `Theory.gnf()` transforms the given theory to a geometric theory (with all formulas in
     /// geometric normal form).
     pub fn gnf(&self) -> Theory {
-        let formulas: Vec<Formula> = self.formulas.iter().flat_map(|f| f.gnf()).collect();
+        let mut generator = SkolemGenerator::new();
+        let formulas: Vec<Formula> = self.formulas.iter().flat_map(|f| f.gnf_with(&mut generator)).collect();
         Theory::new(formulas)
     }
 }
