@@ -11,7 +11,7 @@ use std::collections::HashMap;
 fn substitution_map<'t>(sub: &'t HashMap<&V, Term>) -> impl Fn(&V) -> Term + 't {
     move |v: &V| {
         let lookup = sub.get(v);
-        if let Some(t) = lookup { (*t).clone() } else { (*v).clone().var() }
+        if let Some(t) = lookup { (*t).clone() } else { (*v).clone().into() }
     }
 }
 
@@ -516,9 +516,9 @@ impl Formula {
                     let mut map: HashMap<&V, Term> = HashMap::new();
                     variables.iter().for_each(|v| {
                         if skolem_vars.is_empty() {
-                            map.insert(&v, C::new(&generator.next()).r#const());
+                            map.insert(&v, C::new(&generator.next()).into());
                         } else {
-                            let vars: Vec<Term> = skolem_vars.iter().map(|v| v.clone().var()).collect();
+                            let vars: Vec<Term> = skolem_vars.iter().map(|v| v.clone().into()).collect();
                             map.insert(&v, Func::new(&generator.next()).app(vars));
                         }
                     });
@@ -785,20 +785,19 @@ impl Formula {
                     Forall { variables: vs, formula: Box::new(formula) }
                 }
             }
-            _ => self.clone()
         }
     }
 
     /// ## Geometric Normal Form (GNF)
     /// `Formula.gnf()` returns a list of formulas in GNF, equivalent to the given formula.
     /// (see https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf)
-    fn gnf(&self) -> Vec<Formula> {
+    pub fn gnf(&self) -> Vec<Formula> {
         self.gnf_with(&mut SkolemGenerator::new())
     }
 
     /// `Formula.gnf_with(generator)` uses an existing `SkolemGenerator` to avoid collision in the
     /// names of the Skolem function (and constant) for formulas in the same theory.
-    fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
+    pub fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
         use itertools::Itertools;
         // For any disjunct of the CNF, the negative literals form the body of the geometric form
         // and the positive literals form the head of the geometric form:
@@ -849,11 +848,23 @@ impl Formula {
     }
 }
 
+impl Theory {
+    /// ## Geometric Normal Form (GNF)
+    /// `Theory.gnf()` transforms the given theory to a geometric theory (with all formulas in
+    /// geometric normal form).
+    pub fn gnf(&self) -> Theory {
+        let mut generator = SkolemGenerator::new();
+        let formulas: Vec<Formula> = self.formulas.iter().flat_map(|f| f.gnf_with(&mut generator)).collect();
+        Theory::new(formulas)
+    }
+}
+
 #[cfg(test)]
 mod test_transform {
     use super::*;
     use crate::test_prelude::*;
     use std::collections::HashMap;
+    use crate::formula::parser::parse_formula;
 
     #[test]
     fn test_substitution_map() {
@@ -937,61 +948,61 @@ mod test_transform {
 
     #[test]
     fn test_substitute_term() {
-        assert_eq!(x(), x().substitute(&|v: &V| v.clone().var()));
+        assert_eq!(x(), x().substitute(&|v: &V| v.clone().into()));
         assert_eq!(a(), a().substitute(&|v: &V| {
             if *v == _x() {
                 y()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(y(), x().substitute(&|v: &V| {
             if *v == _x() {
                 y()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(a(), x().substitute(&|v: &V| {
             if *v == _x() {
                 a()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(f().app1(z()), x().substitute(&|v: &V| {
             if *v == _x() {
                 f().app1(z())
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(x(), x().substitute(&|v: &V| {
             if *v == _y() {
                 z()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(f().app1(y()), f().app1(x()).substitute(&|v: &V| {
             if *v == _x() {
                 y()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(f().app1(g().app1(h().app2(y(), z()))), f().app1(x()).substitute(&|v: &V| {
             if *v == _x() {
                 g().app1(h().app2(y(), z()))
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(f().app1(x()), f().app1(x()).substitute(&|v: &V| {
             if *v == _y() {
                 z()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(f().app2(g().app1(z()), h().app2(z(), y())),
@@ -1001,7 +1012,7 @@ mod test_transform {
                        } else if *v == _y() {
                            h().app2(z(), y())
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(f().app2(f().app1(f().app0()), g().app2(f().app1(f().app0()), h().app1(z()))),
@@ -1011,7 +1022,7 @@ mod test_transform {
                        } else if *v == _y() {
                            z()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(f().app2(f().app1(a()), g().app2(f().app1(a()), h().app1(z()))),
@@ -1021,7 +1032,7 @@ mod test_transform {
                        } else if *v == _y() {
                            z()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
     }
@@ -1166,14 +1177,14 @@ mod test_transform {
             if *v == _x() {
                 y()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(Bottom, Bottom.substitute(&|v: &V| {
             if *v == _x() {
                 y()
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(f().app1(g().app1(z())).equals(g().app1(f().app1(z()))), x().equals(y()).substitute(&|v: &V| {
@@ -1182,21 +1193,21 @@ mod test_transform {
             } else if *v == _y() {
                 g().app1(f().app1(z()))
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(P().app1(h().app1(y())), P().app1(x()).substitute(&|v: &V| {
             if *v == _x() {
                 h().app1(y())
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(P().app1(g().app1(g().app1(x()))), P().app1(x()).substitute(&|v: &V| {
             if *v == _x() {
                 g().app1(g().app1(x()))
             } else {
-                v.clone().var()
+                v.clone().into()
             }
         }));
         assert_eq!(P().app3(y(), f().app1(z()), y()),
@@ -1206,7 +1217,7 @@ mod test_transform {
                        } else if *v == _y() {
                            f().app1(z())
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(not(P().app3(h().app0(), z(), h().app0())),
@@ -1216,7 +1227,7 @@ mod test_transform {
                        } else if *v == _y() {
                            z()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(P().app1(f().app1(g().app0())).and(Q().app1(h().app1(z()))),
@@ -1226,7 +1237,7 @@ mod test_transform {
                        } else if *v == _y() {
                            h().app1(z())
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(P().app1(f().app1(g().app0())).or(Q().app1(h().app1(z()))),
@@ -1236,7 +1247,7 @@ mod test_transform {
                        } else if *v == _y() {
                            h().app1(z())
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(P().app1(f().app0()).implies(Q().app1(g().app0())),
@@ -1246,7 +1257,7 @@ mod test_transform {
                        } else if *v == _y() {
                            g().app0()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(P().app1(a()).implies(Q().app1(b())),
@@ -1256,7 +1267,7 @@ mod test_transform {
                        } else if *v == _y() {
                            b()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(P().app1(f().app0()).iff(Q().app1(g().app0())),
@@ -1266,7 +1277,7 @@ mod test_transform {
                        } else if *v == _y() {
                            g().app0()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(P().app1(a()).iff(Q().app1(b())),
@@ -1276,7 +1287,7 @@ mod test_transform {
                        } else if *v == _y() {
                            b()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(exists2(_x(), _y(), P().app3(f().app1(g().app1(y())), y(), y())),
@@ -1286,7 +1297,7 @@ mod test_transform {
                        } else if *v == _z() {
                            y()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(forall2(_x(), _y(), P().app3(f().app1(g().app1(y())), y(), y())),
@@ -1296,7 +1307,7 @@ mod test_transform {
                        } else if *v == _z() {
                            y()
                        } else {
-                           v.clone().var()
+                           v.clone().into()
                        }
                    }));
         assert_eq!(
@@ -1314,7 +1325,7 @@ mod test_transform {
                 } else if *v == _y() {
                     z()
                 } else {
-                    v.clone().var()
+                    v.clone().into()
                 }
             }));
     }

@@ -8,13 +8,11 @@ pub trait Symbol {}
 /// ### Function
 /// Function symbols.
 #[derive(Clone, Eq, Hash)]
-pub struct Func {
-    pub name: String,
-}
+pub struct Func (String);
 
 impl Func {
     pub fn new(name: &str) -> Func {
-        Func { name: name.to_string() }
+        Func (name.to_string())
     }
     /// Applies the function to a list of terms.
     pub fn app(self, terms: Terms) -> Term {
@@ -48,13 +46,13 @@ impl Func {
 
 impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.name)
+        write!(f, "{}", self.0)
     }
 }
 
 impl PartialEq for Func {
     fn eq(&self, other: &Func) -> bool {
-        self.name == other.name
+        self.0 == other.0
     }
 }
 
@@ -68,10 +66,6 @@ pub struct V(pub String);
 impl V {
     pub fn new(name: &str) -> V {
         V(name.to_string())
-    }
-
-    pub fn var(self) -> Term {
-        Term::Var { variable: self }
     }
 }
 
@@ -92,15 +86,11 @@ impl C {
     pub fn new(name: &str) -> C {
         C(name.to_string())
     }
-
-    pub fn r#const(self) -> Term {
-        Term::Const { constant: self }
-    }
 }
 
 impl fmt::Display for C {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}", self.0)
+        write!(f, "'{}", self.0)
     }
 }
 
@@ -109,7 +99,7 @@ impl Symbol for C {}
 /// ### Predicate
 /// Predicate symbols.
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Pred(String);
+pub struct Pred(pub String);
 
 impl Pred {
     pub fn new(name: &str) -> Pred {
@@ -194,8 +184,8 @@ pub type Terms = Vec<Term>;
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            Term::Var { variable } => write!(f, "{}", variable.0),
-            Term::Const { constant } => write!(f, "'{}", constant.0),
+            Term::Var { variable } => write!(f, "{}", variable),
+            Term::Const { constant } => write!(f, "{}", constant),
             Term::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", function, ts.join(", "))
@@ -214,6 +204,18 @@ impl PartialEq for Term {
             }
             _ => false
         }
+    }
+}
+
+impl From<V> for Term {
+    fn from(variable: V) -> Self {
+        Term::Var { variable }
+    }
+}
+
+impl From<C> for Term {
+    fn from(constant: C) -> Self {
+        Term::Const { constant }
     }
 }
 

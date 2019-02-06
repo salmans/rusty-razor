@@ -1,0 +1,1 @@
+exists w, x, y, z . P(w) & Q(x) & R(y) & S(z);

@@ -38,6 +38,7 @@ const EXCLAMATION: &str = "!";
 const CHAR_FORALL: &str = "∀";
 const DOT: &str = ".";
 const SEMI_COLON: &str = ";";
+const LINE_COMMENT: &str = "//";
 
 named!(
     lower_ident<CompleteStr, String>,
@@ -131,10 +132,10 @@ named!(
                     ws!(tag!(L_PAREN))
                 )
             ),
-            |v| v.var()
+            |v| v.into()
         ) | map!(  // constant
             r#const,
-            |c| c.r#const()
+            |c| c.into()
         ) | map!( // complex term
             pair!(
                 func,
@@ -314,18 +315,66 @@ named!(
     )
 );
 
+named!(pub spaces<CompleteStr, CompleteStr>, eat_separator!(&b" \t"[..]));
+
+#[macro_export]
+macro_rules! sp (
+    ($i: expr, $($args:tt)*) => (
+        {
+            sep!($i, spaces, $($args)*)
+        }
+    )
+);
+
+named!(
+    pub comment<CompleteStr, ()>,
+    value!(
+        (),
+        delimited!(
+            sp!(tag!(LINE_COMMENT)),
+            many0!(nom::not_line_ending),
+            nom::line_ending
+        )
+    )
+);
+
+//named!(
+//    pub theory<CompleteStr, Theory>,
+//    map!(
+//        many0!(
+//            terminated!(
+//                formula,
+//                ws!(tag!(SEMI_COLON))
+//            )
+//        ),
+//        Theory::new
+//    )
+//);
+
 named!(
     pub theory<CompleteStr, Theory>,
     map!(
         many0!(
-            terminated!(
-                formula,
-                ws!(tag!(SEMI_COLON))
+            do_parse!(
+                comments: many0!(comment) >>
+                formula: terminated!(
+                    formula,
+                    ws!(tag!(SEMI_COLON))
+                ) >>
+                (formula)
             )
         ),
         Theory::new
     )
 );
+
+pub fn parse_formula(string: &str) -> Formula {
+    formula(CompleteStr(string)).ok().unwrap().1
+}
+
+pub fn parse_theory(string: &str) -> Theory {
+    theory(CompleteStr(string)).ok().unwrap().1
+}
 
 #[cfg(test)]
 mod test_parser {
@@ -478,6 +527,17 @@ mod test_parser {
     }
 
     #[test]
+    fn test_comment() {
+        success(comment, "//\n", (), "");
+        success(comment, "  //\n", (), "");
+        success(comment, "// comment line \n", (), "");
+        success(comment, "//comment line \n", (), "");
+        success(comment, "   //   comment line \n", (), "");
+        fail(comment, "//");
+        fail(comment, "/");
+    }
+
+    #[test]
     fn test_atom() {
         success(atom, TRUE, Top, "");
         success(atom, TOP, Top, "");
@@ -593,31 +653,31 @@ mod test_parser {
             formula,
             "not forall x, y . P(x) and Q(y) implies h(z) = z",
             "(¬(∀ x, y. (P(x) ∧ Q(y)))) → (h(z) = z)",
-            ""
+            "",
         );
         success_to_string(
             formula,
             "∀ x. ∃ y. ((x = y) ∧ ¬P(y)) ∨ (Q(x) → R(y))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
-            ""
+            "",
         );
         success_to_string(
             formula,
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
-            ""
+            "",
         );
         success_to_string(
             formula,
             "! x. ? y. ((x = y) & ~P(y)) | (Q(x) -> R(y))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
-            ""
+            "",
         );
         success_to_string(
             formula,
             "! x. (? y. (((x = y) & (~P(y))) | (Q(x) -> R(y))))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
-            ""
+            "",
         );
     }
 
@@ -626,6 +686,17 @@ mod test_parser {
         success_to_string(
             theory,
             "E(x,x);\
+            E(x,y) -> E(y,x) ;\
+            E(x,y) & E(y,z) -> E(x,z);",
+            "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
+            "",
+        );
+        success_to_string(
+            theory,
+            "// comment 0\n\
+            E(x,x)\
+            ;\
+            // another comment\n\
             E(x,y) -> E(y,x) ;\
             E(x,y) & E(y,z) -> E(x,z);",
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",

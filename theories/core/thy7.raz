@@ -1,0 +1,3 @@
+P('a);
+P(x) implies Q(x);
+Q(x) implies R(x);

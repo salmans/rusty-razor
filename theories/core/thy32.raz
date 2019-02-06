@@ -1,0 +1,2 @@
+TRUE -> exists y . R(y);
+R(x) -> exists w . Q(x,w);

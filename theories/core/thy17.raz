@@ -1,0 +1,3 @@
+P('c, 'c);
+P('a, 'b);
+P(x, x) implies Q(x);

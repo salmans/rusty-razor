@@ -1,0 +1,2 @@
+P('a) and Q('b);
+P(x) and Q(y) iff P(y) and Q(x);

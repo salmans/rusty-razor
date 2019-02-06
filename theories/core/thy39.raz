@@ -1,0 +1,2 @@
+exists x . Q(f(x));
+Q(x) -> R(x, f(f(f(f(f(x))))));

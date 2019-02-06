@@ -1,0 +1,2 @@
+P('a);
+P(x) or Q(y) iff Q(x) or R(y);

@@ -1,0 +1,3 @@
+P('a);
+Q('b);
+P(x) and Q(y) implies x = y;

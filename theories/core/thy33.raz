@@ -1,0 +1,5 @@
+TRUE -> exists a . Q(a);
+Q(x) -> R(x,x) | S(x);
+Q(x) -> R(x,x);
+R(x,y) -> exists b  . S(b);
+R(x,x) -> exists e . Q(e) & R(e,x);
