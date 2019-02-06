@@ -81,11 +81,36 @@ impl Model for BasicModel {
                 } else {
                     (left, right)
                 };
-                self.rewrites.values_mut().for_each(|v| {
-                    if v == &dest {
-                        v.identify(&src);
-                    }
+                let mut new_rewrite: HashMap<WitnessTerm, E> = HashMap::new();
+                self.rewrites.iter().for_each(|(k, v)| {
+                    let mut key: WitnessTerm;
+                    // k is a flat term and cannot be an element:
+                    let key = if let WitnessTerm::App { function, terms } = k {
+                        let mut new_terms: Vec<WitnessTerm> = Vec::new();
+                        terms.iter().for_each(|t| {
+                            if let WitnessTerm::Elem { element } = t {
+                                if element == &dest {
+                                    new_terms.push(WitnessTerm::Elem { element: src.clone() });
+                                } else {
+                                    new_terms.push(t.clone());
+                                }
+                            } else {
+                                new_terms.push(t.clone());
+                            }
+                        });
+                        WitnessTerm::App { function: function.clone(), terms: new_terms }
+                    } else {
+                        k.clone()
+                    };
+
+                    let value = if v == &dest {
+                        src.clone()
+                    } else {
+                        v.clone()
+                    };
+                    new_rewrite.insert(key, value);
                 });
+                self.rewrites = new_rewrite;
                 // TODO: by maintaining references to elements, the following can be avoided:
                 self.facts = self.facts.iter().map(|f| {
                     if let Observation::Fact { ref relation, ref terms } = f {
@@ -1160,9 +1185,20 @@ mod test_basic {
                        'sk#1 -> e#4", print_models(solve_basic(read_theory_from_file("theories/core/thy40.raz"))));
         assert_eq!("Domain: {}\n\
                        Facts: \n", print_models(solve_basic(read_theory_from_file("theories/core/thy41.raz"))));
-//        assert_eq!("Domain: {e#0}\n\
-//                       Facts: \n\
-//                       'sk#0, 'e, f[e#0, e#0], i[e#0] -> e#0", print_models(solve_basic(read_theory_from_file("theories/core/thy42.raz"))));
+        assert_eq!("Domain: {e#0}\n\
+        Facts: \n\
+        'e, 'sk#0, f[e#0, e#0], i[e#0] -> e#0", print_models(solve_basic(read_theory_from_file("theories/core/thy42.raz"))));
+        assert_eq!("Domain: {e#0, e#1}\n\
+        Facts: <P(e#0)>, <P(e#1)>, <Q(e#0)>, <Q(e#1)>\n\
+        'a -> e#0\n\
+        'b -> e#1", print_models(solve_basic(read_theory_from_file("theories/core/thy43.raz"))));
+        assert_eq!("Domain: {e#0}\n\
+        Facts: <P(e#0)>, <Q(e#0)>\n\
+        'a -> e#0\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0}\n\
+        Facts: <P(e#0)>, <R(e#0)>\n\
+        'a -> e#0", print_models(solve_basic(read_theory_from_file("theories/core/thy44.raz"))));
     }
 
     fn solve_basic(theory: Theory) -> Vec<BasicModel> {
