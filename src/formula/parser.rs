@@ -356,7 +356,7 @@ named!(
     map!(
         many0!(
             do_parse!(
-                comments: many0!(comment) >>
+                many0!(comment) >>
                 formula: terminated!(
                     formula,
                     ws!(tag!(SEMI_COLON))

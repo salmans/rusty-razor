@@ -16,7 +16,7 @@ impl DomainSize {
 impl Bounder for DomainSize {
     fn bound<M: Model>(&self, model: &M, observation: &Observation) -> bool {
         match observation {
-            Observation::Fact { relation, terms } => {
+            Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
                 let terms: Vec<Option<E>> = terms.iter()
                     .map(|t| model.element(t))
