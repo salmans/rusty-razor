@@ -6,6 +6,15 @@ use crate::chase::r#impl::basic::*;
 use crate::formula::parser::parse_theory;
 use std::fs::File;
 use std::io::Read;
+use crate::chase::selector::Linear;
+use crate::chase::strategy::FIFO;
+use crate::chase::bounder::DomainSize;
+
+pub const CORE_TEST_COUNT: i32 = 44;
+#[allow(dead_code)]
+pub const BOUNDED_TEST_COUNT: i32 = 2;
+#[allow(dead_code)]
+pub const STRESS_TEST_COUNT: i32 = 0;
 
 // Variables
 pub fn _u() -> V { V::new("u") }
@@ -56,6 +65,7 @@ pub fn a() -> Term { C::new("a").into() }
 
 pub fn b() -> Term { C::new("b").into() }
 
+#[allow(dead_code)]
 pub fn c() -> Term { C::new("c").into() }
 
 // Elements
@@ -90,26 +100,26 @@ pub fn _c_() -> WitnessTerm { WitnessTerm::Const { constant: _c() } }
 pub fn _d_() -> WitnessTerm { WitnessTerm::Const { constant: _d() } }
 
 // Predicates
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn P() -> Pred { Pred::new("P") }
 
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn Q() -> Pred { Pred::new("Q") }
 
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn R() -> Pred { Pred::new("R") }
 
 // Relations
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn _P_() -> Rel { Rel::new("P") }
 
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn _Q_() -> Rel { Rel::new("Q") }
 
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn _R_() -> Rel { Rel::new("R") }
 
-//noinspection RsFunctionNaming
+#[allow(non_snake_case)]
 pub fn _S_() -> Rel { Rel::new("S") }
 
 impl PartialOrd for V {
@@ -359,20 +369,36 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     parse_theory(contents.as_str())
 }
 
-pub fn print_models<M: Model>(models: Vec<M>) -> String {
-    let models: Vec<String> = models.iter().map(|m| {
-        let elements: Vec<String> = m.domain().iter().sorted().iter().map(|e|{
-            let witnesses: Vec<String> = m.witness(e).iter().map(|w| w.to_string()).collect();
-            let witnesses = witnesses.into_iter().sorted();
-            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
-
-        }).collect();
-        let domain: Vec<String> = m.domain().iter().map(|e| e.to_string()).collect();
-        let facts: Vec<String> = m.facts().iter().map(|e| e.to_string()).collect();
-        format!("Domain: {{{}}}\nFacts: {}\n{}",
-                domain.into_iter().sorted().join(", "),
-                facts.into_iter().sorted().join(", "),
-                elements.join("\n"))
+pub fn print_model<M: Model>(model: M) -> String {
+    let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
+        let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
+        let witnesses = witnesses.into_iter().sorted();
+        format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
     }).collect();
+    let domain: Vec<String> = model.domain().iter().map(|e| e.to_string()).collect();
+    let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
+    format!("Domain: {{{}}}\nFacts: {}\n{}",
+            domain.into_iter().sorted().join(", "),
+            facts.into_iter().sorted().join(", "),
+            elements.join("\n"))
+}
+
+pub fn print_models<M: Model>(models: Vec<M>) -> String {
+    let models: Vec<String> = models.into_iter().map(|m| print_model(m)).collect();
     models.join("\n-- -- -- -- -- -- -- -- -- --\n")
+}
+
+pub fn solve_basic(theory: &Theory) -> Vec<BasicModel> {
+    let geometric_theory = theory.gnf();
+    let sequents: Vec<BasicSequent> = geometric_theory
+        .formulas
+        .iter()
+        .map(|f| f.into()).collect();
+
+    let evaluator = BasicEvaluator {};
+    let selector = Linear::new(sequents);
+    let mut strategy = FIFO::new();
+    let bounder: Option<&DomainSize> = None;
+    strategy.add(StrategyNode::new(BasicModel::new(), selector));
+    solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
