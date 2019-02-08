@@ -694,7 +694,7 @@ mod test_parser {
         success_to_string(
             theory,
             "// comment 0\n\
-            E(x,x)\
+            E(x,)\
             ;\
             // another comment\n\
             E(x,y) -> E(y,x) ;\
