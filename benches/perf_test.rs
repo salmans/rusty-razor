@@ -12,11 +12,11 @@ use rusty_razor::chase::chase::solve_all;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
-use std::fs::File;
-use std::io::Read;
 use rusty_razor::formula::parser::parse_theory;
 use rusty_razor::chase::selector::Bootstrap;
 use rusty_razor::chase::selector::Fair;
+use std::fs;
+use std::io::Read;
 
 fn basic_benchmark(c: &mut Criterion) {
     c.bench_function("basic", |b| b.iter(|| time_basic()));
@@ -27,9 +27,8 @@ fn bootstrap_benchmark(c: &mut Criterion) {
 }
 
 fn time_basic() {
-    for i in 0..=44 {
-        let path = format!("theories/core/thy{}.raz", i);
-        let theory = read_theory_from_file(path.as_str());
+    for item in fs::read_dir("theories/core").unwrap() {
+        let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
         solve_basic(&theory);
     }
 }
@@ -73,7 +72,7 @@ fn solve_bootstrap(theory: &Theory) -> Vec<BasicModel> {
 }
 
 pub fn read_theory_from_file(filename: &str) -> Theory {
-    let mut f = File::open(filename).expect("file not found");
+    let mut f = fs::File::open(filename).expect("file not found");
 
     let mut contents = String::new();
     f.read_to_string(&mut contents)

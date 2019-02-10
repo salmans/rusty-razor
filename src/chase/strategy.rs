@@ -5,6 +5,9 @@ use crate::chase::chase::Selector;
 use crate::chase::chase::Sequent;
 use std::collections::VecDeque;
 
+/// ### FIFO
+/// Arranges the branches of chase computation in a queue to implement a first-in-first-out strategy.
+/// > FIFO is used as the basic strategy for benchmarking and testing purposes.
 pub struct FIFO<S:Sequent, M:Model, Sel: Selector<Item=S>> {
     queue: VecDeque<StrategyNode<S, M, Sel>>
 }
@@ -29,6 +32,8 @@ impl<S: Sequent, M: Model, Sel: Selector<Item=S>> Strategy<S, M, Sel> for FIFO<S
     }
 }
 
+/// ### FIFO
+/// Arranges the branches of chase computation in a stack to implement a last-in-first-out strategy.
 pub struct LIFO<S:Sequent, M:Model, Sel: Selector<Item=S>> {
     queue: VecDeque<StrategyNode<S, M, Sel>>
 }
@@ -68,6 +73,7 @@ mod test_lifo {
     use super::LIFO;
     use std::collections::HashSet;
     use crate::test_prelude::*;
+    use std::fs;
 
     pub fn run_test(theory: &Theory) -> Vec<BasicModel> {
         let geometric_theory = theory.gnf();
@@ -86,9 +92,8 @@ mod test_lifo {
 
     #[test]
     fn test() {
-        for i in 0..=CORE_TEST_COUNT {
-            let path = format!("theories/core/thy{}.raz", i);
-            let theory = read_theory_from_file(path.as_str());
+        for item in fs::read_dir("theories/core").unwrap() {
+            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
             let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_model(m)).collect();

@@ -10,12 +10,6 @@ use crate::chase::selector::Linear;
 use crate::chase::strategy::FIFO;
 use crate::chase::bounder::DomainSize;
 
-pub const CORE_TEST_COUNT: i32 = 44;
-#[allow(dead_code)]
-pub const BOUNDED_TEST_COUNT: i32 = 2;
-#[allow(dead_code)]
-pub const STRESS_TEST_COUNT: i32 = 0;
-
 // Variables
 pub fn _u() -> V { V::new("u") }
 
