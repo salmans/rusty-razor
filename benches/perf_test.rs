@@ -49,9 +49,8 @@ fn solve_basic(theory: &Theory) -> Vec<BasicModel> {
 }
 
 fn time_bootstrap() {
-    for i in 0..=44 {
-        let path = format!("theories/core/thy{}.raz", i);
-        let theory = read_theory_from_file(path.as_str());
+    for item in fs::read_dir("theories/core").unwrap() {
+        let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
         solve_bootstrap(&theory);
     }
 }
