@@ -110,9 +110,9 @@ mod test_fair {
     use crate::chase::r#impl::basic::BasicEvaluator;
     use crate::test_prelude::solve_basic;
     use crate::test_prelude::read_theory_from_file;
-    use crate::test_prelude::CORE_TEST_COUNT;
     use std::collections::HashSet;
     use crate::test_prelude::print_model;
+    use std::fs;
 
     fn run_test(theory: &Theory) -> Vec<BasicModel> {
         let geometric_theory = theory.gnf();
@@ -131,9 +131,8 @@ mod test_fair {
 
     #[test]
     fn test() {
-        for i in 0..=CORE_TEST_COUNT {
-            let path = format!("theories/core/thy{}.raz", i);
-            let theory = read_theory_from_file(path.as_str());
+        for item in fs::read_dir("theories/core").unwrap() {
+            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
             let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_model(m)).collect();
@@ -159,9 +158,9 @@ mod test_bootstrap {
     use crate::chase::r#impl::basic::BasicEvaluator;
     use crate::test_prelude::solve_basic;
     use crate::test_prelude::read_theory_from_file;
-    use crate::test_prelude::CORE_TEST_COUNT;
     use std::collections::HashSet;
     use crate::test_prelude::print_model;
+    use std::fs;
 
     fn run_test(theory: &Theory) -> Vec<BasicModel> {
         let geometric_theory = theory.gnf();
@@ -180,9 +179,8 @@ mod test_bootstrap {
 
     #[test]
     fn test() {
-        for i in 0..=CORE_TEST_COUNT {
-            let path = format!("theories/core/thy{}.raz", i);
-            let theory = read_theory_from_file(path.as_str());
+        for item in fs::read_dir("theories/core").unwrap() {
+            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
             let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_model(m)).collect();
