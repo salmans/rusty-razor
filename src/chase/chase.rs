@@ -244,11 +244,13 @@ pub trait Bounder {
 /// ## Evaluator
 /// Evaluator is the trait that binds an implementation of a sequent to an implementation of a
 /// model.
-pub trait Evaluator<S: Sequent, M: Model, Sel: Selector<Item=S>, B: Bounder> {
+pub trait Evaluator<Sel: Selector<Item=Self::Sequent>, B: Bounder> {
+    type Sequent: Sequent;
+    type Model: Model;
     fn evaluate(&self
-                , model: &M
+                , model: &Self::Model
                 , selector: Sel
-                , bounder: Option<&B>) -> Option<Vec<Either<M, M>>>;
+                , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
 /// ## StrategyNode
@@ -279,7 +281,7 @@ pub trait Strategy<S: Sequent, M: Model, Sel: Selector<Item=S>> {
 pub fn solve_all<S: Sequent
     , M: Model
     , Sel: Selector<Item=S>
-    , E: Evaluator<S, M, Sel, B>
+    , E: Evaluator<Sel, B, Sequent=S, Model=M>
     , B: Bounder>(
     mut strategy: Box<Strategy<S, M, Sel>>
     , evaluator: Box<E>

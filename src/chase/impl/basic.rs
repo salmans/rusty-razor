@@ -318,7 +318,9 @@ impl Term {
 }
 
 
-impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<BasicSequent, BasicModel, Sel, B> for BasicEvaluator {
+impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEvaluator {
+    type Sequent = BasicSequent;
+    type Model = BasicModel;
     fn evaluate(&self, model: &BasicModel, selector: Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<BasicModel, BasicModel>>> {
         use itertools::Itertools;
