@@ -74,24 +74,24 @@ pub fn e_3() -> E { E::new(3) }
 pub fn e_4() -> E { E::new(4) }
 
 // Witness Elements
-pub fn _e_0() -> WitnessTerm { e_0().into() }
+pub fn _e_0() -> BasicWitnessTerm { e_0().into() }
 
-pub fn _e_1() -> WitnessTerm { e_1().into() }
+pub fn _e_1() -> BasicWitnessTerm { e_1().into() }
 
-pub fn _e_2() -> WitnessTerm { e_2().into() }
+pub fn _e_2() -> BasicWitnessTerm { e_2().into() }
 
-pub fn _e_3() -> WitnessTerm { e_3().into() }
+pub fn _e_3() -> BasicWitnessTerm { e_3().into() }
 
-pub fn _e_4() -> WitnessTerm { e_4().into() }
+pub fn _e_4() -> BasicWitnessTerm { e_4().into() }
 
 // Witness Constants
-pub fn _a_() -> WitnessTerm { WitnessTerm::Const { constant: _a() } }
+pub fn _a_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _a() } }
 
-pub fn _b_() -> WitnessTerm { WitnessTerm::Const { constant: _b() } }
+pub fn _b_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _b() } }
 
-pub fn _c_() -> WitnessTerm { WitnessTerm::Const { constant: _c() } }
+pub fn _c_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _c() } }
 
-pub fn _d_() -> WitnessTerm { WitnessTerm::Const { constant: _d() } }
+pub fn _d_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _d() } }
 
 // Predicates
 #[allow(non_snake_case)]
@@ -302,7 +302,7 @@ impl fmt::Debug for Pred {
     }
 }
 
-impl fmt::Debug for WitnessTerm {
+impl fmt::Debug for BasicWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -314,7 +314,7 @@ impl fmt::Debug for Rel {
     }
 }
 
-impl fmt::Debug for Observation {
+impl fmt::Debug for BasicObservation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
