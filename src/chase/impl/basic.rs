@@ -5,11 +5,111 @@ use std::collections::HashMap;
 use std::fmt;
 use itertools::Either;
 
+/// BasicWitnessTerm offers the most straight forward implementation for WitnessTerm.
+/// Every element of basic witness term is simply E.
+#[derive(Clone, Eq, Hash)]
+pub enum BasicWitnessTerm {
+    /// ### Element
+    /// Elements are treated as witness terms.
+    /// > **Note:** Elements are special case of witness constants.
+    Elem { element: E },
+
+    /// ### Constant
+    /// Constant witness term
+    Const { constant: C },
+
+    /// ### Function Application
+    /// Complex witness term, made by applying a function to a list of witness terms.
+    App { function: Func, terms: Vec<BasicWitnessTerm> },
+}
+
+impl BasicWitnessTerm {
+    pub fn equals(self, rhs: BasicWitnessTerm) -> Observation<BasicWitnessTerm> {
+        Observation::Identity { left: self, right: rhs }
+    }
+}
+
+impl WitnessTerm for BasicWitnessTerm {
+    type ElementType = E;
+}
+
+impl fmt::Display for BasicWitnessTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            BasicWitnessTerm::Elem { element } => write!(f, "{}", element),
+            BasicWitnessTerm::Const { constant } => write!(f, "{}", constant),
+            BasicWitnessTerm::App { function, terms } => {
+                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+                write!(f, "{}[{}]", function, ts.join(", "))
+            }
+        }
+    }
+}
+
+impl PartialEq for BasicWitnessTerm {
+    fn eq(&self, other: &BasicWitnessTerm) -> bool {
+        match (self, other) {
+            (BasicWitnessTerm::Elem { element: e1 }, BasicWitnessTerm::Elem { element: e2 }) => e1 == e2,
+            (BasicWitnessTerm::Const { constant: c1 }, BasicWitnessTerm::Const { constant: c2 }) => c1 == c2,
+            (BasicWitnessTerm::App { function: f1, terms: ts1 }, BasicWitnessTerm::App { function: f2, terms: ts2 }) => {
+                f1 == f2 && ts1.iter().zip(ts2).all(|(x, y)| x == y)
+            }
+            _ => false
+        }
+    }
+}
+
+impl From<C> for BasicWitnessTerm {
+    fn from(constant: C) -> Self {
+        BasicWitnessTerm::Const { constant }
+    }
+}
+
+impl From<E> for BasicWitnessTerm {
+    fn from(element: E) -> Self {
+        BasicWitnessTerm::Elem { element }
+    }
+}
+
+pub type BasicWitnessTerms = Vec<BasicWitnessTerm>;
+
+impl Func {
+    /// Applies the function to a list of witness terms.
+    pub fn wit_app(self, terms: BasicWitnessTerms) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms }
+    }
+    /// Applies the function to a list of terms.
+    pub fn wit_app0(self) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms: vec![] }
+    }
+    /// Applies the (unary) function to a witness term.
+    pub fn wit_app1(self, first: BasicWitnessTerm) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms: vec![first] }
+    }
+    /// Applies the (binary) predicate to two witness terms.
+    pub fn wit_app2(self, first: BasicWitnessTerm, second: BasicWitnessTerm) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms: vec![first, second] }
+    }
+    /// Applies the (ternary) function to three witness terms.
+    pub fn wit_app3(self, first: BasicWitnessTerm, second: BasicWitnessTerm, third: BasicWitnessTerm) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms: vec![first, second, third] }
+    }
+    /// Applies the (4-ary) function to four witness terms.
+    pub fn wit_app4(self, first: BasicWitnessTerm, second: BasicWitnessTerm, third: BasicWitnessTerm, fourth: BasicWitnessTerm) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms: vec![first, second, third, fourth] }
+    }
+    /// Applies the (5-ary) function to five witness terms.
+    pub fn wit_app5(self, first: BasicWitnessTerm, second: BasicWitnessTerm, third: BasicWitnessTerm, fourth: BasicWitnessTerm, fifth: BasicWitnessTerm) -> BasicWitnessTerm {
+        BasicWitnessTerm::App { function: self, terms: vec![first, second, third, fourth, fifth] }
+    }
+}
+
+/// BasicModel is a simple Model implementation where terms are of type BasicWitnessTerm.
 #[derive(Clone)]
 pub struct BasicModel {
     element_index: i32,
-    rewrites: HashMap<WitnessTerm, E>,
-    facts: HashSet<Observation>,
+    rewrites: HashMap<BasicWitnessTerm, E>,
+    facts: HashSet<Observation<BasicWitnessTerm>>,
 }
 
 impl BasicModel {
@@ -21,16 +121,16 @@ impl BasicModel {
         }
     }
 
-    fn record(&mut self, witness: WitnessTerm) -> E {
+    fn record(&mut self, witness: BasicWitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem { element } => {
+            BasicWitnessTerm::Elem { element } => {
                 if self.domain().contains(&element) {
                     element
                 } else {
                     panic!("Element does not exist in the model's domain!")
                 }
             }
-            WitnessTerm::Const { .. } => {
+            BasicWitnessTerm::Const { .. } => {
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
@@ -40,9 +140,9 @@ impl BasicModel {
                     element
                 }
             }
-            WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record(t).into()).collect();
-                let witness = WitnessTerm::App { function, terms };
+            BasicWitnessTerm::App { function, terms } => {
+                let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|t| self.record(t).into()).collect();
+                let witness = BasicWitnessTerm::App { function, terms };
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
@@ -57,18 +157,20 @@ impl BasicModel {
 }
 
 impl Model for BasicModel {
+    type TermType = BasicWitnessTerm;
+
     fn domain(&self) -> HashSet<&E> {
         self.rewrites.values().collect()
     }
 
-    fn facts(&self) -> HashSet<&Observation> {
+    fn facts(&self) -> HashSet<&Observation<Self::TermType>> {
         self.facts.iter().collect()
     }
 
-    fn observe(&mut self, observation: &Observation) {
+    fn observe(&mut self, observation: &Observation<Self::TermType>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
+                let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
                 let observation = Observation::Fact { relation: (*relation).clone(), terms };
                 self.facts.insert(observation);
             }
@@ -80,15 +182,15 @@ impl Model for BasicModel {
                 } else {
                     (left, right)
                 };
-                let mut new_rewrite: HashMap<WitnessTerm, E> = HashMap::new();
+                let mut new_rewrite: HashMap<Self::TermType, E> = HashMap::new();
                 self.rewrites.iter().for_each(|(k, v)| {
                     // k is a flat term and cannot be an element:
-                    let key = if let WitnessTerm::App { function, terms } = k {
-                        let mut new_terms: Vec<WitnessTerm> = Vec::new();
+                    let key = if let BasicWitnessTerm::App { function, terms } = k {
+                        let mut new_terms: Vec<BasicWitnessTerm> = Vec::new();
                         terms.iter().for_each(|t| {
-                            if let WitnessTerm::Elem { element } = t {
+                            if let BasicWitnessTerm::Elem { element } = t {
                                 if element == &dest {
-                                    new_terms.push(WitnessTerm::Elem { element: src.clone() });
+                                    new_terms.push(BasicWitnessTerm::Elem { element: src.clone() });
                                 } else {
                                     new_terms.push(t.clone());
                                 }
@@ -96,7 +198,7 @@ impl Model for BasicModel {
                                 new_terms.push(t.clone());
                             }
                         });
-                        WitnessTerm::App { function: function.clone(), terms: new_terms }
+                        BasicWitnessTerm::App { function: function.clone(), terms: new_terms }
                     } else {
                         k.clone()
                     };
@@ -112,8 +214,8 @@ impl Model for BasicModel {
                 // TODO: by maintaining references to elements, the following can be avoided:
                 self.facts = self.facts.iter().map(|f| {
                     if let Observation::Fact { ref relation, ref terms } = f {
-                        let terms: Vec<WitnessTerm> = terms.iter().map(|t| {
-                            if let WitnessTerm::Elem { element } = t {
+                        let terms: Vec<BasicWitnessTerm> = terms.iter().map(|t| {
+                            if let BasicWitnessTerm::Elem { element } = t {
                                 if element == &dest {
                                     src.clone().into()
                                 } else {
@@ -132,14 +234,14 @@ impl Model for BasicModel {
         }
     }
 
-    fn is_observed(&self, observation: &Observation) -> bool {
+    fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
+                    let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
                     self.facts.contains(&Observation::Fact { relation: (*relation).clone(), terms })
                 }
             }
@@ -150,26 +252,26 @@ impl Model for BasicModel {
         }
     }
 
-    fn witness(&self, element: &E) -> HashSet<&WitnessTerm> {
+    fn witness(&self, element: &E) -> HashSet<&Self::TermType> {
         self.rewrites.iter()
             .filter(|(_, e)| *e == element)
             .map(|(t, _)| t)
             .collect()
     }
 
-    fn element(&self, witness: &WitnessTerm) -> Option<E> {
+    fn element(&self, witness: &Self::TermType) -> Option<E> {
         match witness {
-            WitnessTerm::Elem { element } => {
+            BasicWitnessTerm::Elem { element } => {
                 if self.domain().contains(element) { Some((*element).clone()) } else { None }
             }
-            WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| (*e).clone()),
-            WitnessTerm::App { function, terms } => {
+            BasicWitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| (*e).clone()),
+            BasicWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
-                    self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms }).map(|e| (*e).clone())
+                    let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
+                    self.rewrites.get(&BasicWitnessTerm::App { function: (*function).clone(), terms }).map(|e| (*e).clone())
                 }
             }
         }
@@ -184,6 +286,7 @@ impl fmt::Display for BasicModel {
     }
 }
 
+/// Literal is the type that represents atomic formulas in BasicSequent.
 #[derive(Clone)]
 pub enum Literal {
     Atm { predicate: Pred, terms: Terms },
@@ -191,6 +294,7 @@ pub enum Literal {
 }
 
 impl Literal {
+    /// Construct the body of a BasicSequent from a formula.
     fn build_body(formula: &Formula) -> Vec<Literal> {
         match formula {
             Formula::Top => vec![],
@@ -208,6 +312,7 @@ impl Literal {
         }
     }
 
+    /// Construct the head of a BasicSequent from a formula.
     fn build_head(formula: &Formula) -> Vec<Vec<Literal>> {
         match formula {
             Formula::Top => vec![vec![]],
@@ -255,6 +360,8 @@ impl<'t> fmt::Display for Literal {
     }
 }
 
+/// BasicSequent is represented by a list of literals in the body and a list of list of literals in
+/// the head.
 #[derive(Clone)]
 pub struct BasicSequent {
     pub free_vars: Vec<V>,
@@ -302,23 +409,26 @@ impl Sequent for BasicSequent {
     }
 }
 
+/// Simple evaluator that evaluates a BasicSequnet in a BasicModel.
 pub struct BasicEvaluator {}
 
 impl Term {
-    fn to_witness(&self, wit: &impl Fn(&V) -> E) -> WitnessTerm {
+    fn to_witness(&self, wit: &impl Fn(&V) -> E) -> BasicWitnessTerm {
         match self {
-            Term::Const { constant } => WitnessTerm::Const { constant: constant.clone() },
-            Term::Var { variable } => WitnessTerm::Elem { element: wit(&variable) },
+            Term::Const { constant } => BasicWitnessTerm::Const { constant: constant.clone() },
+            Term::Var { variable } => BasicWitnessTerm::Elem { element: wit(&variable) },
             Term::App { function, terms } => {
                 let terms = terms.iter().map(|t| t.to_witness(wit)).collect();
-                WitnessTerm::App { function: function.clone(), terms }
+                BasicWitnessTerm::App { function: function.clone(), terms }
             }
         }
     }
 }
 
 
-impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<BasicSequent, BasicModel, Sel, B> for BasicEvaluator {
+impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEvaluator {
+    type Sequent = BasicSequent;
+    type Model = BasicModel;
     fn evaluate(&self, model: &BasicModel, selector: Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<BasicModel, BasicModel>>> {
         use itertools::Itertools;
@@ -352,8 +462,8 @@ impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<BasicSequent, Basic
                     }
                 };
 
-                let body: Vec<Observation> = sequent.body_literals.iter().map(convert).collect();
-                let head: Vec<Vec<Observation>> = sequent.head_literals.iter().map(|l| l.iter().map(convert).collect()).collect();
+                let body: Vec<Observation<BasicWitnessTerm>> = sequent.body_literals.iter().map(convert).collect();
+                let head: Vec<Vec<Observation<BasicWitnessTerm>>> = sequent.head_literals.iter().map(|l| l.iter().map(convert).collect()).collect();
 
                 if body.iter().all(|o| model.is_observed(o))
                     && !head.iter().any(|os| os.iter().all(|o| model.is_observed(o))) {

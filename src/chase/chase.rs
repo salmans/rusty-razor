@@ -3,6 +3,7 @@ use crate::formula::syntax::*;
 use crate::formula::syntax::Symbol;
 use std::collections::HashSet;
 use itertools::Either;
+use std::hash::Hash;
 
 /// ## Element
 /// Element symbols represent elements of models.
@@ -29,96 +30,13 @@ impl fmt::Display for E {
 /// ## Witness Term
 /// Witness terms are variable free terms that provide provenance information to justify elements
 /// of models.
-#[derive(Clone, Eq, Hash)]
-pub enum WitnessTerm {
-    /// ### Element
-    /// Elements are treated as witness terms.
-    /// > **Note:** Elements are special case of witness constants.
-    Elem { element: E },
+pub trait WitnessTerm: Clone + Eq + Hash + fmt::Display + PartialEq {
+    /// The internal representation of an element when implementing a WitnessTerm.
+    type ElementType;
 
-    /// ### Constant
-    /// Constant witness term
-    Const { constant: C },
-
-    /// ### Function Application
-    /// Complex witness term, made by applying a function to a list of witness terms.
-    App { function: Func, terms: Vec<WitnessTerm> },
-}
-
-impl WitnessTerm {
-    pub fn equals(self, rhs: WitnessTerm) -> Observation {
+    /// Constructs an Identity observation for two witness terms.
+    fn equals(self, rhs: Self) -> Observation<Self> {
         Observation::Identity { left: self, right: rhs }
-    }
-}
-
-impl fmt::Display for WitnessTerm {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            WitnessTerm::Elem { element } => write!(f, "{}", element),
-            WitnessTerm::Const { constant } => write!(f, "{}", constant),
-            WitnessTerm::App { function, terms } => {
-                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}[{}]", function, ts.join(", "))
-            }
-        }
-    }
-}
-
-impl PartialEq for WitnessTerm {
-    fn eq(&self, other: &WitnessTerm) -> bool {
-        match (self, other) {
-            (WitnessTerm::Elem { element: e1 }, WitnessTerm::Elem { element: e2 }) => e1 == e2,
-            (WitnessTerm::Const { constant: c1 }, WitnessTerm::Const { constant: c2 }) => c1 == c2,
-            (WitnessTerm::App { function: f1, terms: ts1 }, WitnessTerm::App { function: f2, terms: ts2 }) => {
-                f1 == f2 && ts1.iter().zip(ts2).all(|(x, y)| x == y)
-            }
-            _ => false
-        }
-    }
-}
-
-impl From<C> for WitnessTerm {
-    fn from(constant: C) -> Self {
-        WitnessTerm::Const { constant }
-    }
-}
-
-impl From<E> for WitnessTerm {
-    fn from(element: E) -> Self {
-        WitnessTerm::Elem { element }
-    }
-}
-
-pub type WitnessTerms = Vec<WitnessTerm>;
-
-impl Func {
-    /// Applies the function to a list of witness terms.
-    pub fn wit_app(self, terms: WitnessTerms) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms }
-    }
-    /// Applies the function to a list of terms.
-    pub fn wit_app0(self) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms: vec![] }
-    }
-    /// Applies the (unary) function to a witness term.
-    pub fn wit_app1(self, first: WitnessTerm) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms: vec![first] }
-    }
-    /// Applies the (binary) predicate to two witness terms.
-    pub fn wit_app2(self, first: WitnessTerm, second: WitnessTerm) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms: vec![first, second] }
-    }
-    /// Applies the (ternary) function to three witness terms.
-    pub fn wit_app3(self, first: WitnessTerm, second: WitnessTerm, third: WitnessTerm) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms: vec![first, second, third] }
-    }
-    /// Applies the (4-ary) function to four witness terms.
-    pub fn wit_app4(self, first: WitnessTerm, second: WitnessTerm, third: WitnessTerm, fourth: WitnessTerm) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms: vec![first, second, third, fourth] }
-    }
-    /// Applies the (5-ary) function to five witness terms.
-    pub fn wit_app5(self, first: WitnessTerm, second: WitnessTerm, third: WitnessTerm, fourth: WitnessTerm, fifth: WitnessTerm) -> WitnessTerm {
-        WitnessTerm::App { function: self, terms: vec![first, second, third, fourth, fifth] }
     }
 }
 
@@ -131,33 +49,32 @@ impl Rel {
     pub fn new(name: &str) -> Rel {
         Rel(name.to_string())
     }
-
     /// Applies the relation to a list of witness terms.
-    pub fn app(self, terms: Vec<WitnessTerm>) -> Observation {
+    pub fn app<T: WitnessTerm>(self, terms: Vec<T>) -> Observation<T> {
         Observation::Fact { relation: self, terms }
     }
     /// Applies the relation to a list of terms.
-    pub fn app0(self) -> Observation {
+    pub fn app0<T: WitnessTerm>(self) -> Observation<T> {
         Observation::Fact { relation: self, terms: vec![] }
     }
     /// Applies the (unary) relation to a witness term.
-    pub fn app1(self, first: WitnessTerm) -> Observation {
+    pub fn app1<T: WitnessTerm>(self, first: T) -> Observation<T> {
         Observation::Fact { relation: self, terms: vec![first] }
     }
     /// Applies the (binary) predicate to two witness terms.
-    pub fn app2(self, first: WitnessTerm, second: WitnessTerm) -> Observation {
+    pub fn app2<T: WitnessTerm>(self, first: T, second: T) -> Observation<T> {
         Observation::Fact { relation: self, terms: vec![first, second] }
     }
     /// Applies the (ternary) relation to three witness terms.
-    pub fn app3(self, first: WitnessTerm, second: WitnessTerm, third: WitnessTerm) -> Observation {
+    pub fn app3<T: WitnessTerm>(self, first: T, second: T, third: T) -> Observation<T> {
         Observation::Fact { relation: self, terms: vec![first, second, third] }
     }
     /// Applies the (4-ary) relation to four witness terms.
-    pub fn app4(self, first: WitnessTerm, second: WitnessTerm, third: WitnessTerm, fourth: WitnessTerm) -> Observation {
+    pub fn app4<T: WitnessTerm>(self, first: T, second: T, third: T, fourth: T) -> Observation<T> {
         Observation::Fact { relation: self, terms: vec![first, second, third, fourth] }
     }
     /// Applies the (5-ary) relation to five witness terms.
-    pub fn app5(self, first: WitnessTerm, second: WitnessTerm, third: WitnessTerm, fourth: WitnessTerm, fifth: WitnessTerm) -> Observation {
+    pub fn app5<T: WitnessTerm>(self, first: T, second: T, third: T, fourth: T, fifth: T) -> Observation<T> {
         Observation::Fact { relation: self, terms: vec![first, second, third, fourth, fifth] }
     }
 }
@@ -179,14 +96,14 @@ impl Symbol for Rel {}
 /// ## Observation
 /// Observations are true positive *facts* that are true in the model.
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub enum Observation {
+pub enum Observation<T: WitnessTerm> {
     /// Relational fact
-    Fact { relation: Rel, terms: WitnessTerms },
+    Fact { relation: Rel, terms: Vec<T> },
     /// Identity fact
-    Identity { left: WitnessTerm, right: WitnessTerm },
+    Identity { left: T, right: T },
 }
 
-impl<'t> fmt::Display for Observation {
+impl<T: WitnessTerm> fmt::Display for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Observation::Fact { relation, terms } => {
@@ -202,18 +119,20 @@ impl<'t> fmt::Display for Observation {
 /// Model is the common trait for various possible implementations of first order models, returned
 /// by the chase.
 pub trait Model: Clone + fmt::Display + ToString {
+    type TermType: WitnessTerm;
+
     /// Returns the domain of this model.
     fn domain(&self) -> HashSet<&E>;
     /// Returns the set of observation facts that are true in this model.
-    fn facts(&self) -> HashSet<&Observation>;
+    fn facts(&self) -> HashSet<&Observation<Self::TermType>>;
     /// Makes the given observation hold in the model.
-    fn observe(&mut self, observation: &Observation);
+    fn observe(&mut self, observation: &Observation<Self::TermType>);
     /// Returns true if the given observation holds in the model.
-    fn is_observed(&self, observation: &Observation) -> bool;
+    fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool;
     /// Returns a set of all witness terms for the given element.
-    fn witness(&self, element: &E) -> HashSet<&WitnessTerm>;
+    fn witness(&self, element: &E) -> HashSet<&Self::TermType>;
     /// Returns the element, associated with the given witness term.
-    fn element(&self, witness: &WitnessTerm) -> Option<E>;
+    fn element(&self, witness: &Self::TermType) -> Option<E>;
 }
 
 /// ## Sequent
@@ -238,17 +157,19 @@ pub trait Selector: Clone + Iterator {
 pub trait Bounder {
     /// Returns true if the given observation is outside the bounds of the given model (the model
     /// needs to be bounded).
-    fn bound<M: Model>(&self, model: &M, observation: &Observation) -> bool;
+    fn bound<M: Model>(&self, model: &M, observation: &Observation<M::TermType>) -> bool;
 }
 
 /// ## Evaluator
 /// Evaluator is the trait that binds an implementation of a sequent to an implementation of a
 /// model.
-pub trait Evaluator<S: Sequent, M: Model, Sel: Selector<Item=S>, B: Bounder> {
+pub trait Evaluator<Sel: Selector<Item=Self::Sequent>, B: Bounder> {
+    type Sequent: Sequent;
+    type Model: Model;
     fn evaluate(&self
-                , model: &M
+                , model: &Self::Model
                 , selector: Sel
-                , bounder: Option<&B>) -> Option<Vec<Either<M, M>>>;
+                , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
 /// ## StrategyNode
@@ -258,7 +179,7 @@ pub struct StrategyNode<S: Sequent, M: Model, Sel: Selector<Item=S>> {
     pub selector: Sel,
 }
 
-impl <S: Sequent, M: Model, Sel: Selector<Item=S>> StrategyNode<S, M, Sel> {
+impl<S: Sequent, M: Model, Sel: Selector<Item=S>> StrategyNode<S, M, Sel> {
     pub fn new(model: M, selector: Sel) -> StrategyNode<S, M, Sel> {
         StrategyNode { model, selector }
     }
@@ -266,7 +187,7 @@ impl <S: Sequent, M: Model, Sel: Selector<Item=S>> StrategyNode<S, M, Sel> {
 
 /// ## Strategy
 /// Strategy is the trait for selecting the next branch of chase to process.
-// TODO: consider implementing Strategy as a priority queue.
+// TODO: implement Strategy as a priority queue.
 pub trait Strategy<S: Sequent, M: Model, Sel: Selector<Item=S>> {
     fn empty(&self) -> bool;
     fn add(&mut self, node: StrategyNode<S, M, Sel>);
@@ -276,18 +197,12 @@ pub trait Strategy<S: Sequent, M: Model, Sel: Selector<Item=S>> {
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
 /// returns the resulting models. The resulting list of models is empty if the theory is not
 /// satisfiable.
-pub fn solve_all<S: Sequent
-    , M: Model
-    , Sel: Selector<Item=S>
-    , E: Evaluator<S, M, Sel, B>
-    , B: Bounder>(
-    mut strategy: Box<Strategy<S, M, Sel>>
-    , evaluator: Box<E>
-    , bounder: Option<&B>) -> Vec<M> {
+pub fn solve_all<S: Sequent, M: Model, Sel: Selector<Item=S>, E: Evaluator<Sel, B, Sequent=S, Model=M>, B: Bounder>(
+    mut strategy: Box<Strategy<S, M, Sel>>, evaluator: Box<E>, bounder: Option<&B>) -> Vec<M> {
     let mut result: Vec<M> = Vec::new();
     while !strategy.empty() {
         let node = strategy.remove().unwrap();
-        // TODO selector below should not be cloned
+        // TODO selector below shouldn't be cloned
         let models = evaluator.evaluate(&node.model, node.selector.clone(), bounder);
         if let Some(models) = models {
             if !models.is_empty() {
@@ -351,7 +266,6 @@ mod test_chase {
 
     #[test]
     fn test_observation() {
-        assert_eq!("<R()>", _R_().app0().to_string());
         assert_eq!("<R(e#0)>", _R_().app1(_e_0()).to_string());
         assert_eq!("<R(e#0, e#1, e#2)>", _R_().app3(_e_0(), _e_1(), _e_2()).to_string());
         assert_eq!("<e#0 = e#1>", _e_0().equals(_e_1()).to_string());
