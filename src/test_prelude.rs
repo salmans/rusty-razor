@@ -314,7 +314,7 @@ impl fmt::Debug for Rel {
     }
 }
 
-impl fmt::Debug for BasicObservation {
+impl<T: WitnessTerm> fmt::Debug for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
