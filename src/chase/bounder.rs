@@ -1,7 +1,7 @@
-use crate::chase::chase::Bounder;
-use crate::chase::chase::Model;
-use crate::chase::chase::E;
-use crate::chase::chase::Observation;
+use crate::chase::Bounder;
+use crate::chase::Model;
+use crate::chase::E;
+use crate::chase::Observation;
 
 pub struct DomainSize {
     max_domain_size: usize,

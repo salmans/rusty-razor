@@ -1,7 +1,7 @@
 use std::fmt;
 use itertools::Itertools;
 use crate::formula::syntax::*;
-use crate::chase::chase::*;
+use crate::chase::*;
 use crate::chase::r#impl::basic::*;
 use crate::formula::parser::parse_theory;
 use std::fs::File;

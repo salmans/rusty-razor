@@ -1,8 +1,8 @@
-use crate::chase::chase::StrategyNode;
-use crate::chase::chase::Strategy;
-use crate::chase::chase::Model;
-use crate::chase::chase::Selector;
-use crate::chase::chase::Sequent;
+use crate::chase::StrategyNode;
+use crate::chase::Strategy;
+use crate::chase::Model;
+use crate::chase::Selector;
+use crate::chase::Sequent;
 use std::collections::VecDeque;
 
 /// ### FIFO
@@ -63,13 +63,13 @@ mod test_lifo {
     use crate::formula::syntax::Theory;
     use crate::chase::selector::Linear;
     use crate::chase::bounder::DomainSize;
-    use crate::chase::chase::StrategyNode;
-    use crate::chase::chase::Strategy;
-    use crate::chase::chase::Selector;
+    use crate::chase::StrategyNode;
+    use crate::chase::Strategy;
+    use crate::chase::Selector;
     use crate::chase::r#impl::basic::BasicSequent;
     use crate::chase::r#impl::basic::BasicModel;
     use crate::chase::r#impl::basic::BasicEvaluator;
-    use crate::chase::chase::solve_all;
+    use crate::chase::solve_all;
     use super::LIFO;
     use std::collections::HashSet;
     use crate::test_prelude::*;

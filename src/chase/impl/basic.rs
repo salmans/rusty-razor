@@ -1,4 +1,4 @@
-use crate::chase::chase::*;
+use crate::chase::*;
 use crate::formula::syntax::*;
 use std::collections::HashSet;
 use std::collections::HashMap;
