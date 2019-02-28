@@ -1,5 +1,4 @@
-use crate::chase::chase::Selector;
-use crate::chase::chase::Sequent;
+use crate::chase::{Selector, Sequent};
 use crate::formula::syntax::Formula;
 
 /// ### Linear
@@ -100,11 +99,11 @@ mod test_fair {
     use crate::formula::syntax::Theory;
     use crate::chase::selector::Fair;
     use crate::chase::strategy::FIFO;
-    use crate::chase::chase::StrategyNode;
-    use crate::chase::chase::solve_all;
+    use crate::chase::StrategyNode;
+    use crate::chase::solve_all;
     use crate::chase::bounder::DomainSize;
-    use crate::chase::chase::Strategy;
-    use crate::chase::chase::Selector;
+    use crate::chase::Strategy;
+    use crate::chase::Selector;
     use crate::chase::r#impl::basic::BasicModel;
     use crate::chase::r#impl::basic::BasicSequent;
     use crate::chase::r#impl::basic::BasicEvaluator;
@@ -148,11 +147,11 @@ mod test_bootstrap {
     use crate::chase::selector::Bootstrap;
     use crate::chase::selector::Fair;
     use crate::chase::strategy::FIFO;
-    use crate::chase::chase::StrategyNode;
-    use crate::chase::chase::solve_all;
+    use crate::chase::StrategyNode;
+    use crate::chase::solve_all;
     use crate::chase::bounder::DomainSize;
-    use crate::chase::chase::Strategy;
-    use crate::chase::chase::Selector;
+    use crate::chase::Strategy;
+    use crate::chase::Selector;
     use crate::chase::r#impl::basic::BasicModel;
     use crate::chase::r#impl::basic::BasicSequent;
     use crate::chase::r#impl::basic::BasicEvaluator;

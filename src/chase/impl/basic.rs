@@ -1,8 +1,6 @@
-use crate::chase::chase::*;
+use crate::chase::*;
 use crate::formula::syntax::*;
-use std::collections::HashSet;
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::{HashMap, HashSet}, fmt};
 use itertools::Either;
 
 /// BasicWitnessTerm offers the most straight forward implementation for WitnessTerm.
