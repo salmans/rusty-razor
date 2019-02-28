@@ -1,4 +1,4 @@
-use nom;
+use nom::*;
 use nom::types::CompleteStr;
 use super::syntax::*;
 use super::syntax::Formula::*;

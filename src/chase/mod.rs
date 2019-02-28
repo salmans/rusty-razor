@@ -1,5 +1,3 @@
-extern crate criterion;
-
 pub mod chase;
 pub mod r#impl;
 pub mod selector;
