@@ -1,22 +1,18 @@
-use rusty_razor::formula::syntax::Theory;
-use rusty_razor::chase::selector::Linear;
-use rusty_razor::chase::strategy::FIFO;
-use rusty_razor::chase::bounder::DomainSize;
-use rusty_razor::chase::StrategyNode;
-use rusty_razor::chase::Strategy;
-use rusty_razor::chase::Selector;
-use rusty_razor::chase::r#impl::basic::BasicEvaluator;
-use rusty_razor::chase::r#impl::basic::BasicSequent;
-use rusty_razor::chase::r#impl::basic::BasicModel;
-use rusty_razor::chase::solve_all;
-use criterion::Criterion;
-use criterion::criterion_group;
-use criterion::criterion_main;
-use rusty_razor::formula::parser::parse_theory;
-use rusty_razor::chase::selector::Bootstrap;
-use rusty_razor::chase::selector::Fair;
-use std::fs;
-use std::io::Read;
+use criterion::{Criterion, criterion_group, criterion_main};
+use rusty_razor::{
+    chase::{
+        Selector,
+        Strategy,
+        StrategyNode,
+        bounder::DomainSize,
+        r#impl::basic::{BasicEvaluator, BasicModel, BasicSequent},
+        selector::{Bootstrap, Fair, Linear},
+        solve_all,
+        strategy::FIFO,
+    },
+    formula::{parser::parse_theory, syntax::Theory},
+};
+use std::{fs, io::Read};
 
 fn basic_benchmark(c: &mut Criterion) {
     c.bench_function("basic", |b| b.iter(|| time_basic()));

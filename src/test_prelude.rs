@@ -1,14 +1,8 @@
-use std::fmt;
+use crate::formula::{parser::parse_theory, syntax::*};
+use crate::chase::{*, r#impl::basic::*};
+use crate::chase::{bounder::DomainSize, selector::Linear, strategy::FIFO};
 use itertools::Itertools;
-use crate::formula::syntax::*;
-use crate::chase::*;
-use crate::chase::r#impl::basic::*;
-use crate::formula::parser::parse_theory;
-use std::fs::File;
-use std::io::Read;
-use crate::chase::selector::Linear;
-use crate::chase::strategy::FIFO;
-use crate::chase::bounder::DomainSize;
+use std::{fmt, fs::File, io::Read};
 
 // Variables
 pub fn _u() -> V { V::new("u") }

@@ -1,5 +1,4 @@
-use crate::chase::Selector;
-use crate::chase::Sequent;
+use crate::chase::{Selector, Sequent};
 use crate::formula::syntax::Formula;
 
 /// ### Linear

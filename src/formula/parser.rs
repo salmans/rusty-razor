@@ -1,7 +1,5 @@
-use nom::*;
-use nom::types::CompleteStr;
-use super::syntax::*;
-use super::syntax::Formula::*;
+use super::syntax::{*, Formula::*};
+use nom::{*, types::CompleteStr};
 
 const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
 const UPPER: &str = "ABCDEFGIJKLMNOPQRSTUVWXYZ";

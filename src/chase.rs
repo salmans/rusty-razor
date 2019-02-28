@@ -3,12 +3,9 @@ pub mod selector;
 pub mod strategy;
 pub mod bounder;
 
-use std::fmt;
-use crate::formula::syntax::*;
-use crate::formula::syntax::Symbol;
-use std::collections::HashSet;
+use crate::formula::syntax::{*, Symbol};
 use itertools::Either;
-use std::hash::Hash;
+use std::{collections::HashSet, fmt, hash::Hash};
 
 /// ## Element
 /// Element symbols represent elements of models.

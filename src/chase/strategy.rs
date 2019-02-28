@@ -1,8 +1,4 @@
-use crate::chase::StrategyNode;
-use crate::chase::Strategy;
-use crate::chase::Model;
-use crate::chase::Selector;
-use crate::chase::Sequent;
+use crate::chase::{Model, Selector, Sequent, Strategy, StrategyNode};
 use std::collections::VecDeque;
 
 /// ### FIFO

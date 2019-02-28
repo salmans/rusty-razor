@@ -1,6 +1,4 @@
-use super::syntax::*;
-use super::syntax::Term::*;
-use super::syntax::Formula::*;
+use super::syntax::{*, Term::*, Formula::*};
 use std::collections::HashMap;
 
 /// ## Substitution
