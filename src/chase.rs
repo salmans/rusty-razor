@@ -32,7 +32,7 @@ impl fmt::Display for E {
 /// ## Witness Term
 /// Witness terms are variable free terms that provide provenance information to justify elements
 /// of models.
-pub trait WitnessTerm: Clone + Eq + Hash + fmt::Display + PartialEq {
+pub trait WitnessTerm: Clone + Eq + Hash + fmt::Display + PartialEq + FuncApp {
     /// The internal representation of an element when implementing a WitnessTerm.
     type ElementType;
 
@@ -250,14 +250,6 @@ mod test_chase {
             assert_eq!(e_1(), e0);
             assert_eq!(e_1(), e1);
         }
-    }
-
-    #[test]
-    fn test_witness_app() {
-        assert_eq!("f[]", f().wit_app0().to_string());
-        assert_eq!("f['c]", f().wit_app1(_c_()).to_string());
-        assert_eq!("f[g[]]", f().wit_app1(g().wit_app0()).to_string());
-        assert_eq!("f['c, g['d]]", f().wit_app2(_c_(), g().wit_app1(_d_())).to_string());
     }
 
     #[test]
