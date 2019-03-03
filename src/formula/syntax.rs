@@ -8,39 +8,47 @@ pub trait Symbol {}
 /// ### Function
 /// Function symbols.
 #[derive(Clone, Eq, Hash)]
-pub struct Func (String);
+pub struct Func(String);
+
+/// #### FuncApp
+/// `Func` may be applied on types that behave as terms to construct more complex types. Implement
+/// `FuncApp<T>` for a type `T` if `Func` can be applied on terms of type `T`.
+pub trait FuncApp: Sized {
+    fn apply(function: Func, terms: Vec<Self>) -> Self;
+}
 
 impl Func {
     pub fn new(name: &str) -> Func {
-        Func (name.to_string())
+        Func(name.to_string())
+    }
+
+    /// Applies the function to a list of terms.
+    pub fn app<T: FuncApp>(self, terms: Vec<T>) -> T {
+        T::apply(self, terms)
     }
     /// Applies the function to a list of terms.
-    pub fn app(self, terms: Terms) -> Term {
-        Term::App { function: self, terms }
-    }
-    /// Applies the function to a list of terms.
-    pub fn app0(self) -> Term {
-        Term::App { function: self, terms: vec![] }
+    pub fn app0<T: FuncApp>(self) -> T {
+        T::apply(self, vec![])
     }
     /// Applies the (unary) function to a term.
-    pub fn app1(self, first: Term) -> Term {
-        Term::App { function: self, terms: vec![first] }
+    pub fn app1<T: FuncApp>(self, first: T) -> T {
+        T::apply(self, vec![first])
     }
     /// Applies the (binary) predicate to two terms.
-    pub fn app2(self, first: Term, second: Term) -> Term {
-        Term::App { function: self, terms: vec![first, second] }
+    pub fn app2<T: FuncApp>(self, first: T, second: T) -> T {
+        T::apply(self, vec![first, second])
     }
     /// Applies the (ternary) function to three terms.
-    pub fn app3(self, first: Term, second: Term, third: Term) -> Term {
-        Term::App { function: self, terms: vec![first, second, third] }
+    pub fn app3<T: FuncApp>(self, first: T, second: T, third: T) -> T {
+        T::apply(self, vec![first, second, third])
     }
     /// Applies the (4-ary) function to four terms.
-    pub fn app4(self, first: Term, second: Term, third: Term, fourth: Term) -> Term {
-        Term::App { function: self, terms: vec![first, second, third, fourth] }
+    pub fn app4<T: FuncApp>(self, first: T, second: T, third: T, fourth: T) -> T {
+        T::apply(self, vec![first, second, third, fourth])
     }
     /// Applies the (5-ary) function to five terms.
-    pub fn app5(self, first: Term, second: Term, third: Term, fourth: Term, fifth: Term) -> Term {
-        Term::App { function: self, terms: vec![first, second, third, fourth, fifth] }
+    pub fn app5<T: FuncApp>(self, first: T, second: T, third: T, fourth: T, fifth: T) -> T {
+        T::apply(self, vec![first, second, third, fourth, fifth])
     }
 }
 
@@ -176,6 +184,12 @@ impl Term {
 
     pub fn equals(self, rhs: Term) -> Formula {
         Formula::Equals { left: self, right: rhs }
+    }
+}
+
+impl FuncApp for Term {
+    fn apply(function: Func, terms: Terms) -> Term {
+        Term::App { function, terms }
     }
 }
 
@@ -443,7 +457,7 @@ impl PartialEq for Formula {
             (Formula::Bottom, Formula::Bottom) => true,
             (Formula::Atom { predicate: p1, terms: ts1 }, Formula::Atom { predicate: p2, terms: ts2 }) => {
                 p1 == p2 && ts1.iter().zip(ts2).all(|(x, y)| x == y)
-            },
+            }
             (Formula::Equals { left: l1, right: r1 }, Formula::Equals { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
             (Formula::Not { formula: f1 }, Formula::Not { formula: f2 }) => f1 == f2,
             (Formula::And { left: l1, right: r1 }, Formula::And { left: l2, right: r2 }) => l1 == l2 && r1 == r2,
@@ -514,7 +528,8 @@ mod test_syntax {
 
     #[test]
     fn test_app_to_string() {
-        assert_eq!("f()", f().app0().to_string());
+        let term_0: Term = f().app0();
+        assert_eq!("f()", term_0.to_string());
         assert_eq!("f(x, y)", f().app2(x(), y()).to_string());
         assert_eq!("f(g(x), y)", f().app2(g().app1(x()), y()).to_string());
         {
@@ -538,15 +553,18 @@ mod test_syntax {
     #[test]
     fn test_app_free_vars() {
         {
+            let term_0: Term = f().app0();
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &f().app0().free_vars());
+            assert_eq_vectors(&expected, &term_0.free_vars());
         }
         {
+            let g_0: Term = g().app0();
+            let h_0: Term = g().app0();
             let expected: Vec<&V> = vec![];
             assert_eq_vectors(&expected,
                               &f().app1(
                                   g().app2(
-                                      h().app0(), g().app0(),
+                                      h_0, g_0,
                                   )
                               ).free_vars());
         }

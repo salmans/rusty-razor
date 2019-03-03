@@ -69,38 +69,13 @@ impl From<E> for BasicWitnessTerm {
     }
 }
 
-pub type BasicWitnessTerms = Vec<BasicWitnessTerm>;
-
-impl Func {
-    /// Applies the function to a list of witness terms.
-    pub fn wit_app(self, terms: BasicWitnessTerms) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms }
-    }
-    /// Applies the function to a list of terms.
-    pub fn wit_app0(self) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms: vec![] }
-    }
-    /// Applies the (unary) function to a witness term.
-    pub fn wit_app1(self, first: BasicWitnessTerm) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms: vec![first] }
-    }
-    /// Applies the (binary) predicate to two witness terms.
-    pub fn wit_app2(self, first: BasicWitnessTerm, second: BasicWitnessTerm) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms: vec![first, second] }
-    }
-    /// Applies the (ternary) function to three witness terms.
-    pub fn wit_app3(self, first: BasicWitnessTerm, second: BasicWitnessTerm, third: BasicWitnessTerm) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms: vec![first, second, third] }
-    }
-    /// Applies the (4-ary) function to four witness terms.
-    pub fn wit_app4(self, first: BasicWitnessTerm, second: BasicWitnessTerm, third: BasicWitnessTerm, fourth: BasicWitnessTerm) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms: vec![first, second, third, fourth] }
-    }
-    /// Applies the (5-ary) function to five witness terms.
-    pub fn wit_app5(self, first: BasicWitnessTerm, second: BasicWitnessTerm, third: BasicWitnessTerm, fourth: BasicWitnessTerm, fifth: BasicWitnessTerm) -> BasicWitnessTerm {
-        BasicWitnessTerm::App { function: self, terms: vec![first, second, third, fourth, fifth] }
+impl FuncApp for BasicWitnessTerm {
+    fn apply(function: Func, terms: Vec<Self>) -> Self {
+        BasicWitnessTerm::App { function, terms }
     }
 }
+
+pub type BasicWitnessTerms = Vec<BasicWitnessTerm>;
 
 /// BasicModel is a simple Model implementation where terms are of type BasicWitnessTerm.
 #[derive(Clone)]
@@ -506,6 +481,16 @@ mod test_basic {
     }
 
     #[test]
+    fn test_witness_app() {
+        let f_0: BasicWitnessTerm = f().app0();
+        assert_eq!("f[]", f_0.to_string());
+        assert_eq!("f['c]", f().app1(_c_()).to_string());
+        let g_0: BasicWitnessTerm = g().app0();
+        assert_eq!("f[g[]]", f().app1(g_0).to_string());
+        assert_eq!("f['c, g['d]]", f().app2(_c_(), g().app1(_d_())).to_string());
+    }
+
+    #[test]
     fn test_observe() {
         {
             let mut model = BasicModel::new();
@@ -555,13 +540,13 @@ mod test_basic {
         }
         {
             let mut model = BasicModel::new();
-            model.observe(&_R_().app1(f().wit_app1(_c_())));
+            model.observe(&_R_().app1(f().app1(_c_())));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app1(_e_1())].iter()), model.facts());
             assert!(model.is_observed(&_R_().app1(_e_1())));
-            assert!(model.is_observed(&_R_().app1(f().wit_app1(_c_()))));
+            assert!(model.is_observed(&_R_().app1(f().app1(_c_()))));
             assert_eq!(HashSet::from_iter(vec![&_c_()]), model.witness(&e_0()));
-            assert_eq!(HashSet::from_iter(vec![&f().wit_app1(_e_0())]), model.witness(&e_1()));
+            assert_eq!(HashSet::from_iter(vec![&f().app1(_e_0())]), model.witness(&e_1()));
         }
         {
             let mut model = BasicModel::new();
@@ -575,15 +560,15 @@ mod test_basic {
         }
         {
             let mut model = BasicModel::new();
-            model.observe(&_R_().app2(f().wit_app1(_c_()), g().wit_app1(f().wit_app1(_c_()))));
+            model.observe(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_()))));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_1(), _e_2())].iter()), model.facts());
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
-            assert!(model.is_observed(&_R_().app2(f().wit_app1(_c_()), g().wit_app1(f().wit_app1(_c_())))));
-            assert!(model.is_observed(&_R_().app2(f().wit_app1(_c_()), _e_2())));
+            assert!(model.is_observed(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_())))));
+            assert!(model.is_observed(&_R_().app2(f().app1(_c_()), _e_2())));
             assert_eq!(HashSet::from_iter(vec![&_c_()]), model.witness(&e_0()));
-            assert_eq!(HashSet::from_iter(vec![&f().wit_app1(_e_0())]), model.witness(&e_1()));
-            assert_eq!(HashSet::from_iter(vec![&g().wit_app1(_e_1())]), model.witness(&e_2()));
+            assert_eq!(HashSet::from_iter(vec![&f().app1(_e_0())]), model.witness(&e_1()));
+            assert_eq!(HashSet::from_iter(vec![&g().app1(_e_1())]), model.witness(&e_2()));
         }
         {
             let mut model = BasicModel::new();
@@ -596,9 +581,9 @@ mod test_basic {
         }
         {
             let mut model = BasicModel::new();
-            model.observe(&_R_().app2(_a_(), f().wit_app1(_a_())));
+            model.observe(&_R_().app2(_a_(), f().app1(_a_())));
             model.observe(&_S_().app1(_b_()));
-            model.observe(&_R_().app2(g().wit_app1(f().wit_app1(_a_())), _b_()));
+            model.observe(&_R_().app2(g().app1(f().app1(_a_())), _b_()));
             model.observe(&_S_().app1(_c_()));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_0(), _e_1())
