@@ -25,6 +25,17 @@ impl BasicWitnessTerm {
     pub fn equals(self, rhs: BasicWitnessTerm) -> Observation<BasicWitnessTerm> {
         Observation::Identity { left: self, right: rhs }
     }
+
+    fn witness(term: &Term, wit: &impl Fn(&V) -> E) -> BasicWitnessTerm {
+        match term {
+            Term::Const { constant } => BasicWitnessTerm::Const { constant: constant.clone() },
+            Term::Var { variable } => BasicWitnessTerm::Elem { element: wit(&variable) },
+            Term::App { function, terms } => {
+                let terms = terms.iter().map(|t| BasicWitnessTerm::witness(t, wit)).collect();
+                BasicWitnessTerm::App { function: function.clone(), terms }
+            }
+        }
+    }
 }
 
 impl WitnessTerm for BasicWitnessTerm {
@@ -385,20 +396,6 @@ impl Sequent for BasicSequent {
 /// Simple evaluator that evaluates a BasicSequnet in a BasicModel.
 pub struct BasicEvaluator {}
 
-impl Term {
-    fn to_witness(&self, wit: &impl Fn(&V) -> E) -> BasicWitnessTerm {
-        match self {
-            Term::Const { constant } => BasicWitnessTerm::Const { constant: constant.clone() },
-            Term::Var { variable } => BasicWitnessTerm::Elem { element: wit(&variable) },
-            Term::App { function, terms } => {
-                let terms = terms.iter().map(|t| t.to_witness(wit)).collect();
-                BasicWitnessTerm::App { function: function.clone(), terms }
-            }
-        }
-    }
-}
-
-
 impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEvaluator {
     type Sequent = BasicSequent;
     type Model = BasicModel;
@@ -424,12 +421,12 @@ impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEv
                 let convert = |lit: &Literal| {
                     match lit {
                         Literal::Atm { predicate, terms } => {
-                            let terms = terms.into_iter().map(|t| t.to_witness(&witness_func)).collect();
+                            let terms = terms.into_iter().map(|t| BasicWitnessTerm::witness(t, &witness_func)).collect();
                             Observation::Fact { relation: Rel(predicate.0.clone()), terms }
                         }
                         Literal::Eql { left, right } => {
-                            let left = left.to_witness(&witness_func);
-                            let right = right.to_witness(&witness_func);
+                            let left = BasicWitnessTerm::witness(left, &witness_func);
+                            let right = BasicWitnessTerm::witness(right, &witness_func);
                             Observation::Identity { left, right }
                         }
                     }
