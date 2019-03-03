@@ -3,10 +3,10 @@ use crate::formula::syntax::*;
 use std::{collections::{HashMap, HashSet}, fmt};
 use itertools::Either;
 
-/// BasicWitnessTerm offers the most straight forward implementation for WitnessTerm.
+/// WitnessTerm offers the most straight forward implementation for WitnessTerm.
 /// Every element of basic witness term is simply E.
 #[derive(Clone, Eq, Hash)]
-pub enum BasicWitnessTerm {
+pub enum WitnessTerm {
     /// ### Element
     /// Elements are treated as witness terms.
     /// > **Note:** Elements are special case of witness constants.
@@ -18,36 +18,36 @@ pub enum BasicWitnessTerm {
 
     /// ### Function Application
     /// Complex witness term, made by applying a function to a list of witness terms.
-    App { function: Func, terms: Vec<BasicWitnessTerm> },
+    App { function: Func, terms: Vec<WitnessTerm> },
 }
 
-impl BasicWitnessTerm {
-    pub fn equals(self, rhs: BasicWitnessTerm) -> Observation<BasicWitnessTerm> {
+impl WitnessTerm {
+    pub fn equals(self, rhs: WitnessTerm) -> Observation<WitnessTerm> {
         Observation::Identity { left: self, right: rhs }
     }
 
-    fn witness(term: &Term, wit: &impl Fn(&V) -> E) -> BasicWitnessTerm {
+    fn witness(term: &Term, wit: &impl Fn(&V) -> E) -> WitnessTerm {
         match term {
-            Term::Const { constant } => BasicWitnessTerm::Const { constant: constant.clone() },
-            Term::Var { variable } => BasicWitnessTerm::Elem { element: wit(&variable) },
+            Term::Const { constant } => WitnessTerm::Const { constant: constant.clone() },
+            Term::Var { variable } => WitnessTerm::Elem { element: wit(&variable) },
             Term::App { function, terms } => {
-                let terms = terms.iter().map(|t| BasicWitnessTerm::witness(t, wit)).collect();
-                BasicWitnessTerm::App { function: function.clone(), terms }
+                let terms = terms.iter().map(|t| WitnessTerm::witness(t, wit)).collect();
+                WitnessTerm::App { function: function.clone(), terms }
             }
         }
     }
 }
 
-impl WitnessTerm for BasicWitnessTerm {
+impl WitnessTermTrait for WitnessTerm {
     type ElementType = E;
 }
 
-impl fmt::Display for BasicWitnessTerm {
+impl fmt::Display for WitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            BasicWitnessTerm::Elem { element } => write!(f, "{}", element),
-            BasicWitnessTerm::Const { constant } => write!(f, "{}", constant),
-            BasicWitnessTerm::App { function, terms } => {
+            WitnessTerm::Elem { element } => write!(f, "{}", element),
+            WitnessTerm::Const { constant } => write!(f, "{}", constant),
+            WitnessTerm::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}[{}]", function, ts.join(", "))
             }
@@ -55,12 +55,12 @@ impl fmt::Display for BasicWitnessTerm {
     }
 }
 
-impl PartialEq for BasicWitnessTerm {
-    fn eq(&self, other: &BasicWitnessTerm) -> bool {
+impl PartialEq for WitnessTerm {
+    fn eq(&self, other: &WitnessTerm) -> bool {
         match (self, other) {
-            (BasicWitnessTerm::Elem { element: e1 }, BasicWitnessTerm::Elem { element: e2 }) => e1 == e2,
-            (BasicWitnessTerm::Const { constant: c1 }, BasicWitnessTerm::Const { constant: c2 }) => c1 == c2,
-            (BasicWitnessTerm::App { function: f1, terms: ts1 }, BasicWitnessTerm::App { function: f2, terms: ts2 }) => {
+            (WitnessTerm::Elem { element: e1 }, WitnessTerm::Elem { element: e2 }) => e1 == e2,
+            (WitnessTerm::Const { constant: c1 }, WitnessTerm::Const { constant: c2 }) => c1 == c2,
+            (WitnessTerm::App { function: f1, terms: ts1 }, WitnessTerm::App { function: f2, terms: ts2 }) => {
                 f1 == f2 && ts1.iter().zip(ts2).all(|(x, y)| x == y)
             }
             _ => false
@@ -68,53 +68,53 @@ impl PartialEq for BasicWitnessTerm {
     }
 }
 
-impl From<C> for BasicWitnessTerm {
+impl From<C> for WitnessTerm {
     fn from(constant: C) -> Self {
-        BasicWitnessTerm::Const { constant }
+        WitnessTerm::Const { constant }
     }
 }
 
-impl From<E> for BasicWitnessTerm {
+impl From<E> for WitnessTerm {
     fn from(element: E) -> Self {
-        BasicWitnessTerm::Elem { element }
+        WitnessTerm::Elem { element }
     }
 }
 
-impl FuncApp for BasicWitnessTerm {
+impl FuncApp for WitnessTerm {
     fn apply(function: Func, terms: Vec<Self>) -> Self {
-        BasicWitnessTerm::App { function, terms }
+        WitnessTerm::App { function, terms }
     }
 }
 
-pub type BasicWitnessTerms = Vec<BasicWitnessTerm>;
+pub type WitnessTerms = Vec<WitnessTerm>;
 
-/// BasicModel is a simple Model implementation where terms are of type BasicWitnessTerm.
+/// Model is a simple Model implementation where terms are of type WitnessTerm.
 #[derive(Clone)]
-pub struct BasicModel {
+pub struct Model {
     element_index: i32,
-    rewrites: HashMap<BasicWitnessTerm, E>,
-    facts: HashSet<Observation<BasicWitnessTerm>>,
+    rewrites: HashMap<WitnessTerm, E>,
+    facts: HashSet<Observation<WitnessTerm>>,
 }
 
-impl BasicModel {
-    pub fn new() -> BasicModel {
-        BasicModel {
+impl Model {
+    pub fn new() -> Model {
+        Model {
             element_index: 0,
             rewrites: HashMap::new(),
             facts: HashSet::new(),
         }
     }
 
-    fn record(&mut self, witness: BasicWitnessTerm) -> E {
+    fn record(&mut self, witness: WitnessTerm) -> E {
         match witness {
-            BasicWitnessTerm::Elem { element } => {
+            WitnessTerm::Elem { element } => {
                 if self.domain().contains(&element) {
                     element
                 } else {
                     panic!("Element does not exist in the model's domain!")
                 }
             }
-            BasicWitnessTerm::Const { .. } => {
+            WitnessTerm::Const { .. } => {
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
@@ -124,9 +124,9 @@ impl BasicModel {
                     element
                 }
             }
-            BasicWitnessTerm::App { function, terms } => {
-                let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|t| self.record(t).into()).collect();
-                let witness = BasicWitnessTerm::App { function, terms };
+            WitnessTerm::App { function, terms } => {
+                let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record(t).into()).collect();
+                let witness = WitnessTerm::App { function, terms };
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
@@ -140,8 +140,8 @@ impl BasicModel {
     }
 }
 
-impl Model for BasicModel {
-    type TermType = BasicWitnessTerm;
+impl ModelTrait for Model {
+    type TermType = WitnessTerm;
 
     fn domain(&self) -> HashSet<&E> {
         self.rewrites.values().collect()
@@ -154,7 +154,7 @@ impl Model for BasicModel {
     fn observe(&mut self, observation: &Observation<Self::TermType>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
                 let observation = Observation::Fact { relation: (*relation).clone(), terms };
                 self.facts.insert(observation);
             }
@@ -169,12 +169,12 @@ impl Model for BasicModel {
                 let mut new_rewrite: HashMap<Self::TermType, E> = HashMap::new();
                 self.rewrites.iter().for_each(|(k, v)| {
                     // k is a flat term and cannot be an element:
-                    let key = if let BasicWitnessTerm::App { function, terms } = k {
-                        let mut new_terms: Vec<BasicWitnessTerm> = Vec::new();
+                    let key = if let WitnessTerm::App { function, terms } = k {
+                        let mut new_terms: Vec<WitnessTerm> = Vec::new();
                         terms.iter().for_each(|t| {
-                            if let BasicWitnessTerm::Elem { element } = t {
+                            if let WitnessTerm::Elem { element } = t {
                                 if element == &dest {
-                                    new_terms.push(BasicWitnessTerm::Elem { element: src.clone() });
+                                    new_terms.push(WitnessTerm::Elem { element: src.clone() });
                                 } else {
                                     new_terms.push(t.clone());
                                 }
@@ -182,7 +182,7 @@ impl Model for BasicModel {
                                 new_terms.push(t.clone());
                             }
                         });
-                        BasicWitnessTerm::App { function: function.clone(), terms: new_terms }
+                        WitnessTerm::App { function: function.clone(), terms: new_terms }
                     } else {
                         k.clone()
                     };
@@ -198,8 +198,8 @@ impl Model for BasicModel {
                 // TODO: by maintaining references to elements, the following can be avoided:
                 self.facts = self.facts.iter().map(|f| {
                     if let Observation::Fact { ref relation, ref terms } = f {
-                        let terms: Vec<BasicWitnessTerm> = terms.iter().map(|t| {
-                            if let BasicWitnessTerm::Elem { element } = t {
+                        let terms: Vec<WitnessTerm> = terms.iter().map(|t| {
+                            if let WitnessTerm::Elem { element } = t {
                                 if element == &dest {
                                     src.clone().into()
                                 } else {
@@ -225,7 +225,7 @@ impl Model for BasicModel {
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
+                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
                     self.facts.contains(&Observation::Fact { relation: (*relation).clone(), terms })
                 }
             }
@@ -245,24 +245,24 @@ impl Model for BasicModel {
 
     fn element(&self, witness: &Self::TermType) -> Option<E> {
         match witness {
-            BasicWitnessTerm::Elem { element } => {
+            WitnessTerm::Elem { element } => {
                 if self.domain().contains(element) { Some((*element).clone()) } else { None }
             }
-            BasicWitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| (*e).clone()),
-            BasicWitnessTerm::App { function, terms } => {
+            WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| (*e).clone()),
+            WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<BasicWitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
-                    self.rewrites.get(&BasicWitnessTerm::App { function: (*function).clone(), terms }).map(|e| (*e).clone())
+                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
+                    self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms }).map(|e| (*e).clone())
                 }
             }
         }
     }
 }
 
-impl fmt::Display for BasicModel {
+impl fmt::Display for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
         let facts: Vec<String> = self.facts().into_iter().map(|e| e.to_string()).collect();
@@ -270,7 +270,7 @@ impl fmt::Display for BasicModel {
     }
 }
 
-/// Literal is the type that represents atomic formulas in BasicSequent.
+/// Literal is the type that represents atomic formulas in Sequent.
 #[derive(Clone)]
 pub enum Literal {
     Atm { predicate: Pred, terms: Terms },
@@ -278,7 +278,7 @@ pub enum Literal {
 }
 
 impl Literal {
-    /// Construct the body of a BasicSequent from a formula.
+    /// Construct the body of a Sequent from a formula.
     fn build_body(formula: &Formula) -> Vec<Literal> {
         match formula {
             Formula::Top => vec![],
@@ -296,7 +296,7 @@ impl Literal {
         }
     }
 
-    /// Construct the head of a BasicSequent from a formula.
+    /// Construct the head of a Sequent from a formula.
     fn build_head(formula: &Formula) -> Vec<Vec<Literal>> {
         match formula {
             Formula::Top => vec![vec![]],
@@ -344,10 +344,9 @@ impl<'t> fmt::Display for Literal {
     }
 }
 
-/// BasicSequent is represented by a list of literals in the body and a list of list of literals in
-/// the head.
+/// Sequent is represented by a list of literals in the body and a list of list of literals in the head.
 #[derive(Clone)]
-pub struct BasicSequent {
+pub struct Sequent {
     pub free_vars: Vec<V>,
     body: Formula,
     head: Formula,
@@ -355,7 +354,7 @@ pub struct BasicSequent {
     pub head_literals: Vec<Vec<Literal>>,
 }
 
-impl From<&Formula> for BasicSequent {
+impl From<&Formula> for Sequent {
     fn from(formula: &Formula) -> Self {
         match formula {
             Formula::Implies { left, right } => {
@@ -364,14 +363,14 @@ impl From<&Formula> for BasicSequent {
                 let head_literals = Literal::build_head(right);
                 let body = *left.clone();
                 let head = *right.clone();
-                BasicSequent { free_vars, body, head, body_literals, head_literals }
+                Sequent { free_vars, body, head, body_literals, head_literals }
             }
             _ => panic!("Expecting a geometric sequent in standard form.")
         }
     }
 }
 
-impl fmt::Display for BasicSequent {
+impl fmt::Display for Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let body: Vec<String> = self.body_literals.iter().map(|l| l.to_string()).collect();
         let head: Vec<String> =
@@ -383,7 +382,7 @@ impl fmt::Display for BasicSequent {
     }
 }
 
-impl Sequent for BasicSequent {
+impl SequentTrait for Sequent {
     fn body(&self) -> Formula {
         self.body.clone()
     }
@@ -393,14 +392,14 @@ impl Sequent for BasicSequent {
     }
 }
 
-/// Simple evaluator that evaluates a BasicSequnet in a BasicModel.
-pub struct BasicEvaluator {}
+/// Simple evaluator that evaluates a Sequnet in a Model.
+pub struct Evaluator {}
 
-impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEvaluator {
-    type Sequent = BasicSequent;
-    type Model = BasicModel;
-    fn evaluate(&self, model: &BasicModel, selector: Sel, bounder: Option<&B>)
-                -> Option<Vec<Either<BasicModel, BasicModel>>> {
+impl<Sel: SelectorTrait<Item=Sequent>, B: BounderTrait> EvaluatorTrait<Sel, B> for Evaluator {
+    type Sequent = Sequent;
+    type Model = Model;
+    fn evaluate(&self, model: &Model, selector: Sel, bounder: Option<&B>)
+                -> Option<Vec<Either<Model, Model>>> {
         use itertools::Itertools;
         let domain: Vec<&E> = model.domain().into_iter().collect();
         let domain_size = domain.len();
@@ -421,19 +420,19 @@ impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEv
                 let convert = |lit: &Literal| {
                     match lit {
                         Literal::Atm { predicate, terms } => {
-                            let terms = terms.into_iter().map(|t| BasicWitnessTerm::witness(t, &witness_func)).collect();
+                            let terms = terms.into_iter().map(|t| WitnessTerm::witness(t, &witness_func)).collect();
                             Observation::Fact { relation: Rel(predicate.0.clone()), terms }
                         }
                         Literal::Eql { left, right } => {
-                            let left = BasicWitnessTerm::witness(left, &witness_func);
-                            let right = BasicWitnessTerm::witness(right, &witness_func);
+                            let left = WitnessTerm::witness(left, &witness_func);
+                            let right = WitnessTerm::witness(right, &witness_func);
                             Observation::Identity { left, right }
                         }
                     }
                 };
 
-                let body: Vec<Observation<BasicWitnessTerm>> = sequent.body_literals.iter().map(convert).collect();
-                let head: Vec<Vec<Observation<BasicWitnessTerm>>> = sequent.head_literals.iter().map(|l| l.iter().map(convert).collect()).collect();
+                let body: Vec<Observation<WitnessTerm>> = sequent.body_literals.iter().map(convert).collect();
+                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals.iter().map(|l| l.iter().map(convert).collect()).collect();
 
                 if body.iter().all(|o| model.is_observed(o))
                     && !head.iter().any(|os| os.iter().all(|o| model.is_observed(o))) {
@@ -462,7 +461,6 @@ impl<Sel: Selector<Item=BasicSequent>, B: Bounder> Evaluator<Sel, B> for BasicEv
     }
 }
 
-
 #[cfg(test)]
 mod test_basic {
     use super::*;
@@ -470,19 +468,52 @@ mod test_basic {
     use std::iter::FromIterator;
     use crate::formula::parser::parse_formula;
 
+    // Witness Elements
+    pub fn _e_0() -> WitnessTerm { e_0().into() }
+
+    pub fn _e_1() -> WitnessTerm { e_1().into() }
+
+    pub fn _e_2() -> WitnessTerm { e_2().into() }
+
+    pub fn _e_3() -> WitnessTerm { e_3().into() }
+
+    pub fn _e_4() -> WitnessTerm { e_4().into() }
+
+    // Witness Constants
+    pub fn _a_() -> WitnessTerm { WitnessTerm::Const { constant: _a() } }
+
+    pub fn _b_() -> WitnessTerm { WitnessTerm::Const { constant: _b() } }
+
+    pub fn _c_() -> WitnessTerm { WitnessTerm::Const { constant: _c() } }
+
+    pub fn _d_() -> WitnessTerm { WitnessTerm::Const { constant: _d() } }
+
+    #[test]
+    fn test_witness_const() {
+        assert_eq!(_a_(), _a().into());
+        assert_eq!("'a", _a_().to_string());
+    }
+
+    #[test]
+    fn test_observation() {
+        assert_eq!("<R(e#0)>", _R_().app1(_e_0()).to_string());
+        assert_eq!("<R(e#0, e#1, e#2)>", _R_().app3(_e_0(), _e_1(), _e_2()).to_string());
+        assert_eq!("<e#0 = e#1>", _e_0().equals(_e_1()).to_string());
+    }
+
     #[test]
     fn test_empty_model() {
-        let model = BasicModel::new();
+        let model = Model::new();
         assert_eq!(HashSet::new(), model.domain());
         assert_eq!(HashSet::new(), model.facts());
     }
 
     #[test]
     fn test_witness_app() {
-        let f_0: BasicWitnessTerm = f().app0();
+        let f_0: WitnessTerm = f().app0();
         assert_eq!("f[]", f_0.to_string());
         assert_eq!("f['c]", f().app1(_c_()).to_string());
-        let g_0: BasicWitnessTerm = g().app0();
+        let g_0: WitnessTerm = g().app0();
         assert_eq!("f[g[]]", f().app1(g_0).to_string());
         assert_eq!("f['c, g['d]]", f().app2(_c_(), g().app1(_d_())).to_string());
     }
@@ -490,13 +521,13 @@ mod test_basic {
     #[test]
     fn test_observe() {
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app0());
             assert_eq!(HashSet::from_iter(vec![_R_().app0()].iter()), model.facts());
             assert!(model.is_observed(&_R_().app0()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app1(_c_()));
             assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app1(_e_0())].iter()), model.facts());
@@ -506,21 +537,21 @@ mod test_basic {
             assert_eq!(HashSet::from_iter(vec![&_c_()]), model.witness(&e_0()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_a_().equals(_b_()));
             assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
             assert_eq!(HashSet::new(), model.facts());
             assert_eq!(HashSet::from_iter(vec![&_a_(), &_b_()]), model.witness(&e_0()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_a_().equals(_a_()));
             assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
             assert_eq!(HashSet::new(), model.facts());
             assert_eq!(HashSet::from_iter(vec![&_a_()]), model.witness(&e_0()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_P_().app1(_a_()));
             model.observe(&_Q_().app1(_b_()));
             model.observe(&_a_().equals(_b_()));
@@ -536,7 +567,7 @@ mod test_basic {
             assert_eq!(HashSet::from_iter(vec![&_a_(), &_b_()]), model.witness(&e_0()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app1(f().app1(_c_())));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app1(_e_1())].iter()), model.facts());
@@ -546,7 +577,7 @@ mod test_basic {
             assert_eq!(HashSet::from_iter(vec![&f().app1(_e_0())]), model.witness(&e_1()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_0(), _e_1())].iter()), model.facts());
@@ -556,7 +587,7 @@ mod test_basic {
             assert_eq!(HashSet::from_iter(vec![&_b_()]), model.witness(&e_1()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_()))));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2()]), model.domain());
             assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_1(), _e_2())].iter()), model.facts());
@@ -568,7 +599,7 @@ mod test_basic {
             assert_eq!(HashSet::from_iter(vec![&g().app1(_e_1())]), model.witness(&e_2()));
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             model.observe(&_S_().app2(_c_(), _d_()));
             assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]), model.domain());
@@ -577,7 +608,7 @@ mod test_basic {
             ].iter()), model.facts());
         }
         {
-            let mut model = BasicModel::new();
+            let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), f().app1(_a_())));
             model.observe(&_S_().app1(_b_()));
             model.observe(&_R_().app2(g().app1(f().app1(_a_())), _b_()));
@@ -594,96 +625,96 @@ mod test_basic {
     #[test]
     #[should_panic]
     fn test_observe_missing_element() {
-        let mut model = BasicModel::new();
+        let mut model = Model::new();
         model.observe(&_R_().app1(_e_0()));
     }
 
     #[test]
     fn test_build_sequent() {
         assert_debug_string("[] -> [[]]",
-                            BasicSequent::from(&parse_formula("TRUE -> TRUE")));
+                            Sequent::from(&parse_formula("TRUE -> TRUE")));
         assert_debug_string("[] -> [[]]",
-                            BasicSequent::from(&parse_formula("TRUE -> TRUE & TRUE")));
+                            Sequent::from(&parse_formula("TRUE -> TRUE & TRUE")));
         assert_debug_string("[] -> [[], []]",
-                            BasicSequent::from(&parse_formula("TRUE -> TRUE | TRUE")));
+                            Sequent::from(&parse_formula("TRUE -> TRUE | TRUE")));
         assert_debug_string("[] -> []",
-                            BasicSequent::from(&parse_formula("TRUE -> FALSE")));
+                            Sequent::from(&parse_formula("TRUE -> FALSE")));
         assert_debug_string("[] -> []",
-                            BasicSequent::from(&parse_formula("TRUE -> FALSE & TRUE")));
+                            Sequent::from(&parse_formula("TRUE -> FALSE & TRUE")));
         assert_debug_string("[] -> []",
-                            BasicSequent::from(&parse_formula("TRUE -> TRUE & FALSE")));
+                            Sequent::from(&parse_formula("TRUE -> TRUE & FALSE")));
         assert_debug_string("[] -> [[]]",
-                            BasicSequent::from(&parse_formula("TRUE -> TRUE | FALSE")));
+                            Sequent::from(&parse_formula("TRUE -> TRUE | FALSE")));
         assert_debug_string("[] -> [[]]",
-                            BasicSequent::from(&parse_formula("TRUE -> FALSE | TRUE")));
+                            Sequent::from(&parse_formula("TRUE -> FALSE | TRUE")));
         assert_debug_string("[P(x)] -> [[Q(x)]]",
-                            BasicSequent::from(&parse_formula("P(x) -> Q(x)")));
+                            Sequent::from(&parse_formula("P(x) -> Q(x)")));
         assert_debug_string("[P(x), Q(x)] -> [[Q(y)]]",
-                            BasicSequent::from(&parse_formula("P(x) & Q(x) -> Q(y)")));
+                            Sequent::from(&parse_formula("P(x) & Q(x) -> Q(y)")));
         assert_debug_string("[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
-                            BasicSequent::from(&parse_formula("P(x) & Q(x) -> Q(x) | (R(z) & S(z))")));
+                            Sequent::from(&parse_formula("P(x) & Q(x) -> Q(x) | (R(z) & S(z))")));
         assert_debug_string("[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-                            BasicSequent::from(&parse_formula("TRUE -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))")));
+                            Sequent::from(&parse_formula("TRUE -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))")));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_1() {
-        BasicSequent::from(&parse_formula("TRUE"));
+        Sequent::from(&parse_formula("TRUE"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_2() {
-        BasicSequent::from(&parse_formula("FALSE"));
+        Sequent::from(&parse_formula("FALSE"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_3() {
-        BasicSequent::from(&parse_formula("FALSE -> TRUE"));
+        Sequent::from(&parse_formula("FALSE -> TRUE"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_4() {
-        BasicSequent::from(&parse_formula("(P(x) | Q(x)) -> R(x)"));
+        Sequent::from(&parse_formula("(P(x) | Q(x)) -> R(x)"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_5() {
-        BasicSequent::from(&parse_formula("P(x) -> R(x) & (Q(z) | R(z))"));
+        Sequent::from(&parse_formula("P(x) -> R(x) & (Q(z) | R(z))"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_6() {
-        BasicSequent::from(&parse_formula("P(x) -> ?x. Q(x)"));
+        Sequent::from(&parse_formula("P(x) -> ?x. Q(x)"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_7() {
-        BasicSequent::from(&parse_formula("?x.Q(x) -> P(x)"));
+        Sequent::from(&parse_formula("?x.Q(x) -> P(x)"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_8() {
-        BasicSequent::from(&parse_formula("TRUE -> ~FALSE"));
+        Sequent::from(&parse_formula("TRUE -> ~FALSE"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_9() {
-        BasicSequent::from(&parse_formula("TRUE -> ~TRUE"));
+        Sequent::from(&parse_formula("TRUE -> ~TRUE"));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_10() {
-        BasicSequent::from(&parse_formula("~P(x) -> ~Q(x)"));
+        Sequent::from(&parse_formula("~P(x) -> ~Q(x)"));
     }
 
     #[test]

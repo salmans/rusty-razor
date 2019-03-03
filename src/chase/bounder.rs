@@ -1,4 +1,4 @@
-use crate::chase::{Bounder, E, Model, Observation};
+use crate::chase::{BounderTrait, E, ModelTrait, Observation};
 
 pub struct DomainSize {
     max_domain_size: usize,
@@ -10,8 +10,8 @@ impl DomainSize {
     }
 }
 
-impl Bounder for DomainSize {
-    fn bound<M: Model>(&self, model: &M, observation: &Observation<M::TermType>) -> bool {
+impl BounderTrait for DomainSize {
+    fn bound<M: ModelTrait>(&self, model: &M, observation: &Observation<M::TermType>) -> bool {
         match observation {
             Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
