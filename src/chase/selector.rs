@@ -1,21 +1,21 @@
-use crate::chase::{Selector, Sequent};
+use crate::chase::{SelectorTrait, SequentTrait};
 use crate::formula::syntax::Formula;
 
 /// ### Linear
 /// Goes through the list of all sequents from the start and returns the next sequent every time
 /// `Iterator::next()` is called.
 #[derive(Clone)]
-pub struct Linear<S: Sequent> {
+pub struct Linear<S: SequentTrait> {
     sequents: Vec<S>,
 }
 
-impl<S: Sequent> Selector for Linear<S> {
+impl<S: SequentTrait> SelectorTrait for Linear<S> {
     fn new(sequents: Vec<S>) -> Linear<S> {
         Linear { sequents }
     }
 }
 
-impl<S: Sequent> Iterator for Linear<S> {
+impl<S: SequentTrait> Iterator for Linear<S> {
     type Item = S;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
@@ -30,20 +30,20 @@ impl<S: Sequent> Iterator for Linear<S> {
 /// ### Fair
 /// Avoids starving sequents by doing a round robin on the sequents. The internal state of the
 /// selector is preserved when cloned, so the cloned selector can preserve fairness.
-pub struct Fair<S: Sequent> {
+pub struct Fair<S: SequentTrait> {
     sequents: Vec<S>,
     index: usize,
     start: usize,
     full_circle: bool,
 }
 
-impl<S: Sequent> Selector for Fair<S> {
+impl<S: SequentTrait> SelectorTrait for Fair<S> {
     fn new(sequents: Vec<S>) -> Fair<S> {
         Fair { sequents, index: 0, start: 0, full_circle: false }
     }
 }
 
-impl<S: Sequent> Iterator for Fair<S> {
+impl<S: SequentTrait> Iterator for Fair<S> {
     type Item = S;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
@@ -57,7 +57,7 @@ impl<S: Sequent> Iterator for Fair<S> {
     }
 }
 
-impl<S: Sequent> Clone for Fair<S> {
+impl<S: SequentTrait> Clone for Fair<S> {
     fn clone(&self) -> Self {
         Fair {
             sequents: self.sequents.clone(),
@@ -69,12 +69,12 @@ impl<S: Sequent> Clone for Fair<S> {
 }
 
 #[derive(Clone)]
-pub struct Bootstrap<S: Sequent, Sel: Selector<Item=S>> {
+pub struct Bootstrap<S: SequentTrait, Sel: SelectorTrait<Item=S>> {
     initial_sequents: Vec<S>,
     selector: Sel,
 }
 
-impl<S: Sequent, Sel: Selector<Item=S>> Selector for Bootstrap<S, Sel> {
+impl<S: SequentTrait, Sel: SelectorTrait<Item=S>> SelectorTrait for Bootstrap<S, Sel> {
     fn new(sequents: Vec<S>) -> Bootstrap<S, Sel> {
         let (initial_sequents, rest) = sequents.into_iter()
             .partition(|s| { s.body() == Formula::Top && s.head().free_vars().is_empty() });
@@ -82,7 +82,7 @@ impl<S: Sequent, Sel: Selector<Item=S>> Selector for Bootstrap<S, Sel> {
     }
 }
 
-impl<S: Sequent, Sel: Selector<Item=S>> Iterator for Bootstrap<S, Sel> {
+impl<S: SequentTrait, Sel: SelectorTrait<Item=S>> Iterator for Bootstrap<S, Sel> {
     type Item = S;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
@@ -102,29 +102,29 @@ mod test_fair {
     use crate::chase::StrategyNode;
     use crate::chase::solve_all;
     use crate::chase::bounder::DomainSize;
-    use crate::chase::Strategy;
-    use crate::chase::Selector;
-    use crate::chase::r#impl::basic::BasicModel;
-    use crate::chase::r#impl::basic::BasicSequent;
-    use crate::chase::r#impl::basic::BasicEvaluator;
+    use crate::chase::StrategyTrait;
+    use crate::chase::SelectorTrait;
+    use crate::chase::r#impl::basic::Model;
+    use crate::chase::r#impl::basic::Sequent;
+    use crate::chase::r#impl::basic::Evaluator;
     use crate::test_prelude::solve_basic;
     use crate::test_prelude::read_theory_from_file;
     use std::collections::HashSet;
     use crate::test_prelude::print_model;
     use std::fs;
 
-    fn run_test(theory: &Theory) -> Vec<BasicModel> {
+    fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
-        let sequents: Vec<BasicSequent> = geometric_theory
+        let sequents: Vec<Sequent> = geometric_theory
             .formulas
             .iter()
             .map(|f| f.into()).collect();
 
-        let evaluator = BasicEvaluator {};
+        let evaluator = Evaluator {};
         let selector = Fair::new(sequents);
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(StrategyNode::new(BasicModel::new(), selector));
+        strategy.add(StrategyNode::new(Model::new(), selector));
         solve_all(Box::new(strategy), Box::new(evaluator), bounder)
     }
 
@@ -150,29 +150,29 @@ mod test_bootstrap {
     use crate::chase::StrategyNode;
     use crate::chase::solve_all;
     use crate::chase::bounder::DomainSize;
-    use crate::chase::Strategy;
-    use crate::chase::Selector;
-    use crate::chase::r#impl::basic::BasicModel;
-    use crate::chase::r#impl::basic::BasicSequent;
-    use crate::chase::r#impl::basic::BasicEvaluator;
+    use crate::chase::StrategyTrait;
+    use crate::chase::SelectorTrait;
+    use crate::chase::r#impl::basic::Model;
+    use crate::chase::r#impl::basic::Sequent;
+    use crate::chase::r#impl::basic::Evaluator;
     use crate::test_prelude::solve_basic;
     use crate::test_prelude::read_theory_from_file;
     use std::collections::HashSet;
     use crate::test_prelude::print_model;
     use std::fs;
 
-    fn run_test(theory: &Theory) -> Vec<BasicModel> {
+    fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
-        let sequents: Vec<BasicSequent> = geometric_theory
+        let sequents: Vec<Sequent> = geometric_theory
             .formulas
             .iter()
             .map(|f| f.into()).collect();
 
-        let evaluator = BasicEvaluator {};
-        let selector: Bootstrap<BasicSequent, Fair<BasicSequent>> = Bootstrap::new(sequents);
+        let evaluator = Evaluator {};
+        let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents);
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(StrategyNode::new(BasicModel::new(), selector));
+        strategy.add(StrategyNode::new(Model::new(), selector));
         solve_all(Box::new(strategy), Box::new(evaluator), bounder)
     }
 

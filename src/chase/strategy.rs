@@ -1,20 +1,20 @@
-use crate::chase::{Model, Selector, Sequent, Strategy, StrategyNode};
+use crate::chase::{ModelTrait, SelectorTrait, SequentTrait, StrategyTrait, StrategyNode};
 use std::collections::VecDeque;
 
 /// ### FIFO
 /// Arranges the branches of chase computation in a queue to implement a first-in-first-out strategy.
 /// > FIFO is used as the basic strategy for benchmarking and testing purposes.
-pub struct FIFO<S:Sequent, M:Model, Sel: Selector<Item=S>> {
+pub struct FIFO<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
     queue: VecDeque<StrategyNode<S, M, Sel>>
 }
 
-impl<S: Sequent, M: Model, Sel: Selector<Item=S>> FIFO<S, M, Sel> {
+impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> FIFO<S, M, Sel> {
     pub fn new() -> FIFO<S, M, Sel> {
         FIFO { queue: VecDeque::new() }
     }
 }
 
-impl<S: Sequent, M: Model, Sel: Selector<Item=S>> Strategy<S, M, Sel> for FIFO<S, M, Sel> {
+impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyTrait<S, M, Sel> for FIFO<S, M, Sel> {
     fn empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -30,17 +30,17 @@ impl<S: Sequent, M: Model, Sel: Selector<Item=S>> Strategy<S, M, Sel> for FIFO<S
 
 /// ### FIFO
 /// Arranges the branches of chase computation in a stack to implement a last-in-first-out strategy.
-pub struct LIFO<S:Sequent, M:Model, Sel: Selector<Item=S>> {
+pub struct LIFO<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
     queue: VecDeque<StrategyNode<S, M, Sel>>
 }
 
-impl<S: Sequent, M: Model, Sel: Selector<Item=S>> LIFO<S, M, Sel> {
+impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> LIFO<S, M, Sel> {
     pub fn new() -> LIFO<S, M, Sel> {
         LIFO { queue: VecDeque::new() }
     }
 }
 
-impl<S: Sequent, M: Model, Sel: Selector<Item=S>> Strategy<S, M, Sel> for LIFO<S, M, Sel> {
+impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyTrait<S, M, Sel> for LIFO<S, M, Sel> {
     fn empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -60,29 +60,29 @@ mod test_lifo {
     use crate::chase::selector::Linear;
     use crate::chase::bounder::DomainSize;
     use crate::chase::StrategyNode;
-    use crate::chase::Strategy;
-    use crate::chase::Selector;
-    use crate::chase::r#impl::basic::BasicSequent;
-    use crate::chase::r#impl::basic::BasicModel;
-    use crate::chase::r#impl::basic::BasicEvaluator;
+    use crate::chase::StrategyTrait;
+    use crate::chase::SelectorTrait;
+    use crate::chase::r#impl::basic::Sequent;
+    use crate::chase::r#impl::basic::Model;
+    use crate::chase::r#impl::basic::Evaluator;
     use crate::chase::solve_all;
     use super::LIFO;
     use std::collections::HashSet;
     use crate::test_prelude::*;
     use std::fs;
 
-    pub fn run_test(theory: &Theory) -> Vec<BasicModel> {
+    pub fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
-        let sequents: Vec<BasicSequent> = geometric_theory
+        let sequents: Vec<Sequent> = geometric_theory
             .formulas
             .iter()
             .map(|f| f.into()).collect();
 
-        let evaluator = BasicEvaluator {};
+        let evaluator = Evaluator {};
         let selector = Linear::new(sequents);
         let mut strategy = LIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(StrategyNode::new(BasicModel::new(), selector));
+        strategy.add(StrategyNode::new(Model::new(), selector));
         solve_all(Box::new(strategy), Box::new(evaluator), bounder)
     }
 

@@ -67,26 +67,6 @@ pub fn e_3() -> E { E::new(3) }
 
 pub fn e_4() -> E { E::new(4) }
 
-// Witness Elements
-pub fn _e_0() -> BasicWitnessTerm { e_0().into() }
-
-pub fn _e_1() -> BasicWitnessTerm { e_1().into() }
-
-pub fn _e_2() -> BasicWitnessTerm { e_2().into() }
-
-pub fn _e_3() -> BasicWitnessTerm { e_3().into() }
-
-pub fn _e_4() -> BasicWitnessTerm { e_4().into() }
-
-// Witness Constants
-pub fn _a_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _a() } }
-
-pub fn _b_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _b() } }
-
-pub fn _c_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _c() } }
-
-pub fn _d_() -> BasicWitnessTerm { BasicWitnessTerm::Const { constant: _d() } }
-
 // Predicates
 #[allow(non_snake_case)]
 pub fn P() -> Pred { Pred::new("P") }
@@ -296,7 +276,7 @@ impl fmt::Debug for Pred {
     }
 }
 
-impl fmt::Debug for BasicWitnessTerm {
+impl fmt::Debug for WitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -308,7 +288,7 @@ impl fmt::Debug for Rel {
     }
 }
 
-impl<T: WitnessTerm> fmt::Debug for Observation<T> {
+impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -320,13 +300,13 @@ impl fmt::Debug for Literal {
     }
 }
 
-impl fmt::Debug for BasicSequent {
+impl fmt::Debug for Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
 
-impl fmt::Debug for BasicModel {
+impl fmt::Debug for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -357,7 +337,7 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     parse_theory(contents.as_str())
 }
 
-pub fn print_model<M: Model>(model: M) -> String {
+pub fn print_model<M: ModelTrait>(model: M) -> String {
     let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
         let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
         let witnesses = witnesses.into_iter().sorted();
@@ -371,22 +351,22 @@ pub fn print_model<M: Model>(model: M) -> String {
             elements.join("\n"))
 }
 
-pub fn print_models<M: Model>(models: Vec<M>) -> String {
+pub fn print_models<M: ModelTrait>(models: Vec<M>) -> String {
     let models: Vec<String> = models.into_iter().map(|m| print_model(m)).collect();
     models.join("\n-- -- -- -- -- -- -- -- -- --\n")
 }
 
-pub fn solve_basic(theory: &Theory) -> Vec<BasicModel> {
+pub fn solve_basic(theory: &Theory) -> Vec<Model> {
     let geometric_theory = theory.gnf();
-    let sequents: Vec<BasicSequent> = geometric_theory
+    let sequents: Vec<Sequent> = geometric_theory
         .formulas
         .iter()
         .map(|f| f.into()).collect();
 
-    let evaluator = BasicEvaluator {};
+    let evaluator = Evaluator {};
     let selector = Linear::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(BasicModel::new(), selector));
+    strategy.add(StrategyNode::new(Model::new(), selector));
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }

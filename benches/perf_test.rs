@@ -1,11 +1,11 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use rusty_razor::{
     chase::{
-        Selector,
-        Strategy,
+        SelectorTrait,
+        StrategyTrait,
         StrategyNode,
         bounder::DomainSize,
-        r#impl::basic::{BasicEvaluator, BasicModel, BasicSequent},
+        r#impl::basic::{Evaluator, Model, Sequent},
         selector::{Bootstrap, Fair, Linear},
         solve_all,
         strategy::FIFO,
@@ -29,18 +29,18 @@ fn time_basic() {
     }
 }
 
-fn solve_basic(theory: &Theory) -> Vec<BasicModel> {
+fn solve_basic(theory: &Theory) -> Vec<Model> {
     let geometric_theory = theory.gnf();
-    let sequents: Vec<BasicSequent> = geometric_theory
+    let sequents: Vec<Sequent> = geometric_theory
         .formulas
         .iter()
         .map(|f| f.into()).collect();
 
-    let evaluator = BasicEvaluator {};
+    let evaluator = Evaluator {};
     let selector = Linear::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(BasicModel::new(), selector));
+    strategy.add(StrategyNode::new(Model::new(), selector));
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
@@ -51,18 +51,18 @@ fn time_bootstrap() {
     }
 }
 
-fn solve_bootstrap(theory: &Theory) -> Vec<BasicModel> {
+fn solve_bootstrap(theory: &Theory) -> Vec<Model> {
     let geometric_theory = theory.gnf();
-    let sequents: Vec<BasicSequent> = geometric_theory
+    let sequents: Vec<Sequent> = geometric_theory
         .formulas
         .iter()
         .map(|f| f.into()).collect();
 
-    let evaluator = BasicEvaluator {};
-    let selector: Bootstrap<BasicSequent, Fair<BasicSequent>> = Bootstrap::new(sequents);
+    let evaluator = Evaluator {};
+    let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(BasicModel::new(), selector));
+    strategy.add(StrategyNode::new(Model::new(), selector));
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
