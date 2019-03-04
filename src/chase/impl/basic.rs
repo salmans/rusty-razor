@@ -468,6 +468,12 @@ mod test_basic {
     use std::iter::FromIterator;
     use crate::formula::parser::parse_formula;
 
+    impl fmt::Debug for WitnessTerm {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{}", self.to_string())
+        }
+    }
+
     // Witness Elements
     pub fn _e_0() -> WitnessTerm { e_0().into() }
 

@@ -276,12 +276,6 @@ impl fmt::Debug for Pred {
     }
 }
 
-impl fmt::Debug for WitnessTerm {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
