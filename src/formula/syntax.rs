@@ -7,7 +7,7 @@ pub trait Symbol {}
 
 /// ### Function
 /// Function symbols.
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, PartialOrd, Ord, Hash)]
 pub struct Func(String);
 
 /// #### FuncApp
@@ -87,7 +87,7 @@ impl Symbol for V {}
 
 /// ### Constant
 /// Constant symbols.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct C(String);
 
 impl C {

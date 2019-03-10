@@ -15,7 +15,7 @@ impl BounderTrait for DomainSize {
         match observation {
             Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
-                let terms: Vec<Option<E>> = terms.iter()
+                let terms: Vec<Option<&E>> = terms.iter()
                     .map(|t| model.element(t))
                     .filter(|t| t.is_none()).collect();
                 let size = terms.len();

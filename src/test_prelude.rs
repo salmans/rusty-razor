@@ -4,6 +4,11 @@ use crate::chase::{bounder::DomainSize, selector::Linear, strategy::FIFO};
 use itertools::Itertools;
 use std::{fmt, fs::File, io::Read};
 
+
+pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {
+    first.iter().all(|e| second.contains(e)) && second.iter().all(|e| first.contains(e))
+}
+
 // Variables
 pub fn _u() -> V { V::new("u") }
 
@@ -307,9 +312,11 @@ impl fmt::Debug for Model {
 }
 
 pub fn assert_eq_vectors<T: Ord + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> () {
-    println!("{:?}", first);
-    println!("{:?}", second);
     assert!(first.iter().sorted() == second.iter().sorted());
+}
+
+pub fn assert_eq_sets<T: Eq + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> () {
+    assert!(equal_sets(first, second));
 }
 
 pub fn assert_debug_string<T: fmt::Debug>(expected: &str, value: T) {

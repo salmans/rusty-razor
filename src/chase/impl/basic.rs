@@ -2,10 +2,11 @@ use crate::chase::*;
 use crate::formula::syntax::*;
 use std::{collections::{HashMap, HashSet}, fmt};
 use itertools::Either;
+use itertools::Itertools;
 
 /// WitnessTerm offers the most straight forward implementation for WitnessTerm.
 /// Every element of basic witness term is simply E.
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
     /// ### Element
     /// Elements are treated as witness terms.
@@ -108,7 +109,7 @@ impl Model {
     fn record(&mut self, witness: WitnessTerm) -> E {
         match witness {
             WitnessTerm::Elem { element } => {
-                if self.domain().contains(&element) {
+                if self.domain().contains(&&element) {
                     element
                 } else {
                     panic!("Element does not exist in the model's domain!")
@@ -143,15 +144,15 @@ impl Model {
 impl ModelTrait for Model {
     type TermType = WitnessTerm;
 
-    fn domain(&self) -> HashSet<&E> {
-        self.rewrites.values().collect()
+    fn domain(&self) -> Vec<&E> {
+        self.rewrites.values().sorted().into_iter().dedup().collect()
     }
 
-    fn facts(&self) -> HashSet<&Observation<Self::TermType>> {
-        self.facts.iter().collect()
+    fn facts(&self) -> Vec<&Observation<Self::TermType>> {
+        self.facts.iter().sorted().into_iter().dedup().collect()
     }
 
-    fn observe(&mut self, observation: &Observation<Self::TermType>) {
+    fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
@@ -218,14 +219,14 @@ impl ModelTrait for Model {
         }
     }
 
-    fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool {
+    fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
+                let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
+                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().clone().into()).collect();
                     self.facts.contains(&Observation::Fact { relation: (*relation).clone(), terms })
                 }
             }
@@ -236,26 +237,26 @@ impl ModelTrait for Model {
         }
     }
 
-    fn witness(&self, element: &E) -> HashSet<&Self::TermType> {
+    fn witness(&self, element: &E) -> Vec<&WitnessTerm> {
         self.rewrites.iter()
             .filter(|(_, e)| *e == element)
             .map(|(t, _)| t)
             .collect()
     }
 
-    fn element(&self, witness: &Self::TermType) -> Option<E> {
+    fn element(&self, witness: &Self::TermType) -> Option<&E> {
         match witness {
             WitnessTerm::Elem { element } => {
-                if self.domain().contains(element) { Some((*element).clone()) } else { None }
+                self.domain().into_iter().find(|e| e.eq(&element))
             }
-            WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| (*e).clone()),
+            WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| e),
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
+                let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().into()).collect();
-                    self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms }).map(|e| (*e).clone())
+                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().clone().into()).collect();
+                    self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms }).map(|e| e)
                 }
             }
         }
@@ -510,8 +511,10 @@ mod test_basic {
     #[test]
     fn test_empty_model() {
         let model = Model::new();
-        assert_eq!(HashSet::new(), model.domain());
-        assert_eq!(HashSet::new(), model.facts());
+        let empty_domain: Vec<&E> = Vec::new();
+        let empty_facts: Vec<&Observation<WitnessTerm>> = Vec::new();
+        assert_eq!(empty_domain, model.domain());
+        assert_eq_sets(&empty_facts, &model.facts());
     }
 
     #[test]
@@ -529,89 +532,90 @@ mod test_basic {
         {
             let mut model = Model::new();
             model.observe(&_R_().app0());
-            assert_eq!(HashSet::from_iter(vec![_R_().app0()].iter()), model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app0()].iter()), &model.facts());
             assert!(model.is_observed(&_R_().app0()));
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app1(_c_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
-            assert_eq!(HashSet::from_iter(vec![_R_().app1(_e_0())].iter()), model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app1(_e_0())].iter()), &model.facts());
             assert!(model.is_observed(&_R_().app1(_c_())));
             assert!(model.is_observed(&_R_().app1(_e_0())));
             assert!(!model.is_observed(&_R_().app1(_e_1())));
-            assert_eq!(HashSet::from_iter(vec![&_c_()]), model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
         }
         {
             let mut model = Model::new();
             model.observe(&_a_().equals(_b_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
-            assert_eq!(HashSet::new(), model.facts());
-            assert_eq!(HashSet::from_iter(vec![&_a_(), &_b_()]), model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
+            let empty_facts: Vec<&Observation<WitnessTerm>> = Vec::new();
+            assert_eq_sets(&empty_facts, &model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&_a_(), &_b_()]), &model.witness(&e_0()));
         }
         {
             let mut model = Model::new();
             model.observe(&_a_().equals(_a_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
-            assert_eq!(HashSet::new(), model.facts());
-            assert_eq!(HashSet::from_iter(vec![&_a_()]), model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
+            let empty_facts: Vec<&Observation<WitnessTerm>> = Vec::new();
+            assert_eq_sets(&empty_facts, &model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&_a_()]), &model.witness(&e_0()));
         }
         {
             let mut model = Model::new();
             model.observe(&_P_().app1(_a_()));
             model.observe(&_Q_().app1(_b_()));
             model.observe(&_a_().equals(_b_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0()]), model.domain());
-            assert_eq!(HashSet::from_iter(
-                vec![_P_().app1(_e_0()), _Q_().app1(_e_0())].iter()), model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_P_().app1(_e_0()), _Q_().app1(_e_0())].iter()), &model.facts());
             assert!(model.is_observed(&_P_().app1(_e_0())));
             assert!(model.is_observed(&_P_().app1(_a_())));
             assert!(model.is_observed(&_P_().app1(_b_())));
             assert!(model.is_observed(&_Q_().app1(_e_0())));
             assert!(model.is_observed(&_Q_().app1(_a_())));
             assert!(model.is_observed(&_Q_().app1(_b_())));
-            assert_eq!(HashSet::from_iter(vec![&_a_(), &_b_()]), model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&_a_(), &_b_()]), &model.witness(&e_0()));
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app1(f().app1(_c_())));
-            assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1()]), model.domain());
-            assert_eq!(HashSet::from_iter(vec![_R_().app1(_e_1())].iter()), model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app1(_e_1())].iter()), &model.facts());
             assert!(model.is_observed(&_R_().app1(_e_1())));
             assert!(model.is_observed(&_R_().app1(f().app1(_c_()))));
-            assert_eq!(HashSet::from_iter(vec![&_c_()]), model.witness(&e_0()));
-            assert_eq!(HashSet::from_iter(vec![&f().app1(_e_0())]), model.witness(&e_1()));
+            assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&f().app1(_e_0())]), &model.witness(&e_1()));
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), _b_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1()]), model.domain());
-            assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_0(), _e_1())].iter()), model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())].iter()), &model.facts());
             assert!(model.is_observed(&_R_().app2(_e_0(), _e_1())));
             assert!(!model.is_observed(&_R_().app2(_e_0(), _e_0())));
-            assert_eq!(HashSet::from_iter(vec![&_a_()]), model.witness(&e_0()));
-            assert_eq!(HashSet::from_iter(vec![&_b_()]), model.witness(&e_1()));
+            assert_eq_sets(&Vec::from_iter(vec![&_a_()]), &model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&_b_()]), &model.witness(&e_1()));
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_()))));
-            assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2()]), model.domain());
-            assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_1(), _e_2())].iter()), model.facts());
+            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())].iter()), &model.facts());
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
             assert!(model.is_observed(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_())))));
             assert!(model.is_observed(&_R_().app2(f().app1(_c_()), _e_2())));
-            assert_eq!(HashSet::from_iter(vec![&_c_()]), model.witness(&e_0()));
-            assert_eq!(HashSet::from_iter(vec![&f().app1(_e_0())]), model.witness(&e_1()));
-            assert_eq!(HashSet::from_iter(vec![&g().app1(_e_1())]), model.witness(&e_2()));
+            assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
+            assert_eq_sets(&Vec::from_iter(vec![&f().app1(_e_0())]), &model.witness(&e_1()));
+            assert_eq_sets(&Vec::from_iter(vec![&g().app1(_e_1())]), &model.witness(&e_2()));
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             model.observe(&_S_().app2(_c_(), _d_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]), model.domain());
-            assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_0(), _e_1())
+            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())
                                                , _S_().app2(_e_2(), _e_3())
-            ].iter()), model.facts());
+            ].iter()), &model.facts());
         }
         {
             let mut model = Model::new();
@@ -619,12 +623,12 @@ mod test_basic {
             model.observe(&_S_().app1(_b_()));
             model.observe(&_R_().app2(g().app1(f().app1(_a_())), _b_()));
             model.observe(&_S_().app1(_c_()));
-            assert_eq!(HashSet::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]), model.domain());
-            assert_eq!(HashSet::from_iter(vec![_R_().app2(_e_0(), _e_1())
+            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]), &model.domain());
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())
                                                , _S_().app1(_e_4())
                                                , _S_().app1(_e_2())
                                                , _R_().app2(_e_3(), _e_2())
-            ].iter()), model.facts());
+            ].iter()), &model.facts());
         }
     }
 
