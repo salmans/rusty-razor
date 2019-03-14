@@ -1,5 +1,5 @@
 use crate::formula::{parser::parse_theory, syntax::*};
-use crate::chase::{*, r#impl::basic::*};
+use crate::chase::{*, r#impl::basic, r#impl::reference};
 use crate::chase::{bounder::DomainSize, selector::Linear, strategy::FIFO};
 use itertools::Itertools;
 use std::{fmt, fs::File, io::Read};
@@ -293,19 +293,19 @@ impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
     }
 }
 
-impl fmt::Debug for Literal {
+impl fmt::Debug for basic::Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
 
-impl fmt::Debug for Sequent {
+impl fmt::Debug for basic::Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
 
-impl fmt::Debug for Model {
+impl fmt::Debug for basic::Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -338,7 +338,22 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     parse_theory(contents.as_str())
 }
 
-pub fn print_model<M: ModelTrait>(model: M) -> String {
+pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
+    let geometric_theory = theory.gnf();
+    let sequents: Vec<basic::Sequent> = geometric_theory
+        .formulas
+        .iter()
+        .map(|f| f.into()).collect();
+
+    let evaluator = basic::Evaluator {};
+    let selector = Linear::new(sequents);
+    let mut strategy = FIFO::new();
+    let bounder: Option<&DomainSize> = None;
+    strategy.add(StrategyNode::new(basic::Model::new(), selector));
+    solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+}
+
+pub fn print_basic_model(model: basic::Model) -> String {
     let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
         let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
         let witnesses = witnesses.into_iter().sorted();
@@ -352,22 +367,22 @@ pub fn print_model<M: ModelTrait>(model: M) -> String {
             elements.join("\n"))
 }
 
-pub fn print_models<M: ModelTrait>(models: Vec<M>) -> String {
-    let models: Vec<String> = models.into_iter().map(|m| print_model(m)).collect();
+pub fn print_basic_models(models: Vec<basic::Model>) -> String {
+    let models: Vec<String> = models.into_iter().map(|m| print_basic_model(m)).collect();
     models.join("\n-- -- -- -- -- -- -- -- -- --\n")
 }
 
-pub fn solve_basic(theory: &Theory) -> Vec<Model> {
-    let geometric_theory = theory.gnf();
-    let sequents: Vec<Sequent> = geometric_theory
-        .formulas
-        .iter()
-        .map(|f| f.into()).collect();
 
-    let evaluator = Evaluator {};
-    let selector = Linear::new(sequents);
-    let mut strategy = FIFO::new();
-    let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(Model::new(), selector));
-    solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+pub fn print_reference_model(model: reference::Model) -> String {
+    let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
+        let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
+        let witnesses = witnesses.into_iter().sorted();
+        format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e.get())
+    }).collect();
+    let domain: Vec<String> = model.domain().iter().map(|e| e.get().to_string()).collect();
+    let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
+    format!("Domain: {{{}}}\nFacts: {}\n{}",
+            domain.into_iter().sorted().join(", "),
+            facts.into_iter().sorted().join(", "),
+            elements.join("\n"))
 }

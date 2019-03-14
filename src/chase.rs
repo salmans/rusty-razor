@@ -32,7 +32,7 @@ impl fmt::Display for E {
 /// ## Witness Term
 /// Witness terms are variable free terms that provide provenance information to justify elements
 /// of models.
-pub trait WitnessTermTrait: Clone + Eq + fmt::Display + PartialEq + FuncApp {
+pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FuncApp {
     /// The internal representation of an element when implementing a WitnessTerm.
     type ElementType;
 
@@ -124,7 +124,7 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
     type TermType: WitnessTermTrait;
 
     /// Returns the domain of this model.
-    fn domain(&self) -> Vec<&E>;
+    fn domain(&self) -> Vec<&<Self::TermType as WitnessTermTrait>::ElementType>;
     /// Returns the set of observation facts that are true in this model.
     fn facts(&self) -> Vec<&Observation<Self::TermType>>;
     /// Makes the given observation hold in the model.
@@ -132,9 +132,9 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
     /// Returns true if the given observation holds in the model.
     fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool;
     /// Returns a set of all witness terms for the given element.
-    fn witness(&self, element: &E) -> Vec<&Self::TermType>;
+    fn witness(&self, element: &<Self::TermType as WitnessTermTrait>::ElementType) -> Vec<&Self::TermType>;
     /// Returns the element, associated with the given witness term.
-    fn element(&self, witness: &Self::TermType) -> Option<&E>;
+    fn element(&self, witness: &Self::TermType) -> Option<&<Self::TermType as WitnessTermTrait>::ElementType>;
 }
 
 /// ## Sequent
@@ -216,7 +216,7 @@ pub fn solve_all<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>, E: 
                     }
                 });
             } else {
-                result.push(node.model.clone()); // can we return pointers to models?
+                result.push(node.model.clone()); //TODO can return pointers to models?
             }
         }
     }

@@ -110,8 +110,23 @@ mod test_fair {
     use crate::test_prelude::solve_basic;
     use crate::test_prelude::read_theory_from_file;
     use std::collections::HashSet;
-    use crate::test_prelude::print_model;
     use std::fs;
+    use crate::chase::ModelTrait;
+    use itertools::Itertools;
+
+    pub fn print_model(model: Model) -> String {
+        let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
+            let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
+            let witnesses = witnesses.into_iter().sorted();
+            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
+        }).collect();
+        let domain: Vec<String> = model.domain().iter().map(|e| e.to_string()).collect();
+        let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
+        format!("Domain: {{{}}}\nFacts: {}\n{}",
+                domain.into_iter().sorted().join(", "),
+                facts.into_iter().sorted().join(", "),
+                elements.join("\n"))
+    }
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
@@ -144,21 +159,10 @@ mod test_fair {
 #[cfg(test)]
 mod test_bootstrap {
     use crate::formula::syntax::Theory;
-    use crate::chase::selector::Bootstrap;
-    use crate::chase::selector::Fair;
-    use crate::chase::strategy::FIFO;
-    use crate::chase::StrategyNode;
-    use crate::chase::solve_all;
-    use crate::chase::bounder::DomainSize;
-    use crate::chase::StrategyTrait;
-    use crate::chase::SelectorTrait;
-    use crate::chase::r#impl::basic::Model;
-    use crate::chase::r#impl::basic::Sequent;
-    use crate::chase::r#impl::basic::Evaluator;
-    use crate::test_prelude::solve_basic;
-    use crate::test_prelude::read_theory_from_file;
+    use crate::chase::{StrategyTrait, SelectorTrait, StrategyNode, r#impl::basic::{Model, Sequent, Evaluator}
+                       , bounder::DomainSize, selector::{Bootstrap, Fair}, strategy::FIFO, solve_all};
+    use crate::test_prelude::*;
     use std::collections::HashSet;
-    use crate::test_prelude::print_model;
     use std::fs;
 
     fn run_test(theory: &Theory) -> Vec<Model> {
@@ -182,8 +186,8 @@ mod test_bootstrap {
             let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_model(m)).collect();
-            let test_models: HashSet<String> = test_models.into_iter().map(|m| print_model(m)).collect();
+            let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_basic_model(m)).collect();
+            let test_models: HashSet<String> = test_models.into_iter().map(|m| print_basic_model(m)).collect();
             assert_eq!(basic_models, test_models);
         }
     }
