@@ -1,8 +1,11 @@
 use std::rc::Rc;
 use std::cell::Cell;
-use crate::chase::{E, Rel, Observation, WitnessTermTrait, ModelTrait, SequentTrait, SelectorTrait, EvaluatorTrait, BounderTrait};
+use crate::formula::syntax::{FuncApp, Term, V, C, Func};
+use crate::chase::{
+    r#impl::basic
+    , E, Rel, Observation, WitnessTermTrait, ModelTrait
+    , SelectorTrait, EvaluatorTrait, BounderTrait};
 use std::fmt;
-use crate::formula::syntax::{Formula, FuncApp, Term, Terms, V, C, Func, Pred};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use itertools::{Itertools, Either};
 
@@ -214,128 +217,6 @@ impl fmt::Display for Model {
     }
 }
 
-/// Literal is the type that represents atomic formulas in Sequent.
-#[derive(Clone)]
-pub enum Literal {
-    Atm { predicate: Pred, terms: Terms },
-    Eql { left: Term, right: Term },
-}
-
-impl Literal {
-    /// Construct the body of a Sequent from a formula.
-    fn build_body(formula: &Formula) -> Vec<Literal> {
-        match formula {
-            Formula::Top => vec![],
-            Formula::Atom { predicate, terms } =>
-                vec![Literal::Atm { predicate: predicate.clone(), terms: terms.to_vec() }],
-            Formula::Equals { left, right } =>
-                vec![Literal::Eql { left: left.clone(), right: right.clone() }],
-            Formula::And { left, right } => {
-                let mut left = Literal::build_body(left);
-                let mut right = Literal::build_body(right);
-                left.append(&mut right);
-                left
-            }
-            _ => panic!("Expecting a geometric sequent in standard form.")
-        }
-    }
-
-    /// Construct the head of a Sequent from a formula.
-    fn build_head(formula: &Formula) -> Vec<Vec<Literal>> {
-        match formula {
-            Formula::Top => vec![vec![]],
-            Formula::Bottom => vec![],
-            Formula::Atom { predicate, terms } =>
-                vec![vec![Literal::Atm { predicate: predicate.clone(), terms: terms.to_vec() }]],
-            Formula::Equals { left, right } =>
-                vec![vec![Literal::Eql { left: left.clone(), right: right.clone() }]],
-            Formula::And { left, right } => {
-                let mut left = Literal::build_head(left);
-                let mut right = Literal::build_head(right);
-                if left.is_empty() {
-                    left
-                } else if right.is_empty() {
-                    right
-                } else if left.len() == 1 && right.len() == 1 {
-                    let mut left = left.remove(0);
-                    let mut right = right.remove(0);
-                    left.append(&mut right);
-                    vec![left]
-                } else {
-                    panic!("Expecting a geometric sequent in standard form.")
-                }
-            }
-            Formula::Or { left, right } => {
-                let mut left = Literal::build_head(left);
-                let mut right = Literal::build_head(right);
-                left.append(&mut right);
-                left
-            }
-            _ => panic!("Expecting a geometric sequent in standard form.")
-        }
-    }
-}
-
-impl<'t> fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            Literal::Atm { predicate, terms } => {
-                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}({})", predicate, ts.join(", "))
-            }
-            Literal::Eql { left, right } => write!(f, "{} = {}", left, right),
-        }
-    }
-}
-
-/// Sequent is represented by a list of literals in the body and a list of list of literals in the head.
-#[derive(Clone)]
-pub struct Sequent {
-    pub free_vars: Vec<V>,
-    body: Formula,
-    head: Formula,
-    pub body_literals: Vec<Literal>,
-    pub head_literals: Vec<Vec<Literal>>,
-}
-
-impl From<&Formula> for Sequent {
-    fn from(formula: &Formula) -> Self {
-        match formula {
-            Formula::Implies { left, right } => {
-                let free_vars: Vec<V> = formula.free_vars().into_iter().map(|v| v.clone()).collect();
-                let body_literals = Literal::build_body(left);
-                let head_literals = Literal::build_head(right);
-                let body = *left.clone();
-                let head = *right.clone();
-                Sequent { free_vars, body, head, body_literals, head_literals }
-            }
-            _ => panic!("Expecting a geometric sequent in standard form.")
-        }
-    }
-}
-
-impl fmt::Display for Sequent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let body: Vec<String> = self.body_literals.iter().map(|l| l.to_string()).collect();
-        let head: Vec<String> =
-            self.head_literals.iter().map(|ls| {
-                let ls: Vec<String> = ls.iter().map(|l| l.to_string()).collect();
-                format!("[{}]", ls.join(", "))
-            }).collect();
-        write!(f, "[{}] -> [{}]", body.join(", "), head.join(", "))
-    }
-}
-
-impl SequentTrait for Sequent {
-    fn body(&self) -> Formula {
-        self.body.clone()
-    }
-
-    fn head(&self) -> Formula {
-        self.head.clone()
-    }
-}
-
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator {}
 
@@ -363,11 +244,11 @@ impl<Sel: SelectorTrait<Item=Sequent>, B: BounderTrait> EvaluatorTrait<Sel, B> f
                 let witness_func = |v: &V| wit_map.get(v).unwrap().clone();
                 let convert = |lit: &Literal| {
                     match lit {
-                        Literal::Atm { predicate, terms } => {
+                        basic::Literal::Atm { predicate, terms } => {
                             let terms = terms.into_iter().map(|t| WitnessTerm::witness(t, &witness_func)).collect();
                             Observation::Fact { relation: Rel(predicate.0.clone()), terms }
                         }
-                        Literal::Eql { left, right } => {
+                        basic::Literal::Eql { left, right } => {
                             let left = WitnessTerm::witness(left, &witness_func);
                             let right = WitnessTerm::witness(right, &witness_func);
                             Observation::Identity { left, right }
@@ -405,9 +286,13 @@ impl<Sel: SelectorTrait<Item=Sequent>, B: BounderTrait> EvaluatorTrait<Sel, B> f
     }
 }
 
+pub type Sequent = basic::Sequent;
+pub type Literal = basic::Literal;
+
 #[cfg(test)]
 mod test_bootstrap {
-    use super::{Model, Evaluator, Sequent};
+    use super::{Model, Evaluator};
+    use crate::chase::r#impl::basic::Sequent;
     use crate::formula::syntax::Theory;
     use crate::chase::{StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair}
                        , strategy::FIFO, bounder::DomainSize, solve_all};
