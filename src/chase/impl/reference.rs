@@ -409,7 +409,7 @@ impl<Sel: SelectorTrait<Item=Sequent>, B: BounderTrait> EvaluatorTrait<Sel, B> f
 mod test_bootstrap {
     use super::{Model, Evaluator, Sequent};
     use crate::formula::syntax::Theory;
-    use crate::chase::{StrategyTrait, SelectorTrait, StrategyNode, selector::{Bootstrap, Fair}
+    use crate::chase::{StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair}
                        , strategy::FIFO, bounder::DomainSize, solve_all};
     use crate::test_prelude::*;
     use std::collections::HashSet;
@@ -426,7 +426,7 @@ mod test_bootstrap {
         let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents);
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(StrategyNode::new(Model::new(), selector));
+        strategy.add(Model::new(), selector);
         solve_all(Box::new(strategy), Box::new(evaluator), bounder)
     }
 

@@ -174,26 +174,13 @@ pub trait EvaluatorTrait<Sel: SelectorTrait<Item=Self::Sequent>, B: BounderTrait
                 , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
-/// ## StrategyNode
-/// StrategyNode is used to keep track of intermediate chase computations.
-pub struct StrategyNode<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
-    pub model: M,
-    pub selector: Sel,
-}
-
-impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyNode<S, M, Sel> {
-    pub fn new(model: M, selector: Sel) -> StrategyNode<S, M, Sel> {
-        StrategyNode { model, selector }
-    }
-}
-
 /// ## Strategy
 /// Strategy is the trait for selecting the next branch of chase to process.
 // TODO: implement Strategy as a priority queue.
 pub trait StrategyTrait<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
     fn empty(&self) -> bool;
-    fn add(&mut self, node: StrategyNode<S, M, Sel>);
-    fn remove(&mut self) -> Option<StrategyNode<S, M, Sel>>;
+    fn add(&mut self, model: M, selector: Sel);
+    fn remove(&mut self) -> Option<(M, Sel)>;
 }
 
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
@@ -203,20 +190,20 @@ pub fn solve_all<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>, E: 
     mut strategy: Box<StrategyTrait<S, M, Sel>>, evaluator: Box<E>, bounder: Option<&B>) -> Vec<M> {
     let mut result: Vec<M> = Vec::new();
     while !strategy.empty() {
-        let node = strategy.remove().unwrap();
+        let (base_model, selector) = strategy.remove().unwrap();
         // TODO selector below shouldn't be cloned
-        let models = evaluator.evaluate(&node.model, node.selector.clone(), bounder);
+        let models = evaluator.evaluate(&base_model, selector.clone(), bounder);
         if let Some(models) = models {
             if !models.is_empty() {
                 models.into_iter().for_each(|m| {
                     if let Either::Left(model) = m {
-                        strategy.add(StrategyNode { model, selector: node.selector.clone() });
+                        strategy.add(model, selector.clone() );
                     } else if let Either::Right(model) = m {
                         result.push(model);
                     }
                 });
             } else {
-                result.push(node.model.clone()); //TODO can return pointers to models?
+                result.push(base_model.clone()); //TODO can return pointers to models?
             }
         }
     }

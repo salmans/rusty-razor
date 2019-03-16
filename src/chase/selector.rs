@@ -99,7 +99,6 @@ mod test_fair {
     use crate::formula::syntax::Theory;
     use crate::chase::selector::Fair;
     use crate::chase::strategy::FIFO;
-    use crate::chase::StrategyNode;
     use crate::chase::solve_all;
     use crate::chase::bounder::DomainSize;
     use crate::chase::StrategyTrait;
@@ -139,7 +138,7 @@ mod test_fair {
         let selector = Fair::new(sequents);
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(StrategyNode::new(Model::new(), selector));
+        strategy.add(Model::new(), selector);
         solve_all(Box::new(strategy), Box::new(evaluator), bounder)
     }
 
@@ -159,7 +158,7 @@ mod test_fair {
 #[cfg(test)]
 mod test_bootstrap {
     use crate::formula::syntax::Theory;
-    use crate::chase::{StrategyTrait, SelectorTrait, StrategyNode, r#impl::basic::{Model, Sequent, Evaluator}
+    use crate::chase::{StrategyTrait, SelectorTrait, r#impl::basic::{Model, Sequent, Evaluator}
                        , bounder::DomainSize, selector::{Bootstrap, Fair}, strategy::FIFO, solve_all};
     use crate::test_prelude::*;
     use std::collections::HashSet;
@@ -176,7 +175,7 @@ mod test_bootstrap {
         let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents);
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(StrategyNode::new(Model::new(), selector));
+        strategy.add(Model::new(), selector);
         solve_all(Box::new(strategy), Box::new(evaluator), bounder)
     }
 

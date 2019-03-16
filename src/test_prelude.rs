@@ -349,7 +349,7 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     let selector = Linear::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(basic::Model::new(), selector));
+    strategy.add(basic::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 

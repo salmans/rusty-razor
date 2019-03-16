@@ -3,7 +3,6 @@ use rusty_razor::{
     chase::{
         SelectorTrait,
         StrategyTrait,
-        StrategyNode,
         bounder::DomainSize,
         r#impl,
         selector::{Bootstrap, Fair, Linear},
@@ -57,7 +56,7 @@ fn solve_basic(theory: &Theory) -> Vec<r#impl::basic::Model> {
     let selector = Linear::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(r#impl::basic::Model::new(), selector));
+    strategy.add(r#impl::basic::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
@@ -77,7 +76,7 @@ fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
     let selector: Bootstrap<r#impl::basic::Sequent, Fair<r#impl::basic::Sequent>> = Bootstrap::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(r#impl::basic::Model::new(), selector));
+    strategy.add(r#impl::basic::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
@@ -97,7 +96,7 @@ fn solve_referenced(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> = Bootstrap::new(sequents);
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(r#impl::reference::Model::new(), selector));
+    strategy.add(r#impl::reference::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
