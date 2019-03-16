@@ -56,17 +56,10 @@ impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyTrait<S
 
 #[cfg(test)]
 mod test_lifo {
-    use crate::formula::syntax::Theory;
-    use crate::chase::selector::Linear;
-    use crate::chase::bounder::DomainSize;
-    use crate::chase::StrategyNode;
-    use crate::chase::StrategyTrait;
-    use crate::chase::SelectorTrait;
-    use crate::chase::r#impl::basic::Sequent;
-    use crate::chase::r#impl::basic::Model;
-    use crate::chase::r#impl::basic::Evaluator;
-    use crate::chase::solve_all;
     use super::LIFO;
+    use crate::formula::syntax::Theory;
+    use crate::chase::{r#impl::basic::{Sequent, Model, Evaluator}, selector::Linear
+                       , bounder::DomainSize, StrategyNode, StrategyTrait, SelectorTrait, solve_all};
     use std::collections::HashSet;
     use crate::test_prelude::*;
     use std::fs;
@@ -92,8 +85,8 @@ mod test_lifo {
             let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_model(m)).collect();
-            let test_models: HashSet<String> = test_models.into_iter().map(|m| print_model(m)).collect();
+            let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_basic_model(m)).collect();
+            let test_models: HashSet<String> = test_models.into_iter().map(|m| print_basic_model(m)).collect();
             assert_eq!(basic_models, test_models);
         }
     }

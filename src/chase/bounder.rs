@@ -1,4 +1,4 @@
-use crate::chase::{BounderTrait, E, ModelTrait, Observation};
+use crate::chase::{BounderTrait, ModelTrait, WitnessTermTrait, Observation};
 
 pub struct DomainSize {
     max_domain_size: usize,
@@ -15,7 +15,7 @@ impl BounderTrait for DomainSize {
         match observation {
             Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
-                let terms: Vec<Option<E>> = terms.iter()
+                let terms: Vec<Option<&<<M as ModelTrait>::TermType as WitnessTermTrait>::ElementType>> = terms.iter()
                     .map(|t| model.element(t))
                     .filter(|t| t.is_none()).collect();
                 let size = terms.len();
