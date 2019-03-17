@@ -5,20 +5,20 @@ use crate::formula::syntax::Formula;
 /// Goes through the list of all sequents from the start and returns the next sequent every time
 /// `Iterator::next()` is called.
 #[derive(Clone)]
-pub struct Linear<S: SequentTrait> {
-    sequents: Vec<S>,
+pub struct Linear<'s, S: SequentTrait> {
+    sequents: Vec<&'s S>,
 }
 
-impl<S: SequentTrait> SelectorTrait for Linear<S> {
-    fn new(sequents: Vec<S>) -> Linear<S> {
+impl<'s, S: SequentTrait> SelectorTrait for Linear<'s, S> {
+    fn new(sequents: Vec<&'s S>) -> Linear<'s, S> {
         Linear { sequents }
     }
 }
 
-impl<S: SequentTrait> Iterator for Linear<S> {
-    type Item = S;
+impl<'s, S: SequentTrait> Iterator for Linear<'s, S> {
+    type Item = &'s S;
 
-    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+    fn next(&mut self) -> Option<&'s S> {
         if self.sequents.is_empty() {
             None
         } else {
@@ -30,23 +30,23 @@ impl<S: SequentTrait> Iterator for Linear<S> {
 /// ### Fair
 /// Avoids starving sequents by doing a round robin on the sequents. The internal state of the
 /// selector is preserved when cloned, so the cloned selector can preserve fairness.
-pub struct Fair<S: SequentTrait> {
-    sequents: Vec<S>,
+pub struct Fair<'s, S: SequentTrait> {
+    sequents: Vec<&'s S>,
     index: usize,
     start: usize,
     full_circle: bool,
 }
 
-impl<S: SequentTrait> SelectorTrait for Fair<S> {
-    fn new(sequents: Vec<S>) -> Fair<S> {
+impl<'s, S: SequentTrait> SelectorTrait for Fair<'s, S> {
+    fn new(sequents: Vec<&'s S>) -> Fair<'s, S> {
         Fair { sequents, index: 0, start: 0, full_circle: false }
     }
 }
 
-impl<S: SequentTrait> Iterator for Fair<S> {
-    type Item = S;
+impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
+    type Item = &'s S;
 
-    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+    fn next(&mut self) -> Option<&'s S> {
         if self.sequents.len() == 0 || (self.index == self.start && self.full_circle) {
             return None;
         }
@@ -57,7 +57,7 @@ impl<S: SequentTrait> Iterator for Fair<S> {
     }
 }
 
-impl<S: SequentTrait> Clone for Fair<S> {
+impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
     fn clone(&self) -> Self {
         Fair {
             sequents: self.sequents.clone(),
@@ -69,23 +69,23 @@ impl<S: SequentTrait> Clone for Fair<S> {
 }
 
 #[derive(Clone)]
-pub struct Bootstrap<S: SequentTrait, Sel: SelectorTrait<Item=S>> {
-    initial_sequents: Vec<S>,
+pub struct Bootstrap<'s, S: SequentTrait, Sel: SelectorTrait<Item=&'s S>> {
+    initial_sequents: Vec<&'s S>,
     selector: Sel,
 }
 
-impl<S: SequentTrait, Sel: SelectorTrait<Item=S>> SelectorTrait for Bootstrap<S, Sel> {
-    fn new(sequents: Vec<S>) -> Bootstrap<S, Sel> {
+impl<'s, S: SequentTrait, Sel: SelectorTrait<Item=&'s S>> SelectorTrait for Bootstrap<'s, S, Sel> {
+    fn new(sequents: Vec<&'s S>) -> Bootstrap<'s, S, Sel> {
         let (initial_sequents, rest) = sequents.into_iter()
             .partition(|s| { s.body() == Formula::Top && s.head().free_vars().is_empty() });
         Bootstrap { initial_sequents, selector: Sel::new(rest) }
     }
 }
 
-impl<S: SequentTrait, Sel: SelectorTrait<Item=S>> Iterator for Bootstrap<S, Sel> {
-    type Item = S;
+impl<'s, S: SequentTrait, Sel: SelectorTrait<Item=&'s S>> Iterator for Bootstrap<'s, S, Sel> {
+    type Item = &'s S;
 
-    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+    fn next(&mut self) -> Option<&'s S> {
         if !self.initial_sequents.is_empty() {
             Some(self.initial_sequents.remove(0))
         } else {
@@ -135,7 +135,7 @@ mod test_fair {
             .map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
-        let selector = Fair::new(sequents);
+        let selector = Fair::new(sequents.iter().collect());
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         strategy.add(Model::new(), selector);
@@ -172,7 +172,7 @@ mod test_bootstrap {
             .map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
-        let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents);
+        let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         strategy.add(Model::new(), selector);

@@ -165,8 +165,8 @@ pub trait BounderTrait {
 /// ## Evaluator
 /// Evaluator is the trait that binds an implementation of a sequent to an implementation of a
 /// model.
-pub trait EvaluatorTrait<Sel: SelectorTrait<Item=Self::Sequent>, B: BounderTrait> {
-    type Sequent: SequentTrait;
+pub trait EvaluatorTrait<'s, Sel: SelectorTrait<Item=&'s Self::Sequent>, B: BounderTrait> {
+    type Sequent: 's + SequentTrait;
     type Model: ModelTrait;
     fn evaluate(&self
                 , model: &Self::Model
@@ -177,7 +177,7 @@ pub trait EvaluatorTrait<Sel: SelectorTrait<Item=Self::Sequent>, B: BounderTrait
 /// ## Strategy
 /// Strategy is the trait for selecting the next branch of chase to process.
 // TODO: implement Strategy as a priority queue.
-pub trait StrategyTrait<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
+pub trait StrategyTrait<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
     fn empty(&self) -> bool;
     fn add(&mut self, model: M, selector: Sel);
     fn remove(&mut self) -> Option<(M, Sel)>;
@@ -186,8 +186,8 @@ pub trait StrategyTrait<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
 /// returns the resulting models. The resulting list of models is empty if the theory is not
 /// satisfiable.
-pub fn solve_all<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>, E: EvaluatorTrait<Sel, B, Sequent=S, Model=M>, B: BounderTrait>(
-    mut strategy: Box<StrategyTrait<S, M, Sel>>, evaluator: Box<E>, bounder: Option<&B>) -> Vec<M> {
+pub fn solve_all<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>, E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>, B: BounderTrait>(
+    mut strategy: Box<'s + StrategyTrait<'s, S, M, Sel>>, evaluator: Box<E>, bounder: Option<&B>) -> Vec<M> {
     let mut result: Vec<M> = Vec::new();
     while !strategy.empty() {
         let (base_model, selector) = strategy.remove().unwrap();

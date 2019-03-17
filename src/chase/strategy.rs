@@ -4,17 +4,17 @@ use std::collections::VecDeque;
 /// ### FIFO
 /// Arranges the branches of chase computation in a queue to implement a first-in-first-out strategy.
 /// > FIFO is used as the basic strategy for benchmarking and testing purposes.
-pub struct FIFO<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
+pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
     queue: VecDeque<(M, Sel)>
 }
 
-impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> FIFO<S, M, Sel> {
-    pub fn new() -> FIFO<S, M, Sel> {
+impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> FIFO<'s, S, M, Sel> {
+    pub fn new() -> FIFO<'s, S, M, Sel> {
         FIFO { queue: VecDeque::new() }
     }
 }
 
-impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyTrait<S, M, Sel> for FIFO<S, M, Sel> {
+impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> StrategyTrait<'s, S, M, Sel> for FIFO<'s, S, M, Sel> {
     fn empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -28,19 +28,19 @@ impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyTrait<S
     }
 }
 
-/// ### FIFO
+/// ### LIFO
 /// Arranges the branches of chase computation in a stack to implement a last-in-first-out strategy.
-pub struct LIFO<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> {
+pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
     queue: VecDeque<(M, Sel)>
 }
 
-impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> LIFO<S, M, Sel> {
-    pub fn new() -> LIFO<S, M, Sel> {
+impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> LIFO<'s, S, M, Sel> {
+    pub fn new() -> LIFO<'s, S, M, Sel> {
         LIFO { queue: VecDeque::new() }
     }
 }
 
-impl<S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=S>> StrategyTrait<S, M, Sel> for LIFO<S, M, Sel> {
+impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> StrategyTrait<'s, S, M, Sel> for LIFO<'s, S, M, Sel> {
     fn empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -72,7 +72,7 @@ mod test_lifo {
             .map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
-        let selector = Linear::new(sequents);
+        let selector = Linear::new(sequents.iter().collect());
         let mut strategy = LIFO::new();
         let bounder: Option<&DomainSize> = None;
         strategy.add(Model::new(), selector);

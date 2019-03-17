@@ -53,7 +53,7 @@ fn solve_basic(theory: &Theory) -> Vec<r#impl::basic::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = r#impl::basic::Evaluator {};
-    let selector = Linear::new(sequents);
+    let selector = Linear::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::basic::Model::new(), selector);
@@ -73,7 +73,7 @@ fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = r#impl::basic::Evaluator {};
-    let selector: Bootstrap<r#impl::basic::Sequent, Fair<r#impl::basic::Sequent>> = Bootstrap::new(sequents);
+    let selector: Bootstrap<r#impl::basic::Sequent, Fair<r#impl::basic::Sequent>> = Bootstrap::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::basic::Model::new(), selector);
@@ -93,7 +93,7 @@ fn solve_referenced(theory: &Theory) -> Vec<r#impl::reference::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = r#impl::reference::Evaluator {};
-    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> = Bootstrap::new(sequents);
+    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> = Bootstrap::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::reference::Model::new(), selector);

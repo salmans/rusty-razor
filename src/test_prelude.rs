@@ -346,7 +346,7 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = basic::Evaluator {};
-    let selector = Linear::new(sequents);
+    let selector = Linear::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(basic::Model::new(), selector);
