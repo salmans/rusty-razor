@@ -3,7 +3,6 @@ use rusty_razor::{
     chase::{
         SelectorTrait,
         StrategyTrait,
-        StrategyNode,
         bounder::DomainSize,
         r#impl,
         selector::{Bootstrap, Fair, Linear},
@@ -32,13 +31,13 @@ fn bootstrap_benchmark(c: &mut Criterion) {
     c.bench_function("bootstrap", |b| b.iter(|| time_bootstrap(theories)));
 }
 
-fn referenced_benchmark(c: &mut Criterion) {
+fn reference_benchmark(c: &mut Criterion) {
     let theories = &fs::read_dir("theories/core").unwrap()
         .map(|item| read_theory_from_file(item.unwrap()
             .path().display().to_string().as_str())
             .gnf()
         ).collect();
-    c.bench_function("referenced", |b| b.iter(|| time_referenced(theories)));
+    c.bench_function("reference", |b| b.iter(|| time_reference(theories)));
 }
 
 fn time_basic(theories: &Vec<Theory>) {
@@ -54,10 +53,10 @@ fn solve_basic(theory: &Theory) -> Vec<r#impl::basic::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = r#impl::basic::Evaluator {};
-    let selector = Linear::new(sequents);
+    let selector = Linear::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(r#impl::basic::Model::new(), selector));
+    strategy.add(r#impl::basic::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
@@ -74,30 +73,30 @@ fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = r#impl::basic::Evaluator {};
-    let selector: Bootstrap<r#impl::basic::Sequent, Fair<r#impl::basic::Sequent>> = Bootstrap::new(sequents);
+    let selector: Bootstrap<r#impl::basic::Sequent, Fair<r#impl::basic::Sequent>> = Bootstrap::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(r#impl::basic::Model::new(), selector));
+    strategy.add(r#impl::basic::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
-fn time_referenced(theories: &Vec<Theory>) {
+fn time_reference(theories: &Vec<Theory>) {
     for theory in theories {
-        solve_referenced(&theory);
+        solve_reference(&theory);
     }
 }
 
-fn solve_referenced(theory: &Theory) -> Vec<r#impl::reference::Model> {
+fn solve_reference(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let sequents: Vec<r#impl::reference::Sequent> = theory
         .formulas
         .iter()
         .map(|f| f.into()).collect();
 
     let evaluator = r#impl::reference::Evaluator {};
-    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> = Bootstrap::new(sequents);
+    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> = Bootstrap::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(StrategyNode::new(r#impl::reference::Model::new(), selector));
+    strategy.add(r#impl::reference::Model::new(), selector);
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
@@ -111,5 +110,5 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     parse_theory(contents.as_str())
 }
 
-criterion_group!(benches, basic_benchmark, bootstrap_benchmark, referenced_benchmark);
+criterion_group!(benches, basic_benchmark, bootstrap_benchmark, reference_benchmark);
 criterion_main!(benches);

@@ -390,7 +390,7 @@ impl SequentTrait for Sequent {
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator {}
 
-impl<Sel: SelectorTrait<Item=Sequent>, B: BounderTrait> EvaluatorTrait<Sel, B> for Evaluator {
+impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
     fn evaluate(&self, model: &Model, selector: Sel, bounder: Option<&B>)
@@ -399,7 +399,7 @@ impl<Sel: SelectorTrait<Item=Sequent>, B: BounderTrait> EvaluatorTrait<Sel, B> f
         let domain: Vec<&E> = model.domain().into_iter().collect();
         let domain_size = domain.len();
         for sequent in selector {
-            let sequent_vars = sequent.free_vars;
+            let sequent_vars = &sequent.free_vars;
             let sequent_size = sequent_vars.len();
             let end = usize::pow(domain_size, sequent_size as u32);
             for i in 0..end {
