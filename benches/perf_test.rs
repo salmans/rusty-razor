@@ -31,13 +31,13 @@ fn bootstrap_benchmark(c: &mut Criterion) {
     c.bench_function("bootstrap", |b| b.iter(|| time_bootstrap(theories)));
 }
 
-fn referenced_benchmark(c: &mut Criterion) {
+fn reference_benchmark(c: &mut Criterion) {
     let theories = &fs::read_dir("theories/core").unwrap()
         .map(|item| read_theory_from_file(item.unwrap()
             .path().display().to_string().as_str())
             .gnf()
         ).collect();
-    c.bench_function("referenced", |b| b.iter(|| time_referenced(theories)));
+    c.bench_function("reference", |b| b.iter(|| time_reference(theories)));
 }
 
 fn time_basic(theories: &Vec<Theory>) {
@@ -80,13 +80,13 @@ fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
-fn time_referenced(theories: &Vec<Theory>) {
+fn time_reference(theories: &Vec<Theory>) {
     for theory in theories {
-        solve_referenced(&theory);
+        solve_reference(&theory);
     }
 }
 
-fn solve_referenced(theory: &Theory) -> Vec<r#impl::reference::Model> {
+fn solve_reference(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let sequents: Vec<r#impl::reference::Sequent> = theory
         .formulas
         .iter()
@@ -110,5 +110,5 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     parse_theory(contents.as_str())
 }
 
-criterion_group!(benches, basic_benchmark, bootstrap_benchmark, referenced_benchmark);
+criterion_group!(benches, basic_benchmark, bootstrap_benchmark, reference_benchmark);
 criterion_main!(benches);
