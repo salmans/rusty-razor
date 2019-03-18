@@ -608,7 +608,7 @@ mod test_basic {
             model.observe(&_S_().app2(_c_(), _d_()));
             assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]), &model.domain());
             assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())
-                                               , _S_().app2(_e_2(), _e_3())
+                                                , _S_().app2(_e_2(), _e_3())
             ].iter()), &model.facts());
         }
         {
@@ -619,9 +619,9 @@ mod test_basic {
             model.observe(&_S_().app1(_c_()));
             assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]), &model.domain());
             assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())
-                                               , _S_().app1(_e_4())
-                                               , _S_().app1(_e_2())
-                                               , _R_().app2(_e_3(), _e_2())
+                                                , _S_().app1(_e_4())
+                                                , _S_().app1(_e_2())
+                                                , _R_().app2(_e_3(), _e_2())
             ].iter()), &model.facts());
         }
     }
@@ -1318,5 +1318,83 @@ mod test_basic {
         Domain: {e#0}\n\
         Facts: <P(e#0)>, <R(e#0)>\n\
         'a -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy44.raz"))));
+    }
+
+    #[test]
+    fn test_bounded() {
+        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
+        'a -> e#0\n\
+        f[e#0] -> e#1\n\
+        f[e#1] -> e#2\n\
+        f[e#2] -> e#3\n\
+        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy0.raz"), 5)));
+        assert_eq!("Domain: {e#0, e#1, e#10, e#11, e#12, e#13, e#14, e#15, e#16, e#17, e#18, e#19, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <P(e#0)>, <P(e#1)>, <P(e#10)>, <P(e#11)>, <P(e#12)>, <P(e#13)>, <P(e#14)>, <P(e#15)>, <P(e#16)>, <P(e#17)>, <P(e#18)>, <P(e#19)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
+        'a -> e#0\n\
+        f[e#0] -> e#1\n\
+        f[e#1] -> e#2\n\
+        f[e#2] -> e#3\n\
+        f[e#3] -> e#4\n\
+        f[e#4] -> e#5\n\
+        f[e#5] -> e#6\n\
+        f[e#6] -> e#7\n\
+        f[e#7] -> e#8\n\
+        f[e#8] -> e#9\n\
+        f[e#9] -> e#10\n\
+        f[e#10] -> e#11\n\
+        f[e#11] -> e#12\n\
+        f[e#12] -> e#13\n\
+        f[e#13] -> e#14\n\
+        f[e#14] -> e#15\n\
+        f[e#15] -> e#16\n\
+        f[e#16] -> e#17\n\
+        f[e#17] -> e#18\n\
+        f[e#18] -> e#19", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy0.raz"), 20)));
+        assert_eq!("Domain: {e#0, e#10, e#3, e#6, e#8}\n\
+        Facts: \n\
+        'e, 'sk#0, f[e#0, e#0], f[e#0, e#3] -> e#0\n\
+        f[e#3, e#0], i[e#0] -> e#3\n\
+        f[e#3, e#3], f[e#6, e#0] -> e#6\n\
+        f[e#6, e#3], f[e#8, e#0] -> e#8\n\
+        f[e#10, e#0], f[e#8, e#3] -> e#10", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy1.raz"), 5)));
+        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
+        'a -> e#0\n\
+        f[e#0] -> e#1\n\
+        f[e#1] -> e#2\n\
+        f[e#2] -> e#3\n\
+        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy2.raz"), 5)));
+    }
+
+    #[test]
+    fn test_examples() {
+        assert_eq!("Domain: {e#0}\n\
+        Facts: <Man(e#0)>, <MustDie(e#0)>\n\
+        'gregor -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/examples/valar-morghulis.raz"))));
+        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/examples/lannisters.raz"))));
+        assert_eq!("Domain: {e#0, e#1, e#2, e#4}\n\
+        Facts: <Ancestor(e#0, e#2)>, <Grandpas(e#0, e#0)>, <Grandpas(e#0, e#1)>, <Grandpas(e#0, e#2)>, <Grandpas(e#1, e#0)>, <Grandpas(e#1, e#1)>, <Grandpas(e#1, e#2)>, <Grandpas(e#2, e#0)>, <Grandpas(e#2, e#1)>, <Grandpas(e#2, e#2)>, <Man(e#0)>, <Man(e#1)>, <Man(e#2)>, <Parent(e#0, e#0)>, <Parent(e#0, e#1)>, <Parent(e#0, e#2)>, <Parent(e#1, e#0)>, <Parent(e#1, e#1)>, <Parent(e#1, e#2)>, <Parent(e#2, e#0)>, <Parent(e#2, e#1)>, <Parent(e#2, e#2)>, <Person(e#0)>, <Person(e#1)>, <Person(e#2)>\n\
+        'sk#3 -> e#0\n\
+        'sk#0 -> e#1\n\
+        'sk#1, father[e#0] -> e#2\n\
+        'sk#2, mother[e#1] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#5}\n\
+        Facts: <Ancestor(e#0, e#2)>, <Ancestor(e#1, e#2)>, <Grandpas(e#0, e#0)>, <Grandpas(e#0, e#1)>, <Grandpas(e#0, e#2)>, <Grandpas(e#1, e#0)>, <Grandpas(e#1, e#1)>, <Grandpas(e#1, e#2)>, <Grandpas(e#2, e#0)>, <Grandpas(e#2, e#1)>, <Grandpas(e#2, e#2)>, <Man(e#0)>, <Man(e#1)>, <Man(e#2)>, <Parent(e#0, e#0)>, <Parent(e#0, e#1)>, <Parent(e#0, e#2)>, <Parent(e#1, e#0)>, <Parent(e#1, e#1)>, <Parent(e#1, e#2)>, <Parent(e#2, e#0)>, <Parent(e#2, e#1)>, <Parent(e#2, e#2)>, <Person(e#0)>, <Person(e#1)>, <Person(e#2)>\n\
+        'sk#3 -> e#0\n\
+        'sk#0 -> e#1\n\
+        'sk#1, father[e#0], father[e#1] -> e#2\n\
+        'sk#2, mother[e#2] -> e#5\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#5}\n\
+        Facts: <Ancestor(e#0, e#2)>, <Ancestor(e#1, e#0)>, <Ancestor(e#1, e#2)>, <Grandpas(e#0, e#0)>, <Grandpas(e#0, e#1)>, <Grandpas(e#0, e#2)>, <Grandpas(e#1, e#0)>, <Grandpas(e#1, e#1)>, <Grandpas(e#1, e#2)>, <Grandpas(e#2, e#0)>, <Grandpas(e#2, e#1)>, <Grandpas(e#2, e#2)>, <Man(e#0)>, <Man(e#1)>, <Man(e#2)>, <Parent(e#0, e#0)>, <Parent(e#0, e#1)>, <Parent(e#0, e#2)>, <Parent(e#1, e#0)>, <Parent(e#1, e#1)>, <Parent(e#1, e#2)>, <Parent(e#2, e#0)>, <Parent(e#2, e#1)>, <Parent(e#2, e#2)>, <Person(e#0)>, <Person(e#1)>, <Person(e#2)>\n\
+        'sk#3, father[e#1] -> e#0\n\
+        'sk#0 -> e#1\n\
+        'sk#1, father[e#0] -> e#2\n\
+        'sk#2, mother[e#2] -> e#5", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/examples/grandpa.raz"), 4)));
+        assert_eq!("", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/examples/grandpa.raz"), 5)));
+        assert_eq!("", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/examples/grandpa.raz"), 6)));
+        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/examples/grandpa.raz"))));
     }
 }

@@ -1,0 +1,7 @@
+Lannister(x) and Father(x, y) implies Lannister(y);
+Debt(x, y) implies Pay(x, y) or not Lannister(x);
+
+Lannister('tywin) and Father('tywin, 'tyrion) and Debt('tyrion, 'coin);
+
+// Verify
+not Pay('tyrion, 'coin);

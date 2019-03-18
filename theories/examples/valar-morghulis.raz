@@ -1,0 +1,7 @@
+// All men must die:
+forall x. (Man(x) implies MustDie(x));
+
+// Ser Gregor is a man:
+Man('gregor);
+
+// Razor thinks Ser Gregor must die!

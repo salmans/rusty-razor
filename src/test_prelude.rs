@@ -353,6 +353,22 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     solve_all(Box::new(strategy), Box::new(evaluator), bounder)
 }
 
+pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
+    let geometric_theory = theory.gnf();
+    let sequents: Vec<basic::Sequent> = geometric_theory
+        .formulas
+        .iter()
+        .map(|f| f.into()).collect();
+
+    let evaluator = basic::Evaluator {};
+    let selector = Linear::new(sequents.iter().collect());
+    let mut strategy = FIFO::new();
+    let bounder = DomainSize::new(bound);
+    let bounder: Option<&DomainSize> = Some(&bounder);
+    strategy.add(basic::Model::new(), selector);
+    solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+}
+
 pub fn print_basic_model(model: basic::Model) -> String {
     let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
         let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();

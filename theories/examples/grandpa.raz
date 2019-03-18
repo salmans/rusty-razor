@@ -1,0 +1,42 @@
+// Source: Alloy Analyzer Examples
+Man(p) implies Person(p);
+Woman(p) implies Person(p);
+
+Man(p) and Woman(p) implies FALSE;
+
+mother(p) = w implies Person(p) and Woman(w);
+father(p) = m implies Person(p) and Man(m);
+
+wife(m) = w implies Man(m) and Woman(w);
+husband(w) = m implies Man(m) and Woman(w);
+
+mother(p) = m implies Ancestor(p, m);
+father(p) = f implies Ancestor(p, f);
+
+// Biology:
+Ancestor(p, a) and father(a) = f implies Ancestor(p, f);
+Ancestor(p, a) and mother(a) = m implies Ancestor(p, m);
+
+Ancestor(p, p) implies FALSE;
+
+
+// Terminology:
+wife(m) = w implies husband(w) = m;
+husband(w) = m implies wife(m) = w;
+
+// Social Convention:
+wife(p) = w and Ancestor(p, w) implies FALSE;
+husband(p) = h and Ancestor(p, h) implies FALSE;
+
+father(p) = f implies Parent(p, f);
+mother(p) = m implies Parent(p, m);
+father(p) = f and wife(f) = w implies Parent(p, w);
+mother(p) = m and husband(m) = h implies Parent(p, h);
+
+Grandpas(p, g) and exists p_ . Parent(p_, g) and Parent(p, p_) and Man(g);
+Parent(p, p_) and Parent(p_, g) and Man(g) and Grandpas(p, g);
+
+Parent(p, p_) implies father(p) = p_ or mother(p) = p_ or (exists f . father(p) = f and wife(f) = p_) or (exists m . mother(p) = m and husband(m) = p_);
+
+// Own Grandpa
+exists p. Grandpas(p, p);
