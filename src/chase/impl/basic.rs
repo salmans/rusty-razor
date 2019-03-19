@@ -1366,35 +1366,4 @@ mod test_basic {
         f[e#2] -> e#3\n\
         f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy2.raz"), 5)));
     }
-
-    #[test]
-    fn test_examples() {
-        assert_eq!("Domain: {e#0}\n\
-        Facts: <Man(e#0)>, <MustDie(e#0)>\n\
-        'gregor -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/examples/valar-morghulis.raz"))));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/examples/lannisters.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2, e#4}\n\
-        Facts: <Ancestor(e#0, e#2)>, <Grandpas(e#0, e#0)>, <Grandpas(e#0, e#1)>, <Grandpas(e#0, e#2)>, <Grandpas(e#1, e#0)>, <Grandpas(e#1, e#1)>, <Grandpas(e#1, e#2)>, <Grandpas(e#2, e#0)>, <Grandpas(e#2, e#1)>, <Grandpas(e#2, e#2)>, <Man(e#0)>, <Man(e#1)>, <Man(e#2)>, <Parent(e#0, e#0)>, <Parent(e#0, e#1)>, <Parent(e#0, e#2)>, <Parent(e#1, e#0)>, <Parent(e#1, e#1)>, <Parent(e#1, e#2)>, <Parent(e#2, e#0)>, <Parent(e#2, e#1)>, <Parent(e#2, e#2)>, <Person(e#0)>, <Person(e#1)>, <Person(e#2)>\n\
-        'sk#3 -> e#0\n\
-        'sk#0 -> e#1\n\
-        'sk#1, father[e#0] -> e#2\n\
-        'sk#2, mother[e#1] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#5}\n\
-        Facts: <Ancestor(e#0, e#2)>, <Ancestor(e#1, e#2)>, <Grandpas(e#0, e#0)>, <Grandpas(e#0, e#1)>, <Grandpas(e#0, e#2)>, <Grandpas(e#1, e#0)>, <Grandpas(e#1, e#1)>, <Grandpas(e#1, e#2)>, <Grandpas(e#2, e#0)>, <Grandpas(e#2, e#1)>, <Grandpas(e#2, e#2)>, <Man(e#0)>, <Man(e#1)>, <Man(e#2)>, <Parent(e#0, e#0)>, <Parent(e#0, e#1)>, <Parent(e#0, e#2)>, <Parent(e#1, e#0)>, <Parent(e#1, e#1)>, <Parent(e#1, e#2)>, <Parent(e#2, e#0)>, <Parent(e#2, e#1)>, <Parent(e#2, e#2)>, <Person(e#0)>, <Person(e#1)>, <Person(e#2)>\n\
-        'sk#3 -> e#0\n\
-        'sk#0 -> e#1\n\
-        'sk#1, father[e#0], father[e#1] -> e#2\n\
-        'sk#2, mother[e#2] -> e#5\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#5}\n\
-        Facts: <Ancestor(e#0, e#2)>, <Ancestor(e#1, e#0)>, <Ancestor(e#1, e#2)>, <Grandpas(e#0, e#0)>, <Grandpas(e#0, e#1)>, <Grandpas(e#0, e#2)>, <Grandpas(e#1, e#0)>, <Grandpas(e#1, e#1)>, <Grandpas(e#1, e#2)>, <Grandpas(e#2, e#0)>, <Grandpas(e#2, e#1)>, <Grandpas(e#2, e#2)>, <Man(e#0)>, <Man(e#1)>, <Man(e#2)>, <Parent(e#0, e#0)>, <Parent(e#0, e#1)>, <Parent(e#0, e#2)>, <Parent(e#1, e#0)>, <Parent(e#1, e#1)>, <Parent(e#1, e#2)>, <Parent(e#2, e#0)>, <Parent(e#2, e#1)>, <Parent(e#2, e#2)>, <Person(e#0)>, <Person(e#1)>, <Person(e#2)>\n\
-        'sk#3, father[e#1] -> e#0\n\
-        'sk#0 -> e#1\n\
-        'sk#1, father[e#0] -> e#2\n\
-        'sk#2, mother[e#2] -> e#5", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/examples/grandpa.raz"), 4)));
-        assert_eq!("", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/examples/grandpa.raz"), 5)));
-        assert_eq!("", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/examples/grandpa.raz"), 6)));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/examples/grandpa.raz"))));
-    }
 }
