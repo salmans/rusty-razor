@@ -33,8 +33,8 @@ mother(p) = m implies Parent(p, m);
 father(p) = f and wife(f) = w implies Parent(p, w);
 mother(p) = m and husband(m) = h implies Parent(p, h);
 
-Grandpas(p, g) and exists p_ . Parent(p_, g) and Parent(p, p_) and Man(g);
-Parent(p, p_) and Parent(p_, g) and Man(g) and Grandpas(p, g);
+Grandpas(p, g) implies exists p_ . Parent(p_, g) and Parent(p, p_) and Man(g);
+Parent(p, p_) and Parent(p_, g) and Man(g) implies Grandpas(p, g);
 
 Parent(p, p_) implies father(p) = p_ or mother(p) = p_ or (exists f . father(p) = f and wife(f) = p_) or (exists m . mother(p) = m and husband(m) = p_);
 
