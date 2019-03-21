@@ -186,8 +186,12 @@ pub trait StrategyTrait<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTr
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
 /// returns the resulting models. The resulting list of models is empty if the theory is not
 /// satisfiable.
-pub fn solve_all<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>, E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>, B: BounderTrait>(
-    mut strategy: Box<'s + StrategyTrait<'s, S, M, Sel>>, evaluator: Box<E>, bounder: Option<&B>) -> Vec<M> {
+pub fn solve_all<'s
+    , S: 's + SequentTrait
+    , M: ModelTrait
+    , Sel: SelectorTrait<Item=&'s S>
+    , E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>
+    , B: BounderTrait>(strategy: &mut StrategyTrait<'s, S, M, Sel>, evaluator: &E, bounder: Option<&B>) -> Vec<M> {
     let mut result: Vec<M> = Vec::new();
     while !strategy.empty() {
         let (base_model, selector) = strategy.remove().unwrap();
@@ -203,7 +207,7 @@ pub fn solve_all<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Ite
                     }
                 });
             } else {
-                result.push(base_model.clone()); //TODO can return pointers to models?
+                result.push(base_model);
             }
         }
     }

@@ -139,7 +139,7 @@ mod test_fair {
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         strategy.add(Model::new(), selector);
-        solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+        solve_all(&mut strategy, &evaluator, bounder)
     }
 
     #[test]
@@ -176,7 +176,7 @@ mod test_bootstrap {
         let mut strategy = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         strategy.add(Model::new(), selector);
-        solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+        solve_all(&mut strategy, &evaluator, bounder)
     }
 
     #[test]
