@@ -350,7 +350,7 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(basic::Model::new(), selector);
-    solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+    solve_all(&mut strategy, &evaluator, bounder)
 }
 
 pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
@@ -366,7 +366,7 @@ pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::M
     let bounder = DomainSize::new(bound);
     let bounder: Option<&DomainSize> = Some(&bounder);
     strategy.add(basic::Model::new(), selector);
-    solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+    solve_all(&mut strategy, &evaluator, bounder)
 }
 
 pub fn print_basic_model(model: basic::Model) -> String {

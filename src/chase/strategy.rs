@@ -76,7 +76,7 @@ mod test_lifo {
         let mut strategy = LIFO::new();
         let bounder: Option<&DomainSize> = None;
         strategy.add(Model::new(), selector);
-        solve_all(Box::new(strategy), Box::new(evaluator), bounder)
+        solve_all(&mut strategy, &evaluator, bounder)
     }
 
     #[test]
