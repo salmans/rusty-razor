@@ -4,14 +4,15 @@ use crate::formula::syntax::Formula;
 /// ### Linear
 /// Goes through the list of all sequents from the start and returns the next sequent every time
 /// `Iterator::next()` is called.
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct Linear<'s, S: SequentTrait> {
     sequents: Vec<&'s S>,
+    index: usize,
 }
 
 impl<'s, S: SequentTrait> SelectorTrait for Linear<'s, S> {
     fn new(sequents: Vec<&'s S>) -> Linear<'s, S> {
-        Linear { sequents }
+        Linear { sequents, index: 0 }
     }
 }
 
@@ -19,10 +20,16 @@ impl<'s, S: SequentTrait> Iterator for Linear<'s, S> {
     type Item = &'s S;
 
     fn next(&mut self) -> Option<&'s S> {
-        if self.sequents.is_empty() {
-            None
-        } else {
-            Some(self.sequents.remove(0))
+        self.index += 1;
+        self.sequents.get(self.index - 1).map(|i| *i)
+    }
+}
+
+impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
+    fn clone(&self) -> Self {
+        Linear {
+            sequents: self.sequents.clone(),
+            index: 0,
         }
     }
 }
@@ -51,7 +58,7 @@ impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
             return None;
         }
         self.full_circle = true;
-        let result = self.sequents.get(self.index).map(|s| s.clone());
+        let result = self.sequents.get(self.index).map(|s| *s);
         self.index = (self.index + 1) % self.sequents.len();
         result
     }

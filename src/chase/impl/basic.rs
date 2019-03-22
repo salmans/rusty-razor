@@ -393,7 +393,7 @@ pub struct Evaluator {}
 impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, model: &Model, selector: Sel, bounder: Option<&B>)
+    fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
         use itertools::Itertools;
         let domain: Vec<&E> = model.domain().into_iter().collect();

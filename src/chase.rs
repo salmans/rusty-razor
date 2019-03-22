@@ -170,7 +170,7 @@ pub trait EvaluatorTrait<'s, Sel: SelectorTrait<Item=&'s Self::Sequent>, B: Boun
     type Model: ModelTrait;
     fn evaluate(&self
                 , model: &Self::Model
-                , selector: Sel
+                , selector: &mut Sel
                 , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
@@ -194,9 +194,8 @@ pub fn solve_all<'s
     , B: BounderTrait>(strategy: &mut StrategyTrait<'s, S, M, Sel>, evaluator: &E, bounder: Option<&B>) -> Vec<M> {
     let mut result: Vec<M> = Vec::new();
     while !strategy.empty() {
-        let (base_model, selector) = strategy.remove().unwrap();
-        // TODO selector below shouldn't be cloned
-        let models = evaluator.evaluate(&base_model, selector.clone(), bounder);
+        let (base_model, mut selector) = strategy.remove().unwrap();
+        let models = evaluator.evaluate(&base_model, &mut selector, bounder);
         if let Some(models) = models {
             if !models.is_empty() {
                 models.into_iter().for_each(|m| {
