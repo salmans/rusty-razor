@@ -282,7 +282,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 }
             }
         }
-        Some(Vec::new())
+        return Some(Vec::new());
     }
 }
 
