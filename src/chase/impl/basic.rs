@@ -393,7 +393,7 @@ pub struct Evaluator {}
 impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, model: &Model, selector: Sel, bounder: Option<&B>)
+    fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
         use itertools::Itertools;
         let domain: Vec<&E> = model.domain().into_iter().collect();
@@ -918,370 +918,343 @@ mod test_basic {
                        Facts: <Q(e#0, e#0)>, <R(e#0)>, <U(e#0)>\n\
                        'sk#0 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy31.raz"))));
         assert_eq!("Domain: {e#0, e#1}\n\
-                       Facts: <Q(e#0, e#1)>, <R(e#0)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy32.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2}\n\
-                       Facts: <Q(e#0)>, <Q(e#2)>, <R(e#0, e#0)>, <R(e#2, e#0)>, <R(e#2, e#2)>, <S(e#1)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2}\n\
-                       Facts: <Q(e#0)>, <Q(e#2)>, <R(e#0, e#0)>, <R(e#2, e#0)>, <R(e#2, e#2)>, <S(e#1)>, <S(e#2)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2}\n\
-                       Facts: <Q(e#0)>, <Q(e#2)>, <R(e#0, e#0)>, <R(e#2, e#0)>, <R(e#2, e#2)>, <S(e#0)>, <S(e#1)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2}\n\
-                       Facts: <Q(e#0)>, <Q(e#2)>, <R(e#0, e#0)>, <R(e#2, e#0)>, <R(e#2, e#2)>, <S(e#0)>, <S(e#1)>, <S(e#2)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy33.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
-                       Facts: <P(e#0)>, <P(e#1)>\n\
-                       'a -> e#0\n\
-                       'sk#0 -> e#1", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy34.raz"))));
+        Facts: <Q(e#0, e#1)>, <R(e#0)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy32.raz"))));
         assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#7 -> e#3\n\
-                       'sk#15 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1112(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#7 -> e#3\n\
-                       'sk#15 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1121(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#7 -> e#3\n\
-                       'sk#17 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1122(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#7 -> e#3\n\
-                       'sk#17 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1211(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#9 -> e#3\n\
-                       'sk#19 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1212(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#9 -> e#3\n\
-                       'sk#19 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1221(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#9 -> e#3\n\
-                       'sk#21 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1222(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#3 -> e#2\n\
-                       'sk#9 -> e#3\n\
-                       'sk#21 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2111(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#11 -> e#3\n\
-                       'sk#23 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2112(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#11 -> e#3\n\
-                       'sk#23 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2121(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#11 -> e#3\n\
-                       'sk#25 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2122(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#11 -> e#3\n\
-                       'sk#25 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2211(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#13 -> e#3\n\
-                       'sk#27 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2212(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#13 -> e#3\n\
-                       'sk#27 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2221(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#13 -> e#3\n\
-                       'sk#29 -> e#4\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2222(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#5 -> e#2\n\
-                       'sk#13 -> e#3\n\
-                       'sk#29 -> e#4", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy35.raz"))));
+        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#7[e#2] -> e#3\n\
+        sk#15[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1112(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#7[e#2] -> e#3\n\
+        sk#15[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1121(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#7[e#2] -> e#3\n\
+        sk#17[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1122(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#7[e#2] -> e#3\n\
+        sk#17[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1211(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#9[e#2] -> e#3\n\
+        sk#19[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1212(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#9[e#2] -> e#3\n\
+        sk#19[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1221(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#9[e#2] -> e#3\n\
+        sk#21[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1222(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#3[e#1] -> e#2\n\
+        sk#9[e#2] -> e#3\n\
+        sk#21[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2111(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#11[e#2] -> e#3\n\
+        sk#23[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2112(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#11[e#2] -> e#3\n\
+        sk#23[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2121(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#11[e#2] -> e#3\n\
+        sk#25[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2122(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#11[e#2] -> e#3\n\
+        sk#25[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2211(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#13[e#2] -> e#3\n\
+        sk#27[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2212(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#13[e#2] -> e#3\n\
+        sk#27[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2221(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#13[e#2] -> e#3\n\
+        sk#29[e#3] -> e#4\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2222(e#4)>\n\
+        'sk#0 -> e#0\n\
+        sk#1[e#0] -> e#1\n\
+        sk#5[e#1] -> e#2\n\
+        sk#13[e#2] -> e#3\n\
+        sk#29[e#3] -> e#4", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy35.raz"))));
         assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#14 -> e#6\n\
-                       'sk#15 -> e#7\n\
-                       'sk#30 -> e#8\n\
-                       'sk#31 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#14 -> e#6\n\
-                       'sk#15 -> e#7\n\
-                       'sk#30 -> e#8\n\
-                       'sk#31 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#14 -> e#6\n\
-                       'sk#15 -> e#7\n\
-                       'sk#34 -> e#8\n\
-                       'sk#35 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#14 -> e#6\n\
-                       'sk#15 -> e#7\n\
-                       'sk#34 -> e#8\n\
-                       'sk#35 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#18 -> e#6\n\
-                       'sk#19 -> e#7\n\
-                       'sk#38 -> e#8\n\
-                       'sk#39 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#18 -> e#6\n\
-                       'sk#19 -> e#7\n\
-                       'sk#38 -> e#8\n\
-                       'sk#39 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#18 -> e#6\n\
-                       'sk#19 -> e#7\n\
-                       'sk#42 -> e#8\n\
-                       'sk#43 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#6 -> e#4\n\
-                       'sk#7 -> e#5\n\
-                       'sk#18 -> e#6\n\
-                       'sk#19 -> e#7\n\
-                       'sk#42 -> e#8\n\
-                       'sk#43 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#22 -> e#6\n\
-                       'sk#23 -> e#7\n\
-                       'sk#46 -> e#8\n\
-                       'sk#47 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#22 -> e#6\n\
-                       'sk#23 -> e#7\n\
-                       'sk#46 -> e#8\n\
-                       'sk#47 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#22 -> e#6\n\
-                       'sk#23 -> e#7\n\
-                       'sk#50 -> e#8\n\
-                       'sk#51 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#22 -> e#6\n\
-                       'sk#23 -> e#7\n\
-                       'sk#50 -> e#8\n\
-                       'sk#51 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#26 -> e#6\n\
-                       'sk#27 -> e#7\n\
-                       'sk#54 -> e#8\n\
-                       'sk#55 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#26 -> e#6\n\
-                       'sk#27 -> e#7\n\
-                       'sk#54 -> e#8\n\
-                       'sk#55 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#26 -> e#6\n\
-                       'sk#27 -> e#7\n\
-                       'sk#58 -> e#8\n\
-                       'sk#59 -> e#9\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3\n\
-                       'sk#10 -> e#4\n\
-                       'sk#11 -> e#5\n\
-                       'sk#26 -> e#6\n\
-                       'sk#27 -> e#7\n\
-                       'sk#58 -> e#8\n\
-                       'sk#59 -> e#9", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy36.raz"))));
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#14[e#4, e#5] -> e#6\n\
+        sk#15[e#4, e#5] -> e#7\n\
+        sk#30[e#6, e#7] -> e#8\n\
+        sk#31[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#14[e#4, e#5] -> e#6\n\
+        sk#15[e#4, e#5] -> e#7\n\
+        sk#30[e#6, e#7] -> e#8\n\
+        sk#31[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#14[e#4, e#5] -> e#6\n\
+        sk#15[e#4, e#5] -> e#7\n\
+        sk#34[e#6, e#7] -> e#8\n\
+        sk#35[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#14[e#4, e#5] -> e#6\n\
+        sk#15[e#4, e#5] -> e#7\n\
+        sk#34[e#6, e#7] -> e#8\n\
+        sk#35[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#18[e#4, e#5] -> e#6\n\
+        sk#19[e#4, e#5] -> e#7\n\
+        sk#38[e#6, e#7] -> e#8\n\
+        sk#39[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#18[e#4, e#5] -> e#6\n\
+        sk#19[e#4, e#5] -> e#7\n\
+        sk#38[e#6, e#7] -> e#8\n\
+        sk#39[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#18[e#4, e#5] -> e#6\n\
+        sk#19[e#4, e#5] -> e#7\n\
+        sk#42[e#6, e#7] -> e#8\n\
+        sk#43[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#6[e#2, e#3] -> e#4\n\
+        sk#7[e#2, e#3] -> e#5\n\
+        sk#18[e#4, e#5] -> e#6\n\
+        sk#19[e#4, e#5] -> e#7\n\
+        sk#42[e#6, e#7] -> e#8\n\
+        sk#43[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#22[e#4, e#5] -> e#6\n\
+        sk#23[e#4, e#5] -> e#7\n\
+        sk#46[e#6, e#7] -> e#8\n\
+        sk#47[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#22[e#4, e#5] -> e#6\n\
+        sk#23[e#4, e#5] -> e#7\n\
+        sk#46[e#6, e#7] -> e#8\n\
+        sk#47[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#22[e#4, e#5] -> e#6\n\
+        sk#23[e#4, e#5] -> e#7\n\
+        sk#50[e#6, e#7] -> e#8\n\
+        sk#51[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#22[e#4, e#5] -> e#6\n\
+        sk#23[e#4, e#5] -> e#7\n\
+        sk#50[e#6, e#7] -> e#8\n\
+        sk#51[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#26[e#4, e#5] -> e#6\n\
+        sk#27[e#4, e#5] -> e#7\n\
+        sk#54[e#6, e#7] -> e#8\n\
+        sk#55[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#26[e#4, e#5] -> e#6\n\
+        sk#27[e#4, e#5] -> e#7\n\
+        sk#54[e#6, e#7] -> e#8\n\
+        sk#55[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#26[e#4, e#5] -> e#6\n\
+        sk#27[e#4, e#5] -> e#7\n\
+        sk#58[e#6, e#7] -> e#8\n\
+        sk#59[e#6, e#7] -> e#9\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\
+        'sk#0 -> e#0\n\
+        'sk#1 -> e#1\n\
+        sk#2[e#0, e#1] -> e#2\n\
+        sk#3[e#0, e#1] -> e#3\n\
+        sk#10[e#2, e#3] -> e#4\n\
+        sk#11[e#2, e#3] -> e#5\n\
+        sk#26[e#4, e#5] -> e#6\n\
+        sk#27[e#4, e#5] -> e#7\n\
+        sk#58[e#6, e#7] -> e#8\n\
+        sk#59[e#6, e#7] -> e#9", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy36.raz"))));
         assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy37.raz"))));
         assert_eq!("Domain: {e#0}\n\
                        Facts: <R(e#0, e#0, e#0)>\n\
@@ -1296,12 +1269,12 @@ mod test_basic {
                        f[e#4] -> e#5\n\
                        f[e#5] -> e#6", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy39.raz"))));
         assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-                       Facts: <P(e#1)>, <Q(e#1)>, <R(e#0, e#1)>, <R(e#1, e#3)>, <S(e#4)>\n\
-                       'sk#0 -> e#0\n\
-                       f[e#0] -> e#1\n\
-                       f[e#1] -> e#2\n\
-                       f[e#2] -> e#3\n\
-                       'sk#1 -> e#4", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy40.raz"))));
+        Facts: <P(e#1)>, <Q(e#1)>, <R(e#0, e#1)>, <R(e#1, e#3)>, <S(e#4)>\n\
+        'sk#0 -> e#0\n\
+        f[e#0] -> e#1\n\
+        f[e#1] -> e#2\n\
+        f[e#2] -> e#3\n\
+        sk#1[e#1] -> e#4", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy40.raz"))));
         assert_eq!("Domain: {}\n\
                        Facts: \n", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy41.raz"))));
         assert_eq!("Domain: {e#0}\n\

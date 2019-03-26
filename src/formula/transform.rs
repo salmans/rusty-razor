@@ -528,7 +528,8 @@ impl Formula {
         }
 
         // Skolemization only makes sense for PNF formulas.
-        helper(self.pnf(), vec![], generator) // TODO: if we do substitution in place, helper doesn't have to create copies.
+        let free_vars: Vec<V> = self.free_vars().iter().map(|v| (*v).clone()).collect();
+        helper(self.pnf(), free_vars, generator)
     }
 
     /// ## Negation Normal Form (SNF)
@@ -1566,6 +1567,8 @@ mod test_transform {
         assert_debug_string("! x. P(x, sk#0(x))"
                             , forall1(_x()
                                       , exists1(_y(), P().app2(x(), y()))).snf());
+        assert_debug_string("P(x, sk#0(x))"
+                            , exists1(_y(), P().app2(x(), y())).snf());
         assert_debug_string("! x. P(x, f(g(sk#0(x)), h(sk#0(x))))"
                             , forall1(_x()
                                       , exists1(_y()
@@ -1688,7 +1691,7 @@ mod test_transform {
         assert_debug_string("P('sk#0, 'sk#1)", parse_formula("?x. ?y. P(x, y)").cnf());
         assert_debug_string("P('sk#0, 'sk#1)", parse_formula("?x, y. P(x, y)").cnf());
         assert_debug_string("P(x, sk#0(x))", parse_formula("!x. ?y. P(x, y)").cnf());
-        assert_debug_string("((~R(z)) | P('sk#0, x)) & (((~R(z)) | (~Q(u`, x`, y))) & ((~R(z)) | (~(w = f(u`)))))",
+        assert_debug_string("((~R(z)) | P(sk#0(z), x)) & (((~R(z)) | (~Q(u`, x`, y))) & ((~R(z)) | (~(w = f(u`)))))",
                             parse_formula("R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))").cnf());
         assert_debug_string("(P(sk#0(x)) | Q(sk#1(x), x)) & ((~Q(x, sk#0(x))) | Q(sk#1(x), x))",
                             parse_formula("!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))").cnf());

@@ -170,7 +170,7 @@ pub trait EvaluatorTrait<'s, Sel: SelectorTrait<Item=&'s Self::Sequent>, B: Boun
     type Model: ModelTrait;
     fn evaluate(&self
                 , model: &Self::Model
-                , selector: Sel
+                , selector: &mut Sel
                 , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
@@ -186,32 +186,46 @@ pub trait StrategyTrait<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTr
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
 /// returns the resulting models. The resulting list of models is empty if the theory is not
 /// satisfiable.
-pub fn solve_all<'s
-    , S: 's + SequentTrait
-    , M: ModelTrait
-    , Sel: SelectorTrait<Item=&'s S>
-    , E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>
-    , B: BounderTrait>(strategy: &mut StrategyTrait<'s, S, M, Sel>, evaluator: &E, bounder: Option<&B>) -> Vec<M> {
+pub fn solve_all<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounder: Option<&B>) -> Vec<M>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S>,
+          Stg: StrategyTrait<'s, S, M, Sel>,
+          E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>,
+          B: BounderTrait {
     let mut result: Vec<M> = Vec::new();
+    let mut f = |m: M| result.push(m);
     while !strategy.empty() {
-        let (base_model, selector) = strategy.remove().unwrap();
-        // TODO selector below shouldn't be cloned
-        let models = evaluator.evaluate(&base_model, selector.clone(), bounder);
-        if let Some(models) = models {
-            if !models.is_empty() {
-                models.into_iter().for_each(|m| {
-                    if let Either::Left(model) = m {
-                        strategy.add(model, selector.clone() );
-                    } else if let Either::Right(model) = m {
-                        result.push(model);
-                    }
-                });
-            } else {
-                result.push(base_model);
-            }
-        }
+        solve(strategy, evaluator, bounder, &mut f);
     }
     return result;
+}
+
+/// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
+/// returns the resulting models. The resulting list of models is empty if the theory is not
+/// satisfiable.
+pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounder: Option<&B>, consumer: &mut impl FnMut(M))
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S>,
+          Stg: StrategyTrait<'s, S, M, Sel>,
+          E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>,
+          B: BounderTrait {
+    let (base_model, mut selector) = strategy.remove().unwrap();
+    let models = evaluator.evaluate(&base_model, &mut selector, bounder);
+    if let Some(models) = models {
+        if !models.is_empty() {
+            models.into_iter().for_each(|m| {
+                if let Either::Left(model) = m {
+                    strategy.add(model, selector.clone());
+                } else if let Either::Right(model) = m {
+                    consumer(model);
+                }
+            });
+        } else {
+            consumer(base_model);
+        }
+    }
 }
 
 //// Tests -------------------------------------
