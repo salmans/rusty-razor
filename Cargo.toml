@@ -5,9 +5,11 @@ authors = ["Salman Saghafi <salman.saghafi@me.com>"]
 edition = "2018"
 
 [dependencies]
-itertools = "0.7.8"
+itertools = "^0.7"
 nom = "^4.1"
-criterion = "0.1.2"
+criterion = "^0.1"
+structopt = "^0.2"
+term = "^0.2"
 
 [[bench]]
 name = "perf_test"
