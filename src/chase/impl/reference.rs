@@ -91,7 +91,7 @@ impl Model {
     fn record(&mut self, witness: WitnessTerm) -> Rc<Cell<E>> {
         match witness {
             WitnessTerm::Elem { element } => {
-                if self.domain.contains(&element) { // TODO: replace domain with domain()
+                if let Some(_) = self.domain.iter().find(|e| element.eq(e)) {
                     element
                 } else {
                     panic!("Element does not exist in the model's domain!")
@@ -141,7 +141,7 @@ impl ModelTrait for Model {
             Observation::Fact { relation, terms } => {
                 // TODO do we need the clone below?
                 let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
-                let observation = Observation::Fact { relation: (*relation).clone(), terms };
+                let observation = Observation::Fact { relation: relation.clone(), terms };
                 self.facts.insert(observation);
             }
             Observation::Identity { left, right } => {
@@ -170,7 +170,8 @@ impl ModelTrait for Model {
                     false
                 } else {
                     let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().clone().into()).collect();
-                    self.facts.contains(&Observation::Fact { relation: (*relation).clone(), terms })
+                    let obs = Observation::Fact { relation: relation.clone(), terms };
+                    self.facts.iter().find(|f| obs.eq(f)).is_some()
                 }
             }
             Observation::Identity { left, right } => {
