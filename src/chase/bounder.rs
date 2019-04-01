@@ -19,7 +19,7 @@ impl BounderTrait for DomainSize {
                     .map(|t| model.element(t))
                     .filter(|t| t.is_none()).collect();
                 let size = terms.len();
-                model_size + size >= self.max_domain_size
+                model_size + size > self.max_domain_size
             }
             Observation::Identity { left, right } => {
                 let mut size = model.domain().len();
@@ -29,7 +29,7 @@ impl BounderTrait for DomainSize {
                 if model.element(right).is_none() {
                     size += 1;
                 }
-                size >= self.max_domain_size
+                size > self.max_domain_size
             }
         }
     }

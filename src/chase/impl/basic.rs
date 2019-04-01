@@ -149,13 +149,15 @@ impl ModelTrait for Model {
     fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record((*t).clone()).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.into_iter()
+                    .map(|t| self.record((*t).clone()).into())
+                    .collect();
                 let observation = Observation::Fact { relation: relation.clone(), terms };
                 self.facts.insert(observation);
             }
             Observation::Identity { left, right } => {
-                let left = self.record((*left).clone());
-                let right = self.record((*right).clone());
+                let left = self.record(left.clone());
+                let right = self.record(right.clone());
                 let (src, dest) = if left > right {
                     (right, left)
                 } else {
@@ -190,7 +192,6 @@ impl ModelTrait for Model {
                     new_rewrite.insert(key, value);
                 });
                 self.rewrites = new_rewrite;
-                // TODO: by maintaining references to elements, the following can be avoided:
                 self.facts = self.facts.iter().map(|f| {
                     if let Observation::Fact { ref relation, ref terms } = f {
                         let terms: Vec<WitnessTerm> = terms.iter().map(|t| {
@@ -435,25 +436,35 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                     if head.is_empty() {
                         return None; // failure
                     } else {
-                        return head.iter().map(|os| {
+                        let models: Vec<Either<Model, Model>> = head.iter().filter_map(|os| {
                             let mut model = model.clone();
-                            os.iter().foreach(|o| model.observe(o));
                             // this evaluator returns the models from first successful sequent
                             if let Some(bounder) = bounder {
-                                if os.iter().any(|o| bounder.bound(&model, o)) {
+                                let mut modified = false;
+                                os.iter().foreach(|o| {
+                                    if !bounder.bound(&model, o) {
+                                        model.observe(o);
+                                        modified = true;
+                                    }
+                                });
+                                if modified {
                                     Some(Either::Right(model))
                                 } else {
-                                    Some(Either::Left(model))
+                                    None
                                 }
                             } else {
+                                os.iter().foreach(|o| model.observe(o));
                                 Some(Either::Left(model))
                             }
                         }).collect();
+                        if !models.is_empty() {
+                            return Some(models);
+                        }
                     }
                 }
             }
         }
-        Some(Vec::new())
+        return Some(Vec::new());
     }
 }
 
@@ -1325,13 +1336,6 @@ mod test_basic {
         f[e#16] -> e#17\n\
         f[e#17] -> e#18\n\
         f[e#18] -> e#19", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy0.raz"), 20)));
-        assert_eq!("Domain: {e#0, e#10, e#3, e#6, e#8}\n\
-        Facts: \n\
-        'e, 'sk#0, f[e#0, e#0], f[e#0, e#3] -> e#0\n\
-        f[e#3, e#0], i[e#0] -> e#3\n\
-        f[e#3, e#3], f[e#6, e#0] -> e#6\n\
-        f[e#6, e#3], f[e#8, e#0] -> e#8\n\
-        f[e#10, e#0], f[e#8, e#3] -> e#10", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy1.raz"), 5)));
         assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
         Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
         'a -> e#0\n\
@@ -1339,5 +1343,8 @@ mod test_basic {
         f[e#1] -> e#2\n\
         f[e#2] -> e#3\n\
         f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy2.raz"), 5)));
+        assert_eq!("Domain: {e#0}\n\
+        Facts: <P(e#0)>, <Q(e#0)>\n\
+        'sk#0 -> e#0", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("theories/bounded/thy3.raz"), 5)));
     }
 }

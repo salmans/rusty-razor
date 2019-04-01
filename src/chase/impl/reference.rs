@@ -265,20 +265,30 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                     if head.is_empty() {
                         return None; // failure
                     } else {
-                        return head.iter().map(|os| {
+                        let models: Vec<Either<Model, Model>> = head.iter().filter_map(|os| {
                             let mut model = model.clone();
-                            os.iter().foreach(|o| model.observe(o));
                             // this evaluator returns the models from first successful sequent
                             if let Some(bounder) = bounder {
-                                if os.iter().any(|o| bounder.bound(&model, o)) {
+                                let mut modified = false;
+                                os.iter().foreach(|o| {
+                                    if !bounder.bound(&model, o) {
+                                        model.observe(o);
+                                        modified = true;
+                                    }
+                                });
+                                if modified {
                                     Some(Either::Right(model))
                                 } else {
-                                    Some(Either::Left(model))
+                                    None
                                 }
                             } else {
+                                os.iter().foreach(|o| model.observe(o));
                                 Some(Either::Left(model))
                             }
                         }).collect();
+                        if !models.is_empty() {
+                            return Some(models);
+                        }
                     }
                 }
             }
