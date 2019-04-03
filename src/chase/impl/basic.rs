@@ -882,49 +882,27 @@ mod test_basic {
                        'sk#1 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy26.raz"))));
         assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy27.raz"))));
         assert_eq!("Domain: {}\n\
-                       Facts: <T()>, <V()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <U()>, <V()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <T()>, <U()>, <V()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <T()>, <U()>, <V()>\n", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy28.raz"))));
+        Facts: <T()>, <V()>\n\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {}\n\
+        Facts: <U()>, <V()>\n", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy28.raz"))));
         assert_eq!("Domain: {}\n\
-                       Facts: <P()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <S()>, <W()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <S()>, <X()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <S()>, <Y()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <R()>, <T()>, <V()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <R()>, <U()>, <V()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <R()>, <T()>, <U()>, <V()>\n\
-                       \n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {}\n\
-                       Facts: <Q()>, <R()>, <T()>, <U()>, <V()>\n", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy29.raz"))));
+        Facts: <P()>\n\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {}\n\
+        Facts: <Q()>, <R()>, <T()>, <V()>\n\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {}\n\
+        Facts: <Q()>, <R()>, <U()>, <V()>\n\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {}\n\
+        Facts: <Q()>, <S()>, <W()>\n\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {}\n\
+        Facts: <Q()>, <S()>, <X()>\n\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {}\n\
+        Facts: <Q()>, <S()>, <Y()>\n", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy29.raz"))));
         assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy30.raz"))));
         assert_eq!("Domain: {e#0}\n\
                        Facts: <Q(e#0, e#0)>, <R(e#0)>, <U(e#0)>\n\

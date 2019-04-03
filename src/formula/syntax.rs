@@ -68,7 +68,7 @@ impl Symbol for Func {}
 
 /// ### Variable
 /// Variable symbols.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct V(pub String);
 
 impl V {
@@ -106,7 +106,7 @@ impl Symbol for C {}
 
 /// ### Predicate
 /// Predicate symbols.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Pred(pub String);
 
 impl Pred {
@@ -152,7 +152,7 @@ impl fmt::Display for Pred {
 impl Symbol for Pred {}
 
 /// ## Term
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, PartialOrd, Ord, Hash)]
 pub enum Term {
     /// ### Variable
     /// Variable term; e.g., `x`.
@@ -235,7 +235,7 @@ impl From<C> for Term {
 
 /// ## Formula
 /// A first order formula.
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone, Eq, PartialOrd, Ord, Hash)]
 pub enum Formula {
     /// ### Top
     /// Top (⊤) or Turth

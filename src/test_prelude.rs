@@ -95,18 +95,6 @@ pub fn _R_() -> Rel { Rel::new("R") }
 #[allow(non_snake_case)]
 pub fn _S_() -> Rel { Rel::new("S") }
 
-impl PartialOrd for V {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
-impl Ord for V {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
 impl fmt::Debug for V {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
