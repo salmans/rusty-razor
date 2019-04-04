@@ -11,8 +11,6 @@ use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
 
 #[derive(StructOpt)]
 enum BoundCommand {
-    #[structopt(name = "bound-off", about = "Do not bound the model.")]
-    Off,
     #[structopt(name = "bound-domain", about = "Bound models by their domain size.")]
     Domain {
         #[structopt(help = "Maximum domain size of models.")]
@@ -26,8 +24,10 @@ enum ProcessCommand {
     Solve {
         #[structopt(short = "i", long = "input", parse(from_os_str), help = "Path to the input theory file")]
         input: std::path::PathBuf,
+        #[structopt(long = "count", help = "Number of models to return")]
+        count: Option<i32>,
         #[structopt(subcommand, name = "bound")]
-        bound: BoundCommand,
+        bound: Option<BoundCommand>,
     }
 }
 
@@ -61,16 +61,16 @@ fn main() {
     terminal.reset().unwrap();
 
     match command {
-        ProcessCommand::Solve { input, bound } => {
+        ProcessCommand::Solve { input, count, bound } => {
             if let Some(input) = input.to_str() {
                 let theory = read_theory_from_file(input);
-                process_solve(&theory, bound, !no_color);
+                process_solve(&theory, bound, count,!no_color);
             }
         }
     }
 }
 
-fn process_solve(theory: &Theory, bound: BoundCommand, color: bool) {
+fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32>, color: bool) {
     use rusty_razor::chase::SelectorTrait;
     use rusty_razor::chase::StrategyTrait;
 
@@ -85,6 +85,9 @@ fn process_solve(theory: &Theory, bound: BoundCommand, color: bool) {
 
     theory.formulas.iter().for_each(|f| println!("  {}", f));
 
+    println!();
+    println!();
+
     let theory = theory.gnf();
     let sequents: Vec<Sequent> = theory
         .formulas
@@ -94,16 +97,22 @@ fn process_solve(theory: &Theory, bound: BoundCommand, color: bool) {
     let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
     let mut strategy = FIFO::new();
 
-    let bounder = match bound {
-        BoundCommand::Off => None,
-        BoundCommand::Domain { size } => Some(DomainSize::new(size)),
+    let bounder = if let Some(bound) = bound {
+        match bound {
+            BoundCommand::Domain { size } => Some(DomainSize::new(size)),
+        }
+    } else {
+        None
     };
 
     strategy.add(Model::new(), selector);
-    let mut count = 0;
+    let mut found = 0;
 
     while !strategy.empty() {
-        solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut count) })
+        if count.is_some() && found >= count.unwrap() {
+            break;
+        }
+        solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut found) })
     }
 
     println!();
@@ -111,8 +120,8 @@ fn process_solve(theory: &Theory, bound: BoundCommand, color: bool) {
         terminal.fg(27).unwrap();
     }
     terminal.attr(term::Attr::Bold).unwrap();
-    let verb = if count == 1 { "was" } else { "were" };
-    println!("{} models {} found.", count, verb);
+    let verb = if found == 1 { "was" } else { "were" };
+    println!("{} models {} found.", found, verb);
     terminal.reset().unwrap();
     println!();
 }
