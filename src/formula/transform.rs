@@ -750,7 +750,7 @@ impl Formula {
 
         // The following eliminates the existential quantifiers of the input formula.
         fn remove_forall(formula: Formula) -> Formula {
-            if let Forall { variables: _, formula } = formula {
+            if let Forall { formula, .. } = formula {
                 remove_forall(*formula)
             } else {
                 formula
