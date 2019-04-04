@@ -1,6 +1,7 @@
 use super::syntax::{*, Term::*, Formula::*};
 use std::collections::HashMap;
 use std::cmp::Ordering::Equal;
+use itertools::Itertools;
 
 /// ## Substitution
 /// A *substitution* is a function from variables to terms. A *variable renaming* function is a
@@ -157,7 +158,6 @@ impl Formula {
     /// bound variables at the front, followed by a quantifier-free part.
     /// `Formula.pnf()` returns a PNF equivalent to the given formula.
     pub fn pnf(&self) -> Formula {
-        use itertools::Itertools;
         // Renames the input variable until it's not in the list of input variables.
         fn rename(variable: &V, no_collision_variable_list: &Vec<&V>) -> V {
             let mut name = variable.0.clone();
@@ -750,7 +750,7 @@ impl Formula {
 
         // The following eliminates the existential quantifiers of the input formula.
         fn remove_forall(formula: Formula) -> Formula {
-            if let Forall { variables: _, formula } = formula {
+            if let Forall { formula, .. } = formula {
                 remove_forall(*formula)
             } else {
                 formula
@@ -873,7 +873,6 @@ impl Formula {
     /// `Formula.gnf_with(generator)` uses an existing `SkolemGenerator` to avoid collision in the
     /// names of the Skolem function (and constant) for formulas in the same theory.
     pub fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
-        use itertools::Itertools;
         // For any disjunct of the CNF, the negative literals form the body of the geometric form
         // and the positive literals form the head of the geometric form:
         fn split_sids(disjunct: Formula) -> (Vec<Formula>, Vec<Formula>) {
@@ -935,8 +934,6 @@ impl Theory {
 }
 
 fn compress_geometric(formulas: Vec<Formula>) -> Vec<Formula> {
-    use itertools::Itertools;
-
     formulas.into_iter().sorted_by(|f1, f2| { // sort sequents by their body
         match (f1, f2) {
             (Formula::Implies { left: f1, .. }, Formula::Implies { left: f2, .. }) => {
@@ -976,8 +973,8 @@ fn compress_geometric(formulas: Vec<Formula>) -> Vec<Formula> {
         }
     }).map(|f| { // convert the head to dnf and simplify it:
         match f {
-            Formula::Implies { left: l, right: r } => {
-                Formula::Implies { left: l, right: Box::new(simplify_dnf(r.dnf())) }
+            Formula::Implies { left, right: r } => {
+                Formula::Implies { left, right: Box::new(simplify_dnf(r.dnf())) }
             }
             _ => f
         }
@@ -986,8 +983,6 @@ fn compress_geometric(formulas: Vec<Formula>) -> Vec<Formula> {
 
 // Simplifies the given DNF as a helper for compress geometric.
 fn simplify_dnf(formula: Formula) -> Formula {
-    use itertools::Itertools;
-
     fn disjunct_list(formula: Formula) -> Vec<Formula> {
         match formula {
             Or { left, right } => {
