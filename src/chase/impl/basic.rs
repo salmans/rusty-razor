@@ -442,7 +442,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                             if let Some(bounder) = bounder {
                                 let mut modified = false;
                                 os.iter().foreach(|o| {
-                                    if !bounder.bound(&model, o) {
+                                    if !bounder.bound(&model, o) && !model.is_observed(o) {
                                         model.observe(o);
                                         modified = true;
                                     }

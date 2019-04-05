@@ -226,7 +226,6 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
     type Model = Model;
     fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
-        use itertools::Itertools;
         let domain: Vec<&Rc<Cell<E>>> = model.domain().into_iter().collect();
         let domain_size = domain.len();
         for sequent in selector {
@@ -271,7 +270,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                             if let Some(bounder) = bounder {
                                 let mut modified = false;
                                 os.iter().foreach(|o| {
-                                    if !bounder.bound(&model, o) {
+                                    if !bounder.bound(&model, o) && !model.is_observed(o) {
                                         model.observe(o);
                                         modified = true;
                                     }

@@ -38,5 +38,6 @@ Parent(p, p_) and Parent(p_, g) and Man(g) implies Grandpas(p, g);
 
 Parent(p, p_) implies father(p) = p_ or mother(p) = p_ or (exists f . father(p) = f and wife(f) = p_) or (exists m . mother(p) = m and husband(m) = p_);
 
+
 // Own Grandpa
 exists p. Grandpas(p, p);
