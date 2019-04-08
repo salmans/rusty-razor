@@ -212,7 +212,7 @@ impl Formula {
                             formula: Box::new(And { left: formula, right: Box::new(right) }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting universal quantifier.")
                     }
                 } else if let Exists { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -233,7 +233,7 @@ impl Formula {
                             formula: Box::new(And { left: formula, right: Box::new(right) }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting existential quantifier.")
                     }
                 } else if let Forall { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -254,7 +254,7 @@ impl Formula {
                             formula: Box::new(And { left: Box::new(left), right: formula }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting universal quantifier.")
                     }
                 } else if let Exists { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -275,7 +275,7 @@ impl Formula {
                             formula: Box::new(And { left: Box::new(left), right: formula }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting existential quantifier.")
                     }
                 } else {
                     And { left: Box::new(left), right: Box::new(right) }
@@ -308,7 +308,7 @@ impl Formula {
                             formula: Box::new(Or { left: formula, right: Box::new(right) }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting universal quantifier.")
                     }
                 } else if let Exists { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -329,7 +329,7 @@ impl Formula {
                             formula: Box::new(Or { left: formula, right: Box::new(right) }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting existential quantifier.")
                     }
                 } else if let Forall { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -350,7 +350,7 @@ impl Formula {
                             formula: Box::new(Or { left: Box::new(left), right: formula }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting universal quantifier.")
                     }
                 } else if let Exists { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -371,7 +371,7 @@ impl Formula {
                             formula: Box::new(Or { left: Box::new(left), right: formula }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting existential quantifier.")
                     }
                 } else {
                     Or { left: Box::new(left), right: Box::new(right) }
@@ -404,7 +404,7 @@ impl Formula {
                             formula: Box::new(Implies { left: formula, right: Box::new(right) }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting universal quantifier.")
                     }
                 } else if let Exists { ref variables, formula: _ } = left {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -425,7 +425,7 @@ impl Formula {
                             formula: Box::new(Implies { left: formula, right: Box::new(right) }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting existential quantifier.")
                     }
                 } else if let Forall { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -446,7 +446,7 @@ impl Formula {
                             formula: Box::new(Implies { left: Box::new(left), right: formula }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting universal quantifier.!")
                     }
                 } else if let Exists { ref variables, formula: _ } = right {
                     let shared_vars: Vec<&V> = variables.iter()
@@ -467,7 +467,7 @@ impl Formula {
                             formula: Box::new(Implies { left: Box::new(left), right: formula }),
                         }.pnf()
                     } else {
-                        panic!("something went wrong!")
+                        panic!("Something is wrong: expecting existential quantifier.")
                     }
                 } else {
                     Implies { left: Box::new(left), right: Box::new(right) }
@@ -669,7 +669,7 @@ impl Formula {
                     variables: variables.to_vec(),
                     formula: Box::new(distribute_or(formula)),
                 },
-                _ => panic!("Internal Error: Expecting a formula in negation normal form.") // already NNF
+                _ => panic!("Something is wrong: expecting a formula in negation normal form.") // already NNF
             }
         }
 
@@ -744,7 +744,7 @@ impl Formula {
                     variables: variables.to_vec(),
                     formula: Box::new(distribute_and(formula)),
                 },
-                _ => panic!("Internal Error: Expecting a formula in negation normal form.") // already NNF
+                _ => panic!("Something is wrong: expecting a formula in negation normal form.") // already NNF
             }
         }
 

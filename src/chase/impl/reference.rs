@@ -8,6 +8,7 @@ use crate::chase::{
 use std::fmt;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use itertools::{Itertools, Either};
+use std::iter::FromIterator;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WitnessTerm {
@@ -70,7 +71,6 @@ impl FuncApp for WitnessTerm {
     }
 }
 
-#[derive(Clone)]
 pub struct Model {
     element_index: i32,
     domain: BTreeSet<Rc<Cell<E>>>,
@@ -94,7 +94,7 @@ impl Model {
                 if let Some(_) = self.domain.iter().find(|e| element.eq(e)) {
                     element
                 } else {
-                    panic!("Element does not exist in the model's domain!")
+                    panic!("Something is wrong: element does not exist in the model's domain!")
                 }
             }
             WitnessTerm::Const { .. } => {
@@ -210,6 +210,57 @@ impl ModelTrait for Model {
     }
 }
 
+impl Clone for Model {
+    fn clone(&self) -> Self {
+        let mut elements = HashMap::new();
+        self.domain.iter().for_each(|e| {
+            let element = e.get();
+            elements.insert(element.0, Rc::new(Cell::new(element.clone())));
+        });
+        let domain: BTreeSet<Rc<Cell<E>>> = BTreeSet::from_iter(elements.values().map(|e| e.clone()));
+        let map_element = |e: &Rc<Cell<E>>| elements.get(&e.get().0).unwrap().clone();
+        let map_term = |w: &WitnessTerm| {
+            match w {
+                WitnessTerm::Elem { element } => WitnessTerm::Elem { element: map_element(element) },
+                WitnessTerm::Const { .. } => w.clone(),
+                WitnessTerm::App { function, terms } => {
+                    let terms = terms.iter().map(|t| {
+                        if let WitnessTerm::Elem { element } = t {
+                            WitnessTerm::Elem { element: map_element(element) }
+                        } else {
+                            panic!("Something is wrong: expecting an element.")
+                        }
+                    }).collect();
+                    WitnessTerm::App {
+                        function: function.clone(),
+                        terms,
+                    }
+                }
+            }
+        };
+        let map_observation = |o: &Observation<WitnessTerm>| {
+            if let Observation::Fact { relation, terms } = o {
+                Observation::Fact {
+                    relation: relation.clone(),
+                    terms: terms.iter().map(|t| map_term(t)).collect(),
+                }
+            } else {
+                panic!("Something is wrong: expecting a fact.")
+            }
+        };
+        let rewrites: BTreeMap<WitnessTerm, Rc<Cell<E>>> = BTreeMap::from_iter(self.rewrites.iter().map(|(k, v)| {
+            (map_term(k), map_element(v))
+        }));
+        let facts: BTreeSet<Observation<WitnessTerm>> = BTreeSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
+        Model {
+            element_index: self.element_index,
+            domain,
+            rewrites,
+            facts,
+        }
+    }
+}
+
 impl fmt::Display for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.get().to_string()).collect();
@@ -226,7 +277,6 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
     type Model = Model;
     fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
-        use itertools::Itertools;
         let domain: Vec<&Rc<Cell<E>>> = model.domain().into_iter().collect();
         let domain_size = domain.len();
         for sequent in selector {
@@ -271,7 +321,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                             if let Some(bounder) = bounder {
                                 let mut modified = false;
                                 os.iter().foreach(|o| {
-                                    if !bounder.bound(&model, o) {
+                                    if !bounder.bound(&model, o) && !model.is_observed(o) {
                                         model.observe(o);
                                         modified = true;
                                     }
@@ -301,7 +351,7 @@ pub type Sequent = basic::Sequent;
 pub type Literal = basic::Literal;
 
 #[cfg(test)]
-mod test_bootstrap {
+mod test_reference {
     use super::{Model, Evaluator};
     use crate::chase::r#impl::basic::Sequent;
     use crate::formula::syntax::Theory;

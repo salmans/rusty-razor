@@ -8,6 +8,7 @@ use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
                          bounder::DomainSize,
                          Observation,
                          solve};
+use term::color::WHITE;
 
 #[derive(StructOpt)]
 enum BoundCommand {
@@ -56,8 +57,14 @@ fn main() {
     ┬─┐┬ ┬┌─┐┌┬┐┬ ┬  ╦═╗╔═╗╔═╗╔═╗╦═╗\n\
     ├┬┘│ │└─┐ │ └┬┘  ╠╦╝╠═╣╔═╝║ ║╠╦╝\n\
     ┴└─└─┘└─┘ ┴  ┴   ╩╚═╩ ╩╚═╝╚═╝╩╚═\n\
-    -----------╦-------╦------------\n           \
-               ╟-------╢            \n");
+    -----------╦-------╦------------");
+
+    if !no_color {
+        terminal.fg(WHITE).unwrap();
+    }
+    println!("           ╟-------╢            ");
+    println!("           ╟-------╢            ");
+    println!("           ╟-------╢            \n");
     terminal.reset().unwrap();
 
     match command {
