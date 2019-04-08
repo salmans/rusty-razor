@@ -6,9 +6,10 @@ use crate::chase::{
     , E, Rel, Observation, WitnessTermTrait, ModelTrait
     , SelectorTrait, EvaluatorTrait, BounderTrait};
 use std::fmt;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use itertools::{Itertools, Either};
 use std::iter::FromIterator;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Element(Rc<Cell<E>>);
@@ -31,7 +32,13 @@ impl Element {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+impl Hash for Element {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get().hash(state)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
     Elem { element: Element },
     Const { constant: C },
@@ -94,18 +101,18 @@ impl FuncApp for WitnessTerm {
 
 pub struct Model {
     element_index: i32,
-    domain: BTreeSet<Element>,
-    rewrites: BTreeMap<WitnessTerm, Element>,
-    facts: BTreeSet<Observation<WitnessTerm>>,
+    domain: HashSet<Element>,
+    rewrites: HashMap<WitnessTerm, Element>,
+    facts: HashSet<Observation<WitnessTerm>>,
 }
 
 impl Model {
     pub fn new() -> Model {
         Model {
             element_index: 0,
-            domain: BTreeSet::new(),
-            rewrites: BTreeMap::new(),
-            facts: BTreeSet::new(),
+            domain: HashSet::new(),
+            rewrites: HashMap::new(),
+            facts: HashSet::new(),
         }
     }
 
@@ -232,12 +239,8 @@ impl ModelTrait for Model {
 
 impl Clone for Model {
     fn clone(&self) -> Self {
-        let mut elements = HashMap::new();
-        self.domain.iter().for_each(|e| {
-            elements.insert(e.get().0, e.deep_clone());
-        });
-        let domain: BTreeSet<Element> = BTreeSet::from_iter(elements.values().map(|e| e.clone()));
-        let map_element = |e: &Element| elements.get(&e.get().0).unwrap().clone();
+        let domain: HashSet<Element> = HashSet::from_iter(self.domain.iter().map(|e| e.deep_clone()));
+        let map_element = |e: &Element| domain.get(e).unwrap().clone();
         let map_term = |w: &WitnessTerm| {
             match w {
                 WitnessTerm::Elem { element } => WitnessTerm::Elem { element: map_element(element) },
@@ -267,10 +270,10 @@ impl Clone for Model {
                 panic!("Something is wrong: expecting a fact.")
             }
         };
-        let rewrites: BTreeMap<WitnessTerm, Element> = BTreeMap::from_iter(self.rewrites.iter().map(|(k, v)| {
+        let rewrites: HashMap<WitnessTerm, Element> = HashMap::from_iter(self.rewrites.iter().map(|(k, v)| {
             (map_term(k), map_element(v))
         }));
-        let facts: BTreeSet<Observation<WitnessTerm>> = BTreeSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
+        let facts: HashSet<Observation<WitnessTerm>> = HashSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
         Model {
             element_index: self.element_index,
             domain,
