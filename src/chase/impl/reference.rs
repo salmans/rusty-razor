@@ -11,14 +11,35 @@ use itertools::{Itertools, Either};
 use std::iter::FromIterator;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Element(Rc<Cell<E>>);
+
+impl Element {
+    fn new(element: E) -> Element {
+        Element(Rc::new(Cell::new(element)))
+    }
+
+    pub fn get(&self) -> E {
+        self.0.get()
+    }
+
+    fn replace(&self, element: &Element) {
+        self.0.replace(element.0.get());
+    }
+
+    fn deep_clone(&self) -> Self {
+        Element::new(self.get())
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WitnessTerm {
-    Elem { element: Rc<Cell<E>> },
+    Elem { element: Element },
     Const { constant: C },
     App { function: Func, terms: Vec<WitnessTerm> },
 }
 
 impl WitnessTerm {
-    fn witness(term: &Term, lookup: &impl Fn(&V) -> Rc<Cell<E>>) -> WitnessTerm {
+    fn witness(term: &Term, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
         match term {
             Term::Const { constant } => WitnessTerm::Const { constant: constant.clone() },
             Term::Var { variable } => WitnessTerm::Elem { element: lookup(&variable) },
@@ -31,7 +52,7 @@ impl WitnessTerm {
 }
 
 impl WitnessTermTrait for WitnessTerm {
-    type ElementType = Rc<Cell<E>>;
+    type ElementType = Element;
 }
 
 impl fmt::Display for WitnessTerm {
@@ -53,15 +74,15 @@ impl From<C> for WitnessTerm {
     }
 }
 
-impl From<Rc<Cell<E>>> for WitnessTerm {
-    fn from(element: Rc<Cell<E>>) -> Self {
+impl From<Element> for WitnessTerm {
+    fn from(element: Element) -> Self {
         WitnessTerm::Elem { element }
     }
 }
 
 impl From<E> for WitnessTerm {
     fn from(element: E) -> Self {
-        WitnessTerm::Elem { element: Rc::new(Cell::new(element)) }
+        WitnessTerm::Elem { element: Element::new(element) }
     }
 }
 
@@ -73,8 +94,8 @@ impl FuncApp for WitnessTerm {
 
 pub struct Model {
     element_index: i32,
-    domain: BTreeSet<Rc<Cell<E>>>,
-    rewrites: BTreeMap<WitnessTerm, Rc<Cell<E>>>,
+    domain: BTreeSet<Element>,
+    rewrites: BTreeMap<WitnessTerm, Element>,
     facts: BTreeSet<Observation<WitnessTerm>>,
 }
 
@@ -88,7 +109,7 @@ impl Model {
         }
     }
 
-    fn record(&mut self, witness: WitnessTerm) -> Rc<Cell<E>> {
+    fn record(&mut self, witness: WitnessTerm) -> Element {
         match witness {
             WitnessTerm::Elem { element } => {
                 if let Some(_) = self.domain.iter().find(|e| element.eq(e)) {
@@ -101,7 +122,7 @@ impl Model {
                 if let Some(e) = self.rewrites.get(&witness) {
                     e.clone()
                 } else {
-                    let element = Rc::new(Cell::new(E(self.element_index)));
+                    let element = Element::new(E(self.element_index));
                     self.element_index = self.element_index + 1;
                     self.domain.insert(element.clone());
                     self.rewrites.insert(witness, element.clone());
@@ -114,7 +135,7 @@ impl Model {
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
-                    let element = Rc::new(Cell::new(E(self.element_index)));
+                    let element = Element::new(E(self.element_index));
                     self.element_index = self.element_index + 1;
                     self.domain.insert(element.clone());
                     self.rewrites.insert(witness, element.clone());
@@ -128,7 +149,7 @@ impl Model {
 impl ModelTrait for Model {
     type TermType = WitnessTerm;
 
-    fn domain(&self) -> Vec<&Rc<Cell<E>>> {
+    fn domain(&self) -> Vec<&Element> {
         self.domain.iter().sorted().into_iter().dedup().collect()
     }
 
@@ -154,8 +175,7 @@ impl ModelTrait for Model {
                 };
                 self.rewrites.iter().for_each(|(_, v)| {
                     if v.eq(&dest) {
-                        v.replace(src.get());
-                        //v.get().identify(&src.get())
+                        v.replace(&src);
                     }
                 });
             }
@@ -165,7 +185,7 @@ impl ModelTrait for Model {
     fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<Option<&Rc<Cell<E>>>> = terms.iter().map(|t| self.element(t)).collect();
+                let terms: Vec<Option<&Element>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
@@ -181,7 +201,7 @@ impl ModelTrait for Model {
         }
     }
 
-    fn witness(&self, element: &Rc<Cell<E>>) -> Vec<&Self::TermType> {
+    fn witness(&self, element: &Element) -> Vec<&Self::TermType> {
         self.rewrites.iter()
             .filter(|(_, e)| (*e).eq(element))
             .map(|(t, _)| t)
@@ -191,14 +211,14 @@ impl ModelTrait for Model {
             .collect()
     }
 
-    fn element(&self, witness: &Self::TermType) -> Option<&Rc<Cell<E>>> {
+    fn element(&self, witness: &Self::TermType) -> Option<&Element> {
         match witness {
             WitnessTerm::Elem { element } => {
                 self.domain.iter().find(|e| (*e).eq(element))
             }
             WitnessTerm::Const { .. } => self.rewrites.get(witness),
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<Option<&Rc<Cell<E>>>> = terms.iter().map(|t| self.element(t)).collect();
+                let terms: Vec<Option<&Element>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
@@ -214,11 +234,10 @@ impl Clone for Model {
     fn clone(&self) -> Self {
         let mut elements = HashMap::new();
         self.domain.iter().for_each(|e| {
-            let element = e.get();
-            elements.insert(element.0, Rc::new(Cell::new(element.clone())));
+            elements.insert(e.get().0, e.deep_clone());
         });
-        let domain: BTreeSet<Rc<Cell<E>>> = BTreeSet::from_iter(elements.values().map(|e| e.clone()));
-        let map_element = |e: &Rc<Cell<E>>| elements.get(&e.get().0).unwrap().clone();
+        let domain: BTreeSet<Element> = BTreeSet::from_iter(elements.values().map(|e| e.clone()));
+        let map_element = |e: &Element| elements.get(&e.get().0).unwrap().clone();
         let map_term = |w: &WitnessTerm| {
             match w {
                 WitnessTerm::Elem { element } => WitnessTerm::Elem { element: map_element(element) },
@@ -248,7 +267,7 @@ impl Clone for Model {
                 panic!("Something is wrong: expecting a fact.")
             }
         };
-        let rewrites: BTreeMap<WitnessTerm, Rc<Cell<E>>> = BTreeMap::from_iter(self.rewrites.iter().map(|(k, v)| {
+        let rewrites: BTreeMap<WitnessTerm, Element> = BTreeMap::from_iter(self.rewrites.iter().map(|(k, v)| {
             (map_term(k), map_element(v))
         }));
         let facts: BTreeSet<Observation<WitnessTerm>> = BTreeSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
@@ -277,14 +296,14 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
     type Model = Model;
     fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
-        let domain: Vec<&Rc<Cell<E>>> = model.domain().into_iter().collect();
+        let domain: Vec<&Element> = model.domain().into_iter().collect();
         let domain_size = domain.len();
         for sequent in selector {
             let sequent_vars = &sequent.free_vars;
             let sequent_size = sequent_vars.len();
             let end = usize::pow(domain_size, sequent_size as u32);
             for i in 0..end {
-                let mut wit_map: HashMap<&V, Rc<Cell<E>>> = HashMap::new();
+                let mut wit_map: HashMap<&V, Element> = HashMap::new();
                 let mut j: usize = 0;
                 let mut total = i;
                 while j < sequent_size {
