@@ -106,7 +106,7 @@ impl Model {
                 if let Some(_) = self.domain().iter().find(|e| element.eq(e)) {
                     element
                 } else {
-                    panic!("Element does not exist in the model's domain!")
+                    panic!("Something is wrong: element does not exist in the model's domain.")
                 }
             }
             WitnessTerm::Const { .. } => {
@@ -289,7 +289,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Expecting a geometric sequent in standard form.")
+            _ => panic!("Something is wrong: expecting a geometric sequent in standard form.")
         }
     }
 
@@ -315,7 +315,7 @@ impl Literal {
                     left.append(&mut right);
                     vec![left]
                 } else {
-                    panic!("Expecting a geometric sequent in standard form.")
+                    panic!("Something is wrong: expecting a geometric sequent in standard form.")
                 }
             }
             Formula::Or { left, right } => {
@@ -324,7 +324,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Expecting a geometric sequent in standard form.")
+            _ => panic!("Something is wrong: expecting a geometric sequent in standard form.")
         }
     }
 }
@@ -362,7 +362,7 @@ impl From<&Formula> for Sequent {
                 let head = *right.clone();
                 Sequent { free_vars, body, head, body_literals, head_literals }
             }
-            _ => panic!("Expecting a geometric sequent in standard form.")
+            _ => panic!("Something is wrong: expecting a geometric sequent in standard form.")
         }
     }
 }
@@ -1281,6 +1281,14 @@ mod test_basic {
         Domain: {e#0}\n\
         Facts: <P(e#0)>, <R(e#0)>\n\
         'a -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy44.raz"))));
+        assert_eq!("Domain: {e#0}\n\
+        Facts: <P(e#0)>, <Q(e#0)>\n\
+        'a, \'b -> e#0\n\
+        -- -- -- -- -- -- -- -- -- --\n\
+        Domain: {e#0, e#1}\n\
+        Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
+        'a -> e#0\n\
+        'b -> e#1", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy45.raz"))));
     }
 
     #[test]
