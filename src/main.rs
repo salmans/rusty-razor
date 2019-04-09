@@ -127,8 +127,8 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32
         terminal.fg(27).unwrap();
     }
     terminal.attr(term::Attr::Bold).unwrap();
-    let verb = if found == 1 { "was" } else { "were" };
-    println!("{} models {} found.", found, verb);
+    let grammar = if found == 1 { ("", "was") } else { ("s", "were") };
+    println!("{} model{} {} found.", found, grammar.0, grammar.1);
     terminal.reset().unwrap();
     println!();
 }
