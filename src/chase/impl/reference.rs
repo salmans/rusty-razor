@@ -1,15 +1,19 @@
-use std::rc::Rc;
-use std::cell::Cell;
+use std::{
+    rc::Rc,
+    cell::Cell,
+    fmt,
+    collections::{HashMap, HashSet},
+    iter::FromIterator,
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 use crate::formula::syntax::{FuncApp, Term, V, C, Func};
 use crate::chase::{
-    r#impl::basic
-    , E, Rel, Observation, WitnessTermTrait, ModelTrait
-    , SelectorTrait, EvaluatorTrait, BounderTrait};
-use std::fmt;
-use std::collections::{HashMap, HashSet};
+    r#impl::basic, E, Rel, Observation,
+    WitnessTermTrait, ModelTrait,
+    SelectorTrait, EvaluatorTrait, BounderTrait
+};
 use itertools::{Itertools, Either};
-use std::iter::FromIterator;
-use std::hash::{Hash, Hasher};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Element(Rc<Cell<E>>);
@@ -19,13 +23,13 @@ impl Element {
         Element(Rc::new(Cell::new(element)))
     }
 
-    pub fn get(&self) -> E {
-        self.0.get()
-    }
-
-    fn replace(&self, element: &Element) {
-        self.0.replace(element.0.get());
-    }
+//    pub fn get(&self) -> E {
+//        self.0.get()
+//    }
+//
+//    fn replace(&self, element: &Element) {
+//        self.0.replace(element.0.get());
+//    }
 
     fn deep_clone(&self) -> Self {
         Element::new(self.get())
@@ -35,6 +39,14 @@ impl Element {
 impl Hash for Element {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get().hash(state)
+    }
+}
+
+impl Deref for Element {
+    type Target = Rc<Cell<E>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -170,7 +182,7 @@ impl ModelTrait for Model {
                 } else {
                     (left, right)
                 };
-                dest.replace(&src);
+                dest.replace(src.get());
             }
         }
     }
