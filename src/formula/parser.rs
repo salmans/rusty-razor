@@ -336,19 +336,6 @@ named!(
     )
 );
 
-//named!(
-//    pub theory<CompleteStr, Theory>,
-//    map!(
-//        many0!(
-//            terminated!(
-//                formula,
-//                ws!(tag!(SEMI_COLON))
-//            )
-//        ),
-//        Theory::new
-//    )
-//);
-
 named!(
     pub theory<CompleteStr, Theory>,
     map!(
