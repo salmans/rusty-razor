@@ -87,12 +87,6 @@ impl From<Element> for WitnessTerm {
     }
 }
 
-impl From<E> for WitnessTerm {
-    fn from(element: E) -> Self {
-        WitnessTerm::Elem { element: Element::new(element) }
-    }
-}
-
 impl FuncApp for WitnessTerm {
     fn apply(function: Func, terms: Vec<Self>) -> Self {
         WitnessTerm::App { function, terms }
@@ -119,11 +113,7 @@ impl Model {
     fn record(&mut self, witness: WitnessTerm) -> Element {
         match witness {
             WitnessTerm::Elem { element } => {
-                if let Some(_) = self.domain.iter().find(|e| element.eq(e)) {
-                    element
-                } else {
-                    panic!("Something is wrong: element does not exist in the model's domain!")
-                }
+                self.domain.iter().find(|e| element.eq(e)).unwrap().clone()
             }
             WitnessTerm::Const { .. } => {
                 if let Some(e) = self.rewrites.get(&witness) {
@@ -173,18 +163,14 @@ impl ModelTrait for Model {
                 self.facts.insert(observation);
             }
             Observation::Identity { left, right } => {
-                let left = self.record((*left).clone());
-                let right = self.record((*right).clone());
+                let left = self.record(left.clone());
+                let right = self.record(right.clone());
                 let (src, dest) = if left > right {
                     (right, left)
                 } else {
                     (left, right)
                 };
-                self.rewrites.iter().for_each(|(_, v)| {
-                    if v.eq(&dest) {
-                        v.replace(&src);
-                    }
-                });
+                dest.replace(&src);
             }
         }
     }
@@ -221,7 +207,7 @@ impl ModelTrait for Model {
     fn element(&self, witness: &Self::TermType) -> Option<&Element> {
         match witness {
             WitnessTerm::Elem { element } => {
-                self.domain.iter().find(|e| (*e).eq(element))
+                self.domain.iter().find(|e| e == &element)
             }
             WitnessTerm::Const { .. } => self.rewrites.get(witness),
             WitnessTerm::App { function, terms } => {
@@ -229,7 +215,7 @@ impl ModelTrait for Model {
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().get().into()).collect();
+                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().clone().into()).collect();
                     self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms })
                 }
             }
@@ -297,8 +283,7 @@ pub struct Evaluator {}
 impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
-                -> Option<Vec<Either<Model, Model>>> {
+    fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>) -> Option<Vec<Either<Model, Model>>> {
         let domain: Vec<&Element> = model.domain().into_iter().collect();
         let domain_size = domain.len();
         for sequent in selector {
