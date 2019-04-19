@@ -9,7 +9,7 @@ use rusty_razor::{
         solve_all,
         strategy::FIFO,
     },
-    formula::{parser::parse_theory, syntax::Theory},
+    formula::{parser::parse_theory_unsafe, syntax::Theory},
 };
 use std::{fs, io::Read};
 
@@ -107,7 +107,7 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     f.read_to_string(&mut contents)
         .expect("something went wrong reading the file");
 
-    parse_theory(contents.as_str())
+    parse_theory_unsafe(contents.as_str())
 }
 
 criterion_group!(benches, basic_benchmark, bootstrap_benchmark, reference_benchmark);

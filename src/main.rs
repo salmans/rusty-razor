@@ -140,7 +140,12 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     f.read_to_string(&mut contents)
         .expect("something went wrong reading the file");
 
-    parse_theory(contents.as_str())
+    let parsed = parse_theory(contents.as_str());
+    if parsed.is_err() {
+        panic!(parsed.err().unwrap())
+    } else {
+        parsed.ok().unwrap()
+    }
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {

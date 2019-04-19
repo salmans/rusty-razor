@@ -6,11 +6,17 @@ edition = "2018"
 
 [dependencies]
 itertools = "^0.7"
-nom = "^4.1"
 criterion = "^0.1"
 structopt = "^0.2"
 term = "^0.2"
-tokio-trace = "^0.0.0"
+
+[dependencies.nom]
+version = "^4.2.3"
+#features = ["verbose-errors"]
+
+[dependencies.nom_locate]
+version = "^0.3.1"
+#features = ["verbose-errors"]
 
 [[bench]]
 name = "perf_test"
