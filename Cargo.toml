@@ -9,6 +9,7 @@ itertools = "^0.7"
 criterion = "^0.1"
 structopt = "^0.2"
 term = "^0.2"
+failure = "^0.1"
 
 [dependencies.nom]
 version = "^4.2.3"

@@ -8,7 +8,9 @@ use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
                          bounder::DomainSize,
                          Observation,
                          solve};
-use term::color::WHITE;
+use term::color::{WHITE, BRIGHT_RED};
+use std::process::exit;
+use failure::Error;
 
 #[derive(StructOpt)]
 enum BoundCommand {
@@ -71,7 +73,15 @@ fn main() {
         ProcessCommand::Solve { input, count, bound } => {
             if let Some(input) = input.to_str() {
                 let theory = read_theory_from_file(input);
-                process_solve(&theory, bound, count,!no_color);
+                if theory.is_ok() {
+                    process_solve(&theory.unwrap(), bound, count,!no_color)
+                } else {
+                    terminal.fg(BRIGHT_RED).unwrap();
+                    println!("Parser error: {}", theory.err().unwrap().to_string());
+                    terminal.reset().unwrap();
+                    println!();
+                    exit(1);
+                }
             }
         }
     }
@@ -133,19 +143,20 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32
     println!();
 }
 
-pub fn read_theory_from_file(filename: &str) -> Theory {
+pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
     let mut f = fs::File::open(filename).expect("file not found");
 
     let mut contents = String::new();
     f.read_to_string(&mut contents)
         .expect("something went wrong reading the file");
 
-    let parsed = parse_theory(contents.as_str());
-    if parsed.is_err() {
-        panic!(parsed.err().unwrap())
-    } else {
-        parsed.ok().unwrap()
-    }
+    //let parsed = parse_theory(contents.as_str());
+    parse_theory(contents.as_str())
+//    if parsed.is_err() {
+//        panic!(parsed.err().unwrap())
+//    } else {
+//        parsed.ok().unwrap()
+//    }
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {

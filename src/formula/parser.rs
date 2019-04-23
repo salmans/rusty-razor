@@ -1,6 +1,8 @@
 use super::syntax::{*, Formula::*};
 use nom::{*, types::CompleteStr};
 use nom_locate::LocatedSpan;
+use std::fmt as fmt;
+use failure::{Fail, Error};
 
 const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
 const UPPER: &str = "ABCDEFGIJKLMNOPQRSTUVWXYZ";
@@ -39,7 +41,6 @@ const DOT: &str = ".";
 const SEMI_COLON: &str = ";";
 const LINE_COMMENT: &str = "//";
 
-
 // Custom parsing errors:
 const ERR_DOT: u32 = 1;
 const ERR_SEMI_COLON: u32 = 2;
@@ -53,6 +54,70 @@ const ERR_TERM: u32 = 32;
 
 const ERR_EQUALS: u32 = 41;
 const ERR_FORMULA: u32 = 42;
+
+fn error_code_to_string(code: &u32) -> &'static str {
+    match code {
+        &ERR_DOT => ".",
+        &ERR_SEMI_COLON => ";",
+        &ERR_L_PAREN => "(",
+        &ERR_R_PAREN => ")",
+        &ERR_LOWER => "lowercase identifier",
+        &ERR_VARS => "variables",
+        &ERR_TERM => "term",
+        &ERR_EQUALS => "=",
+        &ERR_FORMULA => "formula",
+        _ => "unknown",
+    }
+}
+
+#[derive(Fail)]
+pub enum ParserError {
+    Missing {
+        line: u32,
+        column: u32,
+        code: u32,
+    },
+    Expecting {
+        line: u32,
+        column: u32,
+        code: u32,
+        found: Option<String>,
+    },
+    Failed {
+        line: u32,
+        column: u32,
+    },
+    Unknown,
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            ParserError::Missing { line, column, code } => {
+                write!(f, "missing '{}' at line {}, column {}", error_code_to_string(code), line, column)
+            }
+            ParserError::Expecting { line, column, code, found } => {
+                if let Some(found) = found {
+                    write!(f, "expecting '{}' on line {}, column {}; found \"{}\"", error_code_to_string(code), line, column, found)
+                } else {
+                    write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(code), line, column)
+                }
+            }
+            ParserError::Failed { line, column} => {
+                write!(f, "failed to parse the input at line {}, column {}", line, column)
+            }
+            ParserError::Unknown => {
+                write!(f, "an error occurred while parsing the input")
+            }
+        }
+    }
+}
+
+impl fmt::Debug for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fmt::Display::fmt(self, f)
+    }
+}
 
 type Span<'a> = LocatedSpan<CompleteStr<'a>>;
 
@@ -399,59 +464,31 @@ pub fn parse_theory_unsafe(string: &str) -> Theory {
     theory(Span::new(CompleteStr(string))).ok().unwrap().1
 }
 
-pub fn parse_theory(string: &str) -> Result<Theory, String> {
+pub fn parse_theory(string: &str) -> Result<Theory, Error> {
     theory(Span::new(CompleteStr(string)))
         .map(|r| r.1)
-        .map_err(|e| error_to_string(&e))
+        .map_err(|e| make_parser_error(&e).into())
 }
 
-fn error_to_string(error: &Err<Span, u32>) -> String {
+fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
     match error {
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_FORMULA))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_FORMULA))) => {
-            if pos.fragment.len() == 0 {
-                format!("expecting a 'formula' on line {}, column {}", pos.line, pos.get_column())
+        Err::Error(Context::Code(pos, ErrorKind::Custom(code))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
+            let found = if pos.fragment.len() != 0 {
+                Some(pos.fragment.0.to_string())
             } else {
-                format!("expecting a 'formula' on line {}, column {}; found \"{}\"", pos.line, pos.get_column(), pos.fragment)
+                None
+            };
+            let code = *code;
+            match code {
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
+                _ => ParserError::Failed { line: pos.line, column: pos.get_column() as u32 },
             }
-        }
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_TERM))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_TERM))) => {
-            if pos.fragment.len() == 0 {
-                format!("expecting a 'term' on line {}, column {}", pos.line, pos.get_column())
-            } else {
-                format!("expecting a 'term' on line {}, column {}; found \"{}\"", pos.line, pos.get_column(), pos.fragment)
-            }
-        }
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_VARS))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_VARS))) => {
-            if pos.fragment.len() == 0 {
-                format!("expecting a list of 'variables' on line {}, column {}", pos.line, pos.get_column())
-            } else {
-                format!("expecting a list of 'variables' on line {}, column {}; found \"{}\"", pos.line, pos.get_column(), pos.fragment)
-            }
-        }
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_LOWER))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_LOWER))) => {
-            if pos.fragment.len() == 0 {
-                format!("expecting a 'lowercase identifier' on line {}, column {}", pos.line, pos.get_column())
-            } else {
-                format!("expecting a 'lowercase identifier' on line {}, column {}; found \"{}\"", pos.line, pos.get_column(), pos.fragment)
-            }
-        }
-        // FIXME:
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_SEMI_COLON))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_SEMI_COLON))) => {
-            format!("missing ';' at line {}, column {}.", pos.line, pos.get_column())
-        }
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_DOT))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_DOT))) => {
-            format!("missing '.' at line {}, column {}.", pos.line, pos.get_column())
-        }
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_L_PAREN))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_L_PAREN))) => {
-            format!("missing '(' on line {}, column {}.", pos.line, pos.get_column())
-        }
-        Err::Error(Context::Code(pos, ErrorKind::Custom(ERR_R_PAREN))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(ERR_R_PAREN))) => {
-            format!("missing ')' on line {}, column {}.", pos.line, pos.get_column())
-        }
+        },
         Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
-            format!("failed to parse the input at line {}, column {}", pos.line, pos.get_column())
-        }
-        _ => "an error occurred while parsing the input.".to_string()
+            ParserError::Failed { line: pos.line, column: pos.get_column() as u32 }
+        },
+        _ => ParserError::Unknown,
     }
 }
 
@@ -788,38 +825,38 @@ mod test_parser {
 
     #[test]
     fn parse_failure() {
-        assert_eq!("expecting a 'term' on line 1, column 3; found \"X)\"", parse_theory("P(X)").err().unwrap());
-        assert_eq!("expecting a 'term' on line 1, column 3; found \"'A)\"", parse_theory("P('A)").err().unwrap());
-        assert_eq!("missing ';' at line 1, column 5.", parse_theory("P(x)").err().unwrap());
-        assert_eq!("missing ')' on line 1, column 4.", parse_theory("P(x").err().unwrap());
-        assert_eq!("missing ')' on line 1, column 5.", parse_theory("~P(x").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 10", parse_theory("P(x) and ").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 10; found \"X\"", parse_theory("P(x) and X").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 8", parse_theory("P(x) or").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 9; found \"X\"", parse_theory("P(x) or X").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 8", parse_theory("P(x) ->").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 9; found \"X\"", parse_theory("P(x) -> X").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 9", parse_theory("P(x) <=>").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 10; found \"X\"", parse_theory("P(x) <=> X").err().unwrap());
-        assert_eq!("missing '.' at line 1, column 4.", parse_theory("!x P(x").err().unwrap());
-        assert_eq!("expecting a list of 'variables' on line 1, column 3; found \"P(x)\"", parse_theory("! P(x)").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 6", parse_theory("!x . ").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 6; found \"X\"", parse_theory("!x . X").err().unwrap());
-        assert_eq!("missing '.' at line 1, column 4.", parse_theory("?x P(x").err().unwrap());
-        assert_eq!("expecting a list of 'variables' on line 1, column 3; found \"P(x)\"", parse_theory("? P(x)").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 6", parse_theory("?x . ").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 6; found \"X\"", parse_theory("?x . X").err().unwrap());
-        assert_eq!("failed to parse the input at line 1, column 1", parse_theory("x").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 1, column 2; found \"X)\"", parse_theory("(X)").err().unwrap());
-        assert_eq!("missing ')' on line 1, column 6.", parse_theory("(P(x)").err().unwrap());
-        assert_eq!("missing ';' at line 2, column 1.", parse_theory("P(x)\n\
-        Q(x) <=> R(x);").err().unwrap());
-        assert_eq!("missing ';' at line 3, column 6.", parse_theory("P(x);\n\
+        assert_eq!("expecting 'term' on line 1, column 3; found \"X)\"", parse_theory("P(X)").err().unwrap().to_string());
+        assert_eq!("expecting 'term' on line 1, column 3; found \"'A)\"", parse_theory("P('A)").err().unwrap().to_string());
+        assert_eq!("missing ';' at line 1, column 5", parse_theory("P(x)").err().unwrap().to_string());
+        assert_eq!("missing ')' at line 1, column 4", parse_theory("P(x").err().unwrap().to_string());
+        assert_eq!("missing ')' at line 1, column 5", parse_theory("~P(x").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 10", parse_theory("P(x) and ").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 10; found \"X\"", parse_theory("P(x) and X").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 8", parse_theory("P(x) or").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 9; found \"X\"", parse_theory("P(x) or X").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 8", parse_theory("P(x) ->").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 9; found \"X\"", parse_theory("P(x) -> X").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 9", parse_theory("P(x) <=>").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 10; found \"X\"", parse_theory("P(x) <=> X").err().unwrap().to_string());
+        assert_eq!("missing '.' at line 1, column 4", parse_theory("!x P(x").err().unwrap().to_string());
+        assert_eq!("expecting 'variables' on line 1, column 3; found \"P(x)\"", parse_theory("! P(x)").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6", parse_theory("!x . ").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6; found \"X\"", parse_theory("!x . X").err().unwrap().to_string());
+        assert_eq!("missing '.' at line 1, column 4", parse_theory("?x P(x").err().unwrap().to_string());
+        assert_eq!("expecting 'variables' on line 1, column 3; found \"P(x)\"", parse_theory("? P(x)").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6", parse_theory("?x . ").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6; found \"X\"", parse_theory("?x . X").err().unwrap().to_string());
+        assert_eq!("failed to parse the input at line 1, column 1", parse_theory("x").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 2; found \"X)\"", parse_theory("(X)").err().unwrap().to_string());
+        assert_eq!("missing ')' at line 1, column 6", parse_theory("(P(x)").err().unwrap().to_string());
+        assert_eq!("missing ';' at line 2, column 1", parse_theory("P(x)\n\
+        Q(x) <=> R(x);").err().unwrap().to_string());
+        assert_eq!("missing ';' at line 3, column 6", parse_theory("P(x);\n\
         Q(x) <=> R(x);\n\
-        S(x) => Q(x);").err().unwrap());
-        assert_eq!("expecting a 'formula' on line 3, column 10", parse_theory("P(x);\n\
+        S(x) => Q(x);").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 3, column 10", parse_theory("P(x);\n\
         Q(x) <=> R(x);\n\
-        S(x) and ").err().unwrap());
+        S(x) and ").err().unwrap().to_string());
     }
 }
 
