@@ -5,8 +5,8 @@ use std::fmt as fmt;
 use failure::{Fail, Error};
 
 const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
-const UPPER: &str = "ABCDEFGIJKLMNOPQRSTUVWXYZ";
-const ALPHA_NUMERIC: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGIJKLMNOPQRSTUVWXYZ0123456789_";
+const UPPER: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const ALPHA_NUMERIC: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 const COMMA: &str = ",";
 const APOSTROPHE: &str = "'";
 const L_PAREN: &str = "(";
