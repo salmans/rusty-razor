@@ -23,14 +23,6 @@ impl Element {
         Element(Rc::new(Cell::new(element)))
     }
 
-//    pub fn get(&self) -> E {
-//        self.0.get()
-//    }
-//
-//    fn replace(&self, element: &Element) {
-//        self.0.replace(element.0.get());
-//    }
-
     fn deep_clone(&self) -> Self {
         Element::new(self.get())
     }

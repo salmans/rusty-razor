@@ -1029,7 +1029,7 @@ mod test_transform {
     use super::*;
     use crate::test_prelude::*;
     use std::collections::HashMap;
-    use crate::formula::parser::{parse_formula, parse_theory};
+    use crate::formula::parser::{parse_formula, parse_theory_unsafe};
 
     #[test]
     fn test_substitution_map() {
@@ -2031,12 +2031,12 @@ mod test_transform {
     fn test_gnf_theory() {
         // mostly testing if compression of heads works properly:
         assert_debug_strings("TRUE -> (P('a) & P('b))",
-                             parse_theory("P('a); P('b);").gnf().formulas);
+                             parse_theory_unsafe("P('a); P('b);").gnf().formulas);
         assert_debug_strings("TRUE -> P(x)\nTRUE -> P('a)",
-                             parse_theory("P('a); P(x);").gnf().formulas);
+                             parse_theory_unsafe("P('a); P(x);").gnf().formulas);
         assert_debug_strings("TRUE -> P(x)\nTRUE -> (P(\'a) & P(\'b))",
-                             parse_theory("P('a); P(x); P('b);").gnf().formulas);
+                             parse_theory_unsafe("P('a); P(x); P('b);").gnf().formulas);
         assert_debug_strings("TRUE -> ((T() & V()) | (U() & V()))",
-                             parse_theory("(T() and V()) or (U() and V());").gnf().formulas);
+                             parse_theory_unsafe("(T() and V()) or (U() and V());").gnf().formulas);
     }
 }

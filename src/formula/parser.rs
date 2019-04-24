@@ -1,9 +1,12 @@
 use super::syntax::{*, Formula::*};
 use nom::{*, types::CompleteStr};
+use nom_locate::LocatedSpan;
+use std::fmt as fmt;
+use failure::{Fail, Error};
 
 const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
-const UPPER: &str = "ABCDEFGIJKLMNOPQRSTUVWXYZ";
-const ALPHA_NUMERIC: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGIJKLMNOPQRSTUVWXYZ0123456789_";
+const UPPER: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const ALPHA_NUMERIC: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 const COMMA: &str = ",";
 const APOSTROPHE: &str = "'";
 const L_PAREN: &str = "(";
@@ -38,14 +41,94 @@ const DOT: &str = ".";
 const SEMI_COLON: &str = ";";
 const LINE_COMMENT: &str = "//";
 
+// Custom parsing errors:
+const ERR_DOT: u32 = 1;
+const ERR_SEMI_COLON: u32 = 2;
+const ERR_L_PAREN: u32 = 3;
+const ERR_R_PAREN: u32 = 4;
+
+const ERR_LOWER: u32 = 21;
+
+const ERR_VARS: u32 = 31;
+const ERR_TERM: u32 = 32;
+
+const ERR_EQUALS: u32 = 41;
+const ERR_FORMULA: u32 = 42;
+
+fn error_code_to_string(code: &u32) -> &'static str {
+    match code {
+        &ERR_DOT => ".",
+        &ERR_SEMI_COLON => ";",
+        &ERR_L_PAREN => "(",
+        &ERR_R_PAREN => ")",
+        &ERR_LOWER => "lowercase identifier",
+        &ERR_VARS => "variables",
+        &ERR_TERM => "term",
+        &ERR_EQUALS => "=",
+        &ERR_FORMULA => "formula",
+        _ => "unknown",
+    }
+}
+
+#[derive(Fail)]
+pub enum ParserError {
+    Missing {
+        line: u32,
+        column: u32,
+        code: u32,
+    },
+    Expecting {
+        line: u32,
+        column: u32,
+        code: u32,
+        found: Option<String>,
+    },
+    Failed {
+        line: u32,
+        column: u32,
+    },
+    Unknown,
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            ParserError::Missing { line, column, code } => {
+                write!(f, "missing '{}' at line {}, column {}", error_code_to_string(code), line, column)
+            }
+            ParserError::Expecting { line, column, code, found } => {
+                if let Some(found) = found {
+                    write!(f, "expecting '{}' on line {}, column {}; found \"{}\"", error_code_to_string(code), line, column, found)
+                } else {
+                    write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(code), line, column)
+                }
+            }
+            ParserError::Failed { line, column} => {
+                write!(f, "failed to parse the input at line {}, column {}", line, column)
+            }
+            ParserError::Unknown => {
+                write!(f, "an error occurred while parsing the input")
+            }
+        }
+    }
+}
+
+impl fmt::Debug for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+type Span<'a> = LocatedSpan<CompleteStr<'a>>;
+
 named!(
-    lower_ident<CompleteStr, String>,
+    lower_ident<Span, String>,
     map!(
         pair!(one_of!(LOWER), opt!(is_a!(ALPHA_NUMERIC))),
-        |(first, rest): (char, Option<CompleteStr>)| {
+        |(first, rest): (char, Option<Span>)| {
             if rest.is_some() {
                 let mut result = first.to_string();
-                result.push_str(rest.unwrap().0);
+                result.push_str(rest.unwrap().fragment.0);
                 result
             } else {
                 first.to_string()
@@ -55,13 +138,13 @@ named!(
 );
 
 named!(
-    upper_ident<CompleteStr, String>,
+    upper_ident<Span, String>,
     map!(
         pair!(one_of!(UPPER), opt!(is_a!(ALPHA_NUMERIC))),
-        |(first, rest): (char, Option<CompleteStr>)| {
+        |(first, rest): (char, Option<Span>)| {
             if rest.is_some() {
                 let mut result = first.to_string();
-                result.push_str(rest.unwrap().0);
+                result.push_str(rest.unwrap().fragment.0);
                 result
             } else {
                 first.to_string()
@@ -71,7 +154,7 @@ named!(
 );
 
 named!(
-    var<CompleteStr, V>,
+    var<Span, V>,
     map!(
         lower_ident,
         |v| V::new(&v)
@@ -79,7 +162,7 @@ named!(
 );
 
 named!(
-    vars<CompleteStr, Vec<V>>,
+    vars<Span, Vec<V>>,
     terminated!(
         separated_nonempty_list!(
             tag!(COMMA),
@@ -90,18 +173,18 @@ named!(
 );
 
 named!(
-    r#const<CompleteStr, C>,
+    r#const<Span, C>,
     map!(
         preceded!(
             tag!(APOSTROPHE),
-            lower_ident
+            return_error!(ErrorKind::Custom(ERR_LOWER), lower_ident)
         ),
         |c| C::new(&c)
     )
 );
 
 named!(
-    func<CompleteStr, Func>,
+    func<Span, Func>,
     map!(
         lower_ident,
         |f| Func::new(&f)
@@ -109,18 +192,30 @@ named!(
 );
 
 named!(
-    terms<CompleteStr, Terms>,
+    nonempty_terms<Span, Terms>,
     terminated!(
-        separated_list!(
+        separated_nonempty_list!(
             ws!(tag!(COMMA)),
-            term
+            return_error!(ErrorKind::Custom(ERR_TERM), term)
         ),
         opt!(ws!(tag!(COMMA)))
     )
 );
 
 named!(
-    term<CompleteStr, Term>,
+    term_args<Span, Terms>,
+    alt!(
+        value!(vec![], pair!(ws!(tag!(L_PAREN)), tag!(R_PAREN)))
+        | delimited!(
+            ws!(tag!(L_PAREN)),
+            nonempty_terms,
+            return_error!(ErrorKind::Custom(ERR_R_PAREN), ws!(tag!(R_PAREN)))
+        )
+    )
+);
+
+named!(
+    term<Span, Term>,
     alt!(
         map!(  // variable
             terminated!(
@@ -135,33 +230,24 @@ named!(
             r#const,
             |c| c.into()
         ) | map!( // complex term
-            pair!(
-                func,
-                ws!(
-                    delimited!(
-                        tag!(L_PAREN),
-                        terms,
-                        tag!(R_PAREN)
-                    )
-                )
-            ),
+            pair!(func, term_args),
             |(f, ts): (Func, Terms)| f.app(ts)
         )
     )
 );
 
 named!(
-    equals<CompleteStr, Formula>,
+    equals<Span, Formula>,
     do_parse!(
         left: ws!(term) >>
         tag!(EQUALS) >>
-        right: ws!(term) >>
+        right: add_return_error!(ErrorKind::Custom(ERR_TERM), ws!(term)) >>
         (Equals { left, right })
     )
 );
 
 named!(
-    pred<CompleteStr, Pred>,
+    pred<Span, Pred>,
     map!(
         upper_ident,
         |f| Pred::new(&f)
@@ -169,30 +255,25 @@ named!(
 );
 
 named!(
-    atom<CompleteStr, Formula>,
+    atom<Span, Formula>,
     alt!(
         value!(Top, alt!(tag!(TRUE) |  tag!(TOP)))
         | value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM)))
-        | equals
+        | add_return_error!(ErrorKind::Custom(ERR_EQUALS), equals)
         | map!( // complex term
-            pair!(
-                pred,
-                ws!(
-                    delimited!(
-                        tag!(L_PAREN),
-                        terms,
-                        tag!(R_PAREN)
-                    )
-                )
-            ),
+            pair!(pred, term_args),
             |(p, ts): (Pred, Terms)| p.app(ts)
         ) |
-        delimited!(tag!(L_PAREN), formula, tag!(R_PAREN))
+        delimited!(
+            ws!(tag!(L_PAREN)),
+            return_error!(ErrorKind::Custom(ERR_FORMULA), formula),
+            return_error!(ErrorKind::Custom(ERR_R_PAREN), ws!(tag!(R_PAREN)))
+        )
     )
 );
 
 named!(
-    not<CompleteStr, Formula>,
+    not<Span, Formula>,
     alt!(
         preceded!(
             ws!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
@@ -205,7 +286,7 @@ named!(
 );
 
 named!(
-    and<CompleteStr, Formula>,
+    and<Span, Formula>,
     map!(
         pair!(
             not,
@@ -213,7 +294,7 @@ named!(
                 preceded!(
                     ws!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
                     alt!(
-                        and | quantified
+                        and | return_error!(ErrorKind::Custom(ERR_FORMULA), quantified)
                     )
                 )
             )
@@ -229,14 +310,14 @@ named!(
 );
 
 named!(
-    or<CompleteStr, Formula>,
+    or<Span, Formula>,
     map!(
         pair!(
             and,
             opt!(
                 preceded!(
                     ws!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
-                    quantified
+                    return_error!(ErrorKind::Custom(ERR_FORMULA), quantified)
                 )
             )
         ),
@@ -250,9 +331,8 @@ named!(
     )
 );
 
-
 named!(
-    quantified<CompleteStr, Formula>,
+    quantified<Span, Formula>,
     alt!(
         do_parse!(
             q: ws!(
@@ -266,9 +346,9 @@ named!(
                     )
                 )
             ) >>
-            vs: vars >>
-            ws!(tag!(DOT)) >>
-            f: quantified >>
+            vs: return_error!(ErrorKind::Custom(ERR_VARS), vars) >>
+            return_error!(ErrorKind::Custom(ERR_DOT), ws!(tag!(DOT))) >>
+            f: return_error!(ErrorKind::Custom(ERR_FORMULA), quantified) >>
             (
                 if q == FORALL {
                     Forall { variables: vs, formula: Box::new(f) }
@@ -282,7 +362,7 @@ named!(
 );
 
 named!(
-    pub formula<CompleteStr, Formula>,
+    pub formula<Span, Formula>,
     do_parse!(
         first: quantified >>
         second: fold_many0!(
@@ -298,7 +378,7 @@ named!(
                         )
                     )
                 ),
-                quantified
+                return_error!(ErrorKind::Custom(ERR_FORMULA), quantified)
             ),
             first,
             |acc, (q, f)| {
@@ -313,7 +393,7 @@ named!(
     )
 );
 
-named!(pub spaces<CompleteStr, CompleteStr>, eat_separator!(&b" \t"[..]));
+named!(pub spaces<Span, Span>, eat_separator!(&b" \t"[..]));
 
 #[macro_export]
 macro_rules! sp (
@@ -325,7 +405,7 @@ macro_rules! sp (
 );
 
 named!(
-    pub comment<CompleteStr, ()>,
+    pub comment<Span, ()>,
     value!(
         (),
         delimited!(
@@ -336,42 +416,80 @@ named!(
     )
 );
 
-//named!(
-//    pub theory<CompleteStr, Theory>,
-//    map!(
-//        many0!(
-//            terminated!(
-//                formula,
-//                ws!(tag!(SEMI_COLON))
-//            )
-//        ),
-//        Theory::new
-//    )
-//);
+named!(
+    pub last_line_comment<Span, ()>,
+    value!(
+        (),
+        delimited!(
+            sp!(tag!(LINE_COMMENT)),
+            many0!(nom::not_line_ending),
+            eof!()
+        )
+    )
+);
 
 named!(
-    pub theory<CompleteStr, Theory>,
+    pub theory<Span, Theory>,
     map!(
-        many0!(
-            do_parse!(
-                many0!(comment) >>
-                formula: terminated!(
-                    formula,
-                    ws!(tag!(SEMI_COLON))
-                ) >>
-                (formula)
+        many_till!(
+            alt!(
+                value!(
+                    Option::None,
+                    many1!(comment)
+                ) |
+                map!(
+                    terminated!(
+                        formula,
+                        return_error!(ErrorKind::Custom(ERR_SEMI_COLON),
+                            ws!(tag!(SEMI_COLON))
+                        )
+                    ),
+                    |f| Option::Some(f)
+                )
+            ),
+            alt!(
+                last_line_comment |
+                value!((), eof!())
             )
         ),
-        Theory::new
+        |(fs, _)| Theory::new(fs.into_iter().filter(|f| f.is_some()).map(|f| f.unwrap()).collect())
     )
 );
 
 pub fn parse_formula(string: &str) -> Formula {
-    formula(CompleteStr(string)).ok().unwrap().1
+    formula(Span::new(CompleteStr(string))).ok().unwrap().1
 }
 
-pub fn parse_theory(string: &str) -> Theory {
-    theory(CompleteStr(string)).ok().unwrap().1
+pub fn parse_theory_unsafe(string: &str) -> Theory {
+    theory(Span::new(CompleteStr(string))).ok().unwrap().1
+}
+
+pub fn parse_theory(string: &str) -> Result<Theory, Error> {
+    theory(Span::new(CompleteStr(string)))
+        .map(|r| r.1)
+        .map_err(|e| make_parser_error(&e).into())
+}
+
+fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
+    match error {
+        Err::Error(Context::Code(pos, ErrorKind::Custom(code))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
+            let found = if pos.fragment.len() != 0 {
+                Some(pos.fragment.0.to_string())
+            } else {
+                None
+            };
+            let code = *code;
+            match code {
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
+                _ => ParserError::Failed { line: pos.line, column: pos.get_column() as u32 },
+            }
+        },
+        Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
+            ParserError::Failed { line: pos.line, column: pos.get_column() as u32 }
+        },
+        _ => ParserError::Unknown,
+    }
 }
 
 #[cfg(test)]
@@ -381,33 +499,34 @@ mod test_parser {
     use crate::test_prelude::*;
 
     fn success<R: PartialEq + fmt::Debug>(
-        parser: fn(CompleteStr) -> nom::IResult<CompleteStr, R, u32>,
+        parser: fn(Span) -> nom::IResult<Span, R, u32>,
         parse_str: &str,
         expected: R,
         remaining: &str) {
-        let parsed = parser(CompleteStr(parse_str));
+        let parsed = parser(Span::new(CompleteStr(parse_str)));
         assert!(parsed.is_ok());
         let (rem, res) = parsed.unwrap();
         assert_eq!(expected, res);
-        assert_eq!(CompleteStr(remaining), rem);
+        assert_eq!(CompleteStr(remaining), rem.fragment);
     }
 
     fn success_to_string<R: ToString>(
-        parser: fn(CompleteStr) -> nom::IResult<CompleteStr, R, u32>,
+        parser: fn(Span) -> nom::IResult<Span, R, u32>,
         parse_str: &str,
         expected: &str,
         remaining: &str) {
-        let parsed = parser(CompleteStr(parse_str));
+        let parsed = parser(Span::new(CompleteStr(parse_str)));
         assert!(parsed.is_ok());
         let (str, result) = parsed.unwrap();
         assert_eq!(expected, result.to_string());
-        assert_eq!(remaining, str.0);
+        assert_eq!(remaining, str.fragment.0);
     }
 
     fn fail<R: PartialEq + fmt::Debug>(
-        parser: fn(CompleteStr) -> nom::IResult<CompleteStr, R, u32>,
+        parser: fn(Span) -> nom::IResult<Span, R, u32>,
         parse_str: &str) {
-        assert!(parser(CompleteStr(parse_str)).is_err());
+        let result = parser(Span::new(CompleteStr(parse_str)));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -565,6 +684,8 @@ mod test_parser {
         success_to_string(formula, "TRUE", "⊤", "");
         success_to_string(formula, "FALSE", "⟘", "");
         success_to_string(formula, "((((TRUE))))", "⊤", "");
+        success_to_string(formula, "( TRUE)", "⊤", "");
+        success_to_string(formula, "(TRUE )", "⊤", "");
         success_to_string(formula, "P()", "P()", "");
         success_to_string(formula, "P(x)", "P(x)", "");
         success_to_string(formula, "P('a)", "P('a)", "");
@@ -700,6 +821,42 @@ mod test_parser {
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
             "",
         );
+    }
+
+    #[test]
+    fn parse_failure() {
+        assert_eq!("expecting 'term' on line 1, column 3; found \"X)\"", parse_theory("P(X)").err().unwrap().to_string());
+        assert_eq!("expecting 'term' on line 1, column 3; found \"'A)\"", parse_theory("P('A)").err().unwrap().to_string());
+        assert_eq!("missing ';' at line 1, column 5", parse_theory("P(x)").err().unwrap().to_string());
+        assert_eq!("missing ')' at line 1, column 4", parse_theory("P(x").err().unwrap().to_string());
+        assert_eq!("missing ')' at line 1, column 5", parse_theory("~P(x").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 10", parse_theory("P(x) and ").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 10; found \"X\"", parse_theory("P(x) and X").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 8", parse_theory("P(x) or").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 9; found \"X\"", parse_theory("P(x) or X").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 8", parse_theory("P(x) ->").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 9; found \"X\"", parse_theory("P(x) -> X").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 9", parse_theory("P(x) <=>").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 10; found \"X\"", parse_theory("P(x) <=> X").err().unwrap().to_string());
+        assert_eq!("missing '.' at line 1, column 4", parse_theory("!x P(x").err().unwrap().to_string());
+        assert_eq!("expecting 'variables' on line 1, column 3; found \"P(x)\"", parse_theory("! P(x)").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6", parse_theory("!x . ").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6; found \"X\"", parse_theory("!x . X").err().unwrap().to_string());
+        assert_eq!("missing '.' at line 1, column 4", parse_theory("?x P(x").err().unwrap().to_string());
+        assert_eq!("expecting 'variables' on line 1, column 3; found \"P(x)\"", parse_theory("? P(x)").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6", parse_theory("?x . ").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 6; found \"X\"", parse_theory("?x . X").err().unwrap().to_string());
+        assert_eq!("failed to parse the input at line 1, column 1", parse_theory("x").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 1, column 2; found \"X)\"", parse_theory("(X)").err().unwrap().to_string());
+        assert_eq!("missing ')' at line 1, column 6", parse_theory("(P(x)").err().unwrap().to_string());
+        assert_eq!("missing ';' at line 2, column 1", parse_theory("P(x)\n\
+        Q(x) <=> R(x);").err().unwrap().to_string());
+        assert_eq!("missing ';' at line 3, column 6", parse_theory("P(x);\n\
+        Q(x) <=> R(x);\n\
+        S(x) => Q(x);").err().unwrap().to_string());
+        assert_eq!("expecting 'formula' on line 3, column 10", parse_theory("P(x);\n\
+        Q(x) <=> R(x);\n\
+        S(x) and ").err().unwrap().to_string());
     }
 }
 
