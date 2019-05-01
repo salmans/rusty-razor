@@ -84,27 +84,45 @@ impl FuncApp for WitnessTerm {
 }
 
 /// Model is a simple Model implementation where terms are of type WitnessTerm.
-#[derive(Clone)]
 pub struct Model {
     element_index: i32,
     rewrites: HashMap<WitnessTerm, E>,
     facts: HashSet<Observation<WitnessTerm>>,
+    equality_history: HashMap<E, E>,
 }
 
 impl Model {
-    pub fn new() -> Model {
-        Model {
+    pub fn new() -> Self {
+        Self {
             element_index: 0,
             rewrites: HashMap::new(),
             facts: HashSet::new(),
+            equality_history: HashMap::new(),
         }
     }
 
-    fn record(&mut self, witness: WitnessTerm) -> E {
+    // Keeps track of the history of elements that are removed due to identifying with other
+    // elements.
+    // Under situations such as when there is an equation and a fact on the rhs of the same sequent,
+    // the observation that is being observed might refer to a non-existing element.
+    fn history(&self, element: &E) -> E {
+        let mut result = element;
+        let mut element = Some(element);
+        while element.is_some() {
+            let e= element.unwrap();
+            result = e;
+            element = self.equality_history.get(e)
+        }
+
+        result.clone()
+    }
+
+    fn record(&mut self, witness: &WitnessTerm) -> E {
         match witness {
             WitnessTerm::Elem { element } => {
+                let element = self.history(element);
                 if let Some(_) = self.domain().iter().find(|e| element.eq(e)) {
-                    element
+                    element.clone()
                 } else {
                     panic!("Something is wrong: element does not exist in the model's domain.")
                 }
@@ -115,13 +133,13 @@ impl Model {
                 } else {
                     let element = E(self.element_index);
                     self.element_index = self.element_index + 1;
-                    self.rewrites.insert(witness, element.clone());
+                    self.rewrites.insert(witness.clone(), element.clone());
                     element
                 }
             }
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record(t).into()).collect();
-                let witness = WitnessTerm::App { function, terms };
+                let witness = WitnessTerm::App { function: function.clone(), terms };
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
@@ -131,6 +149,17 @@ impl Model {
                     element
                 }
             }
+        }
+    }
+}
+
+impl Clone for Model {
+    fn clone(&self) -> Self {
+        Self {
+            element_index: self.element_index.clone(),
+            rewrites: self.rewrites.clone(),
+            facts: self.facts.clone(),
+            equality_history: HashMap::new(),
         }
     }
 }
@@ -150,14 +179,14 @@ impl ModelTrait for Model {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<WitnessTerm> = terms.into_iter()
-                    .map(|t| self.record((*t).clone()).into())
+                    .map(|t| self.record(t).into())
                     .collect();
                 let observation = Observation::Fact { relation: relation.clone(), terms };
                 self.facts.insert(observation);
             }
             Observation::Identity { left, right } => {
-                let left = self.record(left.clone());
-                let right = self.record(right.clone());
+                let left = self.record(left);
+                let right = self.record(right);
                 let (src, dest) = if left > right {
                     (right, left)
                 } else {
@@ -210,6 +239,7 @@ impl ModelTrait for Model {
                         f.clone() // should never happen
                     }
                 }).collect();
+                self.equality_history.insert(dest, src);
             }
         }
     }
@@ -398,7 +428,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
     fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
         use itertools::Itertools;
-        let domain: Vec<&E> = model.domain().into_iter().collect();
+        let domain: Vec<&E> = model.domain().clone();
         let domain_size = domain.len();
         for sequent in selector {
             let sequent_vars = &sequent.free_vars;
@@ -1289,6 +1319,12 @@ mod test_basic {
         Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
         'a -> e#0\n\
         'b -> e#1", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy45.raz"))));
+        assert_eq!("Domain: {e#0}\n\
+        Facts: <P(e#0)>, <Q(e#0)>, <R(e#0, e#0)>\n\
+        'sk#0, 'sk#1 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy46.raz"))));
+        assert_eq!("Domain: {e#0}\n\
+        Facts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\
+        'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("theories/core/thy47.raz"))));
     }
 
     #[test]
