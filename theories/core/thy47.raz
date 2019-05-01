@@ -1,0 +1,6 @@
+?x . O(x);
+?x . P(x);
+?x . Q(x);
+?x . R(x);
+
+O(w) & P(x) & Q(y) & R(z) -> w = x & x = y & w = z & S(w, x, y, z);
