@@ -1,0 +1,17 @@
+// Wyllis hears "Hold the Door" (at time `t`), then he becomes Hodor in the next point of time
+HoldTheDoor(t) -> Hodor(next(t));
+
+// Hodor, after turning into Hodor at time "t", holds the Door at some time "tt" in future ("tt > t")
+Hodor(t) -> ? tt . HoldTheDoor(tt) & After(t, tt);
+
+// These are the rules by which time progresses linearly:
+// (1) a point of time "t1" that is the next of "t0" (i.e., "next(t0)") is a point of
+// time after "t0" ("t1 > t0")
+next(t0) = t1 -> After(t0, t1);
+
+// (2) if a point of time "t1" is after "t0", it is either immediately after "t0" (i.e., "next(t0)")
+// or there is some point of time "t2" that is immediately after "t0" and before "t1".
+After(t0, t1) -> next(t0) = t1 | ? t2 . next(t0) = t2 & After(t2, t1);
+
+// And we know at some point of time (namely "'t_hodor"), Wyllis became Hodor
+Hodor('t_hodor);

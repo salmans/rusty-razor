@@ -1,0 +1,11 @@
+HoldTheDoor(t) -> Hodor(next(t));
+
+Hodor(t) -> ? tt . HoldTheDoor(tt) & After(t, tt);
+
+next(t0) = t1 -> After(t0, t1);
+After(t0, t1) -> (next(t0) = t1) | ? t2 . next(t0) = t2 & After(t2, t1);
+
+// Hold the door moment only happens at 't_hodor
+HoldTheDoor(t) -> t = 't_hodor;
+
+Hodor('t_hodor);
