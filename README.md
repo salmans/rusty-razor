@@ -83,7 +83,7 @@ The model contains only one element `e#0` in its domain. This element denotes `'
 > Notice that the previous model is a "minimal" model for the given theory. The element `e#0` is required to represent the constant `'gregor`; the fact `Man(e#0)` must be present because the theory says so; and, the fact `MustDie(e#0)` must be true because of the first statement. Removing any piece of information makes the given structure a non-model of the theory.
 
 ### Golden Head
-While reading "The Lineages and Histories of the Great Houses of the Seven Kingdoms", Lord Eddard Stark learns that throughout the history, all male members of House Baratheon were described as "black of hair" and concludes that King Robert is not Prince Joffrey's real (biological) father. A judgment that eventually put his head on a spike.
+While reading "The Lineages and Histories of the Great Houses of the Seven Kingdoms", Lord Eddard Stark learns that throughout the history, all male members of House Baratheon were described as "black of hair" and concludes that King Robert is not Prince Joffrey's (biological) father. A judgment that eventually put his head on a spike.
 
 The next theory describes Ned's thought process:
 
@@ -117,7 +117,7 @@ Razor isn't able to find a model for the previous theory, meaning the theory is 
 
 ### Hold the Door
 
-Wyllis was a young stable boy when he heard a voice from his future: "Hold the Door!" The voice transformed Wyllis to Hodor (Hold the door, Holdde door, Hoddedor, Hodor, Hodor...!), putting him on a life-long journey that lead him to that moment from his feature that he holds a door to save Bran's life. But because of this defining moment in his future, Wyllis became Hodor in his past.
+Wyllis was a young stable boy when he heard a voice from his future: "Hold the Door!" The voice transformed Wyllis to Hodor (Hold the door, Holdde door, Hoddedor, Hodor, Hodor...!), putting him on a life-long journey that led him to that moment from his future that he holds a door to save Bran's life. But because of this defining moment in his future, Wyllis became Hodor in his past.
 
 #### Linear Time
 The theory below describes Hodor's journey assuming that time progresses linearly [hodor-linear.raz](https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-linear.raz)
@@ -142,7 +142,7 @@ After(t0, t1) -> next(t0) = t1 | ? t2 . next(t0) = t2 & After(t2, t1);
 Hodor('t_hodor);
 ```
 
-An unbounded run of Razor on the previous theory will never terminate (feel free to press `ctrl + c` after a many seconds):
+An unbounded run of Razor on the previous theory will never terminate (feel free to press `ctrl + c` after a few seconds):
 
 ```
 razor solve -i theories/examples/hodor-linear.raz
