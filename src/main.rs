@@ -198,15 +198,12 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: Strateg
     let mut found = 0;
 
     let mut strategy = match strategy {
-        StrategyOption::FIFO => {
-            Dispatch::new_fifo()
-        }
-        StrategyOption::LIFO => {
-            Dispatch::new_lifo()
-        }
+        StrategyOption::FIFO => Dispatch::new_fifo(),
+        StrategyOption::LIFO => Dispatch::new_lifo(),
     };
 
     strategy.add(Model::new(), selector);
+
     while !strategy.empty() {
         if count.is_some() && found >= count.unwrap() {
             break;
