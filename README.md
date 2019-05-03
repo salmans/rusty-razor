@@ -83,7 +83,7 @@ The model contains only one element `e#0` in its domain. This element denotes `'
 > Notice that the previous model is a "minimal" model for the given theory. The element `e#0` is required to represent the constant `'gregor`; the fact `Man(e#0)` must be present because the theory says so; and, the fact `MustDie(e#0)` must be true because of the first statement. Removing any piece of information makes the given structure a non-model of the theory.
 
 ### Golden Head
-While reading "The Lineages and Histories of the Great Houses of the Seven Kingdoms", Lord Eddard Stark learns that throughout the history, all male members of House Baratheon were described as "black of hair" and concludes that King Robert is not Prince Joffrey's real (biological) father. A judgment that eventually put his head on a spike.
+While reading "The Lineages and Histories of the Great Houses of the Seven Kingdoms", Lord Eddard Stark learns that throughout the history, all male members of House Baratheon were described as "black of hair" and concludes that King Robert is not Prince Joffrey's (biological) father. A judgment that eventually put his head on a spike.
 
 The next theory describes Ned's thought process:
 
