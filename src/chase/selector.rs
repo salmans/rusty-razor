@@ -104,20 +104,15 @@ impl<'s, S: SequentTrait, Sel: SelectorTrait<Item=&'s S>> Iterator for Bootstrap
 #[cfg(test)]
 mod test_fair {
     use crate::formula::syntax::Theory;
-    use crate::chase::selector::Fair;
-    use crate::chase::strategy::FIFO;
-    use crate::chase::solve_all;
-    use crate::chase::bounder::DomainSize;
-    use crate::chase::StrategyTrait;
-    use crate::chase::SelectorTrait;
-    use crate::chase::r#impl::basic::Model;
-    use crate::chase::r#impl::basic::Sequent;
-    use crate::chase::r#impl::basic::Evaluator;
-    use crate::test_prelude::solve_basic;
-    use crate::test_prelude::read_theory_from_file;
+    use crate::chase::{solve_all,
+                       ModelTrait, SelectorTrait, StrategyTrait,
+                       bounder::DomainSize,
+                       selector::Fair,
+                       strategy::FIFO,
+                       r#impl::basic::{Model, Sequent, Evaluator}};
+    use crate::test_prelude::{solve_basic, read_theory_from_file};
     use std::collections::HashSet;
     use std::fs;
-    use crate::chase::ModelTrait;
     use itertools::Itertools;
 
     pub fn print_model(model: Model) -> String {
@@ -166,10 +161,11 @@ mod test_fair {
 mod test_bootstrap {
     use crate::formula::syntax::Theory;
     use crate::chase::{StrategyTrait, SelectorTrait, r#impl::basic::{Model, Sequent, Evaluator}
-                       , bounder::DomainSize, selector::{Bootstrap, Fair}, strategy::FIFO, solve_all};
+                       , bounder::DomainSize, selector::{Bootstrap, Fair}, solve_all};
     use crate::test_prelude::*;
     use std::collections::HashSet;
     use std::fs;
+    use crate::chase::strategy::FIFO;
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();

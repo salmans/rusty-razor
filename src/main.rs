@@ -5,7 +5,7 @@ use rusty_razor::formula::{parser::parse_theory, syntax::Theory};
 use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
                          SelectorTrait, StrategyTrait,
                          selector::{Fair, Bootstrap},
-                         strategy::{FIFO, LIFO},
+                         strategy::Dispatch,
                          bounder::DomainSize,
                          Observation,
                          solve};
@@ -197,31 +197,22 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: Strateg
 
     let mut found = 0;
 
-    // FIXME: use dynamic dispatching
-    match strategy {
+    let mut strategy = match strategy {
         StrategyOption::FIFO => {
-            let mut strategy = FIFO::new();
-            strategy.add(Model::new(), selector);
-
-            while !strategy.empty() {
-                if count.is_some() && found >= count.unwrap() {
-                    break;
-                }
-                solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut found) })
-            }
+            Dispatch::new_fifo()
         }
         StrategyOption::LIFO => {
-            let mut strategy = LIFO::new();
-            strategy.add(Model::new(), selector);
-
-            while !strategy.empty() {
-                if count.is_some() && found >= count.unwrap() {
-                    break;
-                }
-                solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut found) })
-            }
+            Dispatch::new_lifo()
         }
     };
+
+    strategy.add(Model::new(), selector);
+    while !strategy.empty() {
+        if count.is_some() && found >= count.unwrap() {
+            break;
+        }
+        solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut found) })
+    }
 
     println!();
     if color {

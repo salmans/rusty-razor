@@ -174,9 +174,6 @@ pub trait EvaluatorTrait<'s, Sel: SelectorTrait<Item=&'s Self::Sequent>, B: Boun
                 , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
-/// ## Strategy
-/// Strategy is the trait for selecting the next branch of chase to process.
-// TODO: implement Strategy as a priority queue.
 pub trait StrategyTrait<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
     fn empty(&self) -> bool;
     fn add(&mut self, model: M, selector: Sel);
