@@ -2,6 +2,10 @@
 
 Rusty Razor is a tool for constructing finite models for first-order theories. The model-finding algorithm is inspired by [The Chase](https://en.wikipedia.org/wiki/Chase_(algorithm)) for database systems. Given an input first-order theory, Razor constructs a set of *homomorphically minimal* models that satisfy theory. To learn more about the theoretical foundation of Razor, check out my [PhD dissertation](https://digitalcommons.wpi.edu/etd-dissertations/458/).
 
+## Download
+
+Download Razor [here](https://github.com/salmans/rusty-razor/releases).
+
 ## Build
 
 You can build Razor using Cargo, so you will need [Rust](https://www.rust-lang.org). The rest is straight forward:
