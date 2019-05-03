@@ -174,9 +174,6 @@ pub trait EvaluatorTrait<'s, Sel: SelectorTrait<Item=&'s Self::Sequent>, B: Boun
                 , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
 }
 
-/// ## Strategy
-/// Strategy is the trait for selecting the next branch of chase to process.
-// TODO: implement Strategy as a priority queue.
 pub trait StrategyTrait<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
     fn empty(&self) -> bool;
     fn add(&mut self, model: M, selector: Sel);
@@ -194,17 +191,16 @@ pub fn solve_all<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bo
           E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>,
           B: BounderTrait {
     let mut result: Vec<M> = Vec::new();
-    let mut f = |m: M| result.push(m);
     while !strategy.empty() {
-        solve(strategy, evaluator, bounder, &mut f);
+        solve(strategy, evaluator, bounder, |m| result.push(m));
     }
-    return result;
+    result
 }
 
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and
 /// returns the resulting models. The resulting list of models is empty if the theory is not
 /// satisfiable.
-pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounder: Option<&B>, consumer: &mut impl FnMut(M))
+pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounder: Option<&B>, mut consumer: impl FnMut(M))
     where S: 's + SequentTrait,
           M: ModelTrait,
           Sel: SelectorTrait<Item=&'s S>,

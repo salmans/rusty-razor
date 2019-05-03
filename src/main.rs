@@ -3,23 +3,77 @@ use std::fs;
 use std::io::Read;
 use rusty_razor::formula::{parser::parse_theory, syntax::Theory};
 use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
+                         SelectorTrait, StrategyTrait,
                          selector::{Fair, Bootstrap},
-                         strategy::FIFO,
+                         strategy::Dispatch,
                          bounder::DomainSize,
                          Observation,
                          solve};
 use term::color::{WHITE, BRIGHT_RED};
 use std::process::exit;
 use failure::Error;
+use std::path::PathBuf;
 
 #[derive(StructOpt)]
 enum BoundCommand {
-    #[structopt(name = "bound-domain", about = "Bound models by their domain size.")]
+    #[structopt(about = "Bound models by their domain size.")]
     Domain {
-        #[structopt(help = "Maximum domain size of models.")]
         size: usize,
     },
 }
+
+impl std::str::FromStr for BoundCommand {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let domain_str: &'static str = "domain=";
+        if s.to_lowercase().starts_with(&domain_str) {
+            let size_str = &s[domain_str.len()..];
+            if let Ok(size) = size_str.parse::<usize>() {
+                Ok(BoundCommand::Domain { size })
+            } else {
+                Err(format!("invalid bound size '{}'", &size_str))
+            }
+        } else {
+            Err(format!("invalid bound '{}'", s))
+        }
+    }
+}
+
+impl Default for BoundCommand {
+    fn default() -> Self {
+        BoundCommand::Domain { size: 10 }
+    }
+}
+
+#[derive(StructOpt)]
+enum StrategyOption {
+    #[structopt(about = "When branching, process new models first.")]
+    LIFO,
+    #[structopt(about = "When branching, process new models last.")]
+    FIFO,
+}
+
+impl std::str::FromStr for StrategyOption {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.to_lowercase() == "lifo" {
+            Ok(StrategyOption::LIFO)
+        } else if s.to_lowercase() == "fifo" {
+            Ok(StrategyOption::FIFO)
+        } else {
+            Err("invalid strategy")
+        }
+    }
+}
+
+impl Default for StrategyOption {
+    fn default() -> Self {
+        StrategyOption::FIFO
+    }
+}
+
 
 #[derive(StructOpt)]
 enum ProcessCommand {
@@ -29,8 +83,21 @@ enum ProcessCommand {
         input: std::path::PathBuf,
         #[structopt(long = "count", help = "Number of models to return")]
         count: Option<i32>,
-        #[structopt(subcommand, name = "bound")]
+        #[structopt(short = "b", long = "bound", name = "bound")]
         bound: Option<BoundCommand>,
+        #[structopt(short = "s", long = "strategy", default_value = "fifo")]
+        strategy: StrategyOption,
+    }
+}
+
+impl Default for ProcessCommand {
+    fn default() -> Self {
+        ProcessCommand::Solve {
+            input: PathBuf::from("theory.raz"),
+            count: None,
+            bound: None,
+            strategy: StrategyOption::FIFO,
+        }
     }
 }
 
@@ -42,6 +109,15 @@ struct Command {
     command: ProcessCommand,
     #[structopt(long = "no-color", help = "Make it dim.")]
     no_color: bool,
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Command {
+            command: ProcessCommand::default(),
+            no_color: false,
+        }
+    }
 }
 
 fn main() {
@@ -70,11 +146,12 @@ fn main() {
     terminal.reset().unwrap();
 
     match command {
-        ProcessCommand::Solve { input, count, bound } => {
+        ProcessCommand::Solve { input, count, bound, strategy } => {
             if let Some(input) = input.to_str() {
                 let theory = read_theory_from_file(input);
+
                 if theory.is_ok() {
-                    process_solve(&theory.unwrap(), bound, count,!no_color)
+                    process_solve(&theory.unwrap(), bound, strategy, count, !no_color)
                 } else {
                     terminal.fg(BRIGHT_RED).unwrap();
                     println!("Parser error: {}", theory.err().unwrap().to_string());
@@ -87,10 +164,7 @@ fn main() {
     }
 }
 
-fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32>, color: bool) {
-    use rusty_razor::chase::SelectorTrait;
-    use rusty_razor::chase::StrategyTrait;
-
+fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: StrategyOption, count: Option<i32>, color: bool) {
     let mut terminal = term::stdout().unwrap();
 
     if color {
@@ -112,7 +186,6 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32
         .map(|f| f.into()).collect();
     let evaluator = Evaluator {};
     let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
 
     let bounder = if let Some(bound) = bound {
         match bound {
@@ -122,14 +195,20 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32
         None
     };
 
-    strategy.add(Model::new(), selector);
     let mut found = 0;
+
+    let mut strategy = match strategy {
+        StrategyOption::FIFO => Dispatch::new_fifo(),
+        StrategyOption::LIFO => Dispatch::new_lifo(),
+    };
+
+    strategy.add(Model::new(), selector);
 
     while !strategy.empty() {
         if count.is_some() && found >= count.unwrap() {
             break;
         }
-        solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut found) })
+        solve(&mut strategy, &evaluator, bounder.as_ref(), |m| { print_model(m, color, &mut found) })
     }
 
     println!();
@@ -143,6 +222,7 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, count: Option<i32
     println!();
 }
 
+
 pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
     let mut f = fs::File::open(filename).expect("file not found");
 
@@ -150,13 +230,7 @@ pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
     f.read_to_string(&mut contents)
         .expect("something went wrong reading the file");
 
-    //let parsed = parse_theory(contents.as_str());
     parse_theory(contents.as_str())
-//    if parsed.is_err() {
-//        panic!(parsed.err().unwrap())
-//    } else {
-//        parsed.ok().unwrap()
-//    }
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {

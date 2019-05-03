@@ -124,7 +124,7 @@ impl Model {
         let mut result = element;
         let mut element = Some(element);
         while element.is_some() {
-            let e= element.unwrap();
+            let e = element.unwrap();
             result = e;
             element = self.equality_history.get(e)
         }

@@ -1,6 +1,51 @@
 use crate::chase::{ModelTrait, SelectorTrait, SequentTrait, StrategyTrait};
 use std::collections::VecDeque;
 
+/// A strategy to dispatch work to other strategies.
+pub enum Dispatch<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
+    FIFO { strategy: FIFO<'s, S, M, Sel> },
+    LIFO { strategy: LIFO<'s, S, M, Sel> },
+}
+
+impl<'s, S, M, Sel> Dispatch<'s, S, M, Sel>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S> {
+    pub fn new_fifo() -> Self {
+        Dispatch::FIFO { strategy: FIFO::new() }
+    }
+
+    pub fn new_lifo() -> Self {
+        Dispatch::LIFO { strategy: LIFO::new() }
+    }
+}
+
+impl<'s, S, M, Sel> StrategyTrait<'s, S, M, Sel> for Dispatch<'s, S, M, Sel>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S> {
+    fn empty(&self) -> bool {
+        match self {
+            Dispatch::FIFO { strategy } => strategy.empty(),
+            Dispatch::LIFO { strategy } => strategy.empty(),
+        }
+    }
+
+    fn add(&mut self, model: M, selector: Sel) {
+        match self {
+            Dispatch::FIFO { strategy } => strategy.add(model, selector),
+            Dispatch::LIFO { strategy } => strategy.add(model, selector),
+        }
+    }
+
+    fn remove(&mut self) -> Option<(M, Sel)> {
+        match self {
+            Dispatch::FIFO { strategy } => strategy.remove(),
+            Dispatch::LIFO { strategy } => strategy.remove(),
+        }
+    }
+}
+
 /// ### FIFO
 /// Arranges the branches of chase computation in a queue to implement a first-in-first-out strategy.
 /// > FIFO is used as the basic strategy for benchmarking and testing purposes.
@@ -8,13 +53,19 @@ pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item
     queue: VecDeque<(M, Sel)>
 }
 
-impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> FIFO<'s, S, M, Sel> {
-    pub fn new() -> FIFO<'s, S, M, Sel> {
+impl<'s, S, M, Sel> FIFO<'s, S, M, Sel>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S> {
+    pub fn new() -> Self {
         FIFO { queue: VecDeque::new() }
     }
 }
 
-impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> StrategyTrait<'s, S, M, Sel> for FIFO<'s, S, M, Sel> {
+impl<'s, S, M, Sel> StrategyTrait<'s, S, M, Sel> for FIFO<'s, S, M, Sel>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S> {
     fn empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -34,13 +85,19 @@ pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item
     queue: VecDeque<(M, Sel)>
 }
 
-impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> LIFO<'s, S, M, Sel> {
-    pub fn new() -> LIFO<'s, S, M, Sel> {
+impl<'s, S, M, Sel> LIFO<'s, S, M, Sel>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S> {
+    pub fn new() -> Self {
         LIFO { queue: VecDeque::new() }
     }
 }
 
-impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> StrategyTrait<'s, S, M, Sel> for LIFO<'s, S, M, Sel> {
+impl<'s, S, M, Sel> StrategyTrait<'s, S, M, Sel> for LIFO<'s, S, M, Sel>
+    where S: 's + SequentTrait,
+          M: ModelTrait,
+          Sel: SelectorTrait<Item=&'s S> {
     fn empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -56,13 +113,13 @@ impl<'s, S: SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> Strateg
 
 #[cfg(test)]
 mod test_lifo {
-    use super::LIFO;
     use crate::formula::syntax::Theory;
     use crate::chase::{r#impl::basic::{Sequent, Model, Evaluator}, selector::Linear
                        , bounder::DomainSize, StrategyTrait, SelectorTrait, solve_all};
     use std::collections::HashSet;
     use crate::test_prelude::*;
     use std::fs;
+    use crate::chase::strategy::LIFO;
 
     pub fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
