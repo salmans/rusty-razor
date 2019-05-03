@@ -4,7 +4,7 @@
 // Traditionally, children inherited their father's family name
 Baratheon(x) & father(y) = x -> Baratheon(y);
 
-// King Robert Baratheon has black
+// King Robert Baratheon has black hair
 Baratheon('robert) & BlackOfHair('robert);
 
 // King Robert is Joffrey's father
