@@ -191,11 +191,10 @@ pub fn solve_all<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bo
           E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>,
           B: BounderTrait {
     let mut result: Vec<M> = Vec::new();
-    let mut f = |m: M| result.push(m);
     while !strategy.empty() {
-        solve(strategy, evaluator, bounder, &mut f);
+        solve(strategy, evaluator, bounder, |m| result.push(m));
     }
-    return result;
+    result
 }
 
 /// Given an initial model, a selector, an evaluator and possibly a bounder, runs the chase and

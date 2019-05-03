@@ -208,7 +208,7 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: Strateg
         if count.is_some() && found >= count.unwrap() {
             break;
         }
-        solve(&mut strategy, &evaluator, bounder.as_ref(), &mut |m| { print_model(m, color, &mut found) })
+        solve(&mut strategy, &evaluator, bounder.as_ref(), |m| { print_model(m, color, &mut found) })
     }
 
     println!();
