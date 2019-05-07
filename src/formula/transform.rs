@@ -4,40 +4,142 @@ use std::cmp::Ordering::Equal;
 use itertools::Itertools;
 
 /// ## Substitution
-/// A *substitution* is a function from variables to terms. A *variable renaming* function is a
-/// function from variables to variables as a special case of substitution.
+/// A *substitution* is a function from variables to terms.
+pub trait Substitution {
+    fn apply(&self, v: &V) -> Term;
+}
 
-/// A substitution map converts a map (collections::HashMap) from variables to terms to a Substitution.
-fn substitution_map<'t>(sub: &'t HashMap<&V, Term>) -> impl Fn(&V) -> Term + 't {
-    move |v: &V| {
-        let lookup = sub.get(v);
-        if let Some(t) = lookup { (*t).clone() } else { (*v).clone().into() }
+/// A function from Variable to Term is a substitution.
+impl<F> Substitution for F
+    where F: Fn(&V) -> Term {
+    fn apply(&self, v: &V) -> Term {
+        self(v)
     }
 }
 
-impl Term {
-    /// Applies a variable renaming function on the term.
-    pub fn rename_vars(&self, renaming: &impl Fn(&V) -> V) -> Term {
+/// A map from Variable to Term is a substitution.
+impl Substitution for HashMap<&V, Term> {
+    fn apply(&self, v: &V) -> Term {
+        self.get(v)
+            .map(|t| t.clone())
+            .unwrap_or(v.clone().into())
+    }
+}
+
+/// ## VariableRenaming
+/// A *variable renaming* function is a function from variables to variables
+/// as a special case of substitution.
+pub trait VariableRenaming {
+    fn apply(&self, v: &V) -> V;
+}
+
+/// A function from Variable to Variable is a variable renaming.
+impl<F> VariableRenaming for F
+    where F: Fn(&V) -> V {
+    fn apply(&self, v: &V) -> V {
+        self(v)
+    }
+}
+
+/// A map from Variable to Variable is a variable renaming.
+impl VariableRenaming for HashMap<&V, V> {
+    fn apply(&self, v: &V) -> V {
+        self.get(v)
+            .map(|var| var.clone())
+            .unwrap_or(v.clone().into())
+    }
+}
+
+/// TermBased is the trait of objects constructed from terms.
+trait TermBased {
+    /// Applies a term transformation function.
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self;
+
+    /// Applies a variable renaming.
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self;
+
+    /// Applies a substitution.
+    fn substitute(&self, sub: &impl Substitution) -> Self;
+}
+
+impl TermBased for Term {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        f(self)
+    }
+
+    /// Applies a variable renaming on the term.
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
         match self {
             Const { .. } => self.clone(),
-            Var { variable: v } => Var { variable: renaming(v) },
+            Var { variable: v } => Term::var(renaming.apply(v)),
             App { function, terms } => {
-                let ts = terms.iter().map(|t| t.rename_vars(renaming)).collect();
-                Term::App { function: function.clone(), terms: ts }
+                let terms = terms.iter()
+                    .map(|t| t.rename_vars(renaming))
+                    .collect();
+                function.clone().app(terms)
             }
         }
     }
 
-    /// Applies a substitution function on the term.
-    pub fn substitute(&self, substitution: &impl Fn(&V) -> Term) -> Term {
+    /// Applies a substitution on the term.
+    fn substitute(&self, sub: &impl Substitution) -> Self {
         match self {
             Const { .. } => self.clone(),
-            Var { variable: v } => substitution(v),
+            Var { variable: v } => sub.apply(v),
             App { function, terms } => {
-                let ts = terms.iter().map(|t| t.substitute(substitution)).collect();
-                Term::App { function: function.clone(), terms: ts }
+                let terms = terms.iter()
+                    .map(|t| t.substitute(sub))
+                    .collect();
+                function.clone().app(terms)
             }
         }
+    }
+}
+
+impl TermBased for Formula {
+    #[inline]
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        match self {
+            Top | Bottom => self.clone(),
+            Atom { predicate, terms } => predicate.clone()
+                .app(terms.iter()
+                    .map(f)
+                    .collect()
+                ),
+            Equals { left, right } => f(left).equals(f(right)),
+            Not { formula } => not(formula.transform(f)),
+            And { left, right } => left
+                .transform(f)
+                .and(right.transform(f)),
+            Or { left, right } => left
+                .transform(f)
+                .or(right.transform(f)),
+            Implies { left, right } => left
+                .transform(f)
+                .implies(right.transform(f)),
+            Iff { left, right } => left
+                .transform(f)
+                .iff(right.transform(f)),
+            Exists { variables, formula } => exists(
+                variables.clone(),
+                formula.transform(f),
+            ),
+            Forall { variables, formula } => forall(
+                variables.clone(),
+                formula.transform(f),
+            ),
+        }
+    }
+
+    /// Applies a variable renaming function on **free** variables of the formula.
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
+        // this does not rename bound variables of the formula
+        self.transform(&|t: &Term| t.rename_vars(renaming))
+    }
+
+    /// Applies a substitution function on the **free** variables of the formula.
+    fn substitute(&self, substitution: &impl Substitution) -> Self {
+        self.transform(&|t: &Term| t.substitute(substitution))
     }
 }
 
@@ -71,102 +173,29 @@ impl SkolemGenerator {
     }
 }
 
-
 impl Formula {
-    /// Applies a variable renaming function on **all** (free and bound) variables of the formula.
-    pub fn rename_vars(&self, renaming: &impl Fn(&V) -> V) -> Formula {
-        match self {
-            Top | Bottom => self.clone(),
-            Atom { predicate, terms } => {
-                let ts = terms.iter().map(|t| t.rename_vars(renaming)).collect();
-                Atom { predicate: predicate.clone(), terms: ts }
-            }
-            Equals { left, right } => Equals {
-                left: left.rename_vars(renaming),
-                right: right.rename_vars(renaming),
-            },
-            Not { formula } => Not { formula: Box::new(formula.rename_vars(renaming)) },
-            And { left, right } => And {
-                left: Box::new(left.rename_vars(renaming)),
-                right: Box::new(right.rename_vars(renaming)),
-            },
-            Or { left, right } => Or {
-                left: Box::new(left.rename_vars(renaming)),
-                right: Box::new(right.rename_vars(renaming)),
-            },
-            Implies { left, right } => Implies {
-                left: Box::new(left.rename_vars(renaming)),
-                right: Box::new(right.rename_vars(renaming)),
-            },
-            Iff { left, right } => Iff {
-                left: Box::new(left.rename_vars(renaming)),
-                right: Box::new(right.rename_vars(renaming)),
-            },
-            Exists { variables, formula } => Exists {
-                variables: variables.iter().map(renaming).collect(),
-                formula: Box::new(formula.rename_vars(renaming)),
-            },
-            Forall { variables, formula } => Forall {
-                variables: variables.iter().map(renaming).collect(),
-                formula: Box::new(formula.rename_vars(renaming)),
-            }
-        }
-    }
-
-    /// Applies a substitution function on the **free** variables of the formula.
-    pub fn substitute(&self, substitution: &impl Fn(&V) -> Term) -> Formula {
-        match self {
-            Top | Bottom => self.clone(),
-            Atom { predicate, terms } => {
-                let ts = terms.iter().map(|t| t.substitute(substitution)).collect();
-                Atom { predicate: predicate.clone(), terms: ts }
-            }
-            Equals { left, right } => Equals {
-                left: left.substitute(substitution),
-                right: right.substitute(substitution),
-            },
-            Not { formula } => Not { formula: Box::new(formula.substitute(substitution)) },
-            And { left, right } => And {
-                left: Box::new(left.substitute(substitution)),
-                right: Box::new(right.substitute(substitution)),
-            },
-            Or { left, right } => Or {
-                left: Box::new(left.substitute(substitution)),
-                right: Box::new(right.substitute(substitution)),
-            },
-            Implies { left, right } => Implies {
-                left: Box::new(left.substitute(substitution)),
-                right: Box::new(right.substitute(substitution)),
-            },
-            Iff { left, right } => Iff {
-                left: Box::new(left.substitute(substitution)),
-                right: Box::new(right.substitute(substitution)),
-            },
-            Exists { variables, formula } => Exists {
-                variables: variables.to_vec(),
-                formula: Box::new(formula.substitute(substitution)),
-            },
-            Forall { variables, formula } => Forall {
-                variables: variables.to_vec(),
-                formula: Box::new(formula.substitute(substitution)),
-            }
-        }
-    }
-
     /// ## Prenex Normal Form (PNF)
     /// A Prenex Normal Form (PNF) is a formula with all quantifiers (existential and universal) and
     /// bound variables at the front, followed by a quantifier-free part.
     /// `Formula.pnf()` returns a PNF equivalent to the given formula.
     pub fn pnf(&self) -> Formula {
-        // Renames the input variable until it's not in the list of input variables.
-        fn rename(variable: &V, no_collision_variable_list: &Vec<&V>) -> V {
+        // Renames the input variable with a postfix until it's not in the list of no collision variables.
+        fn rename(variable: &V, no_collision_variables: &Vec<&V>) -> V {
             let mut name = variable.0.clone();
-            let names: Vec<String> = no_collision_variable_list.into_iter().map(|v| v.0.clone()).collect();
-            // TODO: do not clone in map
-            while names.contains(&name) {
+            let names: Vec<&String> = no_collision_variables
+                .into_iter()
+                .map(|v| &v.0)
+                .collect();
+            while names.contains(&&name) {
                 name.push_str("`")
             }
             return V::new(&name);
+        }
+
+        fn shared_variables<'a>(quantifier_vars: &'a Vec<V>, other_vars: &Vec<&V>) -> Vec<&'a V> {
+            quantifier_vars.iter()
+                .filter(|v| other_vars.contains(v))
+                .collect()
         }
 
         match self {
@@ -174,18 +203,18 @@ impl Formula {
             Not { formula } => { // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
                 let formula = formula.pnf();
                 match formula {
-                    Forall { variables, formula } => Exists {
+                    Forall { variables, formula } => exists(
                         variables,
-                        formula: Box::new(Not { formula }.pnf()),
-                    },
-                    Exists { variables, formula } => Forall {
+                        not(*formula).pnf(),
+                    ),
+                    Exists { variables, formula } => forall(
                         variables,
-                        formula: Box::new(Not { formula }.pnf()),
-                    },
-                    _ => Not { formula: Box::new(formula) }
+                        not(*formula).pnf(),
+                    ),
+                    _ => not(formula)
                 }
             }
-            And { left, right } => { // e.g. (Q x. F(x)) & G(y)) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
+            And { left, right } => { // e.g. (Q x. F(x)) & G(y) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
                 let left = left.pnf();
                 let right = right.pnf();
                 let left_free_variables = left.free_vars();
@@ -193,95 +222,67 @@ impl Formula {
                 let mut all_free_variables = right_free_variables.clone();
                 all_free_variables.append(&mut left_free_variables.clone());
 
-                if let Forall { ref variables, formula: _ } = left {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| right_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                if let Forall { ref variables, ref formula } = left {
+                    let shared_vars = shared_variables(variables, &right_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let left = left.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Forall { variables, formula } = left {
-                        Forall {
-                            variables,
-                            formula: Box::new(And { left: formula, right: Box::new(right) }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting universal quantifier.")
-                    }
-                } else if let Exists { ref variables, formula: _ } = left {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| right_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    forall(variables, formula.and(right)).pnf()
+                } else if let Exists { ref variables, ref formula } = left {
+                    let shared_vars = shared_variables(variables, &right_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let left = left.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Exists { variables, formula } = left {
-                        Exists {
-                            variables,
-                            formula: Box::new(And { left: formula, right: Box::new(right) }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting existential quantifier.")
-                    }
-                } else if let Forall { ref variables, formula: _ } = right {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| left_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    exists(variables, formula.and(right)).pnf()
+                } else if let Forall { ref variables, ref formula } = right {
+                    let shared_vars = shared_variables(variables, &left_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let right = right.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Forall { variables, formula } = right {
-                        Forall {
-                            variables,
-                            formula: Box::new(And { left: Box::new(left), right: formula }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting universal quantifier.")
-                    }
-                } else if let Exists { ref variables, formula: _ } = right {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| left_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    forall(variables, left.and(formula)).pnf()
+                } else if let Exists { ref variables, ref formula } = right {
+                    let shared_vars = shared_variables(variables, &left_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let right = right.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Exists { variables, formula } = right {
-                        Exists {
-                            variables,
-                            formula: Box::new(And { left: Box::new(left), right: formula }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting existential quantifier.")
-                    }
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    exists(variables, left.and(formula)).pnf()
                 } else {
                     And { left: Box::new(left), right: Box::new(right) }
                 }
             }
-            Or { left, right } => { // e.g. (Q x. F(x)) | G(y)) => Q x'. F(x') | G(y) or F(x) | (Q y. G(y)) => Q y'. F(x) | G(y')
+            Or { left, right } => { // e.g. (Q x. F(x)) | G(y) => Q x'. F(x') | G(y) or F(x) | (Q y. G(y)) => Q y'. F(x) | G(y')
                 let left = left.pnf();
                 let right = right.pnf();
                 let left_free_variables = left.free_vars();
@@ -289,95 +290,67 @@ impl Formula {
                 let mut all_free_variables = right_free_variables.clone();
                 all_free_variables.append(&mut left_free_variables.clone());
 
-                if let Forall { ref variables, formula: _ } = left {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| right_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                if let Forall { ref variables, ref formula } = left {
+                    let shared_vars = shared_variables(variables, &right_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let left = left.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Forall { variables, formula } = left {
-                        Forall {
-                            variables,
-                            formula: Box::new(Or { left: formula, right: Box::new(right) }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting universal quantifier.")
-                    }
-                } else if let Exists { ref variables, formula: _ } = left {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| right_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    forall(variables, formula.or(right)).pnf()
+                } else if let Exists { ref variables, ref formula } = left {
+                    let shared_vars = shared_variables(variables, &right_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let left = left.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Exists { variables, formula } = left {
-                        Exists {
-                            variables,
-                            formula: Box::new(Or { left: formula, right: Box::new(right) }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting existential quantifier.")
-                    }
-                } else if let Forall { ref variables, formula: _ } = right {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| left_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    exists(variables, formula.or(right)).pnf()
+                } else if let Forall { ref variables, ref formula } = right {
+                    let shared_vars = shared_variables(variables, &left_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let right = right.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Forall { variables, formula } = right {
-                        Forall {
-                            variables,
-                            formula: Box::new(Or { left: Box::new(left), right: formula }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting universal quantifier.")
-                    }
-                } else if let Exists { ref variables, formula: _ } = right {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| left_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    forall(variables, left.or(formula)).pnf()
+                } else if let Exists { ref variables, ref formula } = right {
+                    let shared_vars = shared_variables(variables, &left_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let right = right.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Exists { variables, formula } = right {
-                        Exists {
-                            variables,
-                            formula: Box::new(Or { left: Box::new(left), right: formula }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting existential quantifier.")
-                    }
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    exists(variables, left.or(formula)).pnf()
                 } else {
                     Or { left: Box::new(left), right: Box::new(right) }
                 }
             }
-            Implies { left, right } => { // e.g. (Q x. F(x)) -> G(y)) => Q' x'. F(x') -> G(y) or F(x) -> (Q y. G(y)) => Q' y'. F(x) -> G(y')
+            Implies { left, right } => { // e.g. (Q x. F(x)) -> G(y) => Q' x'. F(x') -> G(y) or F(x) -> (Q y. G(y)) => Q' y'. F(x) -> G(y')
                 let left = left.pnf();
                 let right = right.pnf();
                 let left_free_variables = left.free_vars();
@@ -385,108 +358,78 @@ impl Formula {
                 let mut all_free_variables = right_free_variables.clone();
                 all_free_variables.append(&mut left_free_variables.clone());
 
-                if let Forall { ref variables, formula: _ } = left {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| right_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                if let Forall { ref variables, ref formula } = left {
+                    let shared_vars = shared_variables(variables, &right_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let left = left.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Forall { variables, formula } = left {
-                        Exists {
-                            variables,
-                            formula: Box::new(Implies { left: formula, right: Box::new(right) }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting universal quantifier.")
-                    }
-                } else if let Exists { ref variables, formula: _ } = left {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| right_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    exists(variables, formula.implies(right)).pnf()
+                } else if let Exists { ref variables, ref formula } = left {
+                    let shared_vars = shared_variables(variables, &right_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let left = left.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Exists { variables, formula } = left {
-                        Forall {
-                            variables,
-                            formula: Box::new(Implies { left: formula, right: Box::new(right) }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting existential quantifier.")
-                    }
-                } else if let Forall { ref variables, formula: _ } = right {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| left_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    forall(variables, formula.implies(right)).pnf()
+                } else if let Forall { ref variables, ref formula } = right {
+                    let shared_vars = shared_variables(variables, &left_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let right = right.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Forall { variables, formula } = right {
-                        Forall {
-                            variables,
-                            formula: Box::new(Implies { left: Box::new(left), right: formula }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting universal quantifier.!")
-                    }
-                } else if let Exists { ref variables, formula: _ } = right {
-                    let shared_vars: Vec<&V> = variables.iter()
-                        .filter(|v| left_free_variables.contains(v))
-                        .collect();
-                    let mut all_vars: Vec<&V> = variables.iter().unique().collect();
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    forall(variables, left.implies(formula)).pnf()
+                } else if let Exists { ref variables, ref formula } = right {
+                    let shared_vars = shared_variables(variables, &left_free_variables);
+                    let mut all_vars: Vec<&V> = variables.iter().collect();
                     all_vars.append(&mut all_free_variables);
-                    let right = right.rename_vars(&|v: &V| {
-                        if shared_vars.contains(&v) {
-                            rename(v, &all_vars)
-                        } else {
-                            v.clone()
-                        }
-                    });
-                    if let Exists { variables, formula } = right {
-                        Exists {
-                            variables,
-                            formula: Box::new(Implies { left: Box::new(left), right: formula }),
-                        }.pnf()
+
+                    let renaming = |v: &V| if shared_vars.contains(&v) {
+                        rename(v, &all_vars)
                     } else {
-                        panic!("Something is wrong: expecting existential quantifier.")
-                    }
+                        v.clone()
+                    };
+                    let variables: Vec<V> = variables.iter().map(&renaming).collect();
+                    let formula = formula.rename_vars(&renaming);
+
+                    exists(variables, left.implies(formula)).pnf()
                 } else {
                     Implies { left: Box::new(left), right: Box::new(right) }
                 }
             }
-            Iff { left, right } => {
-                And {
-                    left: Box::new(Implies { left: left.clone(), right: right.clone() }),
-                    right: Box::new(Implies { left: right.clone(), right: left.clone() }),
-                }.pnf()
-            }
-            Exists { variables, formula } => Exists {
-                variables: variables.to_vec(),
-                formula: Box::new(formula.pnf()),
-            },
-            Forall { variables, formula } => Forall {
-                variables: variables.to_vec(),
-                formula: Box::new(formula.pnf()),
-            },
+            Iff { left, right } => left.clone()
+                .implies(*right.clone())
+                .and(right.clone().implies(*left.clone())
+                ).pnf(),
+            Exists { variables, formula } => exists(
+                variables.clone(),
+                formula.pnf(),
+            ),
+            Forall { variables, formula } => forall(
+                variables.clone(),
+                formula.pnf(),
+            ),
         }
     }
 
@@ -501,27 +444,26 @@ impl Formula {
     /// When generating Skolem function names (including Skolem constants), `Formula.snf_with(generator)`
     /// uses an existing `SkolemGenerator` to avoid collision in naming.
     pub fn snf_with(&self, generator: &mut SkolemGenerator) -> Formula {
-        fn helper(formula: Formula, skolem_vars: Vec<V>, generator: &mut SkolemGenerator) -> Formula {
+        fn helper(formula: Formula, mut skolem_vars: Vec<V>, generator: &mut SkolemGenerator) -> Formula {
             match formula {
                 Forall { variables, formula } => {
-                    let mut vars = skolem_vars.clone();
-                    vars.append(&mut variables.clone());
-                    Forall {
-                        variables: variables.to_vec(),
-                        formula: Box::new(helper(*formula, vars, generator)),
-                    }
+                    skolem_vars.append(&mut variables.clone());
+                    forall(variables, helper(*formula, skolem_vars, generator))
                 }
                 Exists { variables, formula } => {
                     let mut map: HashMap<&V, Term> = HashMap::new();
-                    variables.iter().for_each(|v| {
-                        if skolem_vars.is_empty() {
-                            map.insert(&v, C::new(&generator.next()).into());
-                        } else {
-                            let vars: Vec<Term> = skolem_vars.iter().map(|v| v.clone().into()).collect();
-                            map.insert(&v, Func::new(&generator.next()).app(vars));
-                        }
+
+                    variables.iter().for_each(|v| if skolem_vars.is_empty() {
+                        map.insert(&v, C::new(&generator.next()).into());
+                    } else {
+                        let vars: Vec<Term> = skolem_vars
+                            .iter()
+                            .map(|v| v.clone().into())
+                            .collect();
+                        map.insert(&v, Func::new(&generator.next()).app(vars));
                     });
-                    let substituted = formula.substitute(&substitution_map(&map));
+
+                    let substituted = formula.substitute(&map);
                     helper(substituted, skolem_vars, generator)
                 }
                 _ => formula
@@ -529,7 +471,10 @@ impl Formula {
         }
 
         // Skolemization only makes sense for PNF formulas.
-        let free_vars: Vec<V> = self.free_vars().iter().map(|v| (*v).clone()).collect();
+        let free_vars: Vec<V> = self.free_vars()
+            .into_iter()
+            .map(|v| v.clone())
+            .collect();
         helper(self.pnf(), free_vars, generator)
     }
 
@@ -546,68 +491,52 @@ impl Formula {
                     Bottom => Top,
                     Atom { .. } | Equals { .. } => self.clone(),
                     Not { ref formula } => *formula.clone(),
-                    And { ref left, ref right } => Or {
-                        left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
-                        right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
-                    },
-                    Or { ref left, ref right } => And {
-                        left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
-                        right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
-                    },
-                    Implies { ref left, ref right } => And {
-                        left: Box::new(left.nnf()),
-                        right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
-                    },
-                    Iff { ref left, ref right } => Or {
-                        left: Box::new(And {
-                            left: Box::new(left.nnf()),
-                            right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
-                        }),
-                        right: Box::new(And {
-                            left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
-                            right: Box::new(right.nnf()),
-                        }),
-                    },
-                    Exists { ref variables, ref formula } => Forall {
-                        variables: variables.to_vec(),
-                        formula: Box::new(Not { formula: Box::new(*formula.clone()) }.nnf()),
-                    },
-                    Forall { ref variables, ref formula } => Exists {
-                        variables: variables.to_vec(),
-                        formula: Box::new(Not { formula: Box::new(*formula.clone()) }.nnf()),
-                    }
+                    And { ref left, ref right } => not(*left.clone())
+                        .nnf()
+                        .or(not(*right.clone())
+                            .nnf()),
+                    Or { ref left, ref right } => not(*left.clone())
+                        .nnf()
+                        .and(not(*right.clone())
+                            .nnf()),
+                    Implies { ref left, ref right } => left.nnf()
+                        .and(not(*right.clone())
+                            .nnf()),
+                    Iff { ref left, ref right } => left.nnf()
+                        .and(not(*right.clone())
+                            .nnf())
+                        .or(not(*left.clone())
+                            .nnf()
+                            .and(right.nnf())),
+                    Exists { ref variables, ref formula } => forall(
+                        variables.clone(),
+                        not(*formula.clone()).nnf(),
+                    ),
+                    Forall { ref variables, ref formula } => exists(
+                        variables.clone(),
+                        not(*formula.clone()).nnf(),
+                    ),
                 }
             }
-            And { left, right } => And {
-                left: Box::new(left.nnf()),
-                right: Box::new(right.nnf()),
-            },
-            Or { left, right } => Or {
-                left: Box::new(left.nnf()),
-                right: Box::new(right.nnf()),
-            },
-            Implies { left, right } => Or {
-                left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
-                right: Box::new(right.nnf()),
-            },
-            Iff { left, right } => And {
-                left: Box::new(Or {
-                    left: Box::new(Not { formula: Box::new(*left.clone()) }.nnf()),
-                    right: Box::new(right.nnf()),
-                }),
-                right: Box::new(Or {
-                    left: Box::new(left.nnf()),
-                    right: Box::new(Not { formula: Box::new(*right.clone()) }.nnf()),
-                }),
-            },
-            Exists { variables, formula } => Exists {
-                variables: variables.to_vec(),
-                formula: Box::new(formula.nnf()),
-            },
-            Forall { variables, formula } => Forall {
-                variables: variables.to_vec(),
-                formula: Box::new(formula.nnf()),
-            }
+            And { left, right } => left.nnf().and(right.nnf()),
+            Or { left, right } => left.nnf().or(right.nnf()),
+            Implies { left, right } => not(*left.clone())
+                .nnf()
+                .or(right.nnf()),
+            Iff { left, right } => not(*left.clone())
+                .nnf()
+                .or(right.nnf())
+                .and(left.nnf()
+                    .or(not(*right.clone())
+                        .nnf())),
+            Exists { variables, formula } => exists(
+                variables.clone(),
+                formula.nnf(),
+            ),
+            Forall { variables, formula } => forall(
+                variables.clone(),
+                formula.nnf(),
+            ),
         }
     }
 
@@ -627,55 +556,33 @@ impl Formula {
         // its input is an NNF.
         fn distribute_or(formula: &Formula) -> Formula {
             match formula {
-                Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(), // already NNF
-                And { left, right } => And {
-                    left: Box::new(distribute_or(left)),
-                    right: Box::new(distribute_or(right)),
-                },
+                Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(),
+                And { left, right } => distribute_or(left)
+                    .and(distribute_or(right)),
                 Or { left, right } => {
                     let left = distribute_or(left);
                     let right = distribute_or(right);
                     if let And { left: l, right: r } = left {
-                        let l = distribute_or(&Or {
-                            left: l,
-                            right: Box::new(right.clone()),
-                        });
-                        let r = distribute_or(&Or {
-                            left: r,
-                            right: Box::new(right.clone()),
-                        });
-                        And {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
+                        distribute_or(&l.or(right.clone()))
+                            .and(distribute_or(&r.or(right)))
                     } else if let And { left: l, right: r } = right {
-                        let l = distribute_or(&Or {
-                            left: Box::new(left.clone()),
-                            right: l,
-                        });
-                        let r = distribute_or(&Or {
-                            left: Box::new(left.clone()),
-                            right: r,
-                        });
-                        And {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
+                        distribute_or(&left.clone().or(*l)).and(
+                            distribute_or(&left.or(*r)))
                     } else {
-                        Or { left: Box::new(left), right: Box::new(right) }
+                        left.or(right)
                     }
                 }
-                Forall { variables, formula } => Forall {
-                    variables: variables.to_vec(),
-                    formula: Box::new(distribute_or(formula)),
-                },
-                _ => panic!("Something is wrong: expecting a formula in negation normal form.") // already NNF
+                Forall { variables, formula } => forall(
+                    variables.clone(),
+                    distribute_or(formula),
+                ),
+                _ => panic!("something is wrong: expecting a formula in negation normal form")
             }
         }
 
         // The following eliminates the existential quantifiers of the input formula.
         fn remove_forall(formula: Formula) -> Formula {
-            if let Forall { variables: _, formula } = formula {
+            if let Forall { formula, .. } = formula {
                 remove_forall(*formula)
             } else {
                 formula
@@ -702,49 +609,27 @@ impl Formula {
         // its input is an NNF.
         fn distribute_and(formula: &Formula) -> Formula {
             match formula {
-                Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(), // already NNF
-                Or { left, right } => Or {
-                    left: Box::new(distribute_and(left)),
-                    right: Box::new(distribute_and(right)),
-                },
+                Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(),
+                Or { left, right } => distribute_and(left)
+                    .or(distribute_and(right)),
                 And { left, right } => {
                     let left = distribute_and(left);
                     let right = distribute_and(right);
                     if let Or { left: l, right: r } = left {
-                        let l = distribute_and(&And {
-                            left: l,
-                            right: Box::new(right.clone()),
-                        });
-                        let r = distribute_and(&And {
-                            left: r,
-                            right: Box::new(right.clone()),
-                        });
-                        Or {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
+                        distribute_and(&l.and(right.clone()))
+                            .or(distribute_and(&r.and(right)))
                     } else if let Or { left: l, right: r } = right {
-                        let l = distribute_and(&And {
-                            left: Box::new(left.clone()),
-                            right: l,
-                        });
-                        let r = distribute_and(&And {
-                            left: Box::new(left.clone()),
-                            right: r,
-                        });
-                        Or {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
+                        distribute_and(&left.clone().and(*l))
+                            .or(distribute_and(&left.and(*r)))
                     } else {
                         And { left: Box::new(left), right: Box::new(right) }
                     }
                 }
-                Forall { variables, formula } => Forall {
-                    variables: variables.to_vec(),
-                    formula: Box::new(distribute_and(formula)),
-                },
-                _ => panic!("Something is wrong: expecting a formula in negation normal form.") // already NNF
+                Forall { variables, formula } => forall(
+                    variables.clone(),
+                    distribute_and(formula),
+                ),
+                _ => panic!("Something is wrong: expecting a formula in negation normal form.")
             }
         }
 
@@ -771,7 +656,7 @@ impl Formula {
                     Top => Bottom,
                     Bottom => Top,
                     Not { formula } => formula.simplify(),
-                    _ => Not { formula: Box::new(formula) }
+                    _ => not(formula)
                 }
             }
             And { left, right } => {
@@ -786,7 +671,7 @@ impl Formula {
                 } else if let Top = right {
                     left
                 } else {
-                    And { left: Box::new(left), right: Box::new(right) }
+                    left.and(right)
                 }
             }
             Or { left, right } => {
@@ -801,7 +686,7 @@ impl Formula {
                 } else if let Bottom = right {
                     left
                 } else {
-                    Or { left: Box::new(left), right: Box::new(right) }
+                    left.or(right)
                 }
             }
             Implies { left, right } => {
@@ -814,9 +699,9 @@ impl Formula {
                 } else if let Top = left {
                     right
                 } else if let Bottom = right {
-                    Not { formula: Box::new(left) }.simplify()
+                    not(left).simplify()
                 } else {
-                    Implies { left: Box::new(left), right: Box::new(right) }
+                    left.implies(right)
                 }
             }
             Iff { left, right } => {
@@ -827,11 +712,11 @@ impl Formula {
                 } else if let Top = right {
                     left
                 } else if let Bottom = left {
-                    Not { formula: Box::new(right) }.simplify()
+                    not(right).simplify()
                 } else if let Bottom = right {
-                    Not { formula: Box::new(left) }.simplify()
+                    not(left).simplify()
                 } else {
-                    Iff { left: Box::new(left), right: Box::new(right) }
+                    left.iff(right)
                 }
             }
             Exists { variables, formula } => {
@@ -844,7 +729,7 @@ impl Formula {
                 if vs.is_empty() {
                     formula
                 } else {
-                    Exists { variables: vs, formula: Box::new(formula) }
+                    exists(vs, formula)
                 }
             }
             Forall { variables, formula } => {
@@ -857,7 +742,7 @@ impl Formula {
                 if vs.is_empty() {
                     formula
                 } else {
-                    Forall { variables: vs, formula: Box::new(formula) }
+                    forall(vs, formula)
                 }
             }
         }
@@ -874,16 +759,19 @@ impl Formula {
     /// names of the Skolem function (and constant) for formulas in the same theory.
     pub fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
         // For any disjunct of the CNF, the negative literals form the body of the geometric form
-        // and the positive literals form the head of the geometric form:
-        fn split_sids(disjunct: Formula) -> (Vec<Formula>, Vec<Formula>) {
+        // and the positive literals form its head:
+        fn split_sides(disjunct: Formula) -> (Vec<Formula>, Vec<Formula>) {
             match disjunct {
                 Or { left, right } => {
-                    let (mut left_body, mut left_head) = split_sids(*left);
-                    let (mut right_body, mut right_head) = split_sids(*right);
+                    let (mut left_body, mut left_head) = split_sides(*left);
+                    let (mut right_body, mut right_head) = split_sides(*right);
+
                     left_body.append(&mut right_body);
                     let body: Vec<Formula> = left_body.into_iter().unique().collect();
+
                     left_head.append(&mut right_head);
                     let head: Vec<Formula> = left_head.into_iter().unique().collect();
+
                     (body, head)
                 }
                 Not { formula } => (vec![*formula], vec![]),
@@ -893,16 +781,16 @@ impl Formula {
 
         // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
         fn to_implication(disjunct: Formula) -> Formula {
-            let (body, head) = split_sids(disjunct);
-            let body = body.into_iter().fold(Top, |x, y| And {
-                left: Box::new(x),
-                right: Box::new(y),
-            }).simplify();
-            let head = head.into_iter().fold(Bottom, |x, y| Or {
-                left: Box::new(x),
-                right: Box::new(y),
-            }).simplify();
-            return Implies { left: Box::new(body), right: Box::new(head) };
+            let (body, head) = split_sides(disjunct);
+            let body = body
+                .into_iter()
+                .fold(Top, |x, y| x.and(y))
+                .simplify();
+            let head = head
+                .into_iter()
+                .fold(Bottom, |x, y| x.or(y))
+                .simplify();
+            body.implies(head)
         }
 
         // Split the CNF to a set of disjuncts.
@@ -918,7 +806,10 @@ impl Formula {
             }
         }
 
-        get_disjuncts(self.cnf_with(generator)).into_iter().map(to_implication).collect()
+        get_disjuncts(self.cnf_with(generator))
+            .into_iter()
+            .map(to_implication)
+            .collect()
     }
 }
 
@@ -928,7 +819,10 @@ impl Theory {
     /// geometric normal form).
     pub fn gnf(&self) -> Theory {
         let mut generator = SkolemGenerator::new();
-        let formulas: Vec<Formula> = self.formulas.iter().flat_map(|f| f.gnf_with(&mut generator)).collect();
+        let formulas: Vec<Formula> = self.formulas
+            .iter()
+            .flat_map(|f| f.gnf_with(&mut generator))
+            .collect();
         Theory::new(compress_geometric(formulas))
     }
 }
@@ -936,26 +830,27 @@ impl Theory {
 fn compress_geometric(formulas: Vec<Formula>) -> Vec<Formula> {
     formulas.into_iter().sorted_by(|f1, f2| { // sort sequents by their body
         match (f1, f2) {
-            (Formula::Implies { left: f1, .. }, Formula::Implies { left: f2, .. }) => {
-                f1.cmp(f2)
-            }
+            (Implies { left: f1, .. }, Implies { left: f2, .. }) => f1.cmp(f2),
             _ => Equal
         }
     }).into_iter().coalesce(|f1, f2| { // merge the ones with the same body:
         match f1 {
-            Formula::Implies { left: ref l1, right: ref r1 } => {
+            Implies { left: ref l1, right: ref r1 } => {
                 let l_vars = l1.free_vars();
                 let r_vars = r1.free_vars();
                 // compress sequents with no free variables that show up only in head:
-                if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
+                if r_vars.iter().all(|rv| l_vars
+                    .iter()
+                    .any(|lv| lv == rv)) {
                     match f2 {
-                        Formula::Implies { left: ref l2, right: ref r2 } => {
+                        Implies { left: ref l2, right: ref r2 } => {
                             let l_vars = l2.free_vars();
                             let r_vars = r2.free_vars();
-                            if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
+                            if r_vars.iter().all(|rv| l_vars
+                                .iter()
+                                .any(|lv| lv == rv)) {
                                 if l1 == l2 {
-                                    let r = Formula::And { left: r1.clone(), right: r2.clone() };
-                                    Ok(Implies { left: l2.clone(), right: Box::new(r) })
+                                    Ok(l2.clone().implies(r1.clone().and(*r2.clone())))
                                 } else {
                                     Err((f1, f2))
                                 }
@@ -973,9 +868,7 @@ fn compress_geometric(formulas: Vec<Formula>) -> Vec<Formula> {
         }
     }).map(|f| { // convert the head to dnf and simplify it:
         match f {
-            Formula::Implies { left, right: r } => {
-                Formula::Implies { left, right: Box::new(simplify_dnf(r.dnf())) }
-            }
+            Implies { left, right: r } => left.implies(simplify_dnf(r.dnf())),
             _ => f
         }
     }).collect()
@@ -1007,21 +900,38 @@ fn simplify_dnf(formula: Formula) -> Formula {
         }
     }
 
-    let disjuncts: Vec<Vec<Formula>> = disjunct_list(formula).into_iter()
-        .map(|d| conjunct_list(d).into_iter().unique().collect()).collect();
+    let disjuncts: Vec<Vec<Formula>> = disjunct_list(formula)
+        .into_iter()
+        .map(|d| conjunct_list(d)
+            .into_iter()
+            .unique()
+            .collect())
+        .collect();
 
-    let disjuncts: Vec<Vec<Formula>> = disjuncts.iter()
-        .filter(|d| !disjuncts.iter()
-            .any(|dd| {
-                (dd.len() < d.len() || (dd.len() == d.len() && dd < d))
-                    && dd.iter().all(|cc| d.iter().any(|c| cc == c))
-            })
-        ).map(|d| d.clone()).unique().collect();
+    let disjuncts: Vec<Vec<Formula>> = disjuncts
+        .iter()
+        .filter(|d| !disjuncts
+            .iter()
+            .any(|dd| (dd.len() < d.len() || (dd.len() == d.len() && dd < d))
+                && dd
+                .iter()
+                .all(|cc| d
+                    .iter()
+                    .any(|c| cc == c)
+                )
+            )
+        ).map(|d| d.clone())
+        .unique()
+        .collect();
 
-    disjuncts.into_iter().map(|d|
-        d.into_iter()
-            .fold1(|f1, f2| And { left: Box::new(f1), right: Box::new(f2) }).unwrap())
-        .fold1(|f1, f2| Or { left: Box::new(f1), right: Box::new(f2) }).unwrap()
+    disjuncts
+        .into_iter()
+        .map(|d| d
+            .into_iter()
+            .fold1(|f1, f2| f1.and(f2))
+            .unwrap())
+        .fold1(|f1, f2| f1.or(f2))
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -1035,7 +945,7 @@ mod test_transform {
     fn test_substitution_map() {
         {
             let map: HashMap<&V, Term> = HashMap::new();
-            assert_eq!(x(), x().substitute(&substitution_map(&map)));
+            assert_eq!(x(), x().substitute(&map));
         }
         {
             let mut map: HashMap<&V, Term> = HashMap::new();
@@ -1043,7 +953,7 @@ mod test_transform {
             let y_var = y();
 
             map.insert(x_v, y_var);
-            assert_eq!(y(), x().substitute(&substitution_map(&map)));
+            assert_eq!(y(), x().substitute(&map));
         }
         {
             let mut map: HashMap<&V, Term> = HashMap::new();
@@ -1055,7 +965,7 @@ mod test_transform {
             map.insert(x_v, term_1);
             map.insert(y_v, term_2);
             assert_eq!(f().app2(g().app1(z()), h().app2(z(), y())),
-                       f().app2(x(), y()).substitute(&substitution_map(&map)));
+                       f().app2(x(), y()).substitute(&map));
         }
     }
 
@@ -1295,7 +1205,7 @@ mod test_transform {
                 v.clone()
             }
         }));
-        assert_eq!(exists2(_y(), _y(), P().app3(y(), y(), y())),
+        assert_eq!(exists2(_x(), _y(), P().app3(y(), y(), y())),
                    exists2(_x(), _y(), P().app3(x(), y(), z())).rename_vars(&|v: &V| {
                        if *v == _x() {
                            _y()
@@ -1305,7 +1215,7 @@ mod test_transform {
                            v.clone()
                        }
                    }));
-        assert_eq!(forall2(_y(), _y(), P().app3(y(), y(), y())),
+        assert_eq!(forall2(_x(), _y(), P().app3(y(), y(), y())),
                    forall2(_x(), _y(), P().app3(x(), y(), z())).rename_vars(&|v: &V| {
                        if *v == _x() {
                            _y()
@@ -1316,8 +1226,8 @@ mod test_transform {
                        }
                    }));
         assert_eq!(
-            exists1(_y(),
-                    forall1(_z(),
+            exists1(_x(),
+                    forall1(_y(),
                             P().app1(y()).or(Q().app1(z()).and(R().app1(z()))),
                     ).and(not(z().equals(z())))),
             exists1(_x(),
