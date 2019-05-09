@@ -3,7 +3,7 @@ pub mod selector;
 pub mod strategy;
 pub mod bounder;
 
-use crate::formula::syntax::{*, Symbol};
+use crate::formula::syntax::*;
 use itertools::Either;
 use std::fmt;
 
@@ -92,8 +92,6 @@ impl From<Pred> for Rel {
         Rel(predicate.0)
     }
 }
-
-impl Symbol for Rel {}
 
 /// ## Observation
 /// Observations are true positive *facts* that are true in the model.
