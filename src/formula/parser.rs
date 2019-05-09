@@ -97,13 +97,16 @@ impl fmt::Display for ParserError {
                 write!(f, "missing '{}' at line {}, column {}", error_code_to_string(code), line, column)
             }
             ParserError::Expecting { line, column, code, found } => {
-                if let Some(found) = found {
-                    write!(f, "expecting '{}' on line {}, column {}; found \"{}\"", error_code_to_string(code), line, column, found)
-                } else {
-                    write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(code), line, column)
-                }
+                write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(code), line, column)
+                    .and_then(|result| {
+                        if let Some(found) = found {
+                            write!(f, "; found \"{}\"", found)
+                        } else {
+                            Ok(result)
+                        }
+                    })
             }
-            ParserError::Failed { line, column} => {
+            ParserError::Failed { line, column } => {
                 write!(f, "failed to parse the input at line {}, column {}", line, column)
             }
             ParserError::Unknown => {
@@ -121,223 +124,161 @@ impl fmt::Debug for ParserError {
 
 type Span<'a> = LocatedSpan<CompleteStr<'a>>;
 
-named!(
-    lower_ident<Span, String>,
-    map!(
-        pair!(one_of!(LOWER), opt!(is_a!(ALPHA_NUMERIC))),
+named!(p_lower_ident<Span, String>,
+    map!(pair!(one_of!(LOWER), opt!(is_a!(ALPHA_NUMERIC))),
         |(first, rest): (char, Option<Span>)| {
+            let mut first = first.to_string();
             if rest.is_some() {
-                let mut result = first.to_string();
-                result.push_str(rest.unwrap().fragment.0);
-                result
-            } else {
-                first.to_string()
+                first.push_str(rest.unwrap().fragment.0);
             }
+            first
         }
     )
 );
 
-named!(
-    upper_ident<Span, String>,
-    map!(
-        pair!(one_of!(UPPER), opt!(is_a!(ALPHA_NUMERIC))),
+named!(p_upper_ident<Span, String>,
+    map!(pair!(one_of!(UPPER), opt!(is_a!(ALPHA_NUMERIC))),
         |(first, rest): (char, Option<Span>)| {
+            let mut first = first.to_string();
             if rest.is_some() {
-                let mut result = first.to_string();
-                result.push_str(rest.unwrap().fragment.0);
-                result
-            } else {
-                first.to_string()
+                first.push_str(rest.unwrap().fragment.0);
             }
+            first
         }
     )
 );
 
-named!(
-    var<Span, V>,
-    map!(
-        lower_ident,
+named!(p_var<Span, V>,
+    map!(p_lower_ident,
         |v| V::new(&v)
     )
 );
 
-named!(
-    vars<Span, Vec<V>>,
+named!(p_vars<Span, Vec<V>>,
     terminated!(
         separated_nonempty_list!(
             tag!(COMMA),
-            ws!(var)
+            ws!(p_var)
         ),
         opt!(ws!(tag!(COMMA)))
     )
 );
 
-named!(
-    r#const<Span, C>,
-    map!(
-        preceded!(
+named!(p_const<Span, C>,
+    map!(preceded!(
             tag!(APOSTROPHE),
-            return_error!(ErrorKind::Custom(ERR_LOWER), lower_ident)
+            return_error!(ErrorKind::Custom(ERR_LOWER), p_lower_ident)
         ),
         |c| C::new(&c)
     )
 );
 
-named!(
-    func<Span, Func>,
-    map!(
-        lower_ident,
+named!(p_func<Span, Func>,
+    map!(p_lower_ident,
         |f| Func::new(&f)
     )
 );
 
-named!(
-    nonempty_terms<Span, Terms>,
-    terminated!(
-        separated_nonempty_list!(
-            ws!(tag!(COMMA)),
-            return_error!(ErrorKind::Custom(ERR_TERM), term)
+named!(p_nonempty_terms<Span, Terms>,
+    terminated!(separated_nonempty_list!(
+            tag!(COMMA),
+            return_error!(ErrorKind::Custom(ERR_TERM), p_term)
         ),
         opt!(ws!(tag!(COMMA)))
     )
 );
 
-named!(
-    term_args<Span, Terms>,
-    alt!(
-        value!(vec![], pair!(ws!(tag!(L_PAREN)), tag!(R_PAREN)))
+named!(p_term_args<Span, Terms>,
+    alt!(value!(vec![], delimited!(tag!(L_PAREN), opt!(space),tag!(R_PAREN)))
         | delimited!(
-            ws!(tag!(L_PAREN)),
-            nonempty_terms,
-            return_error!(ErrorKind::Custom(ERR_R_PAREN), ws!(tag!(R_PAREN)))
+            tag!(L_PAREN),
+            p_nonempty_terms,
+            return_error!(ErrorKind::Custom(ERR_R_PAREN), tag!(R_PAREN))
         )
     )
 );
 
-named!(
-    term<Span, Term>,
-    alt!(
-        map!(  // variable
-            terminated!(
-                var,
-                not!(   // The term is a complex term if followed by '('.
-                        // Another way to deal with it is to look for a complex term first.
-                    ws!(tag!(L_PAREN))
-                )
+named!(p_term<Span, Term>,
+    alt!(map!(terminated!(ws!(p_var),
+                // The term is a complex term if followed by '('.
+                // Another way to deal with it is to look for a complex term first.
+                not!(tag!(L_PAREN))
             ),
             |v| v.into()
-        ) | map!(  // constant
-            r#const,
+        ) | map!(ws!(p_const),
             |c| c.into()
         ) | map!( // complex term
-            pair!(func, term_args),
+            pair!(ws!(p_func), ws!(p_term_args)),
             |(f, ts): (Func, Terms)| f.app(ts)
         )
     )
 );
 
-named!(
-    equals<Span, Formula>,
-    do_parse!(
-        left: ws!(term) >>
+named!(p_equals<Span, Formula>,
+    do_parse!(left: p_term >>
         tag!(EQUALS) >>
-        right: add_return_error!(ErrorKind::Custom(ERR_TERM), ws!(term)) >>
-        (Equals { left, right })
+        right: add_return_error!(ErrorKind::Custom(ERR_TERM), p_term) >>
+        (left.equals(right))
     )
 );
 
-named!(
-    pred<Span, Pred>,
-    map!(
-        upper_ident,
+named!(p_pred<Span, Pred>,
+    map!(p_upper_ident,
         |f| Pred::new(&f)
     )
 );
 
-named!(
-    atom<Span, Formula>,
-    alt!(
-        value!(Top, alt!(tag!(TRUE) |  tag!(TOP)))
+named!(p_atom<Span, Formula>,
+    alt!(value!(Top, alt!(tag!(TRUE) |  tag!(TOP)))
         | value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM)))
-        | add_return_error!(ErrorKind::Custom(ERR_EQUALS), equals)
-        | map!( // complex term
-            pair!(pred, term_args),
+        | add_return_error!(ErrorKind::Custom(ERR_EQUALS), p_equals)
+        // complex term:
+        | map!(pair!(p_pred, ws!(p_term_args)),
             |(p, ts): (Pred, Terms)| p.app(ts)
         ) |
-        delimited!(
-            ws!(tag!(L_PAREN)),
-            return_error!(ErrorKind::Custom(ERR_FORMULA), formula),
-            return_error!(ErrorKind::Custom(ERR_R_PAREN), ws!(tag!(R_PAREN)))
+        delimited!(ws!(tag!(L_PAREN)),
+            return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula),
+            return_error!(ErrorKind::Custom(ERR_R_PAREN), tag!(R_PAREN))
         )
     )
 );
 
-named!(
-    not<Span, Formula>,
-    alt!(
-        preceded!(
+named!(p_not<Span, Formula>,
+    alt!(preceded!(
             ws!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
-            map!(
-                alt!(not | quantified),
-                |f| Not { formula: Box::new(f) }
-            )
-        ) | atom
+            map!(alt!(p_not | p_quantified), not)
+        ) | ws!(p_atom)
     )
 );
 
-named!(
-    and<Span, Formula>,
-    map!(
-        pair!(
-            not,
-            opt!(
-                preceded!(
+named!(p_and<Span, Formula>,
+    map!(pair!(p_not, opt!(preceded!(
                     ws!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
-                    alt!(
-                        and | return_error!(ErrorKind::Custom(ERR_FORMULA), quantified)
+                    alt!(p_and
+                        | return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
                     )
                 )
             )
         ),
-        |(l, r)| {
-            if r.is_some() {
-                And { left: Box::new(l), right: Box::new(r.unwrap()) }
-            } else {
-                l
-            }
-        }
+        |(l, r)| if let Some(r) = r { l.and(r) } else { l }
     )
 );
 
-named!(
-    or<Span, Formula>,
-    map!(
-        pair!(
-            and,
-            opt!(
-                preceded!(
-                    ws!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
-                    return_error!(ErrorKind::Custom(ERR_FORMULA), quantified)
+named!(p_or<Span, Formula>,
+    map!(pair!(p_and,
+            opt!(preceded!(ws!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
+                    return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
                 )
             )
         ),
-        |(l, r)| {
-            if r.is_some() {
-                Or { left: Box::new(l), right: Box::new(r.unwrap()) }
-            } else {
-                l
-            }
-        }
+        |(l, r)| if let Some(r) = r { l.or(r) } else { l }
     )
 );
 
-named!(
-    quantified<Span, Formula>,
-    alt!(
-        do_parse!(
+named!(p_quantified<Span, Formula>,
+    alt!(do_parse!(
             q: ws!(
-                alt!(
-                    value!(
+                alt!(value!(
                         FORALL,
                         alt!(tag!(FORALL) | tag!(EXCLAMATION) | tag!(CHAR_FORALL))
                     ) | value!(
@@ -346,28 +287,18 @@ named!(
                     )
                 )
             ) >>
-            vs: return_error!(ErrorKind::Custom(ERR_VARS), vars) >>
+            vs: return_error!(ErrorKind::Custom(ERR_VARS), p_vars) >>
             return_error!(ErrorKind::Custom(ERR_DOT), ws!(tag!(DOT))) >>
-            f: return_error!(ErrorKind::Custom(ERR_FORMULA), quantified) >>
-            (
-                if q == FORALL {
-                    Forall { variables: vs, formula: Box::new(f) }
-                } else {
-                    Exists { variables: vs, formula: Box::new(f) }
-                }
-            )
-        ) |
-        or
+            f: return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified) >>
+            ( if q == FORALL { forall(vs, f) } else { exists(vs, f) } )
+        ) | p_or
     )
 );
 
-named!(
-    pub formula<Span, Formula>,
-    do_parse!(
-        first: quantified >>
+named!(p_formula<Span, Formula>,
+    do_parse!(first: p_quantified >>
         second: fold_many0!(
-            pair!(
-                ws!(
+            pair!(ws!(
                     alt!(
                         value!(
                             IMPLIES,
@@ -378,36 +309,28 @@ named!(
                         )
                     )
                 ),
-                return_error!(ErrorKind::Custom(ERR_FORMULA), quantified)
+                return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
             ),
             first,
-            |acc, (q, f)| {
-                if q == IMPLIES {
-                    Implies { left: Box::new(acc), right: Box::new(f) }
-                } else {
-                    Iff { left: Box::new(acc), right: Box::new(f) }
-                }
-            }
+            |acc: Formula, (q, f)| if q == IMPLIES { acc.implies(f) } else { acc.iff(f) }
         ) >>
         (second)
     )
 );
 
-named!(pub spaces<Span, Span>, eat_separator!(&b" \t"[..]));
+named!(p_spaces<Span, Span>, eat_separator!(&b" \t"[..]));
 
 #[macro_export]
 macro_rules! sp (
     ($i: expr, $($args:tt)*) => (
         {
-            sep!($i, spaces, $($args)*)
+            sep!($i, p_spaces, $($args)*)
         }
     )
 );
 
-named!(
-    pub comment<Span, ()>,
-    value!(
-        (),
+named!(p_comment<Span, ()>,
+    value!((),
         delimited!(
             sp!(tag!(LINE_COMMENT)),
             many0!(nom::not_line_ending),
@@ -416,10 +339,8 @@ named!(
     )
 );
 
-named!(
-    pub last_line_comment<Span, ()>,
-    value!(
-        (),
+named!(p_last_line_comment<Span, ()>,
+    value!((),
         delimited!(
             sp!(tag!(LINE_COMMENT)),
             many0!(nom::not_line_ending),
@@ -428,18 +349,16 @@ named!(
     )
 );
 
-named!(
-    pub theory<Span, Theory>,
-    map!(
-        many_till!(
+named!(pub theory<Span, Theory>,
+    map!(many_till!(
             alt!(
                 value!(
                     Option::None,
-                    many1!(comment)
+                    many1!(p_comment)
                 ) |
                 map!(
                     terminated!(
-                        formula,
+                        p_formula,
                         return_error!(ErrorKind::Custom(ERR_SEMI_COLON),
                             ws!(tag!(SEMI_COLON))
                         )
@@ -448,7 +367,7 @@ named!(
                 )
             ),
             alt!(
-                last_line_comment |
+                p_last_line_comment |
                 value!((), eof!())
             )
         ),
@@ -457,7 +376,7 @@ named!(
 );
 
 pub fn parse_formula(string: &str) -> Formula {
-    formula(Span::new(CompleteStr(string))).ok().unwrap().1
+    p_formula(Span::new(CompleteStr(string))).ok().unwrap().1
 }
 
 pub fn parse_theory_unsafe(string: &str) -> Theory {
@@ -484,10 +403,10 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
                 ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
                 _ => ParserError::Failed { line: pos.line, column: pos.get_column() as u32 },
             }
-        },
+        }
         Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
             ParserError::Failed { line: pos.line, column: pos.get_column() as u32 }
-        },
+        }
         _ => ParserError::Unknown,
     }
 }
@@ -531,269 +450,271 @@ mod test_parser {
 
     #[test]
     fn test_lower_identifier() {
-        success(lower_ident, "_", "_".to_string(), "");
-        success(lower_ident, "a", "a".to_string(), "");
-        success(lower_ident, "_ab", "_ab".to_string(), "");
-        success(lower_ident, "aB", "aB".to_string(), "");
-        success(lower_ident, "aB!", "aB".to_string(), "!");
-        success(lower_ident, "johnSn0w", "johnSn0w".to_string(), "");
+        success(p_lower_ident, "_", "_".to_string(), "");
+        success(p_lower_ident, "a", "a".to_string(), "");
+        success(p_lower_ident, "_ab", "_ab".to_string(), "");
+        success(p_lower_ident, "aB", "aB".to_string(), "");
+        success(p_lower_ident, "aB!", "aB".to_string(), "!");
+        success(p_lower_ident, "johnSn0w", "johnSn0w".to_string(), "");
 
-        fail(lower_ident, "B");
-        fail(lower_ident, "Blah");
-        fail(lower_ident, "!ABC");
-        fail(lower_ident, "123");
+        fail(p_lower_ident, "B");
+        fail(p_lower_ident, "Blah");
+        fail(p_lower_ident, "!ABC");
+        fail(p_lower_ident, "123");
     }
 
     #[test]
     fn test_upper_identifier() {
-        success(upper_ident, "A", "A".to_string(), "");
-        success(upper_ident, "AB", "AB".to_string(), "");
-        success(upper_ident, "AB!", "AB".to_string(), "!");
-        success(upper_ident, "JohnSn0w", "JohnSn0w".to_string(), "");
+        success(p_upper_ident, "A", "A".to_string(), "");
+        success(p_upper_ident, "AB", "AB".to_string(), "");
+        success(p_upper_ident, "AB!", "AB".to_string(), "!");
+        success(p_upper_ident, "JohnSn0w", "JohnSn0w".to_string(), "");
 
-        fail(upper_ident, "b");
-        fail(upper_ident, "blah");
-        fail(upper_ident, "!ABC");
-        fail(upper_ident, "123");
-        fail(upper_ident, "_");
-        fail(upper_ident, "_AB");
+        fail(p_upper_ident, "b");
+        fail(p_upper_ident, "blah");
+        fail(p_upper_ident, "!ABC");
+        fail(p_upper_ident, "123");
+        fail(p_upper_ident, "_");
+        fail(p_upper_ident, "_AB");
     }
 
     #[test]
     fn test_var() {
-        success(var, "x", _x(), "");
+        success(p_var, "x", _x(), "");
 
-        fail(var, "  x");
-        fail(var, "'a");
-        fail(var, "B");
+        fail(p_var, "  x");
+        fail(p_var, "'a");
+        fail(p_var, "B");
     }
 
     #[test]
     fn test_vars() {
-        success(vars, "x", vec![_x()], "");
-        success(vars, "x,y", vec![_x(), _y()], "");
-        success(vars, "  x", vec![_x()], "");
-        success(vars, "x, y", vec![_x(), _y()], "");
-        success(vars, "x, y\t,\nz", vec![_x(), _y(), _z()], "");
-        success(vars, "x,", vec![_x()], "");
-        success(vars, "x,y   ,   ", vec![_x(), _y()], "");
+        success(p_vars, "x", vec![_x()], "");
+        success(p_vars, "x,y", vec![_x(), _y()], "");
+        success(p_vars, "  x", vec![_x()], "");
+        success(p_vars, "x, y", vec![_x(), _y()], "");
+        success(p_vars, "x, y\t,\nz", vec![_x(), _y(), _z()], "");
+        success(p_vars, "x,", vec![_x()], "");
+        success(p_vars, "x,y   ,   ", vec![_x(), _y()], "");
 
-        fail(vars, ",x");
-        fail(vars, "B");
+        fail(p_vars, ",x");
+        fail(p_vars, "B");
     }
 
     #[test]
     fn test_const() {
-        success(r#const, "'a", _a(), "");
-        fail(r#const, "x");
-        fail(r#const, "   'a");
-        fail(r#const, "'  a");
-        fail(r#const, "''a");
-        fail(r#const, "B");
+        success(p_const, "'a", _a(), "");
+        fail(p_const, "x");
+        fail(p_const, "   'a");
+        fail(p_const, "'  a");
+        fail(p_const, "''a");
+        fail(p_const, "B");
     }
 
     #[test]
     fn test_func() {
-        success(func, "f", f(), "");
-        fail(func, "  f");
-        fail(func, "'a");
-        fail(func, "'B");
-        fail(func, "B");
+        success(p_func, "f", f(), "");
+        fail(p_func, "  f");
+        fail(p_func, "'a");
+        fail(p_func, "'B");
+        fail(p_func, "B");
     }
 
     #[test]
     fn test_term() {
-        success(term, "x", x(), "");
-        success(term, "'a", a(), "");
-        success(term, "f()", f().app0(), "");
-        success(term, "f( )", f().app0(), "");
-        success_to_string(term, "f(x)", "f(x)", "");
-        success_to_string(term, "f(x,   y   )", "f(x, y)", "");
-        success_to_string(term, "f(x,   y   \n , z)", "f(x, y, z)", "");
-        success_to_string(term, "f(f(f(f(f(f(f(x)))))))", "f(f(f(f(f(f(f(x)))))))", "");
-        success_to_string(term, "f  (x)", "f(x)", "");
-        success_to_string(term, "f  (   x   )   ", "f(x)", "");
-        success_to_string(term, "f(w, g (  x, y, z))", "f(w, g(x, y, z))", "");
-        success_to_string(term, "f('a, x, g('b, h(x)))", "f('a, x, g('b, h(x)))", "");
-        fail(term, "''a");
-        fail(term, "P()");
-        fail(term, "f(Q())");
-        fail(term, "12f(x)");
-        fail(term, "f(1, 2)");
-        fail(term, "f(x, g(1))");
+        success(p_term, "x", x(), "");
+        success(p_term, "'a", a(), "");
+        success(p_term, "f()", f().app0(), "");
+        success(p_term, "f( )", f().app0(), "");
+        success_to_string(p_term, "f(x)", "f(x)", "");
+        success_to_string(p_term, "f(x,   y   )", "f(x, y)", "");
+        success_to_string(p_term, "f(x,   y   \n , z)", "f(x, y, z)", "");
+        success_to_string(p_term, "f(f(f(f(f(f(f(x)))))))", "f(f(f(f(f(f(f(x)))))))", "");
+        success_to_string(p_term, "f  (x)", "f(x)", "");
+        success_to_string(p_term, "f  (   x   )   ", "f(x)", "");
+        success_to_string(p_term, "f(w, g (  x, y, z))", "f(w, g(x, y, z))", "");
+        success_to_string(p_term, "f('a, x, g('b, h(x)))", "f('a, x, g('b, h(x)))", "");
+        fail(p_term, "''a");
+        fail(p_term, "P()");
+        fail(p_term, "f(Q())");
+        fail(p_term, "12f(x)");
+        fail(p_term, "f(1, 2)");
+        fail(p_term, "f(x, g(1))");
     }
 
     #[test]
     fn test_equals() {
-        success_to_string(equals, "x = y", "x = y", "");
-        success_to_string(equals, "'a = 'b", "'a = 'b", "");
-        success_to_string(equals, "f(x) = y", "f(x) = y", "");
-        success_to_string(equals, "  f  (x  ) = y", "f(x) = y", "");
+        success_to_string(p_equals, "x = y", "x = y", "");
+        success_to_string(p_equals, "'a = 'b", "'a = 'b", "");
+        success_to_string(p_equals, "f(x) = y", "f(x) = y", "");
+        success_to_string(p_equals, "  f  (x  ) = y", "f(x) = y", "");
 
-        fail(equals, "A = B");
-        fail(equals, "!a = b");
-        fail(equals, "a != b");
+        fail(p_equals, "A = B");
+        fail(p_equals, "!a = b");
+        fail(p_equals, "a != b");
     }
 
     #[test]
     fn test_pred() {
-        success(pred, "P", P(), "");
-        fail(pred, "  P");
-        fail(pred, "'a");
-        fail(pred, "x");
+        success(p_pred, "P", P(), "");
+        fail(p_pred, "  P");
+        fail(p_pred, "'a");
+        fail(p_pred, "x");
     }
 
     #[test]
     fn test_comment() {
-        success(comment, "//\n", (), "");
-        success(comment, "  //\n", (), "");
-        success(comment, "// comment line \n", (), "");
-        success(comment, "//comment line \n", (), "");
-        success(comment, "   //   comment line \n", (), "");
-        fail(comment, "//");
-        fail(comment, "/");
+        success(p_comment, "//\n", (), "");
+        success(p_comment, "  //\n", (), "");
+        success(p_comment, "// comment line \n", (), "");
+        success(p_comment, "//comment line \n", (), "");
+        success(p_comment, "   //   comment line \n", (), "");
+        fail(p_comment, "//");
+        fail(p_comment, "/");
     }
 
     #[test]
     fn test_atom() {
-        success(atom, TRUE, Top, "");
-        success(atom, TOP, Top, "");
-        success(atom, FALSE, Bottom, "");
-        success(atom, BOTTOM, Bottom, "");
-        success_to_string(atom, "x = f('a)", "x = f('a)", "");
-        success_to_string(atom, "P()", "P()", "");
-        success_to_string(atom, "P( )", "P()", "");
-        success_to_string(atom, "P(x)", "P(x)", "");
-        success_to_string(atom, "P(x,   y   )", "P(x, y)", "");
-        success_to_string(atom, "P(x,   y   \n , z)", "P(x, y, z)", "");
-        success_to_string(atom, "P(f(f(f(f(f(f(x)))))))", "P(f(f(f(f(f(f(x)))))))", "");
-        success_to_string(atom, "P  (x)", "P(x)", "");
-        success_to_string(atom, "P  (   x   )   ", "P(x)", "");
-        success_to_string(atom, "P(w, g (  x, y, z))", "P(w, g(x, y, z))", "");
-        success_to_string(atom, "P('a, x, g('b, h(x)))", "P('a, x, g('b, h(x)))", "");
-        fail(atom, "''a");
-        fail(atom, "f()");
-        fail(atom, "P(Q())");
-        fail(atom, "12P(x)");
-        fail(atom, "P(1, 2)");
-        fail(atom, "P(x, g(1))");
+        success(p_atom, TRUE, Top, "");
+        success(p_atom, TOP, Top, "");
+        success(p_atom, FALSE, Bottom, "");
+        success(p_atom, BOTTOM, Bottom, "");
+        success_to_string(p_atom, "x = f('a)", "x = f('a)", "");
+        success_to_string(p_atom, "P()", "P()", "");
+        success_to_string(p_atom, "P( )", "P()", "");
+        success_to_string(p_atom, "P(x)", "P(x)", "");
+        success_to_string(p_atom, "P(x,   y   )", "P(x, y)", "");
+        success_to_string(p_atom, "P(x,   y   \n , z)", "P(x, y, z)", "");
+        success_to_string(p_atom, "P(f(f(f(f(f(f(x)))))))", "P(f(f(f(f(f(f(x)))))))", "");
+        success_to_string(p_atom, "P  (x)", "P(x)", "");
+        success_to_string(p_atom, "P  (   x   )   ", "P(x)", "");
+        success_to_string(p_atom, "P(w, g (  x, y, z))", "P(w, g(x, y, z))", "");
+        success_to_string(p_atom, "P('a, x, g('b, h(x)))", "P('a, x, g('b, h(x)))", "");
+        fail(p_atom, "''a");
+        fail(p_atom, "f()");
+        fail(p_atom, "P(Q())");
+        fail(p_atom, "12P(x)");
+        fail(p_atom, "P(1, 2)");
+        fail(p_atom, "P(x, g(1))");
     }
 
     #[test]
     fn test_formula() {
-        success_to_string(formula, "TRUE", "⊤", "");
-        success_to_string(formula, "FALSE", "⟘", "");
-        success_to_string(formula, "((((TRUE))))", "⊤", "");
-        success_to_string(formula, "( TRUE)", "⊤", "");
-        success_to_string(formula, "(TRUE )", "⊤", "");
-        success_to_string(formula, "P()", "P()", "");
-        success_to_string(formula, "P(x)", "P(x)", "");
-        success_to_string(formula, "P('a)", "P('a)", "");
-        success_to_string(formula, "P(x,y)", "P(x, y)", "");
-        success_to_string(formula, "P('a,'b)", "P('a, 'b)", "");
-        success_to_string(formula, "P('a,x)", "P('a, x)", "");
-        success_to_string(formula, "P(x, y)", "P(x, y)", "");
-        success_to_string(formula, "P(x,            y     \n)", "P(x, y)", "");
-        success_to_string(formula, "P(f(x))", "P(f(x))", "");
+        success_to_string(p_formula, "TRUE", "⊤", "");
+        success_to_string(p_formula, "FALSE", "⟘", "");
+        success_to_string(p_formula, "((((TRUE))))", "⊤", "");
+        success_to_string(p_formula, "( TRUE)", "⊤", "");
+        success_to_string(p_formula, "(TRUE )", "⊤", "");
+        success_to_string(p_formula, "P()", "P()", "");
+        success_to_string(p_formula, "  P()", "P()", "");
+        success_to_string(p_formula, "  ~P()", "¬P()", "");
+        success_to_string(p_formula, "P(x)", "P(x)", "");
+        success_to_string(p_formula, "P('a)", "P('a)", "");
+        success_to_string(p_formula, "P(x,y)", "P(x, y)", "");
+        success_to_string(p_formula, "P('a,'b)", "P('a, 'b)", "");
+        success_to_string(p_formula, "P('a,x)", "P('a, x)", "");
+        success_to_string(p_formula, "P(x, y)", "P(x, y)", "");
+        success_to_string(p_formula, "P(x,            y     \n)", "P(x, y)", "");
+        success_to_string(p_formula, "P(f(x))", "P(f(x))", "");
         success_to_string(
-            formula,
+            p_formula,
             "P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(x)))))))))))))))))))))",
             "P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(x)))))))))))))))))))))",
             "",
         );
-        success_to_string(formula, "P(f(x, g(y)), g(f(g(y))))", "P(f(x, g(y)), g(f(g(y))))", "");
-        success_to_string(formula, "'a = 'b", "'a = 'b", "");
-        success_to_string(formula, "x = x", "x = x", "");
-        success_to_string(formula, "f() = x", "f() = x", "");
-        success_to_string(formula, "f(x) = x", "f(x) = x", "");
-        success_to_string(formula, "f(x) = x", "f(x) = x", "");
-        success_to_string(formula, "f(x) = g(h(g(f(x)), y))", "f(x) = g(h(g(f(x)), y))", "");
-        success_to_string(formula, "P(x) implies Q(x)", "P(x) → Q(x)", "");
-        success_to_string(formula, "P(x) implies Q(x) -> R(x)", "(P(x) → Q(x)) → R(x)", "");
-        success_to_string(formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
-        success_to_string(formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
-        success_to_string(formula, "P(x) implies (Q(x) -> R(x) -> Q(z))", "P(x) → ((Q(x) → R(x)) → Q(z))", "");
-        success_to_string(formula, "P(x) iff Q(x)", "P(x) ⇔ Q(x)", "");
-        success_to_string(formula, "P(x) iff Q(x) <=> R(x)", "(P(x) ⇔ Q(x)) ⇔ R(x)", "");
-        success_to_string(formula, "P(x) iff (Q(x) <=> R(x))", "P(x) ⇔ (Q(x) ⇔ R(x))", "");
-        success_to_string(formula, "P(x) iff (Q(x) <=> R(x) <=> Q(z))", "P(x) ⇔ ((Q(x) ⇔ R(x)) ⇔ Q(z))", "");
-        success_to_string(formula, "P(x) iff Q(x) implies R(x)", "(P(x) ⇔ Q(x)) → R(x)", "");
-        success_to_string(formula, "P(x) implies Q(x) iff R(x)", "(P(x) → Q(x)) ⇔ R(x)", "");
-        success_to_string(formula, "exists x . P(x)", "∃ x. P(x)", "");
-        success_to_string(formula, "exists x,y . P(x, y)", "∃ x, y. P(x, y)", "");
-        success_to_string(formula, "exists x . exists y, z. P(x, y, z)", "∃ x. (∃ y, z. P(x, y, z))", "");
-        success_to_string(formula, "exists x . P(x) implies Q(x)", "(∃ x. P(x)) → Q(x)", "");
-        success_to_string(formula, "exists x . (P(x) implies Q(x))", "∃ x. (P(x) → Q(x))", "");
-        success_to_string(formula, "forall x . P(x)", "∀ x. P(x)", "");
-        success_to_string(formula, "forall x,y . P(x, y)", "∀ x, y. P(x, y)", "");
-        success_to_string(formula, "forall x . forall y, z. P(x, y, z)", "∀ x. (∀ y, z. P(x, y, z))", "");
-        success_to_string(formula, "forall x . P(x) implies Q(x)", "(∀ x. P(x)) → Q(x)", "");
-        success_to_string(formula, "forall x . (P(x) implies Q(x))", "∀ x. (P(x) → Q(x))", "");
-        success_to_string(formula, "forall x . exists y . P(x, y)", "∀ x. (∃ y. P(x, y))", "");
-        success_to_string(formula, "P(x) or Q(y)", "P(x) ∨ Q(y)", "");
-        success_to_string(formula, "P(x) or Q(y) or R(z)", "P(x) ∨ (Q(y) ∨ R(z))", "");
-        success_to_string(formula, "(P(x) or Q(y)) or R(z)", "(P(x) ∨ Q(y)) ∨ R(z)", "");
-        success_to_string(formula, "P(x) or Q(y) or (R(z) or S(z))", "P(x) ∨ (Q(y) ∨ (R(z) ∨ S(z)))", "");
-        success_to_string(formula, "P(x) implies Q(x) or R(x)", "P(x) → (Q(x) ∨ R(x))", "");
-        success_to_string(formula, "P(x) or Q(x) implies R(x)", "(P(x) ∨ Q(x)) → R(x)", "");
-        success_to_string(formula, "exists x . P(x) or Q(x)", "∃ x. (P(x) ∨ Q(x))", "");
-        success_to_string(formula, "P(x) or exists y . Q(y)", "P(x) ∨ (∃ y. Q(y))", "");
-        success_to_string(formula, "exists x . P(x) or exists y . Q(y)", "∃ x. (P(x) ∨ (∃ y. Q(y)))", "");
-        success_to_string(formula, "P(x) or forall y . Q(y)", "P(x) ∨ (∀ y. Q(y))", "");
-        success_to_string(formula, "exists x . P(x) or forall y . Q(y)", "∃ x. (P(x) ∨ (∀ y. Q(y)))", "");
-        success_to_string(formula, "P(x) and Q(y) or R(z)", "(P(x) ∧ Q(y)) ∨ R(z)", "");
-        success_to_string(formula, "P(x) and (Q(y) or R(z))", "P(x) ∧ (Q(y) ∨ R(z))", "");
-        success_to_string(formula, "P(x) or Q(y) and R(z)", "P(x) ∨ (Q(y) ∧ R(z))", "");
-        success_to_string(formula, "P(x) and Q(y) and R(z)", "P(x) ∧ (Q(y) ∧ R(z))", "");
-        success_to_string(formula, "P(w) and Q(x) and R(y) and S(z)", "P(w) ∧ (Q(x) ∧ (R(y) ∧ S(z)))", "");
-        success_to_string(formula, "(P(x) and Q(y)) and R(z)", "(P(x) ∧ Q(y)) ∧ R(z)", "");
-        success_to_string(formula, "P(x) and Q(y) implies R(z)", "(P(x) ∧ Q(y)) → R(z)", "");
-        success_to_string(formula, "P(x) and exists y . Q(y)", "P(x) ∧ (∃ y. Q(y))", "");
-        success_to_string(formula, "exists x . P(x) and exists y . Q(y)", "∃ x. (P(x) ∧ (∃ y. Q(y)))", "");
-        success_to_string(formula, "P(x) and forall y . Q(y)", "P(x) ∧ (∀ y. Q(y))", "");
-        success_to_string(formula, "exists x . P(x) and forall y . Q(y)", "∃ x. (P(x) ∧ (∀ y. Q(y)))", "");
-        success_to_string(formula, "not TRUE", "¬⊤", "");
-        success_to_string(formula, "not TRUE -> FALSE", "(¬⊤) → ⟘", "");
-        success_to_string(formula, "~x=y", "¬(x = y)", "");
-        success_to_string(formula, "TRUE -> not FALSE", "⊤ → (¬⟘)", "");
-        success_to_string(formula, "not P(x, y) or Q(z)", "(¬P(x, y)) ∨ Q(z)", "");
-        success_to_string(formula, "not P(x, y) and Q(z)", "(¬P(x, y)) ∧ Q(z)", "");
-        success_to_string(formula, "not not R(x)", "¬(¬R(x))", "");
-        success_to_string(formula, "not not not not not R(x) and S(y)", "(¬(¬(¬(¬(¬R(x)))))) ∧ S(y)", "");
-        success_to_string(formula, "not exists y . Q(y)", "¬(∃ y. Q(y))", "");
-        success_to_string(formula, "exists x . not exists y . Q(y)", "∃ x. (¬(∃ y. Q(y)))", "");
+        success_to_string(p_formula, "P(f(x, g(y)), g(f(g(y))))", "P(f(x, g(y)), g(f(g(y))))", "");
+        success_to_string(p_formula, "'a = 'b", "'a = 'b", "");
+        success_to_string(p_formula, "x = x", "x = x", "");
+        success_to_string(p_formula, "f() = x", "f() = x", "");
+        success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
+        success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
+        success_to_string(p_formula, "f(x) = g(h(g(f(x)), y))", "f(x) = g(h(g(f(x)), y))", "");
+        success_to_string(p_formula, "P(x) implies Q(x)", "P(x) → Q(x)", "");
+        success_to_string(p_formula, "P(x) implies Q(x) -> R(x)", "(P(x) → Q(x)) → R(x)", "");
+        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
+        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
+        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x) -> Q(z))", "P(x) → ((Q(x) → R(x)) → Q(z))", "");
+        success_to_string(p_formula, "P(x) iff Q(x)", "P(x) ⇔ Q(x)", "");
+        success_to_string(p_formula, "P(x) iff Q(x) <=> R(x)", "(P(x) ⇔ Q(x)) ⇔ R(x)", "");
+        success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x))", "P(x) ⇔ (Q(x) ⇔ R(x))", "");
+        success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x) <=> Q(z))", "P(x) ⇔ ((Q(x) ⇔ R(x)) ⇔ Q(z))", "");
+        success_to_string(p_formula, "P(x) iff Q(x) implies R(x)", "(P(x) ⇔ Q(x)) → R(x)", "");
+        success_to_string(p_formula, "P(x) implies Q(x) iff R(x)", "(P(x) → Q(x)) ⇔ R(x)", "");
+        success_to_string(p_formula, "exists x . P(x)", "∃ x. P(x)", "");
+        success_to_string(p_formula, "exists x,y . P(x, y)", "∃ x, y. P(x, y)", "");
+        success_to_string(p_formula, "exists x . exists y, z. P(x, y, z)", "∃ x. (∃ y, z. P(x, y, z))", "");
+        success_to_string(p_formula, "exists x . P(x) implies Q(x)", "(∃ x. P(x)) → Q(x)", "");
+        success_to_string(p_formula, "exists x . (P(x) implies Q(x))", "∃ x. (P(x) → Q(x))", "");
+        success_to_string(p_formula, "forall x . P(x)", "∀ x. P(x)", "");
+        success_to_string(p_formula, "forall x,y . P(x, y)", "∀ x, y. P(x, y)", "");
+        success_to_string(p_formula, "forall x . forall y, z. P(x, y, z)", "∀ x. (∀ y, z. P(x, y, z))", "");
+        success_to_string(p_formula, "forall x . P(x) implies Q(x)", "(∀ x. P(x)) → Q(x)", "");
+        success_to_string(p_formula, "forall x . (P(x) implies Q(x))", "∀ x. (P(x) → Q(x))", "");
+        success_to_string(p_formula, "forall x . exists y . P(x, y)", "∀ x. (∃ y. P(x, y))", "");
+        success_to_string(p_formula, "P(x) or Q(y)", "P(x) ∨ Q(y)", "");
+        success_to_string(p_formula, "P(x) or Q(y) or R(z)", "P(x) ∨ (Q(y) ∨ R(z))", "");
+        success_to_string(p_formula, "(P(x) or Q(y)) or R(z)", "(P(x) ∨ Q(y)) ∨ R(z)", "");
+        success_to_string(p_formula, "P(x) or Q(y) or (R(z) or S(z))", "P(x) ∨ (Q(y) ∨ (R(z) ∨ S(z)))", "");
+        success_to_string(p_formula, "P(x) implies Q(x) or R(x)", "P(x) → (Q(x) ∨ R(x))", "");
+        success_to_string(p_formula, "P(x) or Q(x) implies R(x)", "(P(x) ∨ Q(x)) → R(x)", "");
+        success_to_string(p_formula, "exists x . P(x) or Q(x)", "∃ x. (P(x) ∨ Q(x))", "");
+        success_to_string(p_formula, "P(x) or exists y . Q(y)", "P(x) ∨ (∃ y. Q(y))", "");
+        success_to_string(p_formula, "exists x . P(x) or exists y . Q(y)", "∃ x. (P(x) ∨ (∃ y. Q(y)))", "");
+        success_to_string(p_formula, "P(x) or forall y . Q(y)", "P(x) ∨ (∀ y. Q(y))", "");
+        success_to_string(p_formula, "exists x . P(x) or forall y . Q(y)", "∃ x. (P(x) ∨ (∀ y. Q(y)))", "");
+        success_to_string(p_formula, "P(x) and Q(y) or R(z)", "(P(x) ∧ Q(y)) ∨ R(z)", "");
+        success_to_string(p_formula, "P(x) and (Q(y) or R(z))", "P(x) ∧ (Q(y) ∨ R(z))", "");
+        success_to_string(p_formula, "P(x) or Q(y) and R(z)", "P(x) ∨ (Q(y) ∧ R(z))", "");
+        success_to_string(p_formula, "P(x) and Q(y) and R(z)", "P(x) ∧ (Q(y) ∧ R(z))", "");
+        success_to_string(p_formula, "P(w) and Q(x) and R(y) and S(z)", "P(w) ∧ (Q(x) ∧ (R(y) ∧ S(z)))", "");
+        success_to_string(p_formula, "(P(x) and Q(y)) and R(z)", "(P(x) ∧ Q(y)) ∧ R(z)", "");
+        success_to_string(p_formula, "P(x) and Q(y) implies R(z)", "(P(x) ∧ Q(y)) → R(z)", "");
+        success_to_string(p_formula, "P(x) and exists y . Q(y)", "P(x) ∧ (∃ y. Q(y))", "");
+        success_to_string(p_formula, "exists x . P(x) and exists y . Q(y)", "∃ x. (P(x) ∧ (∃ y. Q(y)))", "");
+        success_to_string(p_formula, "P(x) and forall y . Q(y)", "P(x) ∧ (∀ y. Q(y))", "");
+        success_to_string(p_formula, "exists x . P(x) and forall y . Q(y)", "∃ x. (P(x) ∧ (∀ y. Q(y)))", "");
+        success_to_string(p_formula, "not TRUE", "¬⊤", "");
+        success_to_string(p_formula, "not TRUE -> FALSE", "(¬⊤) → ⟘", "");
+        success_to_string(p_formula, "~x=y", "¬(x = y)", "");
+        success_to_string(p_formula, "TRUE -> not FALSE", "⊤ → (¬⟘)", "");
+        success_to_string(p_formula, "not P(x, y) or Q(z)", "(¬P(x, y)) ∨ Q(z)", "");
+        success_to_string(p_formula, "not P(x, y) and Q(z)", "(¬P(x, y)) ∧ Q(z)", "");
+        success_to_string(p_formula, "not not R(x)", "¬(¬R(x))", "");
+        success_to_string(p_formula, "not not not not not R(x) and S(y)", "(¬(¬(¬(¬(¬R(x)))))) ∧ S(y)", "");
+        success_to_string(p_formula, "not exists y . Q(y)", "¬(∃ y. Q(y))", "");
+        success_to_string(p_formula, "exists x . not exists y . Q(y)", "∃ x. (¬(∃ y. Q(y)))", "");
         success_to_string(
-            formula,
+            p_formula,
             "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies FALSE)",
             "P(x) → (Q(y) ∧ (∃ z. ((f(z) = g(f(z))) ∨ ((∀ y, z. S(y, z)) → ⟘))))",
             "",
         );
         success_to_string(
-            formula,
+            p_formula,
             "not forall x, y . P(x) and Q(y) implies h(z) = z",
             "(¬(∀ x, y. (P(x) ∧ Q(y)))) → (h(z) = z)",
             "",
         );
         success_to_string(
-            formula,
+            p_formula,
             "∀ x. ∃ y. ((x = y) ∧ ¬P(y)) ∨ (Q(x) → R(y))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             "",
         );
         success_to_string(
-            formula,
+            p_formula,
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             "",
         );
         success_to_string(
-            formula,
+            p_formula,
             "! x. ? y. ((x = y) & ~P(y)) | (Q(x) -> R(y))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             "",
         );
         success_to_string(
-            formula,
+            p_formula,
             "! x. (? y. (((x = y) & (~P(y))) | (Q(x) -> R(y))))",
             "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
             "",
@@ -802,6 +723,12 @@ mod test_parser {
 
     #[test]
     fn test_theory() {
+        success_to_string(
+            theory,
+            "  P(x)   ;",
+            "P(x)",
+            "",
+        );
         success_to_string(
             theory,
             "E(x,x);\
