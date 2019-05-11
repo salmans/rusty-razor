@@ -3,16 +3,27 @@ use std::fs;
 use std::io::Read;
 use rusty_razor::formula::{parser::parse_theory, syntax::Theory};
 use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
-                         SelectorTrait, StrategyTrait,
+                         ModelTrait, SelectorTrait, StrategyTrait,
                          selector::{Fair, Bootstrap},
                          strategy::Dispatch,
                          bounder::DomainSize,
                          Observation,
                          solve};
-use term::color::{WHITE, BRIGHT_RED};
+use term::{color::{WHITE, BRIGHT_RED, GREEN, BRIGHT_YELLOW, BRIGHT_BLUE}};
 use std::process::exit;
 use failure::Error;
 use std::path::PathBuf;
+use itertools::Itertools;
+
+
+const INFO_COLOR: term::color::Color = 27;
+const LOGO_TOP_COLOR: term::color::Color = 136;
+const LOGO_BOTTOM_COLOR: term::color::Color = WHITE;
+const ERROR_COLOR: term::color::Color = BRIGHT_RED;
+const MODEL_DOMAIN_COLOR: term::color::Color = GREEN;
+const MODEL_ELEMENTS_COLOR: term::color::Color = BRIGHT_YELLOW;
+const MODEL_FACTS_COLOR: term::color::Color = BRIGHT_BLUE;
+const INFO_ATTRIBUTE: term::Attr = term::Attr::Bold;
 
 #[derive(StructOpt)]
 enum BoundCommand {
@@ -120,30 +131,76 @@ impl Default for Command {
     }
 }
 
+struct Terminal {
+    term: Box<term::StdoutTerminal>,
+    color: Option<term::color::Color>,
+    attribute: Option<term::Attr>,
+}
+
+impl Terminal {
+    fn new() -> Terminal {
+        Self {
+            term: term::stdout().unwrap(),
+            color: None,
+            attribute: None,
+        }
+    }
+
+    fn foreground(&mut self, color: Option<term::color::Color>) -> &mut Self {
+        self.color = color;
+        self
+    }
+
+    fn attribute(&mut self, attribute: Option<term::Attr>) -> &mut Self {
+        self.attribute = attribute;
+        self
+    }
+
+    fn apply(&mut self, closure: impl Fn() -> ()) -> &mut Self {
+        if let Some(color) = self.color {
+            self.term.fg(color).unwrap();
+        }
+        if let Some(attribute) = self.attribute {
+            self.term.attr(attribute).unwrap();
+        }
+        closure();
+        self
+    }
+
+    fn reset(&mut self) {
+        if self.color.is_some() || self.attribute.is_some() {
+            self.term.reset().unwrap();
+        }
+    }
+}
+
 fn main() {
     let args = Command::from_args();
     let command = args.command;
-    let no_color = args.no_color;
+    let color = !args.no_color;
 
-    let mut terminal = term::stdout().unwrap();
+    let (logo_top_color, logo_bottom_color, error_color) = if color {
+        (Some(LOGO_TOP_COLOR), Some(LOGO_BOTTOM_COLOR), Some(ERROR_COLOR))
+    } else {
+        (None, None, None)
+    };
 
-    if !no_color {
-        terminal.fg(136).unwrap();
-    }
-    println!("\n\
+    let mut term = Terminal::new();
+    term.foreground(logo_top_color)
+        .apply(|| {
+            println!("\n\
    ┌════════════════════════════════┐\n\
    │╤═╕╤ ╤╒═╕╒╤╕╤ ╤  ╦═╗╔═╗╔═╗╔═╗╦═╗│\n\
    │├┬┘│ │└─┐ │ └┬┘  ╠╦╝╠═╣╔═╝║ ║╠╦╝│\n\
    │┴└─└─┘└─┘ ┴  ┴   ╩╚═╩ ╩╚═╝╚═╝╩╚═│\n\
    └═══════════╦-------╦════════════┘");
-
-    if !no_color {
-        terminal.fg(WHITE).unwrap();
-    }
-    println!("            ╟-------╢             ");
-    println!("            ╟-------╢             ");
-    println!("            ╟-------╢             \n");
-    terminal.reset().unwrap();
+        }).foreground(logo_bottom_color)
+        .apply(|| {
+            println!("            ╟-------╢             ");
+            println!("            ╟-------╢             ");
+            println!("            ╟-------╢             \n");
+        })
+        .reset();
 
     match command {
         ProcessCommand::Solve { input, count, bound, strategy } => {
@@ -151,11 +208,15 @@ fn main() {
                 let theory = read_theory_from_file(input);
 
                 if theory.is_ok() {
-                    process_solve(&theory.unwrap(), bound, strategy, count, !no_color)
+                    process_solve(&theory.unwrap(), bound, strategy, count, color)
                 } else {
-                    terminal.fg(BRIGHT_RED).unwrap();
-                    println!("Parser error: {}", theory.err().unwrap().to_string());
-                    terminal.reset().unwrap();
+                    // FIXME
+                    let message = format!("Parser error: {}", theory.err().unwrap().to_string());
+                    term.foreground(error_color)
+                        .apply(|| {
+                            println!("{}", message.clone());
+                        })
+                        .reset();
                     println!();
                     exit(1);
                 }
@@ -165,14 +226,19 @@ fn main() {
 }
 
 fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: StrategyOption, count: Option<i32>, color: bool) {
-    let mut terminal = term::stdout().unwrap();
+    let mut term = Terminal::new();
+    let (info_color, info_attribute) = if color {
+        (Some(INFO_COLOR), Some(INFO_ATTRIBUTE))
+    } else {
+        (None, None)
+    };
 
-    if color {
-        terminal.fg(27).unwrap();
-    }
-    terminal.attr(term::Attr::Bold).unwrap();
-    println!("Finding models for theory:");
-    terminal.reset().unwrap();
+    term.foreground(info_color)
+        .attribute(info_attribute)
+        .apply(|| {
+            println!("Finding models for theory:");
+        })
+        .reset();
 
     theory.formulas.iter().for_each(|f| println!("  {}", f));
 
@@ -208,17 +274,20 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: Strateg
         if count.is_some() && found >= count.unwrap() {
             break;
         }
-        solve(&mut strategy, &evaluator, bounder.as_ref(), |m| { print_model(m, color, &mut found) })
+        solve(&mut strategy, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
     }
 
     println!();
-    if color {
-        terminal.fg(27).unwrap();
-    }
-    terminal.attr(term::Attr::Bold).unwrap();
-    let grammar = if found == 1 { ("", "was") } else { ("s", "were") };
-    println!("{} model{} {} found.", found, grammar.0, grammar.1);
-    terminal.reset().unwrap();
+
+
+    term.foreground(info_color)
+        .attribute(info_attribute)
+        .apply(|| {
+            let grammar = if found == 1 { ("", "was") } else { ("s", "were") };
+            println!("{} model{} {} found.", found, grammar.0, grammar.1);
+        })
+        .reset();
+
     println!();
 }
 
@@ -234,21 +303,35 @@ pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {
+    let (info_color, info_attribute, domain_color, elements_color, facts_color) = if color {
+        (
+            Some(INFO_COLOR),
+            Some(INFO_ATTRIBUTE),
+            Some(MODEL_DOMAIN_COLOR),
+            Some(MODEL_ELEMENTS_COLOR),
+            Some(MODEL_FACTS_COLOR),
+        )
+    } else {
+        (
+            None,
+            None,
+            None,
+            None,
+            None
+        )
+    };
+
     *count += 1;
-    use rusty_razor::chase::ModelTrait;
-    use itertools::Itertools;
 
-    let mut terminal = term::stdout().unwrap();
-
-    if color {
-        terminal.fg(27).unwrap();
-    }
-    terminal.attr(term::Attr::Bold).unwrap();
-
-    print!("Domain: ");
+    let mut term = Terminal::new();
+    term.foreground(info_color)
+        .attribute(info_attribute)
+        .apply(|| {
+            print!("Domain: ");
+        })
+        .reset();
     let domain = model.domain().iter().map(|e| e.get().to_string()).collect();
-    let fg_color = if color { None } else { Some(term::color::GREEN) };
-    print_list(&domain, fg_color);
+    print_list(&domain, domain_color);
     println!("\n");
 
     let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
@@ -257,9 +340,8 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
         format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e.get())
     }).collect();
 
-    print!("Elements: ");
-    let fg_color = if color { None } else { Some(term::color::BRIGHT_YELLOW) };
-    print_list(&elements, fg_color);
+    term.apply(|| print!("Elements: "));
+    print_list(&elements, elements_color);
     println!("\n");
 
     let facts: Vec<String> = model.facts().iter().map(|f| {
@@ -271,35 +353,35 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             Observation::Identity { left, right } => format!("{} = {}", left, right),
         }
     }).collect();
-    print!("Facts: ");
-    let fg_color = if color { None } else { Some(term::color::BRIGHT_BLUE) };
-    print_list(&facts, fg_color);
+    
+    term.apply(|| print!("Facts: "));
+    print_list(&facts, facts_color);
     println!("\n");
 
-    if color {
-        terminal.fg(27).unwrap();
-    }
-    terminal.attr(term::Attr::Bold).unwrap();
-    println!("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
-
-    terminal.reset().unwrap();
+    term.foreground(info_color)
+        .attribute(info_attribute)
+        .apply(|| {
+            println!("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
+        })
+        .reset();
 }
 
 fn print_list<T: std::fmt::Display>(list: &Vec<T>, color: Option<term::color::Color>) {
-    let mut terminal = term::stdout().unwrap();
-    let last = list.len() - 1;
-    let mut index = 0;
-    for x in list {
-        if let Some(color) = color {
-            terminal.fg(color).unwrap();
-        }
-        terminal.attr(term::Attr::Bold).unwrap();
-        print!("{}", x);
-        if index != last {
-            terminal.reset().unwrap();
-            print!(", ");
-            index += 1;
-        }
-    }
-    terminal.reset().unwrap();
+    let item_attribute = if color.is_some() { Some(term::Attr::Bold) } else { None };
+
+    Terminal::new()
+        .foreground(color)
+        .attribute(item_attribute)
+        .apply(|| {
+            let last = list.len() - 1;
+            let mut index = 0;
+            for x in list {
+                print!("{}", x);
+                if index != last {
+                    print!(", ");
+                    index += 1;
+                }
+            }
+        })
+        .reset();
 }
