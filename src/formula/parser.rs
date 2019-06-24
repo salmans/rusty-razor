@@ -393,7 +393,7 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
     match error {
         Err::Error(Context::Code(pos, ErrorKind::Custom(code))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
             let found = if pos.fragment.len() != 0 {
-                Some(pos.fragment.0.to_string())
+                Some(pos.fragment.0.to_owned())
             } else {
                 None
             };
@@ -450,12 +450,12 @@ mod test_parser {
 
     #[test]
     fn test_lower_identifier() {
-        success(p_lower_ident, "_", "_".to_string(), "");
-        success(p_lower_ident, "a", "a".to_string(), "");
-        success(p_lower_ident, "_ab", "_ab".to_string(), "");
-        success(p_lower_ident, "aB", "aB".to_string(), "");
-        success(p_lower_ident, "aB!", "aB".to_string(), "!");
-        success(p_lower_ident, "johnSn0w", "johnSn0w".to_string(), "");
+        success(p_lower_ident, "_", "_".to_owned(), "");
+        success(p_lower_ident, "a", "a".to_owned(), "");
+        success(p_lower_ident, "_ab", "_ab".to_owned(), "");
+        success(p_lower_ident, "aB", "aB".to_owned(), "");
+        success(p_lower_ident, "aB!", "aB".to_owned(), "!");
+        success(p_lower_ident, "johnSn0w", "johnSn0w".to_owned(), "");
 
         fail(p_lower_ident, "B");
         fail(p_lower_ident, "Blah");
@@ -465,10 +465,10 @@ mod test_parser {
 
     #[test]
     fn test_upper_identifier() {
-        success(p_upper_ident, "A", "A".to_string(), "");
-        success(p_upper_ident, "AB", "AB".to_string(), "");
-        success(p_upper_ident, "AB!", "AB".to_string(), "!");
-        success(p_upper_ident, "JohnSn0w", "JohnSn0w".to_string(), "");
+        success(p_upper_ident, "A", "A".to_owned(), "");
+        success(p_upper_ident, "AB", "AB".to_owned(), "");
+        success(p_upper_ident, "AB!", "AB".to_owned(), "!");
+        success(p_upper_ident, "JohnSn0w", "JohnSn0w".to_owned(), "");
 
         fail(p_upper_ident, "b");
         fail(p_upper_ident, "blah");
