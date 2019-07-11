@@ -22,7 +22,7 @@ pub struct ModelRecord {
     model: Option<String>,
 }
 
-impl<'a> ModelRecord {
+impl ModelRecord {
     fn new() -> ModelRecord {
         ModelRecord {
             event: None,
@@ -33,7 +33,7 @@ impl<'a> ModelRecord {
     }
 }
 
-impl<'a> field::Visit for ModelRecord {
+impl field::Visit for ModelRecord {
     fn record_u64(&mut self, field: &field::Field, value: u64) {
         let field_name = field.name();
         if field_name == super::MODEL_ID_FIELD {

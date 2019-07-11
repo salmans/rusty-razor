@@ -110,10 +110,9 @@ impl Model {
     fn history(&self, element: &E) -> E {
         let mut result = element;
         let mut element = Some(element);
-        while element.is_some() {
-            let e = element.unwrap();
+        while let Some(e) = element {
+            element = self.equality_history.get(e);
             result = e;
-            element = self.equality_history.get(e)
         }
 
         result.clone()

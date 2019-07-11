@@ -228,12 +228,14 @@ fn main() {
     }
 }
 
-fn process_solve(theory: &Theory,
-                 bound: Option<BoundCommand>,
-                 strategy: StrategyOption,
-                 log: Option<String>,
-                 count: Option<i32>,
-                 color: bool) {
+fn process_solve(
+    theory: &Theory,
+    bound: Option<BoundCommand>,
+    strategy: StrategyOption,
+    log: Option<String>,
+    count: Option<i32>,
+    color: bool,
+) {
     let mut term = Terminal::new();
     let (info_color, info_attribute) = if color {
         (Some(INFO_COLOR), Some(INFO_ATTRIBUTE))
