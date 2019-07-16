@@ -154,14 +154,14 @@ impl SkolemGenerator {
     /// Creates a new SkolemGenerator with the default prefix `sk#`.
     pub fn new() -> SkolemGenerator {
         SkolemGenerator {
-            prefix: "sk#".to_string(),
+            prefix: "sk#".to_owned(),
             index: 0,
         }
     }
     /// Creates a new SkolemGenerator with a custom `prefix`.
     pub fn new_with(prefix: &str) -> SkolemGenerator {
         SkolemGenerator {
-            prefix: prefix.to_string(),
+            prefix: prefix.to_owned(),
             index: 0,
         }
     }

@@ -9,7 +9,7 @@ pub struct Func(String);
 
 impl Func {
     pub fn new(name: &str) -> Func {
-        Func(name.to_string())
+        Func(name.to_owned())
     }
 
     /// Applies the function on a list of terms.
@@ -68,7 +68,7 @@ pub struct V(pub String);
 
 impl V {
     pub fn new(name: &str) -> V {
-        V(name.to_string())
+        V(name.to_owned())
     }
 }
 
@@ -85,7 +85,7 @@ pub struct C(String);
 
 impl C {
     pub fn new(name: &str) -> C {
-        C(name.to_string())
+        C(name.to_owned())
     }
 }
 
@@ -102,7 +102,7 @@ pub struct Pred(pub String);
 
 impl Pred {
     pub fn new(name: &str) -> Pred {
-        Pred(name.to_string())
+        Pred(name.to_owned())
     }
 
     #[inline]
@@ -510,7 +510,7 @@ mod test_syntax {
 
     #[test]
     fn test_var_free_vars() {
-        assert_eq_vectors(&vec![&V("x".to_string())], &x().free_vars());
+        assert_eq_vectors(&vec![&V("x".to_owned())], &x().free_vars());
     }
 
     #[test]

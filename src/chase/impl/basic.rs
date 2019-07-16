@@ -85,6 +85,7 @@ impl FuncApp for WitnessTerm {
 
 /// Model is a simple Model implementation where terms are of type WitnessTerm.
 pub struct Model {
+    id: u64,
     element_index: i32,
     rewrites: HashMap<WitnessTerm, E>,
     facts: HashSet<Observation<WitnessTerm>>,
@@ -94,6 +95,7 @@ pub struct Model {
 impl Model {
     pub fn new() -> Self {
         Self {
+            id: rand::random(),
             element_index: 0,
             rewrites: HashMap::new(),
             facts: HashSet::new(),
@@ -108,10 +110,9 @@ impl Model {
     fn history(&self, element: &E) -> E {
         let mut result = element;
         let mut element = Some(element);
-        while element.is_some() {
-            let e= element.unwrap();
+        while let Some(e) = element {
+            element = self.equality_history.get(e);
             result = e;
-            element = self.equality_history.get(e)
         }
 
         result.clone()
@@ -156,6 +157,7 @@ impl Model {
 impl Clone for Model {
     fn clone(&self) -> Self {
         Self {
+            id: rand::random(),
             element_index: self.element_index.clone(),
             rewrites: self.rewrites.clone(),
             facts: self.facts.clone(),
@@ -166,6 +168,8 @@ impl Clone for Model {
 
 impl ModelTrait for Model {
     type TermType = WitnessTerm;
+
+    fn get_id(&self) -> u64 { self.id }
 
     fn domain(&self) -> Vec<&E> {
         self.rewrites.values().sorted().into_iter().dedup().collect()

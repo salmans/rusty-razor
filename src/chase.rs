@@ -7,6 +7,8 @@ use crate::formula::syntax::*;
 use itertools::Either;
 use std::fmt;
 
+use tracing;
+
 /// ## Element
 /// Element symbols represent elements of models.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
@@ -49,7 +51,7 @@ pub struct Rel(pub String);
 
 impl Rel {
     pub fn new(name: &str) -> Rel {
-        Rel(name.to_string())
+        Rel(name.to_owned())
     }
     /// Applies the relation to a list of witness terms.
     pub fn app<T: WitnessTermTrait>(self, terms: Vec<T>) -> Observation<T> {
@@ -121,6 +123,8 @@ impl<T: WitnessTermTrait> fmt::Display for Observation<T> {
 pub trait ModelTrait: Clone + fmt::Display + ToString {
     type TermType: WitnessTermTrait;
 
+    /// Returns a unique ID for the model (complete or partial) in its execution.
+    fn get_id(&self) -> u64;
     /// Returns the domain of this model.
     fn domain(&self) -> Vec<&<Self::TermType as WitnessTermTrait>::ElementType>;
     /// Returns the set of observation facts that are true in this model.
@@ -206,17 +210,33 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
           E: EvaluatorTrait<'s, Sel, B, Sequent=S, Model=M>,
           B: BounderTrait {
     let (base_model, mut selector) = strategy.remove().unwrap();
+    let base_id = &base_model.get_id();
+    //span!(tracing::Level::TRACE, "evaluate", id = base_id);
     let models = evaluator.evaluate(&base_model, &mut selector, bounder);
+
     if let Some(models) = models {
         if !models.is_empty() {
             models.into_iter().for_each(|m| {
                 if let Either::Left(model) = m {
+                    info!({
+                              event = super::trace::NEW_MODEL_EVENT,
+                              model_id = &model.get_id(),
+                              parent = base_id,
+                              model = tracing::field::display(&model)
+                          }, "chase step applied");
                     strategy.add(model, selector.clone());
                 } else if let Either::Right(model) = m {
+                    info!({
+                              event = super::trace::NEW_MODEL_EVENT,
+                              model_id = &model.get_id(),
+                              parent = base_id,
+                              model = tracing::field::display(&model)
+                          }, "chase step applied");
                     strategy.add(model, selector.clone());
                 }
             });
         } else {
+            info!({ event_type = "model_found", id = &base_id, model = tracing::field::display(&base_model) }, "model found");
             consumer(base_model);
         }
     }

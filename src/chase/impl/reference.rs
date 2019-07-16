@@ -98,6 +98,7 @@ impl FuncApp for WitnessTerm {
 }
 
 pub struct Model {
+    id: u64,
     element_index: i32,
     domain: HashSet<Element>,
     rewrites: HashMap<WitnessTerm, Element>,
@@ -108,6 +109,7 @@ pub struct Model {
 impl Model {
     pub fn new() -> Self {
         Self {
+            id: rand::random(),
             element_index: 0,
             domain: HashSet::new(),
             rewrites: HashMap::new(),
@@ -168,6 +170,8 @@ impl Model {
 
 impl ModelTrait for Model {
     type TermType = WitnessTerm;
+
+    fn get_id(&self) -> u64 { self.id }
 
     fn domain(&self) -> Vec<&Element> {
         self.domain.iter().sorted().into_iter().dedup().collect()
@@ -284,6 +288,7 @@ impl Clone for Model {
         }));
         let facts: HashSet<Observation<WitnessTerm>> = HashSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
         Model {
+            id: rand::random(),
             element_index: self.element_index,
             domain,
             rewrites,

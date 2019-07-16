@@ -1,6 +1,4 @@
 use structopt::StructOpt;
-use std::fs;
-use std::io::Read;
 use rusty_razor::formula::{parser::parse_theory, syntax::Theory};
 use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
                          ModelTrait, SelectorTrait, StrategyTrait,
@@ -9,12 +7,14 @@ use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
                          bounder::DomainSize,
                          Observation,
                          solve};
+use rusty_razor::trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, NEW_MODEL_EVENT};
 use term::{color::{WHITE, BRIGHT_RED, GREEN, BRIGHT_YELLOW, BRIGHT_BLUE}};
-use std::process::exit;
+use std::{io::Read, fs, path::PathBuf, process::exit};
 use failure::Error;
-use std::path::PathBuf;
 use itertools::Itertools;
 
+#[macro_use]
+extern crate tracing;
 
 const INFO_COLOR: term::color::Color = 27;
 const LOGO_TOP_COLOR: term::color::Color = 136;
@@ -113,13 +113,15 @@ impl Default for ProcessCommand {
 }
 
 #[derive(StructOpt)]
-#[structopt(name = "Rusty Razor", about = "A tool for exploring finite models of first-order theories.")]
+#[structopt(name = "Rusty Razor", about = "A tool for exploring finite models of first-order theories")]
 #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
 struct Command {
     #[structopt(subcommand, name = "command")]
     command: ProcessCommand,
-    #[structopt(long = "no-color", help = "Make it dim.")]
+    #[structopt(long = "no-color", help = "Makes it dim.")]
     no_color: bool,
+    #[structopt(short = "l", long = "log", parse(from_os_str), help = "Path to the log file.")]
+    log: Option<std::path::PathBuf>,
 }
 
 impl Default for Command {
@@ -127,6 +129,7 @@ impl Default for Command {
         Command {
             command: ProcessCommand::default(),
             no_color: false,
+            log: None,
         }
     }
 }
@@ -178,6 +181,7 @@ fn main() {
     let args = Command::from_args();
     let command = args.command;
     let color = !args.no_color;
+    let log = args.log.map(|l| l.to_str().unwrap_or(DEFAULT_JSON_LOG_FILE).to_owned());
 
     let (logo_top_color, logo_bottom_color, error_color) = if color {
         (Some(LOGO_TOP_COLOR), Some(LOGO_BOTTOM_COLOR), Some(ERROR_COLOR))
@@ -208,9 +212,8 @@ fn main() {
                 let theory = read_theory_from_file(input);
 
                 if theory.is_ok() {
-                    process_solve(&theory.unwrap(), bound, strategy, count, color)
+                    process_solve(&theory.unwrap(), bound, strategy, log, count, color)
                 } else {
-                    // FIXME
                     let message = format!("Parser error: {}", theory.err().unwrap().to_string());
                     term.foreground(error_color)
                         .apply(|| {
@@ -225,7 +228,14 @@ fn main() {
     }
 }
 
-fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: StrategyOption, count: Option<i32>, color: bool) {
+fn process_solve(
+    theory: &Theory,
+    bound: Option<BoundCommand>,
+    strategy: StrategyOption,
+    log: Option<String>,
+    count: Option<i32>,
+    color: bool,
+) {
     let mut term = Terminal::new();
     let (info_color, info_attribute) = if color {
         (Some(INFO_COLOR), Some(INFO_ATTRIBUTE))
@@ -268,17 +278,31 @@ fn process_solve(theory: &Theory, bound: Option<BoundCommand>, strategy: Strateg
         StrategyOption::LIFO => Dispatch::new_lifo(),
     };
 
-    strategy.add(Model::new(), selector);
-
-    while !strategy.empty() {
-        if count.is_some() && found >= count.unwrap() {
-            break;
+    let initial_model = Model::new();
+    let run = || {
+        info!({
+                  event = NEW_MODEL_EVENT,
+                  model_id = &initial_model.get_id(),
+                  model = tracing::field::display(&initial_model)
+              }, "initial empty model");
+        strategy.add(initial_model, selector);
+        while !strategy.empty() {
+            if count.is_some() && found >= count.unwrap() {
+                break;
+            }
+            solve(&mut strategy, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
         }
-        solve(&mut strategy, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
+    };
+
+    if let Some(log) = log {
+        let log = fs::File::create(log).expect("cannot create the log file");
+        let logger = JsonLogger::new(log);
+        tracing::subscriber::with_default(logger, run);
+    } else {
+        run();
     }
 
     println!();
-
 
     term.foreground(info_color)
         .attribute(info_attribute)
@@ -312,13 +336,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             Some(MODEL_FACTS_COLOR),
         )
     } else {
-        (
-            None,
-            None,
-            None,
-            None,
-            None
-        )
+        (None, None, None, None, None)
     };
 
     *count += 1;
@@ -353,7 +371,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             Observation::Identity { left, right } => format!("{} = {}", left, right),
         }
     }).collect();
-    
+
     term.apply(|| print!("Facts: "));
     print_list(&facts, facts_color);
     println!("\n");
