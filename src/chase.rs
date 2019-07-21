@@ -219,7 +219,7 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
             models.into_iter().for_each(|m| {
                 if let Either::Left(model) = m {
                     info!({
-                              event = super::trace::NEW_MODEL_EVENT,
+                              event = super::trace::CHASE_STEP,
                               model_id = &model.get_id(),
                               parent = base_id,
                               model = tracing::field::display(&model)
@@ -227,7 +227,7 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
                     strategy.add(model, selector.clone());
                 } else if let Either::Right(model) = m {
                     info!({
-                              event = super::trace::NEW_MODEL_EVENT,
+                              event = super::trace::CHASE_STEP,
                               model_id = &model.get_id(),
                               parent = base_id,
                               model = tracing::field::display(&model)
@@ -236,7 +236,11 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
                 }
             });
         } else {
-            info!({ event_type = "model_found", id = &base_id, model = tracing::field::display(&base_model) }, "model found");
+            info!({
+                      event = super::trace::NEW_MODEL,
+                      model_id = &base_id,
+                      model = tracing::field::display(&base_model)
+                  }, "model found found");
             consumer(base_model);
         }
     }

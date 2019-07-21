@@ -35,25 +35,24 @@ impl ModelRecord {
 
 impl field::Visit for ModelRecord {
     fn record_u64(&mut self, field: &field::Field, value: u64) {
-        let field_name = field.name();
-        if field_name == super::MODEL_ID_FIELD {
-            self.model_id = Some(value);
-        } else if field_name == super::PARENT_FIELD {
-            self.parent = Some(value);
+        match field.name().as_ref() {
+            super::MODEL_ID_FIELD => self.model_id = Some(value),
+            super::PARENT_FIELD => self.parent = Some(value),
+            _ => (),
         }
     }
 
     fn record_str(&mut self, field: &field::Field, value: &str) {
-        let field_name = field.name();
-        if field_name == super::EVENT_FILED {
-            self.event = Some(value.to_owned());
+        match field.name().as_ref() {
+            super::EVENT_FILED => self.event = Some(value.to_owned()),
+            _ => (),
         }
     }
 
     fn record_debug(&mut self, field: &field::Field, value: &fmt::Debug) {
-        let field_name = field.name();
-        if field_name == super::MODEL_FIELD {
-            self.model = Some(format!("{:?}", value));
+        match field.name().as_ref() {
+            super::MODEL_FIELD => self.model = Some(format!("{:?}", value)),
+            _ => (),
         }
     }
 }
@@ -77,11 +76,16 @@ impl subscriber::Subscriber for JsonLogger {
         let mut record = ModelRecord::new();
         event.record(&mut record);
         if let Some(event_type) = &record.event {
-            if event_type == super::NEW_MODEL_EVENT {
-                self.log_file.lock().unwrap()
-                    .write_all(serde_json::to_string(&record).unwrap()
-                        .to_string().as_bytes())
-                    .expect("Unable to write data");
+            match event_type.as_ref() {
+                super::CHASE_STEP | super::NEW_MODEL => {
+                    self.log_file.lock().unwrap()
+                        .write_all(serde_json::to_string_pretty(&record)
+                            .unwrap()
+                            .to_string()
+                            .as_bytes())
+                        .expect("Unable to write data");
+                }
+                _ => (),
             }
         }
     }

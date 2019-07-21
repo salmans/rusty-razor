@@ -7,7 +7,7 @@ use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
                          bounder::DomainSize,
                          Observation,
                          solve};
-use rusty_razor::trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, NEW_MODEL_EVENT};
+use rusty_razor::trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, CHASE_STEP};
 use term::{color::{WHITE, BRIGHT_RED, GREEN, BRIGHT_YELLOW, BRIGHT_BLUE}};
 use std::{io::Read, fs, path::PathBuf, process::exit};
 use failure::Error;
@@ -281,7 +281,7 @@ fn process_solve(
     let initial_model = Model::new();
     let run = || {
         info!({
-                  event = NEW_MODEL_EVENT,
+                  event = CHASE_STEP,
                   model_id = &initial_model.get_id(),
                   model = tracing::field::display(&initial_model)
               }, "initial empty model");
