@@ -296,8 +296,16 @@ impl ModelTrait for Model {
 impl fmt::Display for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
+        let elements: Vec<String> = self.domain().iter().sorted().iter().map(|e| {
+            let witnesses: Vec<String> = self.witness(e).iter().map(|w| w.to_string()).collect();
+            let witnesses = witnesses.into_iter().sorted();
+            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
+        }).collect();
         let facts: Vec<String> = self.facts().into_iter().map(|e| e.to_string()).collect();
-        write!(f, "Domain: {{{}}}\nFacts: {}\n", domain.join(", "), facts.join(", "))
+        write!(f, "Domain: {{{}}}\nElements:{}\nFacts: {}\n",
+               domain.join(", "),
+               elements.join(", "),
+               facts.join(", "))
     }
 }
 
@@ -431,7 +439,6 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
     type Model = Model;
     fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>)
                 -> Option<Vec<Either<Model, Model>>> {
-        use itertools::Itertools;
         let domain: Vec<&E> = model.domain().clone();
         let domain_size = domain.len();
         for sequent in selector {
