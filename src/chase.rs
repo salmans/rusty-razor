@@ -232,7 +232,8 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
                               parent = base_id,
                               model = tracing::field::display(&model)
                           }, "chase step applied");
-                    strategy.add(model, selector.clone());
+                    // drop the model
+                    // strategy.add(model, selector.clone());
                 }
             });
         } else {
