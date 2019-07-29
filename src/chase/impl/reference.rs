@@ -3,6 +3,7 @@ use std::{
     cell::Cell,
     fmt,
     collections::{HashMap, HashSet},
+    iter,
     iter::FromIterator,
     hash::{Hash, Hasher},
     ops::Deref,
@@ -134,6 +135,15 @@ impl Model {
         result.clone()
     }
 
+    #[inline]
+    fn new_element(&mut self, witness: WitnessTerm) -> Element {
+        let element = Element::new(E(self.element_index));
+        self.element_index = self.element_index + 1;
+        self.domain.insert(element.clone());
+        self.rewrites.insert(witness, element.clone());
+        element
+    }
+
     fn record(&mut self, witness: &WitnessTerm) -> Element {
         match witness {
             WitnessTerm::Elem { element } => {
@@ -144,11 +154,7 @@ impl Model {
                 if let Some(e) = self.rewrites.get(&witness) {
                     e.clone()
                 } else {
-                    let element = Element::new(E(self.element_index));
-                    self.element_index = self.element_index + 1;
-                    self.domain.insert(element.clone());
-                    self.rewrites.insert(witness.clone(), element.clone());
-                    element
+                    self.new_element(witness.clone())
                 }
             }
             WitnessTerm::App { function, terms } => {
@@ -157,11 +163,7 @@ impl Model {
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
-                    let element = Element::new(E(self.element_index));
-                    self.element_index = self.element_index + 1;
-                    self.domain.insert(element.clone());
-                    self.rewrites.insert(witness, element.clone());
-                    element
+                    self.new_element(witness)
                 }
             }
         }
@@ -263,7 +265,7 @@ impl Clone for Model {
                         if let WitnessTerm::Elem { element } = t {
                             WitnessTerm::Elem { element: map_element(element) }
                         } else {
-                            panic!("Something is wrong: expecting an element.")
+                            panic!("something is wrong: expecting an element")
                         }
                     }).collect();
                     WitnessTerm::App {
@@ -280,7 +282,7 @@ impl Clone for Model {
                     terms: terms.iter().map(|t| map_term(t)).collect(),
                 }
             } else {
-                panic!("Something is wrong: expecting a fact.")
+                panic!("something is wrong: expecting a fact")
             }
         };
         let rewrites: HashMap<WitnessTerm, Element> = HashMap::from_iter(self.rewrites.iter().map(|(k, v)| {
@@ -326,21 +328,25 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
         for sequent in selector {
             let sequent_vars = &sequent.free_vars;
             let sequent_size = sequent_vars.len();
-            let end = usize::pow(domain_size, sequent_size as u32);
-            for i in 0..end {
+            let mut assignment: Vec<usize> = iter::repeat(0).take(sequent_size).collect();
+
+            if domain_size == 0 && sequent_size > 0 {
+                continue;
+            }
+
+            while {
                 let mut wit_map: HashMap<&V, Element> = HashMap::new();
-                let mut j: usize = 0;
-                let mut total = i;
-                while j < sequent_size {
-                    wit_map.insert(sequent_vars.get(j).unwrap(), (*domain.get(total % domain_size).unwrap()).clone());
-                    j += 1;
-                    total /= domain_size;
+                for i in 0..sequent_size {
+                    wit_map.insert(sequent_vars.get(i).unwrap(), (*domain.get(assignment[i]).unwrap()).clone());
                 }
                 let witness_func = |v: &V| wit_map.get(v).unwrap().clone();
                 let convert = |lit: &Literal| {
                     match lit {
                         basic::Literal::Atm { predicate, terms } => {
-                            let terms = terms.into_iter().map(|t| WitnessTerm::witness(t, &witness_func)).collect();
+                            let terms = terms
+                                .into_iter()
+                                .map(|t| WitnessTerm::witness(t, &witness_func))
+                                .collect();
                             Observation::Fact { relation: Rel(predicate.0.clone()), terms }
                         }
                         basic::Literal::Eql { left, right } => {
@@ -352,43 +358,75 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 };
 
                 let body: Vec<Observation<WitnessTerm>> = sequent.body_literals.iter().map(convert).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals.iter().map(|l| l.iter().map(convert).collect()).collect();
+                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals
+                    .iter()
+                    .map(|l| l.iter().map(convert).collect())
+                    .collect();
 
                 if body.iter().all(|o| model.is_observed(o))
                     && !head.iter().any(|os| os.iter().all(|o| model.is_observed(o))) {
                     if head.is_empty() {
                         return None; // failure
                     } else {
-                        let models: Vec<Either<Model, Model>> = head.iter().filter_map(|os| {
-                            let mut model = model.clone();
-                            // this evaluator returns the models from first successful sequent
-                            if let Some(bounder) = bounder {
+                        let models: Vec<Either<Model, Model>>;
+                        // if there is a bounder, only extend models that are not out of the given bound:
+                        if let Some(bounder) = bounder {
+                            models = head.iter().filter_map(|os| {
+                                let mut model = model.clone();
                                 let mut modified = false;
                                 os.iter().foreach(|o| {
-                                    if !bounder.bound(&model, o) && !model.is_observed(o) {
-                                        model.observe(o);
-                                        modified = true;
+                                    if bounder.bound(&model, o) {
+                                        if !model.is_observed(o) {
+                                            modified = true;
+                                        }
+                                    } else {
+                                        if !model.is_observed(o) {
+                                            model.observe(o);
+                                        }
                                     }
                                 });
                                 if modified {
                                     Some(Either::Right(model))
                                 } else {
-                                    None
+                                    Some(Either::Left(model))
                                 }
-                            } else {
+                            }).collect();
+                        } else {
+                            models = head.iter().map(|os| {
+                                let mut model = model.clone();
                                 os.iter().foreach(|o| model.observe(o));
-                                Some(Either::Left(model))
-                            }
-                        }).collect();
+                                Either::Left(model)
+                            }).collect();
+                        }
+
                         if !models.is_empty() {
                             return Some(models);
                         }
                     }
                 }
-            }
+                domain_size > 0 && next_assignment(&mut assignment, domain_size - 1)
+            } {}
         }
-        return Some(Vec::new());
+        Some(Vec::new())
     }
+}
+
+// Implements a counter to enumerate all the possible assignments of a domain of elements to free
+// variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
+// position to an element of a domain to the next assignment. Returns true if a next assignment
+// exists and false otherwise.
+#[inline]
+fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
+    let len = vec.len();
+    for i in 0..len {
+        if vec[i] != last {
+            vec[i] += 1;
+            return true;
+        } else {
+            vec[i] = 0;
+        }
+    }
+    false
 }
 
 pub type Sequent = basic::Sequent;
@@ -396,7 +434,7 @@ pub type Literal = basic::Literal;
 
 #[cfg(test)]
 mod test_reference {
-    use super::{Model, Evaluator};
+    use super::{Model, Evaluator, next_assignment};
     use crate::chase::r#impl::basic::Sequent;
     use crate::formula::syntax::Theory;
     use crate::chase::{StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair}
@@ -404,6 +442,53 @@ mod test_reference {
     use crate::test_prelude::*;
     use std::collections::HashSet;
     use std::fs;
+
+    #[test]
+    fn test_next_assignment() {
+        {
+            let mut assignment = vec![];
+            assert_eq!(false, next_assignment(&mut assignment, 1));
+            assert!(assignment.is_empty());
+        }
+        {
+            let mut assignment = vec![0];
+            assert_eq!(true, next_assignment(&mut assignment, 1));
+            assert_eq!(vec![1], assignment);
+        }
+        {
+            let mut assignment = vec![1];
+            assert_eq!(false, next_assignment(&mut assignment, 1));
+            assert_eq!(vec![0], assignment);
+        }
+        {
+            let mut assignment = vec![0, 1];
+            assert_eq!(true, next_assignment(&mut assignment, 1));
+            assert_eq!(vec![1, 1], assignment);
+        }
+        {
+            let mut assignment = vec![1, 1];
+            assert_eq!(true, next_assignment(&mut assignment, 2));
+            assert_eq!(vec![2, 1], assignment);
+        }
+        {
+            let mut assignment = vec![2, 1];
+            assert_eq!(true, next_assignment(&mut assignment, 2));
+            assert_eq!(vec![0, 2], assignment);
+        }
+        {
+            let mut assignment = vec![2, 2];
+            assert_eq!(false, next_assignment(&mut assignment, 2));
+            assert_eq!(vec![0, 0], assignment);
+        }
+        {
+            let mut counter = 1;
+            let mut vec = vec![0, 0, 0, 0, 0];
+            while next_assignment(&mut vec, 4) {
+                counter += 1;
+            }
+            assert_eq!(3125, counter);
+        }
+    }
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
