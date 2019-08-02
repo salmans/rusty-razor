@@ -43,6 +43,12 @@ impl Deref for Element {
     }
 }
 
+impl fmt::Debug for Element {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.get().to_string())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
     Elem { element: Element },
@@ -365,6 +371,8 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
 
                 if body.iter().all(|o| model.is_observed(o))
                     && !head.iter().any(|os| os.iter().all(|o| model.is_observed(o))) {
+                    info!(event = crate::trace::EVALUATE, sequent = %sequent,mapping = ?wit_map);
+
                     if head.is_empty() {
                         return None; // failure
                     } else {

@@ -211,39 +211,47 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
           B: BounderTrait {
     let (base_model, mut selector) = strategy.remove().unwrap();
     let base_id = &base_model.get_id();
-    //span!(tracing::Level::TRACE, "evaluate", id = base_id);
+    let span = span!(tracing::Level::TRACE, super::trace::CHASE_STEP, id = base_id);
     let models = evaluator.evaluate(&base_model, &mut selector, bounder);
 
     if let Some(models) = models {
         if !models.is_empty() {
             models.into_iter().for_each(|m| {
+                let _enter = span.enter();
                 if let Either::Left(model) = m {
-                    info!({
-                              event = super::trace::CHASE_STEP,
-                              model_id = &model.get_id(),
-                              parent = base_id,
-                              model = tracing::field::display(&model)
-                          }, "chase step applied");
+                    info!(
+                        event = super::trace::EXTEND,
+                        model_id = &model.get_id(),
+                        parent = base_id,
+                        model = %model,
+                    );
                     strategy.add(model, selector.clone());
                 } else if let Either::Right(model) = m {
-                    info!({
-                              event = super::trace::CHASE_STEP,
-                              model_id = &model.get_id(),
-                              parent = base_id,
-                              model = tracing::field::display(&model)
-                          }, "chase step applied");
+                    info!(
+                        event = super::trace::BOUND,
+                        model_id = &model.get_id(),
+                        parent = base_id,
+                        model = %model,
+                    );
                     // drop the model
-                    // strategy.add(model, selector.clone());
                 }
             });
         } else {
-            info!({
-                      event = super::trace::NEW_MODEL,
-                      model_id = &base_id,
-                      model = tracing::field::display(&base_model)
-                  }, "model found found");
+            let _enter = span.enter();
+            info!(
+                event = super::trace::MODEL,
+                model_id = &base_id,
+                model = %base_model,
+            );
             consumer(base_model);
         }
+    } else {
+        let _enter = span.enter();
+        info!(
+            event = super::trace::FAIL,
+            model_id = &base_id,
+            model = %base_model,
+        );
     }
 }
 
