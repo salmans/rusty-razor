@@ -1,7 +1,6 @@
 use tracing::*;
 use serde_derive::{Serialize, Deserialize};
 use std::{fmt, fs::File, io::Write, sync::Mutex};
-use std::convert::TryFrom;
 
 /// Thread safe json logger that rights records of `ChaseStepRecord` into a given log file.
 pub struct JsonLogger {
@@ -116,10 +115,8 @@ struct ModelRecord {
     model: String,
 }
 
-impl TryFrom<Recorder> for ModelRecord {
-    type Error = ();
-
-    fn try_from(value: Recorder) -> Result<Self, Self::Error> {
+impl ModelRecord {
+    fn try_from(value: Recorder) -> Result<Self, ()> {
         if value.event.is_none() | value.model_id.is_none() | value.model.is_none() {
             Err(())
         } else {
@@ -141,10 +138,8 @@ struct EvaluateRecord {
     mapping: String,
 }
 
-impl TryFrom<Recorder> for EvaluateRecord {
-    type Error = ();
-
-    fn try_from(value: Recorder) -> Result<Self, Self::Error> {
+impl EvaluateRecord {
+    fn try_from(value: Recorder) -> Result<Self, ()> {
         if value.sequent.is_none() | value.mapping.is_none() {
             Err(())
         } else {
