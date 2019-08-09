@@ -78,6 +78,12 @@ impl fmt::Display for V {
     }
 }
 
+impl fmt::Debug for V {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
 /// ### Constant
 /// Constant symbols.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]

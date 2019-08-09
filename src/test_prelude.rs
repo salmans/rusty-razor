@@ -95,12 +95,6 @@ pub fn _R_() -> Rel { Rel::new("R") }
 #[allow(non_snake_case)]
 pub fn _S_() -> Rel { Rel::new("S") }
 
-impl fmt::Debug for V {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 impl fmt::Debug for C {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())

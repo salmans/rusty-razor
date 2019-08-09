@@ -75,6 +75,9 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
     }
 }
 
+/// ### Bootstrap
+/// Behaves like the selector that it wraps inside but selects the initial sequents (with empty
+/// body) only once at the beginning.
 #[derive(Clone)]
 pub struct Bootstrap<'s, S: SequentTrait, Sel: SelectorTrait<Item=&'s S>> {
     initial_sequents: Vec<&'s S>,
