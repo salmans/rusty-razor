@@ -332,90 +332,133 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
         let domain: Vec<&Element> = model.domain.iter().collect();
         let domain_size = domain.len();
         for sequent in selector {
-            let sequent_vars = &sequent.free_vars;
-            let sequent_size = sequent_vars.len();
-            let mut assignment: Vec<usize> = iter::repeat(0).take(sequent_size).collect();
-
-            if domain_size == 0 && sequent_size > 0 {
-                continue;
+            let vars = &sequent.free_vars;
+            let vars_size = vars.len();
+            if domain_size == 0 && vars_size > 0 {
+                continue; // empty models can only be extended with sequents with no free variables.
             }
 
+            // maintain a list of indices into the model elements to which variables are mapped
+            let mut assignment: Vec<usize> = iter::repeat(0).take(vars_size).collect();
+
+            // try all the variable assignments to the elements of the model
+            // (notice the do-while pattern)
             while {
-                let mut wit_map: HashMap<&V, Element> = HashMap::new();
-                for i in 0..sequent_size {
-                    wit_map.insert(sequent_vars.get(i).unwrap(), (*domain.get(assignment[i]).unwrap()).clone());
+                // construct a map from variables to elements
+                let mut assignment_map: HashMap<&V, Element> = HashMap::new();
+                for i in 0..vars_size {
+                    assignment_map.insert(vars.get(i).unwrap(), (*domain.get(assignment[i]).unwrap()).clone());
                 }
-                let witness_func = |v: &V| wit_map.get(v).unwrap().clone();
-                let convert = |lit: &Literal| {
-                    match lit {
-                        basic::Literal::Atm { predicate, terms } => {
-                            let terms = terms
-                                .into_iter()
-                                .map(|t| WitnessTerm::witness(t, &witness_func))
-                                .collect();
-                            Observation::Fact { relation: Rel(predicate.0.clone()), terms }
-                        }
-                        basic::Literal::Eql { left, right } => {
-                            let left = WitnessTerm::witness(left, &witness_func);
-                            let right = WitnessTerm::witness(right, &witness_func);
-                            Observation::Identity { left, right }
-                        }
-                    }
-                };
+                // construct a "characteristic function" for the assignment map
+                let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
 
-                let body: Vec<Observation<WitnessTerm>> = sequent.body_literals.iter().map(convert).collect();
+                // lift the variable assignments to literals, so observations can be made
+                let observe_literal = make_observe_literal(assignment_func);
+
+                // make body and head observations
+                let body: Vec<Observation<WitnessTerm>> = sequent.body_literals
+                    .iter().map(&observe_literal).collect();
                 let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals
-                    .iter()
-                    .map(|l| l.iter().map(convert).collect())
-                    .collect();
+                    .iter().map(|l| l.iter().map(&observe_literal).collect()).collect();
 
+                // if all body observations are true in the model but not all the head observations
+                // are true, extend the model:
                 if body.iter().all(|o| model.is_observed(o))
                     && !head.iter().any(|os| os.iter().all(|o| model.is_observed(o))) {
-                    info!(event = crate::trace::EVALUATE, sequent = %sequent,mapping = ?wit_map);
+                    info!(event = crate::trace::EVALUATE, sequent = %sequent,mapping = ?assignment_map);
 
                     if head.is_empty() {
-                        return None; // failure
+                        return None; // the chase fails if the head is empty (FALSE)
                     } else {
-                        let models: Vec<Either<Model, Model>>;
                         // if there is a bounder, only extend models that are not out of the given bound:
-                        if let Some(bounder) = bounder {
-                            models = head.iter().filter_map(|os| {
-                                let mut model = model.clone();
-                                let mut modified = false;
-                                os.iter().foreach(|o| {
-                                    if bounder.bound(&model, o) {
-                                        if !model.is_observed(o) {
-                                            modified = true;
-                                        }
-                                    } else {
-                                        if !model.is_observed(o) {
-                                            model.observe(o);
-                                        }
-                                    }
-                                });
-                                if modified {
-                                    Some(Either::Right(model))
-                                } else {
-                                    Some(Either::Left(model))
-                                }
-                            }).collect();
+                        let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
+                            let extend = make_bounded_extend(bounder, model);
+                            head.iter().map(extend).collect()
                         } else {
-                            models = head.iter().map(|os| {
-                                let mut model = model.clone();
-                                os.iter().foreach(|o| model.observe(o));
-                                Either::Left(model)
-                            }).collect();
-                        }
+                            let extend = make_extend(model);
+                            head.iter().map(extend).collect()
+                        };
 
                         if !models.is_empty() {
                             return Some(models);
                         }
                     }
                 }
+
+                // try the next variable assignment
                 domain_size > 0 && next_assignment(&mut assignment, domain_size - 1)
             } {}
         }
-        Some(Vec::new())
+        Some(Vec::new()) // if none of the assignments apply, the model is complete already
+    }
+}
+
+// Returns a closure that returns a cloned extension of the given model, extended by a given set of
+// observations.
+#[inline]
+fn make_extend<'m>(
+    model: &'m Model
+) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
+{
+    move |os: &'m Vec<Observation<WitnessTerm>>| {
+        let mut model = model.clone();
+        os.iter().foreach(|o| model.observe(o));
+        Either::Left(model)
+    }
+}
+
+// Returns a closure that returns a cloned extension of the given model, extended by a given set of
+// observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
+// bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
+// `Either::Left` has reached the bounds provided by `bounder`.
+#[inline]
+fn make_bounded_extend<'m, B: BounderTrait>(
+    bounder: &'m B,
+    model: &'m Model,
+) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
+{
+    move |os: &Vec<Observation<WitnessTerm>>| {
+        let mut model = model.clone();
+        let mut modified = false;
+        os.iter().foreach(|o| {
+            if bounder.bound(&model, o) {
+                if !model.is_observed(o) {
+                    modified = true;
+                }
+            } else {
+                if !model.is_observed(o) {
+                    model.observe(o);
+                }
+            }
+        });
+        if modified {
+            Either::Right(model)
+        } else {
+            Either::Left(model)
+        }
+    }
+}
+
+// Given an function from variables to elements of a model, returns a closure that lift the variable
+// assignments to literals of a sequent, returning observations.
+#[inline]
+fn make_observe_literal(assignment_func: impl Fn(&V) -> Element)
+    -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+    move |lit: &Literal| {
+        match lit {
+            basic::Literal::Atm { predicate, terms } => {
+                let terms = terms
+                    .into_iter()
+                    .map(|t| WitnessTerm::witness(t, &assignment_func))
+                    .collect();
+                Observation::Fact { relation: Rel(predicate.0.clone()), terms }
+            }
+            basic::Literal::Eql { left, right } => {
+                let left = WitnessTerm::witness(left, &assignment_func);
+                let right = WitnessTerm::witness(right, &assignment_func);
+                Observation::Identity { left, right }
+            }
+        }
     }
 }
 
