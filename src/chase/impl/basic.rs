@@ -109,11 +109,11 @@ impl Model {
     // the observation that is being observed might refer to a non-existing element.
     fn history(&self, element: &E) -> E {
         let mut result = element;
-        let mut element = Some(element);
-        while let Some(e) = element {
-            element = self.equality_history.get(e);
-            result = e;
-        }
+        let mut next;
+        while {
+            next = self.equality_history.get(result);
+            next.is_some() && next.unwrap() != result
+        } { result = next.unwrap() }
 
         result.clone()
     }
