@@ -9,11 +9,7 @@ use std::{
     ops::Deref,
 };
 use crate::formula::syntax::{FuncApp, Term, V, C, Func};
-use crate::chase::{
-    r#impl::basic, E, Rel, Observation,
-    WitnessTermTrait, ModelTrait,
-    SelectorTrait, EvaluatorTrait, BounderTrait,
-};
+use crate::chase::{r#impl::basic, E, Rel, Observation, WitnessTermTrait, ModelTrait, SelectorTrait, EvaluatorTrait, BounderTrait, ChaseStepResult};
 use itertools::{Itertools, Either};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -327,8 +323,13 @@ pub struct Evaluator {}
 impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, initial_model: &Model, selector: &mut Sel, bounder: Option<&B>) -> Option<Vec<Either<Model, Model>>> {
-        let domain: Vec<&Element> = initial_model.domain.iter().collect();
+    fn evaluate(
+        &self,
+        initial_model: &Model,
+        selector: &mut Sel,
+        bounder: Option<&B>
+    ) -> Option<ChaseStepResult<Model>> {
+        let domain: Vec<&Element> = initial_model.domain();
         let domain_size = domain.len();
         for sequent in selector {
             let vars = &sequent.free_vars;
@@ -378,8 +379,9 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                             head.iter().map(extend).collect()
                         };
 
-                        if !models.is_empty() {
-                            return Some(models);
+                        let result = ChaseStepResult::from(models);
+                        if !result.is_empty() {
+                            return Some(result);
                         }
                     }
                 }
@@ -388,7 +390,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 domain_size > 0 && next_assignment(&mut assignment, domain_size - 1)
             } {}
         }
-        Some(Vec::new()) // if none of the assignments apply, the model is complete already
+        Some(ChaseStepResult::new()) // if none of the assignments apply, the model is complete already
     }
 }
 
@@ -484,8 +486,7 @@ pub type Literal = basic::Literal;
 
 #[cfg(test)]
 mod test_reference {
-    use super::{Model, Evaluator, next_assignment};
-    use crate::chase::r#impl::basic::Sequent;
+    use super::{Model, Sequent, Evaluator, next_assignment};
     use crate::formula::syntax::Theory;
     use crate::chase::{StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair}
                        , strategy::FIFO, bounder::DomainSize, solve_all};
