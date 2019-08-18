@@ -462,14 +462,18 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
 
-                // lift the variable assignments to literals, so observations can be made
+                // lift the variable assignments to literals (used to create observations)
                 let observe_literal = make_observe_literal(assignment_func);
 
-                // make body and head observations
+                // build body and head observations
                 let body: Vec<Observation<WitnessTerm>> = sequent.body_literals
-                    .iter().map(&observe_literal).collect();
+                    .iter()
+                    .map(&observe_literal)
+                    .collect();
                 let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals
-                    .iter().map(|l| l.iter().map(&observe_literal).collect()).collect();
+                    .iter()
+                    .map(|l| l.iter().map(&observe_literal).collect())
+                    .collect();
 
                 // if all body observations are true in the model but not all the head observations
                 // are true, extend the model:
@@ -489,6 +493,8 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
 
                         let result = ChaseStepResult::from(models);
                         if !result.is_empty() {
+                            // this evaluator instantiates the first matching sequent with the first
+                            // matching assignment (unlike impl::batch.rs)
                             return Some(result);
                         }
                     }

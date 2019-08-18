@@ -40,6 +40,15 @@ fn reference_benchmark(c: &mut Criterion) {
     c.bench_function("reference", |b| b.iter(|| time_reference(theories)));
 }
 
+fn batch_benchmark(c: &mut Criterion) {
+    let theories = &fs::read_dir("theories/core").unwrap()
+        .map(|item| read_theory_from_file(item.unwrap()
+            .path().display().to_string().as_str())
+            .gnf()
+        ).collect();
+    c.bench_function("batch", |b| b.iter(|| time_batch(theories)));
+}
+
 fn time_basic(theories: &Vec<Theory>) {
     for theory in theories {
         solve_basic(&theory);
@@ -100,6 +109,26 @@ fn solve_reference(theory: &Theory) -> Vec<r#impl::reference::Model> {
     solve_all(&mut strategy, &evaluator, bounder)
 }
 
+fn time_batch(theories: &Vec<Theory>) {
+    for theory in theories {
+        solve_batch(&theory);
+    }
+}
+
+fn solve_batch(theory: &Theory) -> Vec<r#impl::reference::Model> {
+    let sequents: Vec<r#impl::reference::Sequent> = theory
+        .formulas
+        .iter()
+        .map(|f| f.into()).collect();
+
+    let evaluator = r#impl::batch::Evaluator {};
+    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> = Bootstrap::new(sequents.iter().collect());
+    let mut strategy = FIFO::new();
+    let bounder: Option<&DomainSize> = None;
+    strategy.add(r#impl::reference::Model::new(), selector);
+    solve_all(&mut strategy, &evaluator, bounder)
+}
+
 pub fn read_theory_from_file(filename: &str) -> Theory {
     let mut f = fs::File::open(filename).expect("file not found");
 
@@ -110,5 +139,5 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     parse_theory_unsafe(contents.as_str())
 }
 
-criterion_group!(benches, basic_benchmark, bootstrap_benchmark, reference_benchmark);
+criterion_group!(benches, basic_benchmark, bootstrap_benchmark, reference_benchmark, batch_benchmark);
 criterion_main!(benches);

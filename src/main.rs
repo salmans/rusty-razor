@@ -1,6 +1,6 @@
 use structopt::StructOpt;
 use rusty_razor::formula::{parser::parse_theory, syntax::Theory};
-use rusty_razor::chase::{r#impl::reference::{Sequent, Model, Evaluator},
+use rusty_razor::chase::{r#impl::batch::{Sequent, Model, Evaluator},
                          ModelTrait, SelectorTrait, StrategyTrait,
                          selector::{Fair, Bootstrap},
                          strategy::Dispatch,

@@ -194,21 +194,40 @@ impl<M: ModelTrait> ChaseStepResult<M> {
             bounded_models: Vec::new(),
         }
     }
+
     pub fn is_empty(&self) -> bool {
         self.open_models.is_empty() && self.bounded_models.is_empty()
+    }
+
+    pub fn clear_open_models(&mut self) {
+        self.open_models.clear();
+    }
+
+    pub fn clear_bounded_models(&mut self) {
+        self.bounded_models.clear();
+    }
+
+    pub fn append_open_model(&mut self, model: M) {
+        self.open_models.push(model);
+    }
+
+    pub fn append_bounded_model(&mut self, model: M) {
+        self.bounded_models.push(model);
+    }
+
+    #[inline]
+    pub fn append(&mut self, model: Either<M, M>) {
+        match model {
+            Either::Left(m) => self.append_open_model(m),
+            Either::Right(m) => self.append_bounded_model(m),
+        };
     }
 }
 
 impl <M: ModelTrait> From<Vec<Either<M, M>>> for ChaseStepResult<M> {
     fn from(models: Vec<Either<M, M>>) -> Self {
         let mut result = ChaseStepResult::new();
-        models.into_iter().for_each(|m| {
-            if m.is_left() {
-                result.open_models.push(m.left().unwrap());
-            } else {
-                result.bounded_models.push(m.right().unwrap());
-            }
-        });
+        models.into_iter().for_each(|m| result.append(m));
         result
     }
 }
