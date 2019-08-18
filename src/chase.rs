@@ -4,10 +4,10 @@ pub mod strategy;
 pub mod bounder;
 
 use crate::formula::syntax::*;
-use itertools::Either;
 use std::fmt;
 
 use tracing;
+use itertools::Either;
 
 /// ## Element
 /// Element symbols represent elements of models.
@@ -170,10 +170,66 @@ pub trait BounderTrait {
 pub trait EvaluatorTrait<'s, Sel: SelectorTrait<Item=&'s Self::Sequent>, B: BounderTrait> {
     type Sequent: 's + SequentTrait;
     type Model: ModelTrait;
-    fn evaluate(&self
-                , model: &Self::Model
-                , selector: &mut Sel
-                , bounder: Option<&B>) -> Option<Vec<Either<Self::Model, Self::Model>>>;
+    fn evaluate(
+        &self,
+        model: &Self::Model,
+        selector: &mut Sel,
+        bounder: Option<&B>,
+    ) -> Option<ChaseStepResult<Self::Model>>;
+}
+
+/// ### ChaseStepResult
+/// The result of evaluating a model in a chase step (if any) is a ChaseStepResult.
+pub struct ChaseStepResult<M: ModelTrait> {
+    /// `models` is a list of all not-bounded extensions of a model after a chase step.
+    open_models: Vec<M>,
+    /// `incomplete_models` is a list of bounded extensions of a model after a chase step.
+    bounded_models: Vec<M>,
+}
+
+impl<M: ModelTrait> ChaseStepResult<M> {
+    pub fn new() -> Self {
+        Self {
+            open_models: Vec::new(),
+            bounded_models: Vec::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.open_models.is_empty() && self.bounded_models.is_empty()
+    }
+
+    pub fn clear_open_models(&mut self) {
+        self.open_models.clear();
+    }
+
+    pub fn clear_bounded_models(&mut self) {
+        self.bounded_models.clear();
+    }
+
+    pub fn append_open_model(&mut self, model: M) {
+        self.open_models.push(model);
+    }
+
+    pub fn append_bounded_model(&mut self, model: M) {
+        self.bounded_models.push(model);
+    }
+
+    #[inline]
+    pub fn append(&mut self, model: Either<M, M>) {
+        match model {
+            Either::Left(m) => self.append_open_model(m),
+            Either::Right(m) => self.append_bounded_model(m),
+        };
+    }
+}
+
+impl <M: ModelTrait> From<Vec<Either<M, M>>> for ChaseStepResult<M> {
+    fn from(models: Vec<Either<M, M>>) -> Self {
+        let mut result = ChaseStepResult::new();
+        models.into_iter().for_each(|m| result.append(m));
+        result
+    }
 }
 
 pub trait StrategyTrait<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
@@ -216,25 +272,25 @@ pub fn solve<'s, S, M, Sel, Stg, E, B>(strategy: &mut Stg, evaluator: &E, bounde
 
     if let Some(models) = models {
         if !models.is_empty() {
-            models.into_iter().for_each(|m| {
+            models.open_models.into_iter().for_each(|m| {
                 let _enter = span.enter();
-                if let Either::Left(model) = m {
-                    info!(
+                info!(
                         event = super::trace::EXTEND,
-                        model_id = &model.get_id(),
+                        model_id = &m.get_id(),
                         parent = base_id,
-                        model = %model,
+                        model = %m,
                     );
-                    strategy.add(model, selector.clone());
-                } else if let Either::Right(model) = m {
-                    info!(
+                strategy.add(m, selector.clone());
+            });
+            models.bounded_models.into_iter().for_each(|m| {
+                let _enter = span.enter();
+                info!(
                         event = super::trace::BOUND,
-                        model_id = &model.get_id(),
+                        model_id = &m.get_id(),
                         parent = base_id,
-                        model = %model,
+                        model = %m,
                     );
-                    // drop the model
-                }
+                // drop the model
             });
         } else {
             let _enter = span.enter();

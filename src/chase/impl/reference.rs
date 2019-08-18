@@ -9,11 +9,7 @@ use std::{
     ops::Deref,
 };
 use crate::formula::syntax::{FuncApp, Term, V, C, Func};
-use crate::chase::{
-    r#impl::basic, E, Rel, Observation,
-    WitnessTermTrait, ModelTrait,
-    SelectorTrait, EvaluatorTrait, BounderTrait,
-};
+use crate::chase::{r#impl::basic, E, Rel, Observation, WitnessTermTrait, ModelTrait, SelectorTrait, EvaluatorTrait, BounderTrait, ChaseStepResult};
 use itertools::{Itertools, Either};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -57,7 +53,7 @@ pub enum WitnessTerm {
 }
 
 impl WitnessTerm {
-    fn witness(term: &Term, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
+    pub fn witness(term: &Term, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
         match term {
             Term::Const { constant } => WitnessTerm::Const { constant: constant.clone() },
             Term::Var { variable } => WitnessTerm::Elem { element: lookup(&variable) },
@@ -107,7 +103,7 @@ impl FuncApp for WitnessTerm {
 pub struct Model {
     id: u64,
     element_index: i32,
-    domain: HashSet<Element>,
+    pub domain: HashSet<Element>,
     rewrites: HashMap<WitnessTerm, Element>,
     facts: HashSet<Observation<WitnessTerm>>,
     equality_history: HashMap<Element, Element>,
@@ -131,12 +127,11 @@ impl Model {
     // the observation that is being observed might refer to a non-existing element.
     fn history(&self, element: &Element) -> Element {
         let mut result = element;
-        let mut element = Some(element);
-        while element.is_some() {
-            let e = element.unwrap();
-            result = e;
-            element = self.equality_history.get(e)
-        }
+        let mut next;
+        while {
+            next = self.equality_history.get(result);
+            next.is_some() && next.unwrap() != result
+        } { result = next.unwrap() }
 
         result.clone()
     }
@@ -301,7 +296,7 @@ impl Clone for Model {
             domain,
             rewrites,
             facts,
-            equality_history: HashMap::new(), // the history needs to be maintained only when balancing the same sequent
+            equality_history: self.equality_history.clone(),
         }
     }
 }
@@ -328,8 +323,13 @@ pub struct Evaluator {}
 impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, model: &Model, selector: &mut Sel, bounder: Option<&B>) -> Option<Vec<Either<Model, Model>>> {
-        let domain: Vec<&Element> = model.domain.iter().collect();
+    fn evaluate(
+        &self,
+        initial_model: &Model,
+        selector: &mut Sel,
+        bounder: Option<&B>
+    ) -> Option<ChaseStepResult<Model>> {
+        let domain: Vec<&Element> = initial_model.domain();
         let domain_size = domain.len();
         for sequent in selector {
             let vars = &sequent.free_vars;
@@ -352,19 +352,23 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
 
-                // lift the variable assignments to literals, so observations can be made
+                // lift the variable assignments to literals (used to make observations)
                 let observe_literal = make_observe_literal(assignment_func);
 
-                // make body and head observations
+                // build body and head observations
                 let body: Vec<Observation<WitnessTerm>> = sequent.body_literals
-                    .iter().map(&observe_literal).collect();
+                    .iter()
+                    .map(&observe_literal)
+                    .collect();
                 let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals
-                    .iter().map(|l| l.iter().map(&observe_literal).collect()).collect();
+                    .iter()
+                    .map(|l| l.iter().map(&observe_literal).collect())
+                    .collect();
 
                 // if all body observations are true in the model but not all the head observations
                 // are true, extend the model:
-                if body.iter().all(|o| model.is_observed(o))
-                    && !head.iter().any(|os| os.iter().all(|o| model.is_observed(o))) {
+                if body.iter().all(|o| initial_model.is_observed(o))
+                    && !head.iter().any(|os| os.iter().all(|o| initial_model.is_observed(o))) {
                     info!(event = crate::trace::EVALUATE, sequent = %sequent,mapping = ?assignment_map);
 
                     if head.is_empty() {
@@ -372,15 +376,18 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                     } else {
                         // if there is a bounder, only extend models that are not out of the given bound:
                         let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
-                            let extend = make_bounded_extend(bounder, model);
+                            let extend = make_bounded_extend(bounder, initial_model);
                             head.iter().map(extend).collect()
                         } else {
-                            let extend = make_extend(model);
+                            let extend = make_extend(initial_model);
                             head.iter().map(extend).collect()
                         };
 
-                        if !models.is_empty() {
-                            return Some(models);
+                        let result = ChaseStepResult::from(models);
+                        if !result.is_empty() {
+                            // this evaluator instantiates the first matching sequent with the first
+                            // matching assignment (unlike impl::batch.rs)
+                            return Some(result);
                         }
                     }
                 }
@@ -389,7 +396,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 domain_size > 0 && next_assignment(&mut assignment, domain_size - 1)
             } {}
         }
-        Some(Vec::new()) // if none of the assignments apply, the model is complete already
+        Some(ChaseStepResult::new()) // if none of the assignments apply, the model is complete already
     }
 }
 
@@ -485,8 +492,7 @@ pub type Literal = basic::Literal;
 
 #[cfg(test)]
 mod test_reference {
-    use super::{Model, Evaluator, next_assignment};
-    use crate::chase::r#impl::basic::Sequent;
+    use super::{Model, Sequent, Evaluator, next_assignment};
     use crate::formula::syntax::Theory;
     use crate::chase::{StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair}
                        , strategy::FIFO, bounder::DomainSize, solve_all};
