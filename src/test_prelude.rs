@@ -10,56 +10,56 @@ pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {
 }
 
 // Variables
-pub fn _u() -> V { V::new("u") }
+pub fn _u() -> V { V::from("u") }
 
-pub fn _v() -> V { V::new("v") }
+pub fn _v() -> V { V::from("v") }
 
-pub fn _w() -> V { V::new("w") }
+pub fn _w() -> V { V::from("w") }
 
-pub fn _x() -> V { V::new("x") }
+pub fn _x() -> V { V::from("x") }
 
-pub fn _x_1() -> V { V::new("x`") }
+pub fn _x_1() -> V { V::from("x`") }
 
-pub fn _y() -> V { V::new("y") }
+pub fn _y() -> V { V::from("y") }
 
-pub fn _z() -> V { V::new("z") }
+pub fn _z() -> V { V::from("z") }
 
-pub fn u() -> Term { V::new("u").into() }
+pub fn u() -> Term { V::from("u").into() }
 
-pub fn v() -> Term { V::new("v").into() }
+pub fn v() -> Term { V::from("v").into() }
 
-pub fn w() -> Term { V::new("w").into() }
+pub fn w() -> Term { V::from("w").into() }
 
-pub fn x() -> Term { V::new("x").into() }
+pub fn x() -> Term { V::from("x").into() }
 
-pub fn x_1() -> Term { V::new("x`").into() }
+pub fn x_1() -> Term { V::from("x`").into() }
 
-pub fn y() -> Term { V::new("y").into() }
+pub fn y() -> Term { V::from("y").into() }
 
-pub fn z() -> Term { V::new("z").into() }
+pub fn z() -> Term { V::from("z").into() }
 
 // Functions
-pub fn f() -> Func { Func::new("f") }
+pub fn f() -> F { F::from("f") }
 
-pub fn g() -> Func { Func::new("g") }
+pub fn g() -> F { F::from("g") }
 
-pub fn h() -> Func { Func::new("h") }
+pub fn h() -> F { F::from("h") }
 
 // Constants
-pub fn _a() -> C { C::new("a") }
+pub fn _a() -> C { C::from("a") }
 
-pub fn _b() -> C { C::new("b") }
+pub fn _b() -> C { C::from("b") }
 
-pub fn _c() -> C { C::new("c") }
+pub fn _c() -> C { C::from("c") }
 
-pub fn _d() -> C { C::new("d") }
+pub fn _d() -> C { C::from("d") }
 
-pub fn a() -> Term { C::new("a").into() }
+pub fn a() -> Term { C::from("a").into() }
 
-pub fn b() -> Term { C::new("b").into() }
+pub fn b() -> Term { C::from("b").into() }
 
 #[allow(dead_code)]
-pub fn c() -> Term { C::new("c").into() }
+pub fn c() -> Term { C::from("c").into() }
 
 // Elements
 pub fn e_0() -> E { E::new(0) }
@@ -74,13 +74,13 @@ pub fn e_4() -> E { E::new(4) }
 
 // Predicates
 #[allow(non_snake_case)]
-pub fn P() -> Pred { Pred::new("P") }
+pub fn P() -> Pred { Pred::from("P") }
 
 #[allow(non_snake_case)]
-pub fn Q() -> Pred { Pred::new("Q") }
+pub fn Q() -> Pred { Pred::from("Q") }
 
 #[allow(non_snake_case)]
-pub fn R() -> Pred { Pred::new("R") }
+pub fn R() -> Pred { Pred::from("R") }
 
 // Relations
 #[allow(non_snake_case)]
@@ -95,169 +95,7 @@ pub fn _R_() -> Rel { Rel::new("R") }
 #[allow(non_snake_case)]
 pub fn _S_() -> Rel { Rel::new("S") }
 
-impl fmt::Debug for C {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl fmt::Debug for Func {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 impl fmt::Debug for E {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl fmt::Debug for Formula {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            Formula::Top => write!(f, "{}", "TRUE"),
-            Formula::Bottom => write!(f, "{}", "FALSE"),
-            Formula::Atom { predicate, terms } => {
-                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}({})", predicate.to_string(), ts.join(", "))
-            }
-            Formula::Equals { left, right } => write!(f, "{} = {}", left, right),
-            Formula::Not { formula } => {
-                match **formula {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => write!(f, "~{}", formula),
-                    _ => write!(f, "~({:?})", formula)
-                }
-            }
-            Formula::And { left, right } => {
-                match **left {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "{:?} & {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "{:?} & ({:?})", left, right)
-                            }
-                        }
-                    }
-                    _ => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "({:?}) & {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "({:?}) & ({:?})", left, right)
-                            }
-                        }
-                    }
-                }
-            }
-            Formula::Or { left, right } => {
-                match **left {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "{:?} | {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "{:?} | ({:?})", left, right)
-                            }
-                        }
-                    }
-                    _ => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "({:?}) | {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "({:?}) | ({:?})", left, right)
-                            }
-                        }
-                    }
-                }
-            }
-            Formula::Implies { left, right } => {
-                match **left {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "{:?} -> {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "{:?} -> ({:?})", left, right)
-                            }
-                        }
-                    }
-                    _ => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "({:?}) -> {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "({:?}) -> ({:?})", left, right)
-                            }
-                        }
-                    }
-                }
-            }
-            Formula::Iff { left, right } => {
-                match **left {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "{:?} <=> {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "{:?} <=> ({:?})", left, right)
-                            }
-                        }
-                    }
-                    _ => {
-                        match **right {
-                            Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                                write!(f, "({:?}) <=> {:?}", left, right)
-                            }
-                            _ => {
-                                write!(f, "({:?}) <=> ({:?})", left, right)
-                            }
-                        }
-                    }
-                }
-            }
-            Formula::Exists { variables, formula } => {
-                let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
-                match **formula {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                        write!(f, "? {}. {:?}", vs.join(", "), formula)
-                    }
-                    _ => {
-                        write!(f, "? {}. ({:?})", vs.join(", "), formula)
-                    }
-                }
-            }
-            Formula::Forall { variables, formula } => {
-                let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
-                match **formula {
-                    Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
-                        write!(f, "! {}. {:?}", vs.join(", "), formula)
-                    }
-                    _ => {
-                        write!(f, "! {}. ({:?})", vs.join(", "), formula)
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl fmt::Debug for Term {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -323,7 +161,7 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
 pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     let geometric_theory = theory.gnf();
     let sequents: Vec<basic::Sequent> = geometric_theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
 
@@ -338,7 +176,7 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
 pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
     let geometric_theory = theory.gnf();
     let sequents: Vec<basic::Sequent> = geometric_theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
 

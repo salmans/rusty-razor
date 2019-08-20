@@ -135,7 +135,7 @@ mod test_fair {
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
-            .formulas
+            .formulae
             .iter()
             .map(|f| f.into()).collect();
 
@@ -173,7 +173,7 @@ mod test_bootstrap {
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
-            .formulas
+            .formulae
             .iter()
             .map(|f| f.into()).collect();
 

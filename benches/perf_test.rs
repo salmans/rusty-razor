@@ -57,7 +57,7 @@ fn time_basic(theories: &Vec<Theory>) {
 
 fn solve_basic(theory: &Theory) -> Vec<r#impl::basic::Model> {
     let sequents: Vec<r#impl::basic::Sequent> = theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
 
@@ -77,7 +77,7 @@ fn time_bootstrap(theories: &Vec<Theory>) {
 
 fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
     let sequents: Vec<r#impl::basic::Sequent> = theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
 
@@ -97,7 +97,7 @@ fn time_reference(theories: &Vec<Theory>) {
 
 fn solve_reference(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let sequents: Vec<r#impl::reference::Sequent> = theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
 
@@ -117,7 +117,7 @@ fn time_batch(theories: &Vec<Theory>) {
 
 fn solve_batch(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let sequents: Vec<r#impl::reference::Sequent> = theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
 

@@ -1,3 +1,5 @@
+/*! Implements functions for parsing first-order formulae and theories in Razor's syntax. */
+
 use super::syntax::{*, Formula::*};
 use nom::{*, types::CompleteStr};
 use nom_locate::LocatedSpan;
@@ -55,23 +57,23 @@ const ERR_TERM: u32 = 32;
 const ERR_EQUALS: u32 = 41;
 const ERR_FORMULA: u32 = 42;
 
-fn error_code_to_string(code: &u32) -> &'static str {
+fn error_code_to_string(code: u32) -> &'static str {
     match code {
-        &ERR_DOT => ".",
-        &ERR_SEMI_COLON => ";",
-        &ERR_L_PAREN => "(",
-        &ERR_R_PAREN => ")",
-        &ERR_LOWER => "lowercase identifier",
-        &ERR_VARS => "variables",
-        &ERR_TERM => "term",
-        &ERR_EQUALS => "=",
-        &ERR_FORMULA => "formula",
+        ERR_DOT => ".",
+        ERR_SEMI_COLON => ";",
+        ERR_L_PAREN => "(",
+        ERR_R_PAREN => ")",
+        ERR_LOWER => "lowercase identifier",
+        ERR_VARS => "variables",
+        ERR_TERM => "term",
+        ERR_EQUALS => "=",
+        ERR_FORMULA => "formula",
         _ => "unknown",
     }
 }
 
-#[derive(Fail)]
-pub enum ParserError {
+#[derive(Debug, Fail)]
+enum ParserError {
     Missing {
         line: u32,
         column: u32,
@@ -94,10 +96,10 @@ impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             ParserError::Missing { line, column, code } => {
-                write!(f, "missing '{}' at line {}, column {}", error_code_to_string(code), line, column)
+                write!(f, "missing '{}' at line {}, column {}", error_code_to_string(*code), line, column)
             }
             ParserError::Expecting { line, column, code, found } => {
-                write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(code), line, column)
+                write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(*code), line, column)
                     .and_then(|result| {
                         if let Some(found) = found {
                             write!(f, "; found \"{}\"", found)
@@ -113,12 +115,6 @@ impl fmt::Display for ParserError {
                 write!(f, "an error occurred while parsing the input")
             }
         }
-    }
-}
-
-impl fmt::Debug for ParserError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        fmt::Display::fmt(self, f)
     }
 }
 
@@ -150,7 +146,7 @@ named!(p_upper_ident<Span, String>,
 
 named!(p_var<Span, V>,
     map!(p_lower_ident,
-        |v| V::new(&v)
+        |v| V::from(&v)
     )
 );
 
@@ -169,17 +165,17 @@ named!(p_const<Span, C>,
             tag!(APOSTROPHE),
             return_error!(ErrorKind::Custom(ERR_LOWER), p_lower_ident)
         ),
-        |c| C::new(&c)
+        |c| C::from(&c)
     )
 );
 
-named!(p_func<Span, Func>,
+named!(p_func<Span, F>,
     map!(p_lower_ident,
-        |f| Func::new(&f)
+        |f| F::from(&f)
     )
 );
 
-named!(p_nonempty_terms<Span, Terms>,
+named!(p_nonempty_terms<Span, Vec<Term>>,
     terminated!(separated_nonempty_list!(
             tag!(COMMA),
             return_error!(ErrorKind::Custom(ERR_TERM), p_term)
@@ -188,7 +184,7 @@ named!(p_nonempty_terms<Span, Terms>,
     )
 );
 
-named!(p_term_args<Span, Terms>,
+named!(p_term_args<Span, Vec<Term>>,
     alt!(value!(vec![], delimited!(tag!(L_PAREN), opt!(space),tag!(R_PAREN)))
         | delimited!(
             tag!(L_PAREN),
@@ -209,7 +205,7 @@ named!(p_term<Span, Term>,
             |c| c.into()
         ) | map!( // complex term
             pair!(ws!(p_func), ws!(p_term_args)),
-            |(f, ts): (Func, Terms)| f.app(ts)
+            |(f, ts): (F, Vec<Term>)| f.app(ts)
         )
     )
 );
@@ -224,7 +220,7 @@ named!(p_equals<Span, Formula>,
 
 named!(p_pred<Span, Pred>,
     map!(p_upper_ident,
-        |f| Pred::new(&f)
+        |f| Pred::from(&f)
     )
 );
 
@@ -234,7 +230,7 @@ named!(p_atom<Span, Formula>,
         | add_return_error!(ErrorKind::Custom(ERR_EQUALS), p_equals)
         // complex term:
         | map!(pair!(p_pred, ws!(p_term_args)),
-            |(p, ts): (Pred, Terms)| p.app(ts)
+            |(p, ts): (Pred, Vec<Term>)| p.app(ts)
         ) |
         delimited!(ws!(tag!(L_PAREN)),
             return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula),
@@ -321,6 +317,7 @@ named!(p_formula<Span, Formula>,
 named!(p_spaces<Span, Span>, eat_separator!(&b" \t"[..]));
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! sp (
     ($i: expr, $($args:tt)*) => (
         {
@@ -371,23 +368,13 @@ named!(pub theory<Span, Theory>,
                 value!((), eof!())
             )
         ),
-        |(fs, _)| Theory::new(fs.into_iter().filter(|f| f.is_some()).map(|f| f.unwrap()).collect())
-    )
+        |(fs, _)| {
+            let formulae: Vec<Formula> = fs.into_iter()
+                .filter_map(|f| f)
+                .collect();
+            Theory::from(formulae)
+        })
 );
-
-pub fn parse_formula(string: &str) -> Formula {
-    p_formula(Span::new(CompleteStr(string))).ok().unwrap().1
-}
-
-pub fn parse_theory_unsafe(string: &str) -> Theory {
-    theory(Span::new(CompleteStr(string))).ok().unwrap().1
-}
-
-pub fn parse_theory(string: &str) -> Result<Theory, Error> {
-    theory(Span::new(CompleteStr(string)))
-        .map(|r| r.1)
-        .map_err(|e| make_parser_error(&e).into())
-}
 
 fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
     match error {
@@ -409,6 +396,29 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
         }
         _ => ParserError::Unknown,
     }
+}
+
+/// Parses a [`Formula`] from the input string. It panics if there is a parsing error.
+///
+/// [`Formula`]: ../syntax/enum.Formula.html
+pub fn parse_formula_unsafe(string: &str) -> Formula {
+    p_formula(Span::new(CompleteStr(string))).ok().unwrap().1
+}
+
+/// Parses a [`Theory`] from the input string. It panics if there is a parsing error.
+///
+/// [`Theory`]: ../syntax/struct.Theory.html
+pub fn parse_theory_unsafe(string: &str) -> Theory {
+    theory(Span::new(CompleteStr(string))).ok().unwrap().1
+}
+
+/// Parses a [`Theory`] from the input string.
+///
+/// [`Theory`]: ../syntax/struct.Theory.html
+pub fn parse_theory(string: &str) -> Result<Theory, Error> {
+    theory(Span::new(CompleteStr(string)))
+        .map(|r| r.1)
+        .map_err(|e| make_parser_error(&e).into())
 }
 
 #[cfg(test)]

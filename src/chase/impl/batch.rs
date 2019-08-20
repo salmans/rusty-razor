@@ -96,7 +96,6 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
 
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
-#[inline]
 fn make_extend<'m>(
     model: &'m Model
 ) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
@@ -112,7 +111,6 @@ fn make_extend<'m>(
 // observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
 // bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
 // `Either::Left` has reached the bounds provided by `bounder`.
-#[inline]
 fn make_bounded_extend<'m, B: BounderTrait>(
     bounder: &'m B,
     model: &'m Model,
@@ -142,7 +140,6 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
-#[inline]
 fn make_observe_literal(assignment_func: impl Fn(&V) -> Element)
                         -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| {
@@ -167,7 +164,6 @@ fn make_observe_literal(assignment_func: impl Fn(&V) -> Element)
 // variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
-#[inline]
 fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
     let len = vec.len();
     for i in 0..len {
@@ -249,7 +245,7 @@ mod test_batch {
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
-            .formulas
+            .formulae
             .iter()
             .map(|f| f.into()).collect();
 

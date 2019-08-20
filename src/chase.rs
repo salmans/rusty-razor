@@ -34,7 +34,7 @@ impl fmt::Display for E {
 /// ## Witness Term
 /// Witness terms are variable free terms that provide provenance information to justify elements
 /// of models.
-pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FuncApp {
+pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FApp {
     /// The internal representation of an element when implementing a WitnessTerm.
     type ElementType;
 
@@ -215,7 +215,6 @@ impl<M: ModelTrait> ChaseStepResult<M> {
         self.bounded_models.push(model);
     }
 
-    #[inline]
     pub fn append(&mut self, model: Either<M, M>) {
         match model {
             Either::Left(m) => self.append_open_model(m),
