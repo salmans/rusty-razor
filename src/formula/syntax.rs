@@ -1,74 +1,102 @@
+/*! Defines an abstract syntax tree (AST) for first-order terms and formulae with equality. */
 use itertools::Itertools;
 
 use std::fmt;
 
-/// ### Function
-/// Function symbols.
+/// Represents an uninterpreted function symbol with a given name.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Func(String);
+pub struct F(String);
 
-impl Func {
-    pub fn new(name: &str) -> Func {
-        Func(name.to_owned())
-    }
-
-    /// Applies the function on a list of terms.
-    pub fn app<T: FuncApp>(self, terms: Vec<T>) -> T {
+impl F {
+    /// Applies the receiver on a list of terms. The length of `terms` must be equal to
+    /// the (assumed) arity of the function.
+    ///
+    /// **Note**: the definition of [`F`] does not impose any restrictions on the
+    /// arity of function symbols. The user is expected to assume the arity of the function.
+    ///
+    /// [`F`]: ./struct.F.html
+    pub fn app<T: FApp>(self, terms: Vec<T>) -> T {
         T::apply(self, terms)
     }
 
     /// Applies the (nullary) function.
-    pub fn app0<T: FuncApp>(self) -> T {
+    pub fn app0<T: FApp>(self) -> T {
         T::apply(self, vec![])
     }
 
-    /// Applies the (unary) function on a term.
-    pub fn app1<T: FuncApp>(self, first: T) -> T {
+    /// Applies the (unary) receiver on a term.
+    pub fn app1<T: FApp>(self, first: T) -> T {
         T::apply(self, vec![first])
     }
 
-    /// Applies the (binary) function on two terms.
-    pub fn app2<T: FuncApp>(self, first: T, second: T) -> T {
+    /// Applies the (binary) receiver on two terms.
+    pub fn app2<T: FApp>(self, first: T, second: T) -> T {
         T::apply(self, vec![first, second])
     }
 
-    /// Applies the (ternary) function on three terms.
-    pub fn app3<T: FuncApp>(self, first: T, second: T, third: T) -> T {
+    /// Applies the (ternary) receiver on three terms.
+    pub fn app3<T: FApp>(self, first: T, second: T, third: T) -> T {
         T::apply(self, vec![first, second, third])
     }
 
-    /// Applies the (4-ary) function on four terms.
-    pub fn app4<T: FuncApp>(self, first: T, second: T, third: T, fourth: T) -> T {
+    /// Applies the (4-ary) receiver on four terms.
+    pub fn app4<T: FApp>(self, first: T, second: T, third: T, fourth: T) -> T {
         T::apply(self, vec![first, second, third, fourth])
     }
 
-    /// Applies the (5-ary) function on five terms.
-    pub fn app5<T: FuncApp>(self, first: T, second: T, third: T, fourth: T, fifth: T) -> T {
+    /// Applies the (5-ary) receiver on five terms.
+    pub fn app5<T: FApp>(self, first: T, second: T, third: T, fourth: T, fifth: T) -> T {
         T::apply(self, vec![first, second, third, fourth, fifth])
     }
 }
 
-impl fmt::Display for Func {
+impl From<&str> for F {
+    fn from(name: &str) -> Self {
+        Self(name.to_owned())
+    }
+}
+
+// Deref coercion doesn't seem to be working for &String
+impl From<&String> for F {
+    fn from(name: &String) -> Self {
+        Self(name.to_owned())
+    }
+}
+
+impl fmt::Display for F {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self.0)
     }
 }
 
-/// #### FuncApp
-/// `Func` may be applied on types that behave as terms to construct more complex types. Implement
-/// `FuncApp<T>` for a type `T` if `Func` can be applied on terms of type `T`.
-pub trait FuncApp: Sized {
-    fn apply(function: Func, terms: Vec<Self>) -> Self;
+impl fmt::Debug for F {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
 }
 
-/// ### Variable
-/// Variable symbols.
+/// Is the trait for types that can be passed to a function of type [`F`] as arguments.
+///
+/// [`F`]: ./struct.F.html
+// TODO: at a syntactic level, Term implements FApp but at a semantic level WitnessTerm does
+pub trait FApp: Sized {
+    /// builds a complex term by applying `f` the `terms` as arguments.
+    fn apply(function: F, terms: Vec<Self>) -> Self;
+}
+
+/// Represents a variable symbol with a given name.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct V(pub String);
 
-impl V {
-    pub fn new(name: &str) -> V {
-        V(name.to_owned())
+impl From<&str> for V {
+    fn from(name: &str) -> Self {
+        Self(name.to_owned())
+    }
+}
+
+impl From<&String> for V {
+    fn from(name: &String) -> Self {
+        Self(name.to_owned())
     }
 }
 
@@ -84,14 +112,22 @@ impl fmt::Debug for V {
     }
 }
 
-/// ### Constant
-/// Constant symbols.
+/// Represents a constant symbol with a given name.
+///
+/// **Note**: Although it is possible to treat nullary functions as constants, we distinguish
+/// the two at a syntactic level.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct C(String);
 
-impl C {
-    pub fn new(name: &str) -> C {
-        C(name.to_owned())
+impl From<&str> for C {
+    fn from(name: &str) -> Self {
+        Self(name.to_owned())
+    }
+}
+
+impl From<&String> for C {
+    fn from(name: &String) -> Self {
+        Self(name.to_owned())
     }
 }
 
@@ -101,56 +137,69 @@ impl fmt::Display for C {
     }
 }
 
-/// ### Predicate
-/// Predicate symbols.
+impl fmt::Debug for C {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+/// Represents a predicate symbol with a given name.
+/// TODO: Rel is the semantic counterpart of Pred
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Pred(pub String);
 
 impl Pred {
-    pub fn new(name: &str) -> Pred {
-        Pred(name.to_owned())
-    }
-
-    #[inline]
-    /// Applies the predicate on a list of terms.
-    pub fn app(self, terms: Terms) -> Formula {
+    /// Applies the receiver on a list of terms. The length of `terms` must be equal to
+    /// the (assumed) arity of the predicate.
+    ///
+    /// **Note**: the definition of [`Pred`] does not impose any restrictions
+    /// on the arity of predicate symbols. The user is expected to assume the arity of the predicate.
+    ///
+    /// [`Pred`]: ./struct.Pred.html
+    pub fn app(self, terms: Vec<Term>) -> Formula {
         Formula::Atom { predicate: self, terms }
     }
 
-    #[inline]
-    /// Applies the (nullary) predicate.
+    /// Applies the (nullary) receiver.
     pub fn app0(self) -> Formula {
         Formula::Atom { predicate: self, terms: vec![] }
     }
 
-    #[inline]
-    /// Applies the (unary) predicate on a term.
+    /// Applies the (unary) receiver on a term.
     pub fn app1(self, first: Term) -> Formula {
         Formula::Atom { predicate: self, terms: vec![first] }
     }
 
-    #[inline]
-    /// Applies the (binary) predicate on two terms.
+    /// Applies the (binary) receiver on two terms.
     pub fn app2(self, first: Term, second: Term) -> Formula {
         Formula::Atom { predicate: self, terms: vec![first, second] }
     }
 
-    #[inline]
-    /// Applies the (ternary) predicate on three terms.
+    /// Applies the (ternary) receiver on three terms.
     pub fn app3(self, first: Term, second: Term, third: Term) -> Formula {
         Formula::Atom { predicate: self, terms: vec![first, second, third] }
     }
 
-    #[inline]
-    /// Applies the (4-ary) predicate on four terms.
+    /// Applies the (4-ary) receiver on four terms.
     pub fn app4(self, first: Term, second: Term, third: Term, fourth: Term) -> Formula {
         Formula::Atom { predicate: self, terms: vec![first, second, third, fourth] }
     }
 
-    #[inline]
-    /// Applies the (5-ary) predicate on five terms.
+    /// Applies the (5-ary) receiver on five terms.
     pub fn app5(self, first: Term, second: Term, third: Term, fourth: Term, fifth: Term) -> Formula {
         Formula::Atom { predicate: self, terms: vec![first, second, third, fourth, fifth] }
+    }
+}
+
+impl From<&str> for Pred {
+    fn from(name: &str) -> Self {
+        Self(name.to_owned())
+    }
+}
+
+impl From<&String> for Pred {
+    fn from(name: &String) -> Self {
+        Self(name.to_owned())
     }
 }
 
@@ -160,27 +209,64 @@ impl fmt::Display for Pred {
     }
 }
 
-/// ## Term
+impl fmt::Debug for Pred {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+/// Represents a first-order term and consists of variables, constants and function applications.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Term {
-    /// ### Variable
-    /// Variable term; e.g., `x`.
+    /// Is a variable term and is used to wrap a [variable symbol].
+    ///
+    /// [variable symbol]: ./struct.V.html
     Var { variable: V },
 
-    /// ### Constant
-    /// Constant term; e.g., `'c`.
-    /// > **Note:** Although constants are technically zero arity functions, we distinguish constants and functions syntactically.
+    /// Is a constant term and is used to wrap a [constant symbol].
+    ///
+    /// [constant symbol]: ./struct.C.html
     Const { constant: C },
 
-    /// ### Function Application
-    /// Complex term, made by applying a function to a list of terms; e.g., `f(x, y)`
-    App { function: Func, terms: Vec<Term> },
+    /// Is a complex term, made by applying a function on a list of terms.
+    App { function: F, terms: Vec<Term> },
 }
 
 impl Term {
-    /// Returns a list of free variables in the term.
-    /// * For efficiency reasons, `free_vars` returns references to the free variables in the term but it
-    /// is supposed to eliminate duplicate variables.
+    /// Returns a list of all free variable symbols in the term.
+    ///
+    /// **Note**: Each variable symbol appears only once in the list of free variables even if it
+    /// is present at multiple positions of the term.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use rusty_razor::formula::syntax::{V, C, F, Term};
+    /// # use itertools::Itertools;
+    ///
+    /// // `x_sym` and `y_sym` are variable symbols:
+    /// let x_sym = V::from("x");
+    /// let y_sym = V::from("y");
+    ///
+    /// // `c_sym` is a constant symbol:
+    /// let c_sym = C::from("c");
+    ///
+    /// // `x` and `y` are variable terms:
+    /// let x = Term::from(x_sym.clone());
+    /// let y = Term::from(y_sym.clone());
+    ///
+    /// // `c` is a constant term:
+    /// let c = Term::from(c_sym.clone());
+    ///
+    /// // `f` and `g` are function
+    /// let f = F::from("f");
+    /// let g = F::from("g");
+    ///
+    /// // f(x, g(y, c, x)):
+    /// let t = f.app2(x.clone(), g.app3(y, c, x.clone()));
+    ///
+    /// // comparing the two (unordered) lists:
+    /// assert_eq!(vec![&x_sym, &y_sym].iter().sorted(), t.free_vars().iter().sorted())
+    /// ```
     pub fn free_vars(&self) -> Vec<&V> {
         match self {
             Term::Var { variable } => vec![variable],
@@ -191,35 +277,37 @@ impl Term {
         }
     }
 
-    #[inline]
-    pub fn var(variable: V) -> Self {
-        Term::Var { variable }
-    }
-
-    #[inline]
-    pub fn r#const(constant: C) -> Self {
-        Term::Const { constant }
-    }
-
-    pub fn equals(self, rhs: Term) -> Formula {
-        Formula::Equals { left: self, right: rhs }
+    /// Returns an equation (formula) between the receiver and `term`.
+    pub fn equals(self, term: Term) -> Formula {
+        Formula::Equals { left: self, right: term }
     }
 }
 
-impl FuncApp for Term {
-    fn apply(function: Func, terms: Terms) -> Term {
-        Term::App { function, terms }
+impl From<V> for Term {
+    fn from(variable: V) -> Self {
+        Self::Var { variable }
     }
 }
 
-pub type Terms = Vec<Term>;
+impl From<C> for Term {
+    fn from(constant: C) -> Self {
+        Self::Const { constant }
+    }
+}
+
+// term is an FApp type.
+impl FApp for Term {
+    fn apply(function: F, terms: Vec<Term>) -> Self {
+        Self::App { function, terms }
+    }
+}
 
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            Term::Var { variable } => write!(f, "{}", variable),
-            Term::Const { constant } => write!(f, "{}", constant),
-            Term::App { function, terms } => {
+            Self::Var { variable } => write!(f, "{}", variable),
+            Self::Const { constant } => write!(f, "{}", constant),
+            Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", function, ts.join(", "))
             }
@@ -227,214 +315,214 @@ impl fmt::Display for Term {
     }
 }
 
-impl From<V> for Term {
-    fn from(variable: V) -> Self {
-        Term::var(variable)
+impl fmt::Debug for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 
-impl From<C> for Term {
-    fn from(constant: C) -> Self {
-        Term::r#const(constant)
-    }
-}
-
-/// ## Formula
-/// A first order formula.
+/// Is an abstract syntax tree (AST) for representing first-order formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Formula {
-    /// ### Top
-    /// Top (⊤) or Turth
+    /// Is logical Top (⊤) or Truth
     Top,
 
-    /// ### Bottom
-    /// Bottom (⟘) or Falsehood
+    /// Is logical Bottom (⟘) or Falsehood
     Bottom,
 
-    /// ### Atomic Formula
-    /// Atomic formula, made by applying a predicate on a list of terms; e.g., `P(x, f(y), 'c)`.
+    /// Is an atomic formula, made by applying `predicate` on a `terms`.
     Atom { predicate: Pred, terms: Vec<Term> },
 
-    /// ### Equality
-    /// Equality among two terms is a special kind of atomic formula; e.g., `f(x) = 'c`.
+    /// Represents an equation among two terms.
+    ///
+    /// **Note**: Equation is treated as a special type of atomic formula.
     Equals { left: Term, right: Term },
 
-    /// ### Negation
-    /// Not `formula`; e.g., ¬R(x).
+    /// Constructs the negation of the `formula` that it holds.
     Not { formula: Box<Formula> },
 
-    /// ### Conjunction
-    /// `left` and `right`; e.g., R(x) ∧ Q(y).
+    /// Makes a conjunction of the `left` and `right` formulae that it holds.
     And { left: Box<Formula>, right: Box<Formula> },
 
-    /// ### Disjunction
-    /// `left` or `right`; e.g., R(x) ∨ Q(y).
+    /// Makes a disjunction of `left` and `right` formulae that it holds.
     Or { left: Box<Formula>, right: Box<Formula> },
 
-    /// ### Implication
-    /// `left` implies `right`; e.g., P(x) → Q(x).
+    /// Makes an implication between `left` and `right` formulae that it holds.
     Implies { left: Box<Formula>, right: Box<Formula> },
 
-    /// ### Bi-Implication
-    /// `left` if and only if `right`; e.g., P(x) ⇔ Q(x).
+    /// Makes a bi-implication between `left` and `right` formulae that it holds.
     Iff { left: Box<Formula>, right: Box<Formula> },
 
-    /// ### Existential Formula
-    /// Exists `variables` such that `formula` is true; e.g., ∃ x.P(x).
+    /// Makes an existentially quantified formula with the bound `variables` and the `formula` that
+    /// it holds.
     Exists { variables: Vec<V>, formula: Box<Formula> },
 
-    /// ### Universal Formula
-    /// For all `variables`, `formula` is true; e.g., ∀ x.P(x).
+    /// Makes a universally quantified formula with the bound `variables` and the `formula` that
+    /// it holds.
     Forall { variables: Vec<V>, formula: Box<Formula> },
 }
 
-#[inline]
 /// Returns the negation of `formula`.
 pub fn not(formula: Formula) -> Formula {
     Formula::Not { formula: Box::new(formula) }
 }
 
-#[inline]
 /// Returns an existentially quantified formula with the given `variables` and `formula`.
 pub fn exists(variables: Vec<V>, formula: Formula) -> Formula {
     Formula::Exists { variables, formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns an existentially quantified formula with a variable.
+/// Returns an existentially quantified formula on one variable.
 pub fn exists1(first: V, formula: Formula) -> Formula {
     Formula::Exists { variables: vec![first], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns an existentially quantified formula with two variables.
+/// Returns an existentially quantified formula on two variables.
 pub fn exists2(first: V, second: V, formula: Formula) -> Formula {
     Formula::Exists { variables: vec![first, second], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns an existentially quantified formula with three variables.
+/// Returns an existentially quantified formula on three variables.
 pub fn exists3(first: V, second: V, third: V, formula: Formula) -> Formula {
     Formula::Exists { variables: vec![first, second, third], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns an existentially quantified formula with four variables.
+/// Returns an existentially quantified formula on four variables.
 pub fn exists4(first: V, second: V, third: V, fourth: V, formula: Formula) -> Formula {
     Formula::Exists { variables: vec![first, second, third, fourth], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns an existentially quantified formula with four variables.
+/// Returns an existentially quantified formula on five variables.
 pub fn exists5(first: V, second: V, third: V, fourth: V, fifth: V, formula: Formula) -> Formula {
     Formula::Exists { variables: vec![first, second, third, fourth, fifth], formula: Box::new(formula) }
 }
 
-#[inline]
 /// Returns a universally quantified formula with the given `variables` and `formula`.
 pub fn forall(variables: Vec<V>, formula: Formula) -> Formula {
     Formula::Forall { variables, formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns a universally quantified formula with a variable.
+/// Returns a universally quantified formula on one variable.
 pub fn forall1(first: V, formula: Formula) -> Formula {
     Formula::Forall { variables: vec![first], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns a universally quantified formula with two variables.
+/// Returns a universally quantified formula on two variables.
 pub fn forall2(first: V, second: V, formula: Formula) -> Formula {
     Formula::Forall { variables: vec![first, second], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns a universally quantified formula with three variables.
+/// Returns a universally quantified formula on three variables.
 pub fn forall3(first: V, second: V, third: V, formula: Formula) -> Formula {
     Formula::Forall { variables: vec![first, second, third], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns a universally quantified formula with four variables.
+/// Returns a universally quantified formula on four variables.
 pub fn forall4(first: V, second: V, third: V, fourth: V, formula: Formula) -> Formula {
     Formula::Forall { variables: vec![first, second, third, fourth], formula: Box::new(formula) }
 }
 
-#[inline]
-/// Returns a universally quantified formula with four variables.
+/// Returns a universally quantified formula on five variables.
 pub fn forall5(first: V, second: V, third: V, fourth: V, fifth: V, formula: Formula) -> Formula {
     Formula::Forall { variables: vec![first, second, third, fourth, fifth], formula: Box::new(formula) }
 }
 
 impl Formula {
-    #[inline]
-    /// Returns the result of the conjunction between this formula and `formula`.
-    pub fn and(self, formula: Formula) -> Formula {
-        Formula::And { left: Box::new(self), right: Box::new(formula) }
+    /// Returns a conjunction of the receiver and `formula`.
+    pub fn and(self, formula: Self) -> Self {
+        Self::And { left: Box::new(self), right: Box::new(formula) }
     }
 
-    #[inline]
-    /// Returns the result of the disjunction between this formula and `formula`.
-    pub fn or(self, formula: Formula) -> Formula {
-        Formula::Or { left: Box::new(self), right: Box::new(formula) }
+    /// Returns a disjunction of the receiver and `formula`.
+    pub fn or(self, formula: Self) -> Self {
+        Self::Or { left: Box::new(self), right: Box::new(formula) }
     }
 
-    #[inline]
-    /// Returns the result of the implication between this formula and `formula`.
-    pub fn implies(self, formula: Formula) -> Formula {
-        Formula::Implies { left: Box::new(self), right: Box::new(formula) }
+    /// Returns an implication between the receiver and `formula`.
+    pub fn implies(self, formula: Self) -> Self {
+        Self::Implies { left: Box::new(self), right: Box::new(formula) }
     }
 
-    #[inline]
-    /// Returns the result of the bi-implication between this formula and `formula`.
-    pub fn iff(self, formula: Formula) -> Formula {
-        Formula::Iff { left: Box::new(self), right: Box::new(formula) }
+    /// Returns a bi-implication between the receiver and `formula`.
+    pub fn iff(self, formula: Self) -> Self {
+        Self::Iff { left: Box::new(self), right: Box::new(formula) }
     }
 
-    /// Returns a list of free variables in the formula with no duplicate variables.
+    /// Returns a list of free variable symbols in the receiver formula.
+    ///
+    /// **Note**: each variable symbol appears only once in the list of free variables even if it
+    /// is present at multiple positions of the formula.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use rusty_razor::formula::{
+    /// syntax::V,
+    /// parser::parse_formula_unsafe,
+    /// };
+    /// # use itertools::Itertools;
+    ///
+    /// // `x`, `y` and `z` are variable symbols:
+    /// let x = V::from("x");
+    /// let y = V::from("y");
+    /// let z = V::from("z");
+    ///
+    /// // (P(x) ∧ Q(x, f(g(x), y))) ∨ ('c = g(z))
+    /// let formula = parse_formula_unsafe("(P(x) & Q(x, f(g(x), y))) |  'c = g(z)");
+    /// assert_eq!(vec![&x, &y, &z].iter().sorted(), formula.free_vars().iter().sorted());
+    ///
+    /// // ∀ x. P(x, y)
+    /// let formula = parse_formula_unsafe("forall x. P(x, y)");
+    /// // notice that the bound variable `x` is not in the list of free variables of `formula`
+    /// assert_eq!(vec![&y], formula.free_vars());
+    ///
+    /// // ∃ x. P(x, y)
+    /// let formula = parse_formula_unsafe("exists x. P(x, y)");
+    /// assert_eq!(vec![&y], formula.free_vars());
+    /// ```
     pub fn free_vars(&self) -> Vec<&V> {
         match self {
-            Formula::Top => vec![],
-            Formula::Bottom => vec![],
-            Formula::Atom { predicate: _, terms } => {
+            Self::Top => vec![],
+            Self::Bottom => vec![],
+            Self::Atom { predicate: _, terms } => {
                 terms.iter().flat_map(|t| t.free_vars()).unique().collect()
             }
-            Formula::Equals { left, right } => {
+            Self::Equals { left, right } => {
                 let mut vs = left.free_vars();
                 vs.extend(right.free_vars());
                 vs.into_iter().unique().collect()
             }
-            Formula::Not { formula } => formula.free_vars(),
-            Formula::And { left, right } => {
+            Self::Not { formula } => formula.free_vars(),
+            Self::And { left, right } => {
                 let mut vs = left.free_vars();
                 vs.extend(right.free_vars());
                 vs.into_iter().unique().collect()
             }
-            Formula::Or { left, right } => {
+            Self::Or { left, right } => {
                 let mut vs = left.free_vars();
                 vs.extend(right.free_vars());
                 vs.into_iter().unique().collect()
             }
-            Formula::Implies { left, right } => {
+            Self::Implies { left, right } => {
                 let mut vs = left.free_vars();
                 vs.extend(right.free_vars());
                 vs.into_iter().unique().collect()
             }
-            Formula::Iff { left, right } => {
+            Self::Iff { left, right } => {
                 let mut vs = left.free_vars();
                 vs.extend(right.free_vars());
                 vs.into_iter().unique().collect()
             }
-            Formula::Exists { variables, formula } => {
+            Self::Exists { variables, formula } => {
                 formula.free_vars().into_iter().filter(|v| !variables.contains(v)).collect()
             }
-            Formula::Forall { variables, formula } => {
+            Self::Forall { variables, formula } => {
                 formula.free_vars().into_iter().filter(|v| !variables.contains(v)).collect()
             }
         }
     }
 }
 
+// used for pretty printing a formula
 impl fmt::Display for Formula {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         fn parens(formula: &Formula) -> String {
@@ -446,35 +534,35 @@ impl fmt::Display for Formula {
             }
         }
         match self {
-            Formula::Top => write!(f, "{}", "⊤"),
-            Formula::Bottom => write!(f, "{}", "⟘"),
-            Formula::Atom { predicate, terms } => {
+            Self::Top => write!(f, "{}", "⊤"),
+            Self::Bottom => write!(f, "{}", "⟘"),
+            Self::Atom { predicate, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", predicate.to_string(), ts.join(", "))
             }
-            Formula::Equals { left, right } => {
+            Self::Equals { left, right } => {
                 write!(f, "{} = {}", left, right)
             }
-            Formula::Not { formula } => {
+            Self::Not { formula } => {
                 write!(f, "¬{}", parens(formula))
             }
-            Formula::And { left, right } => {
+            Self::And { left, right } => {
                 write!(f, "{} ∧ {}", parens(left), parens(right))
             }
-            Formula::Or { left, right } => {
+            Self::Or { left, right } => {
                 write!(f, "{} ∨ {}", parens(left), parens(right))
             }
-            Formula::Implies { left, right } => {
+            Self::Implies { left, right } => {
                 write!(f, "{} → {}", parens(left), parens(right))
             }
-            Formula::Iff { left, right } => {
+            Self::Iff { left, right } => {
                 write!(f, "{} ⇔ {}", parens(left), parens(right))
             }
-            Formula::Exists { variables, formula } => {
+            Self::Exists { variables, formula } => {
                 let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
                 write!(f, "∃ {}. {}", vs.join(", "), parens(formula))
             }
-            Formula::Forall { variables, formula } => {
+            Self::Forall { variables, formula } => {
                 let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
                 write!(f, "∀ {}. {}", vs.join(", "), parens(formula))
             }
@@ -482,21 +570,108 @@ impl fmt::Display for Formula {
     }
 }
 
-/// ## Theory
-/// A first-order theory is a set of first-order formulas.
-pub struct Theory {
-    pub formulas: Vec<Formula>
+// contains no non-ascii characters
+impl fmt::Debug for Formula {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        // a helper for writing binary formulas:
+        fn write_binary
+        (
+            left: &Formula,
+            right: &Formula,
+            symbol: &str, f:
+            &mut fmt::Formatter,
+        ) -> Result<(), fmt::Error> {
+            match left {
+                Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
+                    match right {
+                        Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
+                            write!(f, "{:?} {} {:?}", left, symbol, right)
+                        }
+                        _ => {
+                            write!(f, "{:?} {} ({:?})", left, symbol, right)
+                        }
+                    }
+                }
+                _ => {
+                    match right {
+                        Formula::Top | Formula::Bottom | Formula::Atom { .. } => {
+                            write!(f, "({:?}) {} {:?}", left, symbol, right)
+                        }
+                        _ => {
+                            write!(f, "({:?}) {} ({:?})", left, symbol, right)
+                        }
+                    }
+                }
+            }
+        }
+
+        match self {
+            Self::Top => write!(f, "{}", "TRUE"),
+            Self::Bottom => write!(f, "{}", "FALSE"),
+            Self::Atom { predicate, terms } => {
+                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+                write!(f, "{}({})", predicate.to_string(), ts.join(", "))
+            }
+            Self::Equals { left, right } => write!(f, "{} = {}", left, right),
+            Self::Not { formula } => {
+                match formula.as_ref() {
+                    Self::Top | Self::Bottom | Self::Atom { .. } => write!(f, "~{}", formula),
+                    _ => write!(f, "~({:?})", formula)
+                }
+            }
+            Self::And { left, right } => {
+                write_binary(left, right, "&", f)
+            }
+            Self::Or { left, right } => {
+                write_binary(left, right, "|", f)
+            }
+            Self::Implies { left, right } => {
+                write_binary(left, right, "->", f)
+            }
+            Self::Iff { left, right } => {
+                write_binary(left, right, "<=>", f)
+            }
+            Self::Exists { variables, formula } => {
+                let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
+                match formula.as_ref() {
+                    Self::Top | Self::Bottom | Self::Atom { .. } => {
+                        write!(f, "? {}. {:?}", vs.join(", "), formula)
+                    }
+                    _ => {
+                        write!(f, "? {}. ({:?})", vs.join(", "), formula)
+                    }
+                }
+            }
+            Self::Forall { variables, formula } => {
+                let vs: Vec<String> = variables.iter().map(|t| t.to_string()).collect();
+                match formula.as_ref() {
+                    Self::Top | Self::Bottom | Self::Atom { .. } => {
+                        write!(f, "! {}. {:?}", vs.join(", "), formula)
+                    }
+                    _ => {
+                        write!(f, "! {}. ({:?})", vs.join(", "), formula)
+                    }
+                }
+            }
+        }
+    }
 }
 
-impl Theory {
-    pub fn new(formulas: Vec<Formula>) -> Theory {
-        Theory { formulas }
+/// Is a first-order theory, containing a set of first-order formulae.
+pub struct Theory {
+    /// Is the list of first-order formulae in this theory.
+    pub formulae: Vec<Formula>
+}
+
+impl From<Vec<Formula>> for Theory {
+    fn from(formulae: Vec<Formula>) -> Self {
+        Theory { formulae }
     }
 }
 
 impl fmt::Display for Theory {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let fs: Vec<String> = self.formulas.iter().map(|t| t.to_string()).collect();
+        let fs: Vec<String> = self.formulae.iter().map(|t| t.to_string()).collect();
         write!(f, "{}", fs.join("\n"))
     }
 }
@@ -939,7 +1114,7 @@ mod test_syntax {
         let expected = "∀ x. (x = x)\n\
             ∀ x, y. ((x = y) → (y = x))\n\
         ∀ x, y, z. (((x = y) ∧ (y = z)) → (x = z))";
-        let theory = Theory::new(vec![
+        let theory = Theory::from(vec![
             forall1(_x(), x().equals(x())),
             forall2(_x(), _y(), x().equals(y()).implies(y().equals(x()))),
             forall3(_x(), _y(), _z(), x().equals(y()).and(y().equals(z())).implies(x().equals(z()))),

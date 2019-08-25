@@ -250,14 +250,14 @@ fn process_solve(
         })
         .reset();
 
-    theory.formulas.iter().for_each(|f| println!("  {}", f));
+    theory.formulae.iter().for_each(|f| println!("  {}", f));
 
     println!();
     println!();
 
     let theory = theory.gnf();
     let sequents: Vec<Sequent> = theory
-        .formulas
+        .formulae
         .iter()
         .map(|f| f.into()).collect();
     let evaluator = Evaluator {};

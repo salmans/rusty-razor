@@ -124,7 +124,7 @@ mod test_lifo {
     pub fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
-            .formulas
+            .formulae
             .iter()
             .map(|f| f.into()).collect();
 

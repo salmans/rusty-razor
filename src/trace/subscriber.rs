@@ -191,7 +191,7 @@ impl field::Visit for Recorder {
         }
     }
 
-    fn record_debug(&mut self, field: &field::Field, value: &fmt::Debug) {
+    fn record_debug(&mut self, field: &field::Field, value: &dyn fmt::Debug) {
         match field.name().as_ref() {
             super::MODEL_FIELD => self.model = Some(format!("{:?}", value)),
             super::SEQUENT_FIELD => self.sequent = Some(format!("{:?}", value)),
