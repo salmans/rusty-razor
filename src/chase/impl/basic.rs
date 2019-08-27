@@ -595,7 +595,6 @@ mod test_basic {
     use super::*;
     use crate::test_prelude::*;
     use std::iter::FromIterator;
-    use crate::formula::parser::parse_formula_unsafe;
 
     impl fmt::Debug for WitnessTerm {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -770,89 +769,89 @@ mod test_basic {
     #[test]
     fn test_build_sequent() {
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> TRUE")));
+                            Sequent::from(&"TRUE -> TRUE".parse().unwrap()));
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> TRUE & TRUE")));
+                            Sequent::from(&"TRUE -> TRUE & TRUE".parse().unwrap()));
         assert_debug_string("[] -> [[], []]",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> TRUE | TRUE")));
+                            Sequent::from(&"TRUE -> TRUE | TRUE".parse().unwrap()));
         assert_debug_string("[] -> []",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> FALSE")));
+                            Sequent::from(&"TRUE -> FALSE".parse().unwrap()));
         assert_debug_string("[] -> []",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> FALSE & TRUE")));
+                            Sequent::from(&"TRUE -> FALSE & TRUE".parse().unwrap()));
         assert_debug_string("[] -> []",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> TRUE & FALSE")));
+                            Sequent::from(&"TRUE -> TRUE & FALSE".parse().unwrap()));
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> TRUE | FALSE")));
+                            Sequent::from(&"TRUE -> TRUE | FALSE".parse().unwrap()));
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> FALSE | TRUE")));
+                            Sequent::from(&"TRUE -> FALSE | TRUE".parse().unwrap()));
         assert_debug_string("[P(x)] -> [[Q(x)]]",
-                            Sequent::from(&parse_formula_unsafe("P(x) -> Q(x)")));
+                            Sequent::from(&"P(x) -> Q(x)".parse().unwrap()));
         assert_debug_string("[P(x), Q(x)] -> [[Q(y)]]",
-                            Sequent::from(&parse_formula_unsafe("P(x) & Q(x) -> Q(y)")));
+                            Sequent::from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()));
         assert_debug_string("[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
-                            Sequent::from(&parse_formula_unsafe("P(x) & Q(x) -> Q(x) | (R(z) & S(z))")));
+                            Sequent::from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()));
         assert_debug_string("[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-                            Sequent::from(&parse_formula_unsafe("TRUE -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))")));
+                            Sequent::from(&"TRUE -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))".parse().unwrap()));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_1() {
-        Sequent::from(&parse_formula_unsafe("TRUE"));
+        Sequent::from(&"TRUE".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_2() {
-        Sequent::from(&parse_formula_unsafe("FALSE"));
+        Sequent::from(&"FALSE".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_3() {
-        Sequent::from(&parse_formula_unsafe("FALSE -> TRUE"));
+        Sequent::from(&"FALSE -> TRUE".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_4() {
-        Sequent::from(&parse_formula_unsafe("(P(x) | Q(x)) -> R(x)"));
+        Sequent::from(&"(P(x) | Q(x)) -> R(x)".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_5() {
-        Sequent::from(&parse_formula_unsafe("P(x) -> R(x) & (Q(z) | R(z))"));
+        Sequent::from(&"P(x) -> R(x) & (Q(z) | R(z))".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_6() {
-        Sequent::from(&parse_formula_unsafe("P(x) -> ?x. Q(x)"));
+        Sequent::from(&"P(x) -> ?x. Q(x)".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_7() {
-        Sequent::from(&parse_formula_unsafe("?x.Q(x) -> P(x)"));
+        Sequent::from(&"?x.Q(x) -> P(x)".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_8() {
-        Sequent::from(&parse_formula_unsafe("TRUE -> ~FALSE"));
+        Sequent::from(&"TRUE -> ~FALSE".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_9() {
-        Sequent::from(&parse_formula_unsafe("TRUE -> ~TRUE"));
+        Sequent::from(&"TRUE -> ~TRUE".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_10() {
-        Sequent::from(&parse_formula_unsafe("~P(x) -> ~Q(x)"));
+        Sequent::from(&"~P(x) -> ~Q(x)".parse().unwrap());
     }
 
     #[test]
