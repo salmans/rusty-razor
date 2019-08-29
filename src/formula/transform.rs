@@ -281,9 +281,9 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("Q(x, y) → ∃ x, y. P(x, y)");
+    /// let formula: Formula = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
     /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", formula.pnf().to_string());
     /// ```
     pub fn pnf(&self) -> Formula {
@@ -544,9 +544,9 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("∃ y. P(x, y)");
+    /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
     /// assert_eq!("P(x, sk#0(x))", formula.snf().to_string());
     /// ```
     pub fn snf(&self) -> Formula {
@@ -562,11 +562,11 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     /// use rusty_razor::formula::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("skolem");
-    /// let formula = parse_formula_unsafe("∃ y. P(x, y)");
+    /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
     /// assert_eq!("P(x, skolem0(x))", formula.snf_with(&mut generator).to_string());
     /// ```
     pub fn snf_with(&self, generator: &mut SkolemGenerator) -> Formula {
@@ -611,9 +611,9 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("not (P(x) iff Q(y))");
+    /// let formula: Formula = "not (P(x) iff Q(y))".parse().unwrap();
     /// assert_eq!("(P(x) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ Q(y))", formula.nnf().to_string());
     /// ```
     pub fn nnf(&self) -> Formula {
@@ -683,9 +683,9 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("P(x) <=> Q(y)");
+    /// let formula: Formula = "P(x) <=> Q(y)".parse().unwrap();
     /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", formula.cnf().to_string());
     /// ```
     pub fn cnf(&self) -> Formula {
@@ -702,11 +702,11 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     /// use rusty_razor::formula::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("s%");
-    /// let formula = parse_formula_unsafe("exists x. ((forall y. P(y) & Q(x, y))  -> R(x))");
+    /// let formula: Formula = "exists x. ((forall y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
     /// assert_eq!("((¬P(\'s%1)) ∨ (¬Q(\'s%0, \'s%1))) ∨ R(\'s%0)",
     ///     formula.cnf_with(&mut generator).to_string());
     /// ```
@@ -761,9 +761,9 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("P(x) iff Q(y)");
+    /// let formula: Formula = "P(x) iff Q(y)".parse().unwrap();
     /// assert_eq!("(((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ ((Q(y) ∧ (¬Q(y))) ∨ (Q(y) ∧ P(x)))",
     ///     formula.dnf().to_string());
     /// ```
@@ -781,11 +781,11 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     /// use rusty_razor::formula::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("s%");
-    /// let formula = parse_formula_unsafe("!y. (!x. (P(y, x) | Q(x)) -> Q(y))");
+    /// let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
     /// assert_eq!("((¬P(y, s%0(y))) ∧ (¬Q(s%0(y)))) ∨ Q(y)",
     ///     formula.dnf_with(&mut generator).to_string());
     /// ```
@@ -835,12 +835,12 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("not (not P())");
+    /// let formula: Formula = "not (not P())".parse().unwrap();
     /// assert_eq!("P()", formula.simplify().to_string());
     ///
-    /// let formula = parse_formula_unsafe("forall x. (P() and TRUE) | (Q(x) or FALSE)");
+    /// let formula: Formula = "forall x. (P() and TRUE) | (Q(x) or FALSE)".parse().unwrap();
     /// assert_eq!("∀ x. (P() ∨ Q(x))", formula.simplify().to_string());
     /// ```
     pub fn simplify(&self) -> Formula {
@@ -950,9 +950,9 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     ///
-    /// let formula = parse_formula_unsafe("P(x) & (Q(x) | R(x))");
+    /// let formula: Formula = "P(x) & (Q(x) | R(x))".parse().unwrap();
     /// let gnf_to_string: Vec<String> = formula.gnf().iter().map(|f| f.to_string()).collect();
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
@@ -970,11 +970,11 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_formula_unsafe;
+    /// # use rusty_razor::formula::syntax::Formula;
     /// use rusty_razor::formula::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("s%");
-    /// let formula = parse_formula_unsafe("P(y) -> exists x. P(x) & Q(y)");
+    /// let formula: Formula = "P(y) -> exists x. P(x) & Q(y)".parse().unwrap();
     /// let gnf_to_string: Vec<String> = formula.gnf().iter().map(|f| f.to_string()).collect();
     /// assert_eq!(vec!["P(y) → P(sk#0(y))", "P(y) → Q(y)"], gnf_to_string);
     /// ```
@@ -1039,12 +1039,12 @@ impl Theory {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::parser::parse_theory_unsafe;
+    /// # use rusty_razor::formula::syntax::Theory;
     ///
-    /// let theory = parse_theory_unsafe(r#"
+    /// let theory: Theory = r#"
     ///     not P(x) or Q(x);
     ///     Q(x) -> exists y. P(x, y);
-    /// "#);
+    /// "#.parse().unwrap();
     /// assert_eq!(r#"P(x) → Q(x)
     /// Q(x) → P(x, sk#0(x))"#, theory.gnf().to_string());
     /// ```
@@ -1171,7 +1171,6 @@ mod test_transform {
     use super::*;
     use crate::test_prelude::*;
     use std::collections::HashMap;
-    use crate::formula::parser::{parse_formula_unsafe, parse_theory_unsafe};
 
     #[test]
     fn test_substitution_map() {
@@ -1656,106 +1655,260 @@ mod test_transform {
 
     #[test]
     fn test_pnf() {
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE").pnf());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE").pnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x)").pnf());
-        assert_debug_string("x = y", parse_formula_unsafe("x = y").pnf());
-        assert_debug_string("~P(x)", parse_formula_unsafe("~P(x)").pnf());
-        assert_debug_string("P(x) & Q(y)", parse_formula_unsafe("P(x) & Q(y)").pnf());
-        assert_debug_string("P(x) | Q(y)", parse_formula_unsafe("P(x) | Q(y)").pnf());
-        assert_debug_string("P(x) -> Q(y)", parse_formula_unsafe("P(x) -> Q(y)").pnf());
-        assert_debug_string("(P(x) -> Q(y)) & (Q(y) -> P(x))", parse_formula_unsafe("P(x) <=> Q(y)").pnf());
-        assert_debug_string("? x. ((P(x) & (~Q(y))) | R(z))",
-                            parse_formula_unsafe("? x. P(x) & ~Q(y) | R(z)").pnf());
-        assert_debug_string("! x. ((P(x) & (~Q(y))) | R(z))",
-                            parse_formula_unsafe("! x. P(x) & ~Q(y) | R(z)").pnf());
+        {
+            let formula: Formula = "TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.pnf());
+        }
+        {
+            let formula: Formula = "FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.pnf());
+        }
+        {
+            let formula: Formula = "x = y".parse().unwrap();
+            assert_debug_string("x = y", formula.pnf());
+        }
+        {
+            let formula: Formula = "~P(x)".parse().unwrap();
+            assert_debug_string("~P(x)", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) & Q(y)".parse().unwrap();
+            assert_debug_string("P(x) & Q(y)", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(y)".parse().unwrap();
+            assert_debug_string("P(x) | Q(y)", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) -> Q(y)".parse().unwrap();
+            assert_debug_string("P(x) -> Q(y)", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) <=> Q(y)".parse().unwrap();
+            assert_debug_string("(P(x) -> Q(y)) & (Q(y) -> P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "? x. P(x) & ~Q(y) | R(z)".parse().unwrap();
+            assert_debug_string("? x. ((P(x) & (~Q(y))) | R(z))", formula.pnf());
+        }
+        {
+            let formula: Formula = "! x. P(x) & ~Q(y) | R(z)".parse().unwrap();
+            assert_debug_string("! x. ((P(x) & (~Q(y))) | R(z))", formula.pnf());
+        }
         // sanity checking:
-        assert_debug_string("! x. (~P(x))", parse_formula_unsafe("~? x. P(x)").pnf());
-        assert_debug_string("! x. (P(x) & Q(y))", parse_formula_unsafe("(! x. P(x)) & Q(y)").pnf());
-        assert_debug_string("? x. (P(x) & Q(y))", parse_formula_unsafe("(? x. P(x)) & Q(y)").pnf());
-        assert_debug_string("! x`. (P(x`) & Q(x))", parse_formula_unsafe("(! x. P(x)) & Q(x)").pnf());
-        assert_debug_string("? x`. (P(x`) & Q(x))", parse_formula_unsafe("(? x. P(x)) & Q(x)").pnf());
-        assert_debug_string("! x`, y`. (P(x`, y`) & Q(x, y))",
-                            parse_formula_unsafe("(! x, y. P(x, y)) & Q(x, y)").pnf());
-        assert_debug_string("? x`, y`. (P(x`, y`) & Q(x, y))",
-                            parse_formula_unsafe("(? x, y. P(x, y)) & Q(x, y)").pnf());
-        assert_debug_string("! x. (Q(y) & P(x))",
-                            parse_formula_unsafe("Q(y) & ! x. P(x)").pnf());
-        assert_debug_string("? x. (Q(y) & P(x))",
-                            parse_formula_unsafe("Q(y) & ? x. P(x)").pnf());
-        assert_debug_string("! x`. (Q(x) & P(x`))",
-                            parse_formula_unsafe("Q(x) & ! x. P(x)").pnf());
-        assert_debug_string("? x`. (Q(x) & P(x`))",
-                            parse_formula_unsafe("Q(x) & ? x. P(x)").pnf());
-        assert_debug_string("! x`, y`. (Q(x, y) & P(x`, y`))",
-                            parse_formula_unsafe("Q(x, y) & ! x, y. P(x, y)").pnf());
-        assert_debug_string("? x`, y`. (Q(x, y) & P(x`, y`))",
-                            parse_formula_unsafe("Q(x, y) & ? x, y. P(x, y)").pnf());
-        assert_debug_string("! x. (P(x) | Q(y))", parse_formula_unsafe("(! x. P(x)) | Q(y)").pnf());
-        assert_debug_string("? x. (P(x) | Q(y))", parse_formula_unsafe("(? x. P(x)) | Q(y)").pnf());
-        assert_debug_string("! x`. (P(x`) | Q(x))", parse_formula_unsafe("(! x. P(x)) | Q(x)").pnf());
-        assert_debug_string("? x`. (P(x`) | Q(x))", parse_formula_unsafe("(? x. P(x)) | Q(x)").pnf());
-        assert_debug_string("! x`, y`. (P(x`, y`) | Q(x, y))",
-                            parse_formula_unsafe("(! x, y. P(x, y)) | Q(x, y)").pnf());
-        assert_debug_string("? x`, y`. (P(x`, y`) | Q(x, y))",
-                            parse_formula_unsafe("(? x, y. P(x, y)) | Q(x, y)").pnf());
-        assert_debug_string("! x. (Q(y) | P(x))",
-                            parse_formula_unsafe("Q(y) | ! x. P(x)").pnf());
-        assert_debug_string("? x. (Q(y) | P(x))",
-                            parse_formula_unsafe("Q(y) | ? x. P(x)").pnf());
-        assert_debug_string("! x`. (Q(x) | P(x`))",
-                            parse_formula_unsafe("Q(x) | ! x. P(x)").pnf());
-        assert_debug_string("? x`. (Q(x) | P(x`))",
-                            parse_formula_unsafe("Q(x) | ? x. P(x)").pnf());
-        assert_debug_string("! x`, y`. (Q(x, y) | P(x`, y`))",
-                            parse_formula_unsafe("Q(x, y) | ! x, y. P(x, y)").pnf());
-        assert_debug_string("? x`, y`. (Q(x, y) | P(x`, y`))",
-                            parse_formula_unsafe("Q(x, y) | ? x, y. P(x, y)").pnf());
-        assert_debug_string("? x. (P(x) -> Q(y))", parse_formula_unsafe("(! x. P(x)) -> Q(y)").pnf());
-        assert_debug_string("! x. (P(x) -> Q(y))", parse_formula_unsafe("(? x. P(x)) -> Q(y)").pnf());
-        assert_debug_string("? x`. (P(x`) -> Q(x))", parse_formula_unsafe("(! x. P(x)) -> Q(x)").pnf());
-        assert_debug_string("! x`. (P(x`) -> Q(x))", parse_formula_unsafe("(? x. P(x)) -> Q(x)").pnf());
-        assert_debug_string("? x`, y`. (P(x`, y`) -> Q(x, y))",
-                            parse_formula_unsafe("(! x, y. P(x, y)) -> Q(x, y)").pnf());
-        assert_debug_string("! x`, y`. (P(x`, y`) -> Q(x, y))",
-                            parse_formula_unsafe("(? x, y. P(x, y)) -> Q(x, y)").pnf());
-        assert_debug_string("! x. (Q(y) -> P(x))",
-                            parse_formula_unsafe("Q(y) -> ! x. P(x)").pnf());
-        assert_debug_string("? x. (Q(y) -> P(x))",
-                            parse_formula_unsafe("Q(y) -> ? x. P(x)").pnf());
-        assert_debug_string("! x`. (Q(x) -> P(x`))",
-                            parse_formula_unsafe("Q(x) -> ! x. P(x)").pnf());
-        assert_debug_string("? x`. (Q(x) -> P(x`))",
-                            parse_formula_unsafe("Q(x) -> ? x. P(x)").pnf());
-        assert_debug_string("! x`, y`. (Q(x, y) -> P(x`, y`))",
-                            parse_formula_unsafe("Q(x, y) -> ! x, y. P(x, y)").pnf());
-        assert_debug_string("? x`, y`. (Q(x, y) -> P(x`, y`))",
-                            parse_formula_unsafe("Q(x, y) -> ? x, y. P(x, y)").pnf());
+        {
+            let formula: Formula = "~? x. P(x)".parse().unwrap();
+            assert_debug_string("! x. (~P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) & Q(y)".parse().unwrap();
+            assert_debug_string("! x. (P(x) & Q(y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) & Q(y)".parse().unwrap();
+            assert_debug_string("? x. (P(x) & Q(y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) & Q(x)".parse().unwrap();
+            assert_debug_string("! x`. (P(x`) & Q(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) & Q(x)".parse().unwrap();
+            assert_debug_string("? x`. (P(x`) & Q(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x, y. P(x, y)) & Q(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (P(x`, y`) & Q(x, y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x, y. P(x, y)) & Q(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (P(x`, y`) & Q(x, y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) & ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x. (Q(y) & P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) & ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x. (Q(y) & P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) & ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x`. (Q(x) & P(x`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) & ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x`. (Q(x) & P(x`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) & ! x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (Q(x, y) & P(x`, y`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) & ? x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (Q(x, y) & P(x`, y`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) | Q(y)".parse().unwrap();
+            assert_debug_string("! x. (P(x) | Q(y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) | Q(y)".parse().unwrap();
+            assert_debug_string("? x. (P(x) | Q(y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) | Q(x)".parse().unwrap();
+            assert_debug_string("! x`. (P(x`) | Q(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) | Q(x)".parse().unwrap();
+            assert_debug_string("? x`. (P(x`) | Q(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x, y. P(x, y)) | Q(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (P(x`, y`) | Q(x, y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x, y. P(x, y)) | Q(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (P(x`, y`) | Q(x, y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) | ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x. (Q(y) | P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) | ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x. (Q(y) | P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) | ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x`. (Q(x) | P(x`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) | ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x`. (Q(x) | P(x`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) | ! x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (Q(x, y) | P(x`, y`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) | ? x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (Q(x, y) | P(x`, y`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) -> Q(y)".parse().unwrap();
+            assert_debug_string("? x. (P(x) -> Q(y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) -> Q(y)".parse().unwrap();
+            assert_debug_string("! x. (P(x) -> Q(y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) -> Q(x)".parse().unwrap();
+            assert_debug_string("? x`. (P(x`) -> Q(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) -> Q(x)".parse().unwrap();
+            assert_debug_string("! x`. (P(x`) -> Q(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x, y. P(x, y)) -> Q(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (P(x`, y`) -> Q(x, y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x, y. P(x, y)) -> Q(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (P(x`, y`) -> Q(x, y))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) -> ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x. (Q(y) -> P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) -> ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x. (Q(y) -> P(x))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) -> ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x`. (Q(x) -> P(x`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) -> ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x`. (Q(x) -> P(x`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) -> ! x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (Q(x, y) -> P(x`, y`))", formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) -> ? x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (Q(x, y) -> P(x`, y`))", formula.pnf());
+        }
 
-        assert_debug_string("? x. (! x`. ((P(x) -> Q(y)) & (Q(y) -> P(x`))))",
-                            parse_formula_unsafe("(! x. P(x)) <=> Q(y)").pnf());
-        assert_debug_string("! x. (? x`. ((P(x) -> Q(y)) & (Q(y) -> P(x`))))",
-                            parse_formula_unsafe("(? x. P(x)) <=> Q(y)").pnf());
-        assert_debug_string("? x`. (! x``. ((P(x`) -> Q(x)) & (Q(x) -> P(x``))))",
-                            parse_formula_unsafe("(! x. P(x)) <=> Q(x)").pnf());
-        assert_debug_string("! x`. (? x``. ((P(x`) -> Q(x)) & (Q(x) -> P(x``))))",
-                            parse_formula_unsafe("(? x. P(x)) <=> Q(x)").pnf());
-        assert_debug_string("? x`, y`. (! x``, y``. ((P(x`, y`) -> Q(x, y)) & (Q(x, y) -> P(x``, y``))))",
-                            parse_formula_unsafe("(! x, y. P(x, y)) <=> Q(x, y)").pnf());
-        assert_debug_string("! x`, y`. (? x``, y``. ((P(x`, y`) -> Q(x, y)) & (Q(x, y) -> P(x``, y``))))",
-                            parse_formula_unsafe("(? x, y. P(x, y)) <=> Q(x, y)").pnf());
-        assert_debug_string("! x. (? x`. ((Q(y) -> P(x)) & (P(x`) -> Q(y))))",
-                            parse_formula_unsafe("Q(y) <=> ! x. P(x)").pnf());
-        assert_debug_string("? x. (! x`. ((Q(y) -> P(x)) & (P(x`) -> Q(y))))",
-                            parse_formula_unsafe("Q(y) <=> ? x. P(x)").pnf());
-        assert_debug_string("! x`. (? x``. ((Q(x) -> P(x`)) & (P(x``) -> Q(x))))",
-                            parse_formula_unsafe("Q(x) <=> ! x. P(x)").pnf());
-        assert_debug_string("? x`. (! x``. ((Q(x) -> P(x`)) & (P(x``) -> Q(x))))",
-                            parse_formula_unsafe("Q(x) <=> ? x. P(x)").pnf());
-        assert_debug_string("! x`, y`. (? x``, y``. ((Q(x, y) -> P(x`, y`)) & (P(x``, y``) -> Q(x, y))))",
-                            parse_formula_unsafe("Q(x, y) <=> ! x, y. P(x, y)").pnf());
-        assert_debug_string("? x`, y`. (! x``, y``. ((Q(x, y) -> P(x`, y`)) & (P(x``, y``) -> Q(x, y))))",
-                            parse_formula_unsafe("Q(x, y) <=> ? x, y. P(x, y)").pnf());
+        {
+            let formula: Formula = "(! x. P(x)) <=> Q(y)".parse().unwrap();
+            assert_debug_string("? x. (! x`. ((P(x) -> Q(y)) & (Q(y) -> P(x`))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) <=> Q(y)".parse().unwrap();
+            assert_debug_string("! x. (? x`. ((P(x) -> Q(y)) & (Q(y) -> P(x`))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) <=> Q(x)".parse().unwrap();
+            assert_debug_string("? x`. (! x``. ((P(x`) -> Q(x)) & (Q(x) -> P(x``))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) <=> Q(x)".parse().unwrap();
+            assert_debug_string("! x`. (? x``. ((P(x`) -> Q(x)) & (Q(x) -> P(x``))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x, y. P(x, y)) <=> Q(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (! x``, y``. ((P(x`, y`) -> Q(x, y)) & (Q(x, y) -> P(x``, y``))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x, y. P(x, y)) <=> Q(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (? x``, y``. ((P(x`, y`) -> Q(x, y)) & (Q(x, y) -> P(x``, y``))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) <=> ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x. (? x`. ((Q(y) -> P(x)) & (P(x`) -> Q(y))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(y) <=> ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x. (! x`. ((Q(y) -> P(x)) & (P(x`) -> Q(y))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) <=> ! x. P(x)".parse().unwrap();
+            assert_debug_string("! x`. (? x``. ((Q(x) -> P(x`)) & (P(x``) -> Q(x))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x) <=> ? x. P(x)".parse().unwrap();
+            assert_debug_string("? x`. (! x``. ((Q(x) -> P(x`)) & (P(x``) -> Q(x))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) <=> ! x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("! x`, y`. (? x``, y``. ((Q(x, y) -> P(x`, y`)) & (P(x``, y``) -> Q(x, y))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "Q(x, y) <=> ? x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("? x`, y`. (! x``, y``. ((Q(x, y) -> P(x`, y`)) & (P(x``, y``) -> Q(x, y))))",
+                                formula.pnf());
+        }
         //renaming tests
         assert_debug_string("! x``, x`. (P(x``) & Q(x))",
                             forall2(_x(), _x_1(), P().app1(x())).and(Q().app1(x())).pnf());
@@ -1825,64 +1978,140 @@ mod test_transform {
         assert_debug_string("? x``. (! x```. ((Q(x) -> P(x``, x`)) & (P(x```, x`) -> Q(x))))",
                             Q().app1(x()).iff(exists1(_x(), P().app2(x(), x_1()))).pnf());
         // both sides of binary formulae
-        assert_debug_string("! x. (! x`. (P(x) & Q(x`)))",
-                            parse_formula_unsafe("(! x. P(x)) & (! x. Q(x))").pnf());
-        assert_debug_string("! x. (? x`. (P(x) & Q(x`)))",
-                            parse_formula_unsafe("(! x. P(x)) & (? x. Q(x))").pnf());
-        assert_debug_string("? x. (! x`. (P(x) & Q(x`)))",
-                            parse_formula_unsafe("(? x. P(x)) & (! x. Q(x))").pnf());
-        assert_debug_string("? x. (? x`. (P(x) & Q(x`)))",
-                            parse_formula_unsafe("(? x. P(x)) & (? x. Q(x))").pnf());
-        assert_debug_string("! x. (! x`. (P(x) | Q(x`)))",
-                            parse_formula_unsafe("(! x. P(x)) | (! x. Q(x))").pnf());
-        assert_debug_string("! x. (? x`. (P(x) | Q(x`)))",
-                            parse_formula_unsafe("(! x. P(x)) | (? x. Q(x))").pnf());
-        assert_debug_string("? x. (! x`. (P(x) | Q(x`)))",
-                            parse_formula_unsafe("(? x. P(x)) | (! x. Q(x))").pnf());
-        assert_debug_string("? x. (? x`. (P(x) | Q(x`)))",
-                            parse_formula_unsafe("(? x. P(x)) | (? x. Q(x))").pnf());
-        assert_debug_string("? x. (! x`. (P(x) -> Q(x`)))",
-                            parse_formula_unsafe("(! x. P(x)) -> (! x. Q(x))").pnf());
-        assert_debug_string("? x. (? x`. (P(x) -> Q(x`)))",
-                            parse_formula_unsafe("(! x. P(x)) -> (? x. Q(x))").pnf());
-        assert_debug_string("! x. (! x`. (P(x) -> Q(x`)))",
-                            parse_formula_unsafe("(? x. P(x)) -> (! x. Q(x))").pnf());
-        assert_debug_string("! x. (? x`. (P(x) -> Q(x`)))",
-                            parse_formula_unsafe("(? x. P(x)) -> (? x. Q(x))").pnf());
-        assert_debug_string("? x. (! x`. (? x``. (! x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
-                            parse_formula_unsafe("(! x. P(x)) <=> (! x. Q(x))").pnf());
-        assert_debug_string("? x. (? x`. (! x``. (! x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
-                            parse_formula_unsafe("(! x. P(x)) <=> (? x. Q(x))").pnf());
-        assert_debug_string("! x. (! x`. (? x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
-                            parse_formula_unsafe("(? x. P(x)) <=> (! x. Q(x))").pnf());
-        assert_debug_string("! x. (? x`. (! x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
-                            parse_formula_unsafe("(? x. P(x)) <=> (? x. Q(x))").pnf());
+        {
+            let formula: Formula = "(! x. P(x)) & (! x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (! x`. (P(x) & Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) & (? x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (? x`. (P(x) & Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) & (! x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (! x`. (P(x) & Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) & (? x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (? x`. (P(x) & Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) | (! x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (! x`. (P(x) | Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) | (? x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (? x`. (P(x) | Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) | (! x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (! x`. (P(x) | Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) | (? x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (? x`. (P(x) | Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) -> (! x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (! x`. (P(x) -> Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) -> (? x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (? x`. (P(x) -> Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) -> (! x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (! x`. (P(x) -> Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) -> (? x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (? x`. (P(x) -> Q(x`)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) <=> (! x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (! x`. (? x``. (! x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(! x. P(x)) <=> (? x. Q(x))".parse().unwrap();
+            assert_debug_string("? x. (? x`. (! x``. (! x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) <=> (! x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (! x`. (? x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
+                                formula.pnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) <=> (? x. Q(x))".parse().unwrap();
+            assert_debug_string("! x. (? x`. (! x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
+                                formula.pnf());
+        }
         // multiple steps
-        assert_debug_string("? x. (~(~P(x)))", parse_formula_unsafe("~~?x.P(x)").pnf());
-        assert_debug_string("! x. (~(~P(x)))", parse_formula_unsafe("~~!x.P(x)").pnf());
-        assert_debug_string("! x`. (P(x) & (Q(x`) & R(x)))", parse_formula_unsafe("P(x) & ((! x. Q(x)) & R(x))").pnf());
-        assert_debug_string("? x`. (P(x) & (Q(x`) & R(x)))", parse_formula_unsafe("P(x) & ((? x. Q(x)) & R(x))").pnf());
-        assert_debug_string("! x`. (P(x) | (Q(x`) | R(x)))", parse_formula_unsafe("P(x) | ((! x. Q(x)) | R(x))").pnf());
-        assert_debug_string("? x`. (P(x) | (Q(x`) | R(x)))", parse_formula_unsafe("P(x) | ((? x. Q(x)) | R(x))").pnf());
-        assert_debug_string("? x`. (P(x) -> (Q(x`) -> R(x)))", parse_formula_unsafe("P(x) -> ((! x. Q(x)) -> R(x))").pnf());
-        assert_debug_string("! x`. (P(x) -> (Q(x`) -> R(x)))", parse_formula_unsafe("P(x) -> ((? x. Q(x)) -> R(x))").pnf());
-        assert_debug_string("? x`. (! x``. (! x```. (? x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))",
-                            parse_formula_unsafe("P(x) <=> ((! x. Q(x)) <=> R(x))").pnf());
-        assert_debug_string("! x`. (? x``. (? x```. (! x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))",
-                            parse_formula_unsafe("P(x) <=> ((? x. Q(x)) <=> R(x))").pnf());
+        {
+            let formula: Formula = "~~?x.P(x)".parse().unwrap();
+            assert_debug_string("? x. (~(~P(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "~~!x.P(x)".parse().unwrap();
+            assert_debug_string("! x. (~(~P(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) & ((! x. Q(x)) & R(x))".parse().unwrap();
+            assert_debug_string("! x`. (P(x) & (Q(x`) & R(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) & ((? x. Q(x)) & R(x))".parse().unwrap();
+            assert_debug_string("? x`. (P(x) & (Q(x`) & R(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) | ((! x. Q(x)) | R(x))".parse().unwrap();
+            assert_debug_string("! x`. (P(x) | (Q(x`) | R(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) | ((? x. Q(x)) | R(x))".parse().unwrap();
+            assert_debug_string("? x`. (P(x) | (Q(x`) | R(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) -> ((! x. Q(x)) -> R(x))".parse().unwrap();
+            assert_debug_string("? x`. (P(x) -> (Q(x`) -> R(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) -> ((? x. Q(x)) -> R(x))".parse().unwrap();
+            assert_debug_string("! x`. (P(x) -> (Q(x`) -> R(x)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) <=> ((! x. Q(x)) <=> R(x))".parse().unwrap();
+            assert_debug_string("? x`. (! x``. (! x```. (? x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))", formula.pnf());
+        }
+        {
+            let formula: Formula = "P(x) <=> ((? x. Q(x)) <=> R(x))".parse().unwrap();
+            assert_debug_string("! x`. (? x``. (? x```. (! x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))", formula.pnf());
+        }
         // random formulae
-        assert_debug_string("! x. (? y. (P(x) -> (P(y) & Q(x, y))))",
-                            parse_formula_unsafe("!x . (P(x) -> ?y . (P(y) & Q(x, y)))").pnf());
-        assert_debug_string("? x. (! y. (P(x) & (P(y) -> Q(x, y))))",
-                            parse_formula_unsafe("?x . (P(x) & !y . (P(y) -> Q(x, y)))").pnf());
-        assert_debug_string("! x. (? y. (P(x) -> (~(P(y) -> Q(x, y)))))",
-                            parse_formula_unsafe("!x. (P(x) -> ~(!y . (P(y) -> Q(x, y))))").pnf());
-        assert_debug_string("! x. (! z. ((P() | Q(x)) -> R(z)))",
-                            parse_formula_unsafe("(P() | ? x. Q(x)) -> !z. R(z)").pnf());
-        assert_debug_string("! x. (? y. (! z. (! x`. (! w. ((Q(x) & (~R(x`))) | ((~Q(y)) -> R(y)))))))",
-                            parse_formula_unsafe("!x.?y.(!z.Q(x) & ~?x.R(x)) | (~Q(y) -> !w. R(y))").pnf());
-        assert_debug_string("! x. (? y. (? y`. (P(x, y) -> Q(x, y`))))",
-                            parse_formula_unsafe("!x. (!y. P(x, y) -> ?y. Q(x, y))").pnf());
+        {
+            let formula: Formula = "!x . (P(x) -> ?y . (P(y) & Q(x, y)))".parse().unwrap();
+            assert_debug_string("! x. (? y. (P(x) -> (P(y) & Q(x, y))))", formula.pnf());
+        }
+        {
+            let formula: Formula = "?x . (P(x) & !y . (P(y) -> Q(x, y)))".parse().unwrap();
+            assert_debug_string("? x. (! y. (P(x) & (P(y) -> Q(x, y))))", formula.pnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> ~(!y . (P(y) -> Q(x, y))))".parse().unwrap();
+            assert_debug_string("! x. (? y. (P(x) -> (~(P(y) -> Q(x, y)))))", formula.pnf());
+        }
+        {
+            let formula: Formula = "(P() | ? x. Q(x)) -> !z. R(z)".parse().unwrap();
+            assert_debug_string("! x. (! z. ((P() | Q(x)) -> R(z)))", formula.pnf());
+        }
+        {
+            let formula: Formula = "!x.?y.(!z.Q(x) & ~?x.R(x)) | (~Q(y) -> !w. R(y))".parse().unwrap();
+            assert_debug_string("! x. (? y. (! z. (! x`. (! w. ((Q(x) & (~R(x`))) | ((~Q(y)) -> R(y)))))))", formula.pnf());
+        }
+        {
+            let formula: Formula = "!x. (!y. P(x, y) -> ?y. Q(x, y))".parse().unwrap();
+            assert_debug_string("! x. (? y. (? y`. (P(x, y) -> Q(x, y`))))", formula.pnf());
+        }
     }
 
     #[test]
@@ -1931,244 +2160,742 @@ mod test_transform {
 
     #[test]
     fn test_nnf() {
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE").nnf());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE").nnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x)").nnf());
-        assert_debug_string("x = y", parse_formula_unsafe("x = y").nnf());
-        assert_debug_string("~P(x)", parse_formula_unsafe("~P(x)").nnf());
-        assert_debug_string("P(x) & Q(y)", parse_formula_unsafe("P(x) & Q(y)").nnf());
-        assert_debug_string("P(x) | Q(y)", parse_formula_unsafe("P(x) | Q(y)").nnf());
-        assert_debug_string("(~P(x)) | Q(y)", parse_formula_unsafe("P(x) -> Q(y)").nnf());
-        assert_debug_string("((~P(x)) | Q(y)) & (P(x) | (~Q(y)))", parse_formula_unsafe("P(x) <=> Q(y)").nnf());
-        assert_debug_string("? x. P(x)", parse_formula_unsafe("?x. P(x)").nnf());
-        assert_debug_string("! x. P(x)", parse_formula_unsafe("!x. P(x)").nnf());
+        {
+            let formula: Formula = "TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.nnf());
+        }
+        {
+            let formula: Formula = "FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.nnf());
+        }
+        {
+            let formula: Formula = "P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "x = y".parse().unwrap();
+            assert_debug_string("x = y", formula.nnf());
+        }
+        {
+            let formula: Formula = "~P(x)".parse().unwrap();
+            assert_debug_string("~P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "P(x) & Q(y)".parse().unwrap();
+            assert_debug_string("P(x) & Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(y)".parse().unwrap();
+            assert_debug_string("P(x) | Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "P(x) -> Q(y)".parse().unwrap();
+            assert_debug_string("(~P(x)) | Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "P(x) <=> Q(y)".parse().unwrap();
+            assert_debug_string("((~P(x)) | Q(y)) & (P(x) | (~Q(y)))", formula.nnf());
+        }
+        {
+            let formula: Formula = "?x. P(x)".parse().unwrap();
+            assert_debug_string("? x. P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "!x. P(x)".parse().unwrap();
+            assert_debug_string("! x. P(x)", formula.nnf());
+        }
         // sanity checking
-        assert_debug_string("FALSE", parse_formula_unsafe("~TRUE").nnf());
-        assert_debug_string("TRUE", parse_formula_unsafe("~FALSE").nnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("~~P(x)").nnf());
-        assert_debug_string("x = y", parse_formula_unsafe("~~x = y").nnf());
-        assert_debug_string("(~P(x)) | (~Q(y))", parse_formula_unsafe("~(P(x) & Q(y))").nnf());
-        assert_debug_string("(~P(x)) & (~Q(y))", parse_formula_unsafe("~(P(x) | Q(y))").nnf());
-        assert_debug_string("P(x) & (~Q(y))", parse_formula_unsafe("~(P(x) -> Q(y))").nnf());
-        assert_debug_string("(P(x) & (~Q(y))) | ((~P(x)) & Q(y))", parse_formula_unsafe("~(P(x) <=> Q(y))").nnf());
-        assert_debug_string("((~P(x)) & (~Q(y))) | R(z)", parse_formula_unsafe("(P(x) | Q(y)) -> R(z)").nnf());
-        assert_debug_string("(((~P(x)) & (~Q(y))) | R(z)) & ((P(x) | Q(y)) | (~R(z)))",
-                            parse_formula_unsafe("(P(x) | Q(y)) <=> R(z)").nnf());
-        assert_debug_string("! x. (~P(x))", parse_formula_unsafe("~?x. P(x)").nnf());
-        assert_debug_string("? x. (~P(x))", parse_formula_unsafe("~!x. P(x)").nnf());
+        {
+            let formula: Formula = "~TRUE".parse().unwrap();
+            assert_debug_string("FALSE", formula.nnf());
+        }
+        {
+            let formula: Formula = "~FALSE".parse().unwrap();
+            assert_debug_string("TRUE", formula.nnf());
+        }
+        {
+            let formula: Formula = "~~P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~~x = y".parse().unwrap();
+            assert_debug_string("x = y", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(P(x) & Q(y))".parse().unwrap();
+            assert_debug_string("(~P(x)) | (~Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(P(x) | Q(y))".parse().unwrap();
+            assert_debug_string("(~P(x)) & (~Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(P(x) -> Q(y))".parse().unwrap();
+            assert_debug_string("P(x) & (~Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(P(x) <=> Q(y))".parse().unwrap();
+            assert_debug_string("(P(x) & (~Q(y))) | ((~P(x)) & Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
+            assert_debug_string("((~P(x)) & (~Q(y))) | R(z)", formula.nnf());
+        }
+        {
+            let formula: Formula = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
+            assert_debug_string("(((~P(x)) & (~Q(y))) | R(z)) & ((P(x) | Q(y)) | (~R(z)))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~?x. P(x)".parse().unwrap();
+            assert_debug_string("! x. (~P(x))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~!x. P(x)".parse().unwrap();
+            assert_debug_string("? x. (~P(x))", formula.nnf());
+        }
         // recursive application
-        assert_debug_string("P(x) & Q(y)", parse_formula_unsafe("~~P(x) & ~~Q(y)").nnf());
-        assert_debug_string("P(x) | Q(y)", parse_formula_unsafe("~~P(x) | ~~Q(y)").nnf());
-        assert_debug_string("(~P(x)) | Q(y)", parse_formula_unsafe("~~P(x) -> ~~Q(y)").nnf());
-        assert_debug_string("((~P(x)) | Q(y)) & (P(x) | (~Q(y)))", parse_formula_unsafe("~~P(x) <=> ~~Q(y)").nnf());
-        assert_debug_string("? x. P(x)", parse_formula_unsafe("?x. ~~P(x)").nnf());
-        assert_debug_string("! x. P(x)", parse_formula_unsafe("!x. ~~P(x)").nnf());
-        assert_debug_string("~P(x)", parse_formula_unsafe("~~~P(x)").nnf());
-        assert_debug_string("P(x) | Q(y)", parse_formula_unsafe("~(~P(x) & ~Q(y))").nnf());
-        assert_debug_string("P(x) & Q(y)", parse_formula_unsafe("~(~P(x) | ~Q(y))").nnf());
-        assert_debug_string("(~P(x)) & Q(y)", parse_formula_unsafe("~(~P(x) -> ~Q(y))").nnf());
-        assert_debug_string("(P(x) & Q(x)) | (P(y) & Q(y))", parse_formula_unsafe("~(~(P(x) & Q(x)) & ~(P(y) & Q(y)))").nnf());
-        assert_debug_string("(P(x) & Q(x)) & (P(y) & Q(y))", parse_formula_unsafe("~(~(P(x) & Q(x)) | ~(P(y) & Q(y)))").nnf());
-        assert_debug_string("((~P(x)) | (~Q(x))) & (P(y) & Q(y))", parse_formula_unsafe("~(~(P(x) & Q(x)) -> ~(P(y) & Q(y)))").nnf());
-        assert_debug_string("(((~P(x)) | (~Q(x))) & (P(y) & Q(y))) | ((P(x) & Q(x)) & ((~P(y)) | (~Q(y))))",
-                            parse_formula_unsafe("~(~(P(x) & Q(x)) <=> ~(P(y) & Q(y)))").nnf());
-        assert_debug_string("! x. (? y. (P(x) & (~Q(y))))", parse_formula_unsafe("~?x. !y. (P(x) -> Q(y))").nnf());
-        assert_debug_string("(! x. (~P(x))) | (? y. (~Q(y)))", parse_formula_unsafe("~((?x. P(x)) & (!y. Q(y)))").nnf());
+        {
+            let formula: Formula = "~~P(x) & ~~Q(y)".parse().unwrap();
+            assert_debug_string("P(x) & Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~~P(x) | ~~Q(y)".parse().unwrap();
+            assert_debug_string("P(x) | Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~~P(x) -> ~~Q(y)".parse().unwrap();
+            assert_debug_string("(~P(x)) | Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~~P(x) <=> ~~Q(y)".parse().unwrap();
+            assert_debug_string("((~P(x)) | Q(y)) & (P(x) | (~Q(y)))", formula.nnf());
+        }
+        {
+            let formula: Formula = "?x. ~~P(x)".parse().unwrap();
+            assert_debug_string("? x. P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "!x. ~~P(x)".parse().unwrap();
+            assert_debug_string("! x. P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~~~P(x)".parse().unwrap();
+            assert_debug_string("~P(x)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~P(x) & ~Q(y))".parse().unwrap();
+            assert_debug_string("P(x) | Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~P(x) | ~Q(y))".parse().unwrap();
+            assert_debug_string("P(x) & Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~P(x) -> ~Q(y))".parse().unwrap();
+            assert_debug_string("(~P(x)) & Q(y)", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~(P(x) & Q(x)) & ~(P(y) & Q(y)))".parse().unwrap();
+            assert_debug_string("(P(x) & Q(x)) | (P(y) & Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~(P(x) & Q(x)) | ~(P(y) & Q(y)))".parse().unwrap();
+            assert_debug_string("(P(x) & Q(x)) & (P(y) & Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~(P(x) & Q(x)) -> ~(P(y) & Q(y)))".parse().unwrap();
+            assert_debug_string("((~P(x)) | (~Q(x))) & (P(y) & Q(y))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~(~(P(x) & Q(x)) <=> ~(P(y) & Q(y)))".parse().unwrap();
+            assert_debug_string("(((~P(x)) | (~Q(x))) & (P(y) & Q(y))) | ((P(x) & Q(x)) & ((~P(y)) | (~Q(y))))",
+                                formula.nnf());
+        }
+        {
+            let formula: Formula = "~?x. !y. (P(x) -> Q(y))".parse().unwrap();
+            assert_debug_string("! x. (? y. (P(x) & (~Q(y))))", formula.nnf());
+        }
+        {
+            let formula: Formula = "~((?x. P(x)) & (!y. Q(y)))".parse().unwrap();
+            assert_debug_string("(! x. (~P(x))) | (? y. (~Q(y)))", formula.nnf());
+        }
     }
 
     #[test]
     fn test_cnf() {
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE").cnf());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE").cnf());
-        assert_debug_string("P(f(), g(f(), f()))", parse_formula_unsafe("P(f(), g(f(), f()))").cnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x)").cnf());
-        assert_debug_string("x = y", parse_formula_unsafe("x=y").cnf());
-        assert_debug_string("P(x) & Q(y)", parse_formula_unsafe("P(x) & Q(y)").cnf());
-        assert_debug_string("P(x) | Q(y)", parse_formula_unsafe("P(x) | Q(y)").cnf());
-        assert_debug_string("(~P(x)) | Q(y)", parse_formula_unsafe("P(x) -> Q(y)").cnf());
-        assert_debug_string("((~P(x)) | Q(y)) & ((~Q(y)) | P(x))", parse_formula_unsafe("P(x) <=> Q(y)").cnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("!x. P(x)").cnf());
-        assert_debug_string("P(f(), g(f(), x))", parse_formula_unsafe("!x. P(f(), g(f(), x))").cnf());
+        {
+            let formula: Formula = "TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.cnf());
+        }
+        {
+            let formula: Formula = "FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(f(), g(f(), f()))".parse().unwrap();
+            assert_debug_string("P(f(), g(f(), f()))", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.cnf());
+        }
+        {
+            let formula: Formula = "x=y".parse().unwrap();
+            assert_debug_string("x = y", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) & Q(y)".parse().unwrap();
+            assert_debug_string("P(x) & Q(y)", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(y)".parse().unwrap();
+            assert_debug_string("P(x) | Q(y)", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) -> Q(y)".parse().unwrap();
+            assert_debug_string("(~P(x)) | Q(y)", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) <=> Q(y)".parse().unwrap();
+            assert_debug_string("((~P(x)) | Q(y)) & ((~Q(y)) | P(x))", formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. P(f(), g(f(), x))".parse().unwrap();
+            assert_debug_string("P(f(), g(f(), x))", formula.cnf());
+        }
         // quantifier-free formulae
-        assert_debug_string("((~P(x1)) | (~Q(y))) & ((~P(x2)) | (~Q(y)))",
-                            parse_formula_unsafe("~((P(x1) | P(x2)) and Q(y))").cnf());
-        assert_debug_string("(P(x) | Q(x)) & (P(x) | (~Q(y)))",
-                            parse_formula_unsafe("P(x) | ~(Q(x) -> Q(y))").cnf());
-        assert_debug_string("((~P(x)) | R(z)) & ((~Q(y)) | R(z))",
-                            parse_formula_unsafe("(P(x) | Q(y)) -> R(z)").cnf());
-        assert_debug_string("((P(x) | (Q(x) | Q(y))) & (P(x) | (Q(x) | (~Q(x))))) & ((P(x) | ((~Q(y)) | Q(y))) & (P(x) | ((~Q(y)) | (~Q(x)))))",
-                            parse_formula_unsafe("P(x) | ~(Q(x) <=> Q(y))").cnf());
-        assert_debug_string("(((~P(x)) | R(z)) & ((~Q(y)) | R(z))) & ((~R(z)) | (P(x) | Q(y)))",
-                            parse_formula_unsafe("(P(x) | Q(y)) <=> R(z)").cnf());
-        assert_debug_string("(P(x) | (Q(x) | R(y))) & (P(x) | (Q(x) | R(z)))",
-                            parse_formula_unsafe("P(x) | (Q(x) | (R(y) & R(z)))").cnf());
-        assert_debug_string("((P(x1) | Q(x1)) & (P(x1) | Q(x2))) & ((P(x2) | Q(x1)) & (P(x2) | Q(x2)))",
-                            parse_formula_unsafe("(P(x1) & P(x2)) | (Q(x1) & Q(x2))").cnf());
+        {
+            let formula: Formula = "~((P(x1) | P(x2)) and Q(y))".parse().unwrap();
+            assert_debug_string("((~P(x1)) | (~Q(y))) & ((~P(x2)) | (~Q(y)))", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) | ~(Q(x) -> Q(y))".parse().unwrap();
+            assert_debug_string("(P(x) | Q(x)) & (P(x) | (~Q(y)))", formula.cnf());
+        }
+        {
+            let formula: Formula = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
+            assert_debug_string("((~P(x)) | R(z)) & ((~Q(y)) | R(z))", formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
+            assert_debug_string("((P(x) | (Q(x) | Q(y))) & (P(x) | (Q(x) | (~Q(x))))) & ((P(x) | ((~Q(y)) | Q(y))) & (P(x) | ((~Q(y)) | (~Q(x)))))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
+            assert_debug_string("(((~P(x)) | R(z)) & ((~Q(y)) | R(z))) & ((~R(z)) | (P(x) | Q(y)))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "P(x) | (Q(x) | (R(y) & R(z)))".parse().unwrap();
+            assert_debug_string("(P(x) | (Q(x) | R(y))) & (P(x) | (Q(x) | R(z)))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "(P(x1) & P(x2)) | (Q(x1) & Q(x2))".parse().unwrap();
+            assert_debug_string("((P(x1) | Q(x1)) & (P(x1) | Q(x2))) & ((P(x2) | Q(x1)) & (P(x2) | Q(x2)))",
+                                formula.cnf());
+        }
         //random formulae
-        assert_debug_string("P('sk#0)", parse_formula_unsafe("?x. P(x)").cnf());
-        assert_debug_string("P('sk#0) & Q(f(), 'sk#0)", parse_formula_unsafe("?x. (P(x) & Q(f(), x))").cnf());
-        assert_debug_string("((~P(y)) | (~Q(x, y))) | R(x)",
-                            parse_formula_unsafe("!x. ((? y. P(y) & Q(x, y))  -> R(x))").cnf());
-        assert_debug_string("(~P(x)) | ((~Q(y)) | (~R(x, y)))",
-                            parse_formula_unsafe("!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))").cnf());
-        assert_debug_string("((~P(y, sk#0(y))) | Q(y)) & ((~Q(sk#0(y))) | Q(y))",
-                            parse_formula_unsafe("!y. (!x. (P(y, x) | Q(x)) -> Q(y))").cnf());
-        assert_debug_string("P('sk#0, 'sk#1)", parse_formula_unsafe("?x. ?y. P(x, y)").cnf());
-        assert_debug_string("P('sk#0, 'sk#1)", parse_formula_unsafe("?x, y. P(x, y)").cnf());
-        assert_debug_string("P(x, sk#0(x))", parse_formula_unsafe("!x. ?y. P(x, y)").cnf());
-        assert_debug_string("((~R(z)) | P(sk#0(z), x)) & (((~R(z)) | (~Q(u`, x`, y))) & ((~R(z)) | (~(w = f(u`)))))",
-                            parse_formula_unsafe("R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))").cnf());
-        assert_debug_string("(P(sk#0(x)) | Q(sk#1(x), x)) & ((~Q(x, sk#0(x))) | Q(sk#1(x), x))",
-                            parse_formula_unsafe("!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))").cnf());
-        assert_debug_string("P('sk#0) & (((~Q('sk#0, y)) | (y = z)) | (~Q('sk#0, z)))",
-                            parse_formula_unsafe("?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))").cnf());
-        assert_debug_string("((~P(x)) | ((~P(y)) | P(f(x, y)))) & (((~P(x)) | Q(x, sk#0(x, y))) & ((~P(x)) | (~P(sk#0(x, y)))))",
-                            parse_formula_unsafe("!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))").cnf());
+        {
+            let formula: Formula = "?x. P(x)".parse().unwrap();
+            assert_debug_string("P('sk#0)", formula.cnf());
+        }
+        {
+            let formula: Formula = "?x. (P(x) & Q(f(), x))".parse().unwrap();
+            assert_debug_string("P('sk#0) & Q(f(), 'sk#0)", formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. ((? y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
+            assert_debug_string("((~P(y)) | (~Q(x, y))) | R(x)", formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
+            assert_debug_string("(~P(x)) | ((~Q(y)) | (~R(x, y)))", formula.cnf());
+        }
+        {
+            let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
+            assert_debug_string("((~P(y, sk#0(y))) | Q(y)) & ((~Q(sk#0(y))) | Q(y))", formula.cnf());
+        }
+        {
+            let formula: Formula = "?x. ?y. P(x, y)".parse().unwrap();
+            assert_debug_string("P('sk#0, 'sk#1)", formula.cnf());
+        }
+        {
+            let formula: Formula = "?x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("P('sk#0, 'sk#1)", formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. ?y. P(x, y)".parse().unwrap();
+            assert_debug_string("P(x, sk#0(x))", formula.cnf());
+        }
+        {
+            let formula: Formula = "R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))".parse().unwrap();
+            assert_debug_string("((~R(z)) | P(sk#0(z), x)) & (((~R(z)) | (~Q(u`, x`, y))) & ((~R(z)) | (~(w = f(u`)))))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))".parse().unwrap();
+            assert_debug_string("(P(sk#0(x)) | Q(sk#1(x), x)) & ((~Q(x, sk#0(x))) | Q(sk#1(x), x))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))".parse().unwrap();
+            assert_debug_string("P('sk#0) & (((~Q('sk#0, y)) | (y = z)) | (~Q('sk#0, z)))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))".parse().unwrap();
+            assert_debug_string("((~P(x)) | ((~P(y)) | P(f(x, y)))) & (((~P(x)) | Q(x, sk#0(x, y))) & ((~P(x)) | (~P(sk#0(x, y)))))",
+                                formula.cnf());
+        }
     }
 
     #[test]
     fn test_dnf() {
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE").dnf());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE").dnf());
-        assert_debug_string("P(f(), g(f(), f()))", parse_formula_unsafe("P(f(), g(f(), f()))").dnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x)").dnf());
-        assert_debug_string("x = y", parse_formula_unsafe("x=y").dnf());
-        assert_debug_string("P(x) & Q(y)", parse_formula_unsafe("P(x) & Q(y)").dnf());
-        assert_debug_string("P(x) | Q(y)", parse_formula_unsafe("P(x) | Q(y)").dnf());
-        assert_debug_string("(~P(x)) | Q(y)", parse_formula_unsafe("P(x) -> Q(y)").dnf());
-        assert_debug_string("(((~P(x)) & (~Q(y))) | ((~P(x)) & P(x))) | ((Q(y) & (~Q(y))) | (Q(y) & P(x)))", parse_formula_unsafe("P(x) <=> Q(y)").dnf());
-        assert_debug_string("P(x)", parse_formula_unsafe("!x. P(x)").dnf());
-        assert_debug_string("P(f(), g(f(), x))", parse_formula_unsafe("!x. P(f(), g(f(), x))").dnf());
+        {
+            let formula: Formula = "TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.dnf());
+        }
+        {
+            let formula: Formula = "FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(f(), g(f(), f()))".parse().unwrap();
+            assert_debug_string("P(f(), g(f(), f()))", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.dnf());
+        }
+        {
+            let formula: Formula = "x=y".parse().unwrap();
+            assert_debug_string("x = y", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) & Q(y)".parse().unwrap();
+            assert_debug_string("P(x) & Q(y)", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(y)".parse().unwrap();
+            assert_debug_string("P(x) | Q(y)", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) -> Q(y)".parse().unwrap();
+            assert_debug_string("(~P(x)) | Q(y)", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) <=> Q(y)".parse().unwrap();
+            assert_debug_string("(((~P(x)) & (~Q(y))) | ((~P(x)) & P(x))) | ((Q(y) & (~Q(y))) | (Q(y) & P(x)))",
+                                formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. P(f(), g(f(), x))".parse().unwrap();
+            assert_debug_string("P(f(), g(f(), x))", formula.dnf());
+        }
         // quantifier-free formulae
-        assert_debug_string("((~P(x1)) & (~P(x2))) | (~Q(y))",
-                            parse_formula_unsafe("~((P(x1) | P(x2)) and Q(y))").dnf());
-        assert_debug_string("P(x) | (Q(x) & (~Q(y)))",
-                            parse_formula_unsafe("P(x) | ~(Q(x) -> Q(y))").dnf());
-        assert_debug_string("((~P(x)) & (~Q(y))) | R(z)",
-                            parse_formula_unsafe("(P(x) | Q(y)) -> R(z)").dnf());
-        assert_debug_string("P(x) | ((Q(x) & (~Q(y))) | (Q(y) & (~Q(x))))",
-                            parse_formula_unsafe("P(x) | ~(Q(x) <=> Q(y))").dnf());
-        assert_debug_string("((((~P(x)) & (~Q(y))) & (~R(z))) | ((((~P(x)) & (~Q(y))) & P(x)) | (((~P(x)) & (~Q(y))) & Q(y)))) | ((R(z) & (~R(z))) | ((R(z) & P(x)) | (R(z) & Q(y))))",
-                            parse_formula_unsafe("(P(x) | Q(y)) <=> R(z)").dnf());
-        assert_debug_string("P(x) | (Q(x) | (R(y) & R(z)))",
-                            parse_formula_unsafe("P(x) | (Q(x) | (R(y) & R(z)))").dnf());
-        assert_debug_string("(P(x1) & P(x2)) | (Q(x1) & Q(x2))",
-                            parse_formula_unsafe("(P(x1) & P(x2)) | (Q(x1) & Q(x2))").dnf());
+        {
+            let formula: Formula = "~((P(x1) | P(x2)) and Q(y))".parse().unwrap();
+            assert_debug_string("((~P(x1)) & (~P(x2))) | (~Q(y))", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) | ~(Q(x) -> Q(y))".parse().unwrap();
+            assert_debug_string("P(x) | (Q(x) & (~Q(y)))", formula.dnf());
+        }
+        {
+            let formula: Formula = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
+            assert_debug_string("((~P(x)) & (~Q(y))) | R(z)", formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
+            assert_debug_string("P(x) | ((Q(x) & (~Q(y))) | (Q(y) & (~Q(x))))", formula.dnf());
+        }
+        {
+            let formula: Formula = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
+            assert_debug_string("((((~P(x)) & (~Q(y))) & (~R(z))) | ((((~P(x)) & (~Q(y))) & P(x)) | (((~P(x)) & (~Q(y))) & Q(y)))) | ((R(z) & (~R(z))) | ((R(z) & P(x)) | (R(z) & Q(y))))",
+                                formula.dnf());
+        }
+        {
+            let formula: Formula = "P(x) | (Q(x) | (R(y) & R(z)))".parse().unwrap();
+            assert_debug_string("P(x) | (Q(x) | (R(y) & R(z)))", formula.dnf());
+        }
+        {
+            let formula: Formula = "(P(x1) & P(x2)) | (Q(x1) & Q(x2))".parse().unwrap();
+            assert_debug_string("(P(x1) & P(x2)) | (Q(x1) & Q(x2))", formula.dnf());
+        }
+
         //random formulae
-        assert_debug_string("P('sk#0)", parse_formula_unsafe("?x. P(x)").dnf());
-        assert_debug_string("P('sk#0) & Q(f(), 'sk#0)", parse_formula_unsafe("?x. (P(x) & Q(f(), x))").dnf());
-        assert_debug_string("((~P(y)) | (~Q(x, y))) | R(x)",
-                            parse_formula_unsafe("!x. ((? y. P(y) & Q(x, y))  -> R(x))").dnf());
-        assert_debug_string("(~P(x)) | ((~Q(y)) | (~R(x, y)))",
-                            parse_formula_unsafe("!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))").dnf());
-        assert_debug_string("((~P(y, sk#0(y))) & (~Q(sk#0(y)))) | Q(y)",
-                            parse_formula_unsafe("!y. (!x. (P(y, x) | Q(x)) -> Q(y))").dnf());
-        assert_debug_string("P('sk#0, 'sk#1)", parse_formula_unsafe("?x. ?y. P(x, y)").dnf());
-        assert_debug_string("P('sk#0, 'sk#1)", parse_formula_unsafe("?x, y. P(x, y)").dnf());
-        assert_debug_string("P(x, sk#0(x))", parse_formula_unsafe("!x. ?y. P(x, y)").dnf());
-        assert_debug_string("(~R(z)) | (P(sk#0(z), x) & ((~Q(u`, x`, y)) & (~(w = f(u`)))))",
-                            parse_formula_unsafe("R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))").dnf());
-        assert_debug_string("(P(sk#0(x)) & (~Q(x, sk#0(x)))) | Q(sk#1(x), x)",
-                            parse_formula_unsafe("!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))").dnf());
-        assert_debug_string("((P('sk#0) & (~Q('sk#0, y))) | (P('sk#0) & (y = z))) | (P('sk#0) & (~Q('sk#0, z)))",
-                            parse_formula_unsafe("?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))").dnf());
-        assert_debug_string("(~P(x)) | (((~P(y)) & (Q(x, sk#0(x, y)) & (~P(sk#0(x, y))))) | (P(f(x, y)) & (Q(x, sk#0(x, y)) & (~P(sk#0(x, y))))))",
-                            parse_formula_unsafe("!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))").dnf());
+        {
+            let formula: Formula = "?x. P(x)".parse().unwrap();
+            assert_debug_string("P('sk#0)", formula.dnf());
+        }
+        {
+            let formula: Formula = "?x. (P(x) & Q(f(), x))".parse().unwrap();
+            assert_debug_string("P('sk#0) & Q(f(), 'sk#0)", formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. ((? y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
+            assert_debug_string("((~P(y)) | (~Q(x, y))) | R(x)", formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
+            assert_debug_string("(~P(x)) | ((~Q(y)) | (~R(x, y)))", formula.dnf());
+        }
+        {
+            let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
+            assert_debug_string("((~P(y, sk#0(y))) & (~Q(sk#0(y)))) | Q(y)", formula.dnf());
+        }
+        {
+            let formula: Formula = "?x. ?y. P(x, y)".parse().unwrap();
+            assert_debug_string("P('sk#0, 'sk#1)", formula.dnf());
+        }
+        {
+            let formula: Formula = "?x, y. P(x, y)".parse().unwrap();
+            assert_debug_string("P('sk#0, 'sk#1)", formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. ?y. P(x, y)".parse().unwrap();
+            assert_debug_string("P(x, sk#0(x))", formula.dnf());
+        }
+        {
+            let formula: Formula = "R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))".parse().unwrap();
+            assert_debug_string("(~R(z)) | (P(sk#0(z), x) & ((~Q(u`, x`, y)) & (~(w = f(u`)))))",
+                                formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))".parse().unwrap();
+            assert_debug_string("(P(sk#0(x)) & (~Q(x, sk#0(x)))) | Q(sk#1(x), x)",
+                                formula.dnf());
+        }
+        {
+            let formula: Formula = "?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))".parse().unwrap();
+            assert_debug_string("((P('sk#0) & (~Q('sk#0, y))) | (P('sk#0) & (y = z))) | (P('sk#0) & (~Q('sk#0, z)))",
+                                formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))".parse().unwrap();
+            assert_debug_string("(~P(x)) | (((~P(y)) & (Q(x, sk#0(x, y)) & (~P(sk#0(x, y))))) | (P(f(x, y)) & (Q(x, sk#0(x, y)) & (~P(sk#0(x, y))))))",
+                                formula.dnf());
+        }
     }
 
     #[test]
     fn test_simplify() {
-        assert_debug_string("FALSE", parse_formula_unsafe("~TRUE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("~FALSE").simplify());
-        assert_debug_string("~P(x)", parse_formula_unsafe("~P(x)").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE & TRUE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE & FALSE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE & TRUE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("TRUE & FALSE").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x) & TRUE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE & P(x)").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("P(x) & FALSE").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("TRUE & P(x)").simplify());
-        assert_debug_string("P(x) & Q(x)", parse_formula_unsafe("P(x) & Q(x)").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE | TRUE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE | FALSE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("FALSE | TRUE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE | FALSE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("P(x) | TRUE").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("FALSE | P(x)").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x) | FALSE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE | P(x)").simplify());
-        assert_debug_string("P(x) | Q(x)", parse_formula_unsafe("P(x) | Q(x)").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE -> TRUE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("FALSE -> FALSE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("FALSE -> TRUE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("TRUE -> FALSE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("P(x) -> TRUE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("FALSE -> P(x)").simplify());
-        assert_debug_string("~P(x)", parse_formula_unsafe("P(x) -> FALSE").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("TRUE -> P(x)").simplify());
-        assert_debug_string("P(x) -> Q(x)", parse_formula_unsafe("P(x) -> Q(x)").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("TRUE <=> TRUE").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("FALSE <=> FALSE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("FALSE <=> TRUE").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("TRUE <=> FALSE").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("P(x) <=> TRUE").simplify());
-        assert_debug_string("~P(x)", parse_formula_unsafe("FALSE <=> P(x)").simplify());
-        assert_debug_string("~P(x)", parse_formula_unsafe("P(x) <=> FALSE").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("TRUE <=> P(x)").simplify());
-        assert_debug_string("P(x) <=> Q(x)", parse_formula_unsafe("P(x) <=> Q(x)").simplify());
-        assert_debug_string("? y. P(y, z)", parse_formula_unsafe("?x, y. P(y, z)").simplify());
-        assert_debug_string("? x. P(x)", parse_formula_unsafe("?x. P(x)").simplify());
-        assert_debug_string("P(y)", parse_formula_unsafe("?x. P(y)").simplify());
-        assert_debug_string("! y. P(y, z)", parse_formula_unsafe("!x, y. P(y, z)").simplify());
-        assert_debug_string("! x. P(x)", parse_formula_unsafe("!x. P(x)").simplify());
-        assert_debug_string("P(y)", parse_formula_unsafe("!x. P(y)").simplify());
+        {
+            let formula: Formula = "~TRUE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "~FALSE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "~P(x)".parse().unwrap();
+            assert_debug_string("~P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE & TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE & FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE & TRUE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE & FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) & TRUE".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE & P(x)".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) & FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE & P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) & Q(x)".parse().unwrap();
+            assert_debug_string("P(x) & Q(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE | TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE | FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE | TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE | FALSE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) | TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE | P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) | FALSE".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE | P(x)".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) | Q(x)".parse().unwrap();
+            assert_debug_string("P(x) | Q(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE -> TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE -> FALSE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE -> TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE -> FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) -> TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE -> P(x)".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) -> FALSE".parse().unwrap();
+            assert_debug_string("~P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE -> P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) -> Q(x)".parse().unwrap();
+            assert_debug_string("P(x) -> Q(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE <=> TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE <=> FALSE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE <=> TRUE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE <=> FALSE".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) <=> TRUE".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE <=> P(x)".parse().unwrap();
+            assert_debug_string("~P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) <=> FALSE".parse().unwrap();
+            assert_debug_string("~P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "TRUE <=> P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "P(x) <=> Q(x)".parse().unwrap();
+            assert_debug_string("P(x) <=> Q(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "?x, y. P(y, z)".parse().unwrap();
+            assert_debug_string("? y. P(y, z)", formula.simplify());
+        }
+        {
+            let formula: Formula = "?x. P(x)".parse().unwrap();
+            assert_debug_string("? x. P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "?x. P(y)".parse().unwrap();
+            assert_debug_string("P(y)", formula.simplify());
+        }
+        {
+            let formula: Formula = "!x, y. P(y, z)".parse().unwrap();
+            assert_debug_string("! y. P(y, z)", formula.simplify());
+        }
+        {
+            let formula: Formula = "!x. P(x)".parse().unwrap();
+            assert_debug_string("! x. P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "!x. P(y)".parse().unwrap();
+            assert_debug_string("P(y)", formula.simplify());
+        }
         // random formulae
-        assert_debug_string("P(x)", parse_formula_unsafe("~~P(x)").simplify());
-        assert_debug_string("~P(x)", parse_formula_unsafe("~~~P(x)").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("~(TRUE -> FALSE)").simplify());
-        assert_debug_string("P(x)", parse_formula_unsafe("FALSE | (P(x) & TRUE)").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("?x. P(x) | TRUE").simplify());
-        assert_debug_string("~P(x)", parse_formula_unsafe("?y. (P(x) -> FALSE) & (FALSE -> Q(x))").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("!x. ?y. P(x, y) | TRUE").simplify());
-        assert_debug_string("x = y", parse_formula_unsafe("(((x = y -> FALSE) -> FALSE) -> FALSE) -> FALSE").simplify());
-        assert_debug_string("! x. (P(x) | (w = x))", parse_formula_unsafe("!x, y, z. ?z. P(x) | w = x").simplify());
-        assert_debug_string("TRUE", parse_formula_unsafe("(P(x) | FALSE) | (P(x) | TRUE)").simplify());
-        assert_debug_string("FALSE", parse_formula_unsafe("(P(x) & FALSE) & (P(x) & TRUE)").simplify());
+        {
+            let formula: Formula = "~~P(x)".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "~~~P(x)".parse().unwrap();
+            assert_debug_string("~P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "~(TRUE -> FALSE)".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "FALSE | (P(x) & TRUE)".parse().unwrap();
+            assert_debug_string("P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "?x. P(x) | TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "?y. (P(x) -> FALSE) & (FALSE -> Q(x))".parse().unwrap();
+            assert_debug_string("~P(x)", formula.simplify());
+        }
+        {
+            let formula: Formula = "!x. ?y. P(x, y) | TRUE".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "(((x = y -> FALSE) -> FALSE) -> FALSE) -> FALSE".parse().unwrap();
+            assert_debug_string("x = y", formula.simplify());
+        }
+        {
+            let formula: Formula = "!x, y, z. ?z. P(x) | w = x".parse().unwrap();
+            assert_debug_string("! x. (P(x) | (w = x))", formula.simplify());
+        }
+        {
+            let formula: Formula = "(P(x) | FALSE) | (P(x) | TRUE)".parse().unwrap();
+            assert_debug_string("TRUE", formula.simplify());
+        }
+        {
+            let formula: Formula = "(P(x) & FALSE) & (P(x) & TRUE)".parse().unwrap();
+            assert_debug_string("FALSE", formula.simplify());
+        }
     }
 
     #[test]
     fn test_gnf() {
-        assert_debug_strings("TRUE -> TRUE", parse_formula_unsafe("TRUE").gnf());
-        assert_debug_strings("TRUE -> FALSE", parse_formula_unsafe("FALSE").gnf());
-        assert_debug_strings("TRUE -> P(x)", parse_formula_unsafe("P(x)").gnf());
-        assert_debug_strings("TRUE -> (x = y)", parse_formula_unsafe("x = y").gnf());
-        assert_debug_strings("P(x) -> FALSE", parse_formula_unsafe("~P(x)").gnf());
-        assert_debug_strings("P(x) -> Q(x)", parse_formula_unsafe("P(x) -> Q(x)").gnf());
-        assert_debug_strings("TRUE -> P(x)\n\
-        TRUE -> Q(x)", parse_formula_unsafe("P(x) & Q(x)").gnf());
-        assert_debug_strings("TRUE -> (P(x) | Q(x))", parse_formula_unsafe("P(x) | Q(x)").gnf());
-        assert_debug_strings("TRUE -> P(x)", parse_formula_unsafe("! x. P(x)").gnf());
-        assert_debug_strings("TRUE -> P('sk#0)", parse_formula_unsafe("? x. P(x)").gnf());
-        assert_debug_strings("(P(x) & Q(x)) -> (P(y) | Q(y))", parse_formula_unsafe("P(x) & Q(x) -> P(y) | Q(y)").gnf());
-        assert_debug_strings("P(x) -> P(y)\n\
+        {
+            let formula: Formula = "TRUE".parse().unwrap();
+            assert_debug_strings("TRUE -> TRUE", formula.gnf());
+        }
+        {
+            let formula: Formula = "FALSE".parse().unwrap();
+            assert_debug_strings("TRUE -> FALSE", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x)".parse().unwrap();
+            assert_debug_strings("TRUE -> P(x)", formula.gnf());
+        }
+        {
+            let formula: Formula = "x = y".parse().unwrap();
+            assert_debug_strings("TRUE -> (x = y)", formula.gnf());
+        }
+        {
+            let formula: Formula = "~P(x)".parse().unwrap();
+            assert_debug_strings("P(x) -> FALSE", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x) -> Q(x)".parse().unwrap();
+            assert_debug_strings("P(x) -> Q(x)", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x) & Q(x)".parse().unwrap();
+            assert_debug_strings("TRUE -> P(x)\nTRUE -> Q(x)", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(x)".parse().unwrap();
+            assert_debug_strings("TRUE -> (P(x) | Q(x))", formula.gnf());
+        }
+        {
+            let formula: Formula = "! x. P(x)".parse().unwrap();
+            assert_debug_strings("TRUE -> P(x)", formula.gnf());
+        }
+        {
+            let formula: Formula = "? x. P(x)".parse().unwrap();
+            assert_debug_strings("TRUE -> P('sk#0)", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x) & Q(x) -> P(y) | Q(y)".parse().unwrap();
+            assert_debug_strings("(P(x) & Q(x)) -> (P(y) | Q(y))", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(x) -> P(y) & Q(y)".parse().unwrap();
+            assert_debug_strings("P(x) -> P(y)\n\
         P(x) -> Q(y)\n\
         Q(x) -> P(y)\n\
-        Q(x) -> Q(y)", parse_formula_unsafe("P(x) | Q(x) -> P(y) & Q(y)").gnf());
-        assert_debug_strings("P(x) -> P(y)\n\
+        Q(x) -> Q(y)", formula.gnf());
+        }
+        {
+            let formula: Formula = "P(x) | Q(x) <=> P(y) & Q(y)".parse().unwrap();
+            assert_debug_strings("P(x) -> P(y)\n\
         P(x) -> Q(y)\n\
         Q(x) -> P(y)\n\
         Q(x) -> Q(y)\n\
-        (P(y) & Q(y)) -> (P(x) | Q(x))", parse_formula_unsafe("P(x) | Q(x) <=> P(y) & Q(y)").gnf());
-        assert_debug_strings("P(x) -> Q(x, sk#0(x))", parse_formula_unsafe("!x. (P(x) -> ?y. Q(x,y))").gnf());
-        assert_debug_strings("P(x) -> (Q(sk#0(x)) | P(sk#1(x)))\n\
+        (P(y) & Q(y)) -> (P(x) | Q(x))", formula.gnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> ?y. Q(x,y))".parse().unwrap();
+            assert_debug_strings("P(x) -> Q(x, sk#0(x))", formula.gnf());
+        }
+        {
+            let formula: Formula = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))".parse().unwrap();
+            assert_debug_strings("P(x) -> (Q(sk#0(x)) | P(sk#1(x)))\n\
         P(x) -> (Q(sk#0(x)) | S(x, sk#1(x)))\n\
         P(x) -> (R(x, sk#0(x)) | P(sk#1(x)))\n\
-        P(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))",
-                             parse_formula_unsafe("!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))").gnf());
-        assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)",
-                             parse_formula_unsafe("!x, y. ((P(x) & Q(y)) -> (R(x, y) -> S(x, y)))").gnf());
-        assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)\n\
+        P(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))", formula.gnf());
+        }
+        {
+            let formula: Formula = "!x, y. ((P(x) & Q(y)) -> (R(x, y) -> S(x, y)))".parse().unwrap();
+            assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)", formula.gnf());
+        }
+        {
+            let formula: Formula = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))".parse().unwrap();
+            assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)\n\
         ((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n\
         TRUE -> ((R(x, y) | S(x, y)) | P(x))\n\
         TRUE -> ((R(x, y) | S(x, y)) | Q(y))\n\
@@ -2177,25 +2904,40 @@ mod test_transform {
         S(x, y) -> (S(x, y) | P(x))\n\
         S(x, y) -> (S(x, y) | Q(y))\n\
         (S(x, y) & R(x, y)) -> P(x)\n\
-        (S(x, y) & R(x, y)) -> Q(y)", parse_formula_unsafe("!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))").gnf());
-        assert_debug_strings("P(x`) -> Q(x)",
-                             parse_formula_unsafe("? x. P(x) -> Q(x)").gnf());
-        assert_debug_strings("P('sk#0) -> Q('sk#0)",
-                             parse_formula_unsafe("? x. (P(x) -> Q(x))").gnf());
-        assert_debug_strings("TRUE -> TRUE",
-                             parse_formula_unsafe("FALSE -> P(x)").gnf());
+        (S(x, y) & R(x, y)) -> Q(y)", formula.gnf());
+        }
+        {
+            let formula: Formula = "? x. P(x) -> Q(x)".parse().unwrap();
+            assert_debug_strings("P(x`) -> Q(x)", formula.gnf());
+        }
+        {
+            let formula: Formula = "? x. (P(x) -> Q(x))".parse().unwrap();
+            assert_debug_strings("P('sk#0) -> Q('sk#0)", formula.gnf());
+        }
+        {
+            let formula: Formula = "FALSE -> P(x)".parse().unwrap();
+            assert_debug_strings("TRUE -> TRUE", formula.gnf());
+        }
     }
 
     #[test]
     fn test_gnf_theory() {
         // mostly testing if compression of heads works properly:
-        assert_debug_strings("TRUE -> (P('a) & P('b))",
-                             parse_theory_unsafe("P('a); P('b);").gnf().formulae);
-        assert_debug_strings("TRUE -> P(x)\nTRUE -> P('a)",
-                             parse_theory_unsafe("P('a); P(x);").gnf().formulae);
-        assert_debug_strings("TRUE -> P(x)\nTRUE -> (P(\'a) & P(\'b))",
-                             parse_theory_unsafe("P('a); P(x); P('b);").gnf().formulae);
-        assert_debug_strings("TRUE -> ((T() & V()) | (U() & V()))",
-                             parse_theory_unsafe("(T() and V()) or (U() and V());").gnf().formulae);
+        {
+            let theory: Theory = "P('a); P('b);".parse().unwrap();
+            assert_debug_strings("TRUE -> (P('a) & P('b))", theory.gnf().formulae);
+        }
+        {
+            let theory: Theory = "P('a); P(x);".parse().unwrap();
+            assert_debug_strings("TRUE -> P(x)\nTRUE -> P('a)", theory.gnf().formulae);
+        }
+        {
+            let theory: Theory = "P('a); P(x); P('b);".parse().unwrap();
+            assert_debug_strings("TRUE -> P(x)\nTRUE -> (P(\'a) & P(\'b))", theory.gnf().formulae);
+        }
+        {
+            let theory: Theory = "(T() and V()) or (U() and V());".parse().unwrap();
+            assert_debug_strings("TRUE -> ((T() & V()) | (U() & V()))", theory.gnf().formulae);
+        }
     }
 }

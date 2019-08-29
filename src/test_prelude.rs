@@ -1,4 +1,4 @@
-use crate::formula::{parser::parse_theory_unsafe, syntax::*};
+use crate::formula::syntax::*;
 use crate::chase::{*, r#impl::basic, r#impl::reference};
 use crate::chase::{bounder::DomainSize, selector::Linear, strategy::FIFO};
 use itertools::Itertools;
@@ -155,7 +155,7 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     f.read_to_string(&mut contents)
         .expect("something went wrong reading the file");
 
-    parse_theory_unsafe(contents.as_str())
+    contents.parse().unwrap()
 }
 
 pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {

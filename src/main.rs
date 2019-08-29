@@ -1,5 +1,5 @@
 use structopt::StructOpt;
-use rusty_razor::formula::{parser::parse_theory, syntax::Theory};
+use rusty_razor::formula::syntax::Theory;
 use rusty_razor::chase::{r#impl::batch::{Sequent, Model, Evaluator},
                          ModelTrait, SelectorTrait, StrategyTrait,
                          selector::{Fair, Bootstrap},
@@ -323,7 +323,7 @@ pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
     f.read_to_string(&mut contents)
         .expect("something went wrong reading the file");
 
-    parse_theory(contents.as_str())
+    contents.parse()
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {

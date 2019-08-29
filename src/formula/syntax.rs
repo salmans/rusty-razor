@@ -455,10 +455,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::{
-    /// syntax::V,
-    /// parser::parse_formula_unsafe,
-    /// };
+    /// # use rusty_razor::formula::syntax::{V, Formula};
     /// # use itertools::Itertools;
     ///
     /// // `x`, `y` and `z` are variable symbols:
@@ -467,16 +464,16 @@ impl Formula {
     /// let z = V::from("z");
     ///
     /// // (P(x) ∧ Q(x, f(g(x), y))) ∨ ('c = g(z))
-    /// let formula = parse_formula_unsafe("(P(x) & Q(x, f(g(x), y))) |  'c = g(z)");
+    /// let formula: Formula = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
     /// assert_eq!(vec![&x, &y, &z].iter().sorted(), formula.free_vars().iter().sorted());
     ///
     /// // ∀ x. P(x, y)
-    /// let formula = parse_formula_unsafe("forall x. P(x, y)");
+    /// let formula: Formula = "forall x. P(x, y)".parse().unwrap();
     /// // notice that the bound variable `x` is not in the list of free variables of `formula`
     /// assert_eq!(vec![&y], formula.free_vars());
     ///
     /// // ∃ x. P(x, y)
-    /// let formula = parse_formula_unsafe("exists x. P(x, y)");
+    /// let formula: Formula = "exists x. P(x, y)".parse().unwrap();
     /// assert_eq!(vec![&y], formula.free_vars());
     /// ```
     pub fn free_vars(&self) -> Vec<&V> {
