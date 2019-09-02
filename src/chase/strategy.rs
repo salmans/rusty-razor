@@ -1,127 +1,139 @@
-use crate::chase::{ModelTrait, SelectorTrait, SequentTrait, StrategyTrait};
-use std::collections::VecDeque;
+//! Contains strategies for selecting sequents.
+use crate::chase::{StrategyTrait, SequentTrait};
+use crate::formula::syntax::Formula;
 
-/// A strategy to dispatch work to other strategies.
-pub enum Dispatch<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
-    FIFO { strategy: FIFO<'s, S, M, Sel> },
-    LIFO { strategy: LIFO<'s, S, M, Sel> },
+/// ### Linear
+/// Goes through the list of all sequents from the start and returns the next sequent every time
+/// `Iterator::next()` is called.
+//#[derive(Clone)]
+pub struct Linear<'s, S: SequentTrait> {
+    sequents: Vec<&'s S>,
+    index: usize,
 }
 
-impl<'s, S, M, Sel> Dispatch<'s, S, M, Sel>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Sel: SelectorTrait<Item=&'s S> {
-    pub fn new_fifo() -> Self {
-        Dispatch::FIFO { strategy: FIFO::new() }
-    }
-
-    pub fn new_lifo() -> Self {
-        Dispatch::LIFO { strategy: LIFO::new() }
+impl<'s, S: SequentTrait> StrategyTrait for Linear<'s, S> {
+    fn new(sequents: Vec<&'s S>) -> Linear<'s, S> {
+        Linear { sequents, index: 0 }
     }
 }
 
-impl<'s, S, M, Sel> StrategyTrait<'s, S, M, Sel> for Dispatch<'s, S, M, Sel>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Sel: SelectorTrait<Item=&'s S> {
-    fn empty(&self) -> bool {
-        match self {
-            Dispatch::FIFO { strategy } => strategy.empty(),
-            Dispatch::LIFO { strategy } => strategy.empty(),
-        }
-    }
+impl<'s, S: SequentTrait> Iterator for Linear<'s, S> {
+    type Item = &'s S;
 
-    fn add(&mut self, model: M, selector: Sel) {
-        match self {
-            Dispatch::FIFO { strategy } => strategy.add(model, selector),
-            Dispatch::LIFO { strategy } => strategy.add(model, selector),
-        }
+    fn next(&mut self) -> Option<&'s S> {
+        self.index += 1;
+        self.sequents.get(self.index - 1).map(|i| *i)
     }
+}
 
-    fn remove(&mut self) -> Option<(M, Sel)> {
-        match self {
-            Dispatch::FIFO { strategy } => strategy.remove(),
-            Dispatch::LIFO { strategy } => strategy.remove(),
+impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
+    fn clone(&self) -> Self {
+        Linear {
+            sequents: self.sequents.clone(),
+            index: 0,
         }
     }
 }
 
-/// ### FIFO
-/// Arranges the branches of chase computation in a queue to implement a first-in-first-out strategy.
-/// > FIFO is used as the basic strategy for benchmarking and testing purposes.
-pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
-    queue: VecDeque<(M, Sel)>
+/// ### Fair
+/// Avoids starving sequents by doing a round robin on the sequents. The internal state of the
+/// strategy is preserved when cloned, so the cloned strategy can preserve fairness.
+pub struct Fair<'s, S: SequentTrait> {
+    sequents: Vec<&'s S>,
+    index: usize,
+    start: usize,
+    full_circle: bool,
 }
 
-impl<'s, S, M, Sel> FIFO<'s, S, M, Sel>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Sel: SelectorTrait<Item=&'s S> {
-    pub fn new() -> Self {
-        FIFO { queue: VecDeque::new() }
-    }
-}
-
-impl<'s, S, M, Sel> StrategyTrait<'s, S, M, Sel> for FIFO<'s, S, M, Sel>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Sel: SelectorTrait<Item=&'s S> {
-    fn empty(&self) -> bool {
-        self.queue.is_empty()
-    }
-
-    fn add(&mut self, model: M, selector: Sel) {
-        self.queue.push_back((model, selector))
-    }
-
-    fn remove(&mut self) -> Option<(M, Sel)> {
-        self.queue.pop_front()
+impl<'s, S: SequentTrait> StrategyTrait for Fair<'s, S> {
+    fn new(sequents: Vec<&'s S>) -> Fair<'s, S> {
+        Fair { sequents, index: 0, start: 0, full_circle: false }
     }
 }
 
-/// ### LIFO
-/// Arranges the branches of chase computation in a stack to implement a last-in-first-out strategy.
-pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Sel: SelectorTrait<Item=&'s S>> {
-    queue: VecDeque<(M, Sel)>
-}
+impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
+    type Item = &'s S;
 
-impl<'s, S, M, Sel> LIFO<'s, S, M, Sel>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Sel: SelectorTrait<Item=&'s S> {
-    pub fn new() -> Self {
-        LIFO { queue: VecDeque::new() }
+    fn next(&mut self) -> Option<&'s S> {
+        if self.sequents.len() == 0 || (self.index == self.start && self.full_circle) {
+            return None;
+        }
+        self.full_circle = true;
+        let result = self.sequents.get(self.index).map(|s| *s);
+        self.index = (self.index + 1) % self.sequents.len();
+        result
     }
 }
 
-impl<'s, S, M, Sel> StrategyTrait<'s, S, M, Sel> for LIFO<'s, S, M, Sel>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Sel: SelectorTrait<Item=&'s S> {
-    fn empty(&self) -> bool {
-        self.queue.is_empty()
+impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
+    fn clone(&self) -> Self {
+        Fair {
+            sequents: self.sequents.clone(),
+            index: self.index,
+            start: self.index,
+            full_circle: false,
+        }
     }
+}
 
-    fn add(&mut self, model: M, selector: Sel) {
-        self.queue.push_front((model, selector))
+/// ### Bootstrap
+/// Behaves like the strategy that it wraps inside but selects the initial sequents (with empty
+/// body) only once at the beginning.
+#[derive(Clone)]
+pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> {
+    initial_sequents: Vec<&'s S>,
+    strategy: Stg,
+}
+
+impl<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> StrategyTrait for Bootstrap<'s, S, Stg> {
+    fn new(sequents: Vec<&'s S>) -> Bootstrap<'s, S, Stg> {
+        let (initial_sequents, rest) = sequents.into_iter()
+            .partition(|s| { s.body() == Formula::Top && s.head().free_vars().is_empty() });
+        Bootstrap { initial_sequents, strategy: Stg::new(rest) }
     }
+}
 
-    fn remove(&mut self) -> Option<(M, Sel)> {
-        self.queue.pop_front()
+impl<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> Iterator for Bootstrap<'s, S, Stg> {
+    type Item = &'s S;
+
+    fn next(&mut self) -> Option<&'s S> {
+        if !self.initial_sequents.is_empty() {
+            Some(self.initial_sequents.remove(0))
+        } else {
+            self.strategy.next()
+        }
     }
 }
 
 #[cfg(test)]
-mod test_lifo {
+mod test_fair {
     use crate::formula::syntax::Theory;
-    use crate::chase::{r#impl::basic::{Sequent, Model, Evaluator}, selector::Linear
-                       , bounder::DomainSize, StrategyTrait, SelectorTrait, solve_all};
+    use crate::chase::{solve_all,
+                       ModelTrait, StrategyTrait, SchedulerTrait,
+                       bounder::DomainSize,
+                       strategy::Fair,
+                       scheduler::FIFO,
+                       r#impl::basic::{Model, Sequent, Evaluator}};
+    use crate::test_prelude::{solve_basic, read_theory_from_file};
     use std::collections::HashSet;
-    use crate::test_prelude::*;
     use std::fs;
-    use crate::chase::strategy::LIFO;
+    use itertools::Itertools;
 
-    pub fn run_test(theory: &Theory) -> Vec<Model> {
+    pub fn print_model(model: Model) -> String {
+        let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
+            let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
+            let witnesses = witnesses.into_iter().sorted();
+            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
+        }).collect();
+        let domain: Vec<String> = model.domain().iter().map(|e| e.to_string()).collect();
+        let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
+        format!("Domain: {{{}}}\nFacts: {}\n{}",
+                domain.into_iter().sorted().join(", "),
+                facts.into_iter().sorted().join(", "),
+                elements.join("\n"))
+    }
+
+    fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
             .formulae
@@ -129,11 +141,49 @@ mod test_lifo {
             .map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
-        let selector = Linear::new(sequents.iter().collect());
-        let mut strategy = LIFO::new();
+        let strategy = Fair::new(sequents.iter().collect());
+        let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(Model::new(), selector);
-        solve_all(&mut strategy, &evaluator, bounder)
+        scheduler.add(Model::new(), strategy);
+        solve_all(&mut scheduler, &evaluator, bounder)
+    }
+
+    #[test]
+    fn test() {
+        for item in fs::read_dir("theories/core").unwrap() {
+            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
+            let basic_models = solve_basic(&theory);
+            let test_models = run_test(&theory);
+            let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_model(m)).collect();
+            let test_models: HashSet<String> = test_models.into_iter().map(|m| print_model(m)).collect();
+            assert_eq!(basic_models, test_models);
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_bootstrap {
+    use crate::formula::syntax::Theory;
+    use crate::chase::{SchedulerTrait, StrategyTrait, r#impl::basic::{Model, Sequent, Evaluator}
+                       , bounder::DomainSize, strategy::{Bootstrap, Fair}, solve_all};
+    use crate::test_prelude::*;
+    use std::collections::HashSet;
+    use std::fs;
+    use crate::chase::scheduler::FIFO;
+
+    fn run_test(theory: &Theory) -> Vec<Model> {
+        let geometric_theory = theory.gnf();
+        let sequents: Vec<Sequent> = geometric_theory
+            .formulae
+            .iter()
+            .map(|f| f.into()).collect();
+
+        let evaluator = Evaluator {};
+        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+        let mut scheduler = FIFO::new();
+        let bounder: Option<&DomainSize> = None;
+        scheduler.add(Model::new(), strategy);
+        solve_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]

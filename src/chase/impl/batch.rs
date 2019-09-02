@@ -6,26 +6,26 @@ use crate::formula::syntax::V;
 use crate::chase::{r#impl::{
     basic, reference,
     reference::{WitnessTerm, Element},
-}, Rel, Observation, ModelTrait, SelectorTrait, EvaluatorTrait, BounderTrait, ChaseStepResult};
+}, Rel, Observation, ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait, EvaluateResult};
 use itertools::{Itertools, Either};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator {}
 
-impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
+impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
     fn evaluate(
         &self,
         initial_model: &Model,
-        selector: &mut Sel,
+        strategy: &mut Stg,
         bounder: Option<&B>,
-    ) -> Option<ChaseStepResult<Model>> {
-        let mut result = ChaseStepResult::new();
+    ) -> Option<EvaluateResult<Model>> {
+        let mut result = EvaluateResult::new();
 
         let domain: Vec<&Element> = initial_model.domain();
         let domain_size = domain.len();
-        for sequent in selector {
+        for sequent in strategy {
             let vars = &sequent.free_vars;
             let vars_size = vars.len();
             if domain_size == 0 && vars_size > 0 {
@@ -188,8 +188,8 @@ mod test_batch {
     use crate::chase::r#impl::basic::Sequent;
     use crate::formula::syntax::Theory;
     use crate::chase::{
-        StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair},
-        strategy::FIFO, bounder::DomainSize, solve_all,
+        SchedulerTrait, StrategyTrait, strategy::{Bootstrap, Fair},
+        scheduler::FIFO, bounder::DomainSize, solve_all,
     };
     use crate::test_prelude::*;
     use std::collections::HashSet;
@@ -250,11 +250,11 @@ mod test_batch {
             .map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
-        let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
-        let mut strategy = FIFO::new();
+        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+        let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(Model::new(), selector);
-        solve_all(&mut strategy, &evaluator, bounder)
+        scheduler.add(Model::new(), strategy);
+        solve_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]

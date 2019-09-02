@@ -1,6 +1,6 @@
 use crate::formula::syntax::*;
 use crate::chase::{*, r#impl::basic, r#impl::reference};
-use crate::chase::{bounder::DomainSize, selector::Linear, strategy::FIFO};
+use crate::chase::{bounder::DomainSize, strategy::Linear, scheduler::FIFO};
 use itertools::Itertools;
 use std::{fmt, fs::File, io::Read};
 
@@ -62,15 +62,15 @@ pub fn b() -> Term { C::from("b").into() }
 pub fn c() -> Term { C::from("c").into() }
 
 // Elements
-pub fn e_0() -> E { E::new(0) }
+pub fn e_0() -> E { E::from(0) }
 
-pub fn e_1() -> E { E::new(1) }
+pub fn e_1() -> E { E::from(1) }
 
-pub fn e_2() -> E { E::new(2) }
+pub fn e_2() -> E { E::from(2) }
 
-pub fn e_3() -> E { E::new(3) }
+pub fn e_3() -> E { E::from(3) }
 
-pub fn e_4() -> E { E::new(4) }
+pub fn e_4() -> E { E::from(4) }
 
 // Predicates
 #[allow(non_snake_case)]
@@ -84,22 +84,16 @@ pub fn R() -> Pred { Pred::from("R") }
 
 // Relations
 #[allow(non_snake_case)]
-pub fn _P_() -> Rel { Rel::new("P") }
+pub fn _P_() -> Rel { Rel::from("P") }
 
 #[allow(non_snake_case)]
-pub fn _Q_() -> Rel { Rel::new("Q") }
+pub fn _Q_() -> Rel { Rel::from("Q") }
 
 #[allow(non_snake_case)]
-pub fn _R_() -> Rel { Rel::new("R") }
+pub fn _R_() -> Rel { Rel::from("R") }
 
 #[allow(non_snake_case)]
-pub fn _S_() -> Rel { Rel::new("S") }
-
-impl fmt::Debug for E {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
+pub fn _S_() -> Rel { Rel::from("S") }
 
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -166,11 +160,11 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
         .map(|f| f.into()).collect();
 
     let evaluator = basic::Evaluator {};
-    let selector = Linear::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
+    let strategy = Linear::new(sequents.iter().collect());
+    let mut scheduler= FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    strategy.add(basic::Model::new(), selector);
-    solve_all(&mut strategy, &evaluator, bounder)
+    scheduler.add(basic::Model::new(), strategy);
+    solve_all(&mut scheduler, &evaluator, bounder)
 }
 
 pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
@@ -181,12 +175,12 @@ pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::M
         .map(|f| f.into()).collect();
 
     let evaluator = basic::Evaluator {};
-    let selector = Linear::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
+    let strategy = Linear::new(sequents.iter().collect());
+    let mut scheduler = FIFO::new();
     let bounder = DomainSize::new(bound);
     let bounder: Option<&DomainSize> = Some(&bounder);
-    strategy.add(basic::Model::new(), selector);
-    solve_all(&mut strategy, &evaluator, bounder)
+    scheduler.add(basic::Model::new(), strategy);
+    solve_all(&mut scheduler, &evaluator, bounder)
 }
 
 pub fn print_basic_model(model: basic::Model) -> String {

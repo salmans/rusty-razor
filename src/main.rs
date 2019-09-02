@@ -1,9 +1,9 @@
 use structopt::StructOpt;
 use rusty_razor::formula::syntax::Theory;
 use rusty_razor::chase::{r#impl::batch::{Sequent, Model, Evaluator},
-                         ModelTrait, SelectorTrait, StrategyTrait,
-                         selector::{Fair, Bootstrap},
-                         strategy::Dispatch,
+                         ModelTrait, StrategyTrait, SchedulerTrait,
+                         strategy::{Fair, Bootstrap},
+                         scheduler::Dispatch,
                          bounder::DomainSize,
                          Observation,
                          solve};
@@ -58,30 +58,30 @@ impl Default for BoundCommand {
 }
 
 #[derive(StructOpt)]
-enum StrategyOption {
+enum SchedulerOption {
     #[structopt(about = "When branching, process new models first.")]
     LIFO,
     #[structopt(about = "When branching, process new models last.")]
     FIFO,
 }
 
-impl std::str::FromStr for StrategyOption {
+impl std::str::FromStr for SchedulerOption {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.to_lowercase() == "lifo" {
-            Ok(StrategyOption::LIFO)
+            Ok(SchedulerOption::LIFO)
         } else if s.to_lowercase() == "fifo" {
-            Ok(StrategyOption::FIFO)
+            Ok(SchedulerOption::FIFO)
         } else {
-            Err("invalid strategy")
+            Err("invalid scheduler")
         }
     }
 }
 
-impl Default for StrategyOption {
+impl Default for SchedulerOption {
     fn default() -> Self {
-        StrategyOption::FIFO
+        SchedulerOption::FIFO
     }
 }
 
@@ -96,8 +96,8 @@ enum ProcessCommand {
         count: Option<i32>,
         #[structopt(short = "b", long = "bound", name = "bound")]
         bound: Option<BoundCommand>,
-        #[structopt(short = "s", long = "strategy", default_value = "fifo")]
-        strategy: StrategyOption,
+        #[structopt(short = "s", long = "scheduler", default_value = "fifo")]
+        scheduler: SchedulerOption,
     }
 }
 
@@ -107,7 +107,7 @@ impl Default for ProcessCommand {
             input: PathBuf::from("theory.raz"),
             count: None,
             bound: None,
-            strategy: StrategyOption::FIFO,
+            scheduler: SchedulerOption::FIFO,
         }
     }
 }
@@ -207,12 +207,12 @@ fn main() {
         .reset();
 
     match command {
-        ProcessCommand::Solve { input, count, bound, strategy } => {
+        ProcessCommand::Solve { input, count, bound, scheduler } => {
             if let Some(input) = input.to_str() {
                 let theory = read_theory_from_file(input);
 
                 if theory.is_ok() {
-                    process_solve(&theory.unwrap(), bound, strategy, log, count, color)
+                    process_solve(&theory.unwrap(), bound, scheduler, log, count, color)
                 } else {
                     let message = format!("Parser error: {}", theory.err().unwrap().to_string());
                     term.foreground(error_color)
@@ -231,7 +231,7 @@ fn main() {
 fn process_solve(
     theory: &Theory,
     bound: Option<BoundCommand>,
-    strategy: StrategyOption,
+    scheduler: SchedulerOption,
     log: Option<String>,
     count: Option<i32>,
     color: bool,
@@ -261,7 +261,7 @@ fn process_solve(
         .iter()
         .map(|f| f.into()).collect();
     let evaluator = Evaluator {};
-    let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+    let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
 
     let bounder = if let Some(bound) = bound {
         match bound {
@@ -273,9 +273,9 @@ fn process_solve(
 
     let mut found = 0;
 
-    let mut strategy = match strategy {
-        StrategyOption::FIFO => Dispatch::new_fifo(),
-        StrategyOption::LIFO => Dispatch::new_lifo(),
+    let mut scheduler = match scheduler {
+        SchedulerOption::FIFO => Dispatch::new_fifo(),
+        SchedulerOption::LIFO => Dispatch::new_lifo(),
     };
 
     let initial_model = Model::new();
@@ -285,12 +285,12 @@ fn process_solve(
             model_id = &initial_model.get_id(),
             model = %initial_model,
         );
-        strategy.add(initial_model, selector);
-        while !strategy.empty() {
+        scheduler.add(initial_model, strategy);
+        while !scheduler.empty() {
             if count.is_some() && found >= count.unwrap() {
                 break;
             }
-            solve(&mut strategy, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
+            solve(&mut scheduler, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
         }
     };
 
