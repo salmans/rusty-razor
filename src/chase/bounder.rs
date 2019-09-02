@@ -1,3 +1,4 @@
+//! Implements algorithms for bounding the size of models.
 use crate::chase::{BounderTrait, ModelTrait, WitnessTermTrait, Observation};
 
 pub struct DomainSize {

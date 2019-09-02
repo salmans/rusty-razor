@@ -434,13 +434,13 @@ impl SequentTrait for Sequent {
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator {}
 
-impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
+impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, initial_model: &Model, selector: &mut Sel, bounder: Option<&B>) -> Option<ChaseStepResult<Model>> {
+    fn evaluate(&self, initial_model: &Model, strategy: &mut Stg, bounder: Option<&B>) -> Option<EvaluateResult<Model>> {
         let domain: Vec<&E> = initial_model.domain().clone();
         let domain_size = domain.len();
-        for sequent in selector {
+        for sequent in strategy {
             let vars = &sequent.free_vars;
             let vars_size = vars.len();
             if domain_size == 0 && vars_size > 0 {
@@ -490,8 +490,8 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                             head.iter().map(extend).collect()
                         };
 
-                        let result = ChaseStepResult::from(models);
-                        if !result.is_empty() {
+                        let result = EvaluateResult::from(models);
+                        if !result.empty() {
                             // this evaluator instantiates the first matching sequent with the first
                             // matching assignment (unlike impl::batch.rs)
                             return Some(result);
@@ -503,7 +503,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 domain_size > 0 && next_assignment(&mut assignment, domain_size - 1)
             } {}
         }
-        Some(ChaseStepResult::new()) // if none of the assignments apply, the model is complete already
+        Some(EvaluateResult::new()) // if none of the assignments apply, the model is complete already
     }
 }
 

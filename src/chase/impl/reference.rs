@@ -9,7 +9,7 @@ use std::{
     ops::Deref,
 };
 use crate::formula::syntax::{FApp, Term, V, C, F};
-use crate::chase::{r#impl::basic, E, Rel, Observation, WitnessTermTrait, ModelTrait, SelectorTrait, EvaluatorTrait, BounderTrait, ChaseStepResult};
+use crate::chase::{r#impl::basic, E, Rel, Observation, WitnessTermTrait, ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait, EvaluateResult};
 use itertools::{Itertools, Either};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -319,18 +319,18 @@ impl fmt::Display for Model {
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator {}
 
-impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Sel, B> for Evaluator {
+impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B> for Evaluator {
     type Sequent = Sequent;
     type Model = Model;
     fn evaluate(
         &self,
         initial_model: &Model,
-        selector: &mut Sel,
+        strategy: &mut Stg,
         bounder: Option<&B>
-    ) -> Option<ChaseStepResult<Model>> {
+    ) -> Option<EvaluateResult<Model>> {
         let domain: Vec<&Element> = initial_model.domain();
         let domain_size = domain.len();
-        for sequent in selector {
+        for sequent in strategy {
             let vars = &sequent.free_vars;
             let vars_size = vars.len();
             if domain_size == 0 && vars_size > 0 {
@@ -382,8 +382,8 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                             head.iter().map(extend).collect()
                         };
 
-                        let result = ChaseStepResult::from(models);
-                        if !result.is_empty() {
+                        let result = EvaluateResult::from(models);
+                        if !result.empty() {
                             // this evaluator instantiates the first matching sequent with the first
                             // matching assignment (unlike impl::batch.rs)
                             return Some(result);
@@ -395,7 +395,7 @@ impl<'s, Sel: SelectorTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 domain_size > 0 && next_assignment(&mut assignment, domain_size - 1)
             } {}
         }
-        Some(ChaseStepResult::new()) // if none of the assignments apply, the model is complete already
+        Some(EvaluateResult::new()) // if none of the assignments apply, the model is complete already
     }
 }
 
@@ -489,8 +489,8 @@ pub type Literal = basic::Literal;
 mod test_reference {
     use super::{Model, Sequent, Evaluator, next_assignment};
     use crate::formula::syntax::Theory;
-    use crate::chase::{StrategyTrait, SelectorTrait, selector::{Bootstrap, Fair}
-                       , strategy::FIFO, bounder::DomainSize, solve_all};
+    use crate::chase::{SchedulerTrait, StrategyTrait, strategy::{Bootstrap, Fair}
+                       , scheduler::FIFO, bounder::DomainSize, solve_all};
     use crate::test_prelude::*;
     use std::collections::HashSet;
     use std::fs;
@@ -550,11 +550,11 @@ mod test_reference {
             .map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
-        let selector: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
-        let mut strategy = FIFO::new();
+        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+        let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        strategy.add(Model::new(), selector);
-        solve_all(&mut strategy, &evaluator, bounder)
+        scheduler.add(Model::new(), strategy);
+        solve_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]

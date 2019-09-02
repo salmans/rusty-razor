@@ -1,13 +1,13 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use rusty_razor::{
     chase::{
-        SelectorTrait,
         StrategyTrait,
+        SchedulerTrait,
         bounder::DomainSize,
         r#impl,
-        selector::{Bootstrap, Fair, Linear},
+        strategy::{Bootstrap, Fair, Linear},
         solve_all,
-        strategy::FIFO,
+        scheduler::FIFO,
     },
     formula::syntax::Theory,
 };
