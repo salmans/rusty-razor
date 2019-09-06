@@ -1,3 +1,22 @@
+//! Improves [`chase::impl::reference`] by evaluating the [`Sequent`] provided by the [strategy]
+//! against all assignments from the free variables of the [`Sequent`] to the elements of the
+//! [`Model`] in which it is being evaluated.
+//!
+//! **Note**: [`chase::impl::reference::Evaluator`] extends the [`Model`] that it processes in a
+//! [chase-step] only for one assignment from the free variables of the [`Sequent`] that it is
+//! evaluating to the elements of the [`Model`]. [`chase::impl::batch::Evaluator`] is the only
+//! different component between [`chase::impl::reference`] and [`chase::impl::batch`].
+//!
+//! [`chase::impl::reference`]: ../reference/index.html
+//! [`Sequent`]: ../basic/struct.Sequent.html
+//! [strategy]: ../../trait.StrategyTrait.html
+//! [chase-step]: ../../index.html#chase-step
+//! [`chase::impl::reference::Evaluator`]: ../reference/struct.Evaluator.html
+//! [`Model`]: ../reference/struct.Model.html
+//! [`chase::impl::batch::Evaluator`]: ./struct.Evaluator.html
+//! [`chase::impl::reference`]: ../reference/index.html
+//! [`chase::impl::batch`]: ./index.html
+
 use std::{
     collections::HashMap,
     iter,

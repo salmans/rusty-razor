@@ -1,13 +1,22 @@
-//! Implements algorithms for bounding the size of models.
+//! Implements various implementations for [`BounderTrait`].
+//!
+//! [`BounderTrait`]: ../trait.BounderTrait.html
 use crate::chase::{BounderTrait, ModelTrait, WitnessTermTrait, Observation};
 
+/// Bounds the size of a [model] by the number of elements in its [domain].
+///
+/// [model]: ../trait.ModelTrait.html
+/// [domain]: ../trait.ModelTrait.html#tymethod.domain
 pub struct DomainSize {
+    /// Is the maximum size of the [domain] of elements for models accepted by this bounder.
+    ///
+    /// [domain]: ../trait.ModelTrait.html#tymethod.domain
     max_domain_size: usize,
 }
 
-impl DomainSize {
-    pub fn new(max_domain_size: usize) -> DomainSize {
-        DomainSize { max_domain_size }
+impl From<usize> for DomainSize {
+    fn from(size : usize) -> Self {
+        Self { max_domain_size: size }
     }
 }
 

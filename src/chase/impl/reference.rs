@@ -1,3 +1,14 @@
+//! Provides a fast implementation of [Chase] by using references to [`E`] wrapped in
+//! [`Element`] as the [`Model`] elements. Using object references allows for a faster equational
+//! reasoning where the information content of a model does not need to be
+//! rewritten ([as in `basic`][basic]) when the model is augmented by an [`Identity`].
+//!
+//! [Chase]: ../../index.html#the-chase
+//! [`E`]: ../../struct.E.html
+//! [`Element`]: ./struct.Element.html
+//! [`Model`]: ./struct.Model.html
+//! [`Identity`]: ../../enum.Observation.html#variant.Identity
+//! [basic]: ../basic/struct.Model.html#method.reduce_rewrites
 use std::{
     rc::Rc,
     cell::Cell,
@@ -12,16 +23,33 @@ use crate::formula::syntax::{FApp, Term, V, C, F};
 use crate::chase::{r#impl::basic, E, Rel, Observation, WitnessTermTrait, ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait, EvaluateResult};
 use itertools::{Itertools, Either};
 
+/// Wraps a reference to [`E`] as the underlying [`ElementType`] of [`WitnessTerm`], used in the
+/// implementation of [`Model`].
+///
+/// [`E`]: ../../struct.E.html
+/// [`ElementType`]: ../../trait.WitnessTermTrait.html#associatedtype.ElementType
+/// [`WitnessTerm`]: ./enum.WitnessTerm.html
+/// [`Model`]: ./struct.Model.html
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Element(Rc<Cell<E>>);
 
 impl Element {
-    fn new(element: E) -> Element {
-        Element(Rc::new(Cell::new(element)))
-    }
-
+    /// Creates a deep clone of the receiver by cloning the object [`E`] to which the internal
+    /// reference is pointing.
+    ///
+    /// **Note**: `deep_copy` is used when cloning a [`Model`] since identifying two elements in the
+    /// cloned model should not affect the original model and vise versa.
+    ///
+    /// [`E`]: ../../struct.E.html
+    /// [`Model`]: ./struct.Model.html
     fn deep_clone(&self) -> Self {
-        Element::new(self.get())
+        Element::from(self.get())
+    }
+}
+
+impl From<E> for Element {
+    fn from(e: E) -> Self {
+        Self(Rc::new(Cell::new(e)))
     }
 }
 
@@ -31,6 +59,7 @@ impl Hash for Element {
     }
 }
 
+// `Element` derefs to its underlying `E`
 impl Deref for Element {
     type Target = Rc<Cell<E>>;
 
@@ -45,20 +74,47 @@ impl fmt::Debug for Element {
     }
 }
 
+/// Implements [`WitnessTermTrait`], with [`Element`] as the [`ElementType`] and serves as witness
+/// terms for [`Model`].
+///
+/// [`WitnessTermTrait`]: ../../trait.WitnessTermTrait.html
+/// [`Element`]: ./struct.Element.html
+/// [`ElementType`]: ../../trait.WitnessTermTrait.html#associatedtype.ElementType
+/// [`Model`]: ./struct.Model.html
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
+    /// Wraps an instance of [`Element`], witnessing itself.
+    ///
+    /// [`Element`]: ./struct.Element.html
     Elem { element: Element },
+
+    /// Wraps an instance of [`C`] as a witness term.
+    ///
+    /// [`C`]: ../../../formula/syntax/struct.C.html
     Const { constant: C },
+
+    /// Corresponds to a complex witness term, made by applying an instance of [`F`] to a list of
+    /// witness terms.
+    ///
+    /// [`F`]: ../../../formula/syntax/struct.F.html
     App { function: F, terms: Vec<WitnessTerm> },
 }
 
 impl WitnessTerm {
+    /// Given a `term` and an assignment function `assign` from variables of the term to elements
+    /// of a [`Model`], constructs a [`WitnessTerm`].
+    ///
+    /// [`WitnessTerm`]: ./enum.WitnessTerm.html
+    /// [`Model`]: ./struct.Model.html
     pub fn witness(term: &Term, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
         match term {
             Term::Const { constant } => WitnessTerm::Const { constant: constant.clone() },
             Term::Var { variable } => WitnessTerm::Elem { element: lookup(&variable) },
             Term::App { function, terms } => {
-                let terms = terms.iter().map(|t| WitnessTerm::witness(t, lookup)).collect();
+                let terms = terms
+                    .iter()
+                    .map(|t| WitnessTerm::witness(t, lookup))
+                    .collect();
                 WitnessTerm::App { function: function.clone(), terms }
             }
         }
@@ -100,16 +156,52 @@ impl FApp for WitnessTerm {
     }
 }
 
+/// Is an instance of [`ModelTrait`] with terms of type [`WitnessTerm`], using references to [`E`]
+/// wrapped in objects of type [`Element`] for efficient equational reasoning.
+///
+/// [`ModelTrait`]: ../../trait.ModelTrait.html
+/// [`WitnessTerm`]: ./enum.WitnessTerm.html
+/// [`E`]: ../../struct.E.html
+/// [`Element`]: ./struct.Element.html
 pub struct Model {
+    /// Is a unique identifier for this model.
     id: u64,
+
+    /// Keeps track of the next index to assign to a new element of this model.
     element_index: i32,
+
+    /// Is the domain of this model, storing all elements of the model.
     pub domain: HashSet<Element>,
+
+    /// Maps *flat* witness terms to elements of this model.
+    ///
+    /// **Hint**: Flat (witness) terms are terms that do not contain any complex sub-terms,
+    /// consisting of functions applications.
     rewrites: HashMap<WitnessTerm, Element>,
+
+    /// Contains a list of relational facts that are true in this model.
     facts: HashSet<Observation<WitnessTerm>>,
+
+    /// Maintains a list of rewrite rules from elements to elements with which they have been
+    /// identified.
+    ///
+    /// **Explanation**: When augmenting a model with a list of [observations] (such as observations
+    /// that come from the head of a sequent being evaluated), identity observations are
+    /// augmented by collapsing elements, that is, removing one element in favor of the other one.
+    /// However, other augmenting observations may still point to an element that was removed as a
+    /// result of augmenting an `Identity` observation.
+    ///
+    /// `equality_history` is used to keep track of identifications of elements temporarily during
+    /// the time a model is being augmented in a [chase-step]. `equality_history` in a model becomes
+    /// outdated after the [chase-step] ends.
+    ///
+    /// [observations]: ../../enum.Observation.html
+    /// [chase-step]: ../../index.html#chase-step
     equality_history: HashMap<Element, Element>,
 }
 
 impl Model {
+    /// Creates a new empty instance of this model.
     pub fn new() -> Self {
         Self {
             id: rand::random(),
@@ -121,10 +213,8 @@ impl Model {
         }
     }
 
-    // Keeps track of the history of elements that are removed due to identifying with other
-    // elements.
-    // Under situations such as when there is an equation and a fact on the rhs of the same sequent,
-    // the observation that is being observed might refer to a non-existing element.
+    /// Applies the rewrite rules in `equality_history` of the receiver to reduce an element to
+    /// the representative element of the equational class to which it belongs.
     fn history(&self, element: &Element) -> Element {
         let mut result = element;
         let mut next;
@@ -136,14 +226,21 @@ impl Model {
         result.clone()
     }
 
+    /// Creates a new element for the given `witness`, appends the element to the domain of the
+    /// model and records that `witness` denotes the new element.
     fn new_element(&mut self, witness: WitnessTerm) -> Element {
-        let element = Element::new(E(self.element_index));
+        let element = Element::from(E(self.element_index));
         self.element_index = self.element_index + 1;
         self.domain.insert(element.clone());
         self.rewrites.insert(witness, element.clone());
         element
     }
 
+    /// Records the given `witness` in the receiver model and returns the element, denoted by
+    /// `witness`.
+    ///
+    /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
+    /// `witness` and adds them to the domain of the receiver.
     fn record(&mut self, witness: &WitnessTerm) -> Element {
         match witness {
             WitnessTerm::Elem { element } => {
@@ -158,7 +255,10 @@ impl Model {
                 }
             }
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms
+                    .into_iter()
+                    .map(|t| self.record(t).into())
+                    .collect();
                 let witness = WitnessTerm::App { function: function.clone(), terms };
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
@@ -211,7 +311,10 @@ impl ModelTrait for Model {
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().clone().into()).collect();
+                    let terms: Vec<WitnessTerm> = terms
+                        .into_iter()
+                        .map(|e| e.unwrap().clone().into())
+                        .collect();
                     let obs = Observation::Fact { relation: relation.clone(), terms };
                     self.facts.iter().find(|f| obs.eq(f)).is_some()
                 }
@@ -244,7 +347,10 @@ impl ModelTrait for Model {
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms.into_iter().map(|e| e.unwrap().clone().into()).collect();
+                    let terms: Vec<WitnessTerm> = terms
+                        .into_iter()
+                        .map(|e| e.unwrap().clone().into())
+                        .collect();
                     self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms })
                 }
             }
@@ -295,6 +401,8 @@ impl Clone for Model {
             domain,
             rewrites,
             facts,
+            // Because in the `chase::impl::batch` implementation, a model may be cloned multiple
+            // times during a chase step, `equality_history` needs to be cloned as well.
             equality_history: self.equality_history.clone(),
         }
     }
@@ -316,7 +424,11 @@ impl fmt::Display for Model {
     }
 }
 
-/// Simple evaluator that evaluates a Sequnet in a Model.
+/// Evaluates a [`Sequent`] in a [`Model`] within a [chase-step].
+///
+/// [`Sequent`]: ./struct.Sequent.html
+/// [`Model`]: ./struct.Model.html
+/// [chase-step]: ../../index.html#chase-step
 pub struct Evaluator {}
 
 impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B> for Evaluator {
@@ -482,7 +594,22 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
     false
 }
 
+/// Is a type synonym for [`basic::Sequent`].
+///
+/// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
+///
+/// [`basic::Sequent`]: ../basic/struct.Sequent.html
+/// [`chase::impl::reference`]: ./index.html
+/// [`chase::impl::basic`]: ../basic/index.html
 pub type Sequent = basic::Sequent;
+
+/// Is a type synonym for [`basic::Literal`].
+///
+/// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
+///
+/// [`basic::Literal`]: ../basic/struct.Literal.html
+/// [`chase::impl::reference`]: ./index.html
+/// [`chase::impl::basic`]: ../basic/index.html
 pub type Literal = basic::Literal;
 
 #[cfg(test)]

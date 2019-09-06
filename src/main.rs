@@ -265,7 +265,7 @@ fn process_solve(
 
     let bounder = if let Some(bound) = bound {
         match bound {
-            BoundCommand::Domain { size } => Some(DomainSize::new(size)),
+            BoundCommand::Domain { size } => Some(DomainSize::from(size)),
         }
     } else {
         None
