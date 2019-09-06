@@ -1,13 +1,20 @@
-//! Contains strategies for selecting sequents.
+//! Implements various implementations for [`StrategyTrait`].
+//!
+//! [`StrategyTrait`]: ../trait.StrategyTrait.html
 use crate::chase::{StrategyTrait, SequentTrait};
 use crate::formula::syntax::Formula;
 
-/// ### Linear
-/// Goes through the list of all sequents from the start and returns the next sequent every time
-/// `Iterator::next()` is called.
-//#[derive(Clone)]
+/// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
+/// called on this strategy.
+///
+/// [sequent]: ../trait.SequentTrait.html
 pub struct Linear<'s, S: SequentTrait> {
+    /// Is the list of all [sequents] in this strategy.
+    ///
+    /// [sequents]: ../trait.SequentTrait.html
     sequents: Vec<&'s S>,
+
+    /// Is an internal index, keeping track of the next sequent to return.
     index: usize,
 }
 
@@ -28,20 +35,31 @@ impl<'s, S: SequentTrait> Iterator for Linear<'s, S> {
 
 impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
     fn clone(&self) -> Self {
-        Linear {
+        Self {
             sequents: self.sequents.clone(),
             index: 0,
         }
     }
 }
 
-/// ### Fair
-/// Avoids starving sequents by doing a round robin on the sequents. The internal state of the
-/// strategy is preserved when cloned, so the cloned strategy can preserve fairness.
+/// Avoids starving sequents by doing a round robin on its [sequents]. The internal state of the
+/// strategy is preserved when cloned; thus, the cloned strategy preserves fairness.
+///
+/// [sequents]: ../trait.SequentTrait.html
 pub struct Fair<'s, S: SequentTrait> {
+    /// Is the list of all [sequents] in this strategy.
+    ///
+    /// [sequents]: ../trait.StrategyTrait.html
     sequents: Vec<&'s S>,
+
+    /// Is an internal index, keeping track of the next sequent to return.
     index: usize,
+
+    /// For this instance (clone) of strategy, keeps track of the index of the first sequent that
+    /// was returned.
     start: usize,
+
+    /// Is an internal flag to keep track of whether all sequents have been visited or not.
     full_circle: bool,
 }
 
@@ -67,7 +85,7 @@ impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
 
 impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
     fn clone(&self) -> Self {
-        Fair {
+        Self {
             sequents: self.sequents.clone(),
             index: self.index,
             start: self.index,
@@ -76,19 +94,31 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
     }
 }
 
-/// ### Bootstrap
-/// Behaves like the strategy that it wraps inside but selects the initial sequents (with empty
-/// body) only once at the beginning.
+/// Behaves like the [strategy] is wrapped inside of this strategy chooses the initial [sequents]
+/// (sequents with empty body) only once at the beginning.
+///
+/// [strategy]: ../trait.StrategyTrait.html
+/// [sequents]: ../trait.SequentTrait.html
 #[derive(Clone)]
 pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> {
+    /// Keeps track of the initial [sequents] (sequents with empty body) internally.
+    ///
+    /// [sequents]: ../trait.SequentTrait.html
     initial_sequents: Vec<&'s S>,
+
+    /// Is the underlying [strategy] wrapped inside this instance.
+    ///
+    /// [strategy]: ../trait.StrategyTrait.html
     strategy: Stg,
 }
 
 impl<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> StrategyTrait for Bootstrap<'s, S, Stg> {
     fn new(sequents: Vec<&'s S>) -> Bootstrap<'s, S, Stg> {
-        let (initial_sequents, rest) = sequents.into_iter()
-            .partition(|s| { s.body() == Formula::Top && s.head().free_vars().is_empty() });
+        let (initial_sequents, rest) = sequents
+            .into_iter()
+            .partition(|s| {
+                s.body() == Formula::Top && s.head().free_vars().is_empty()
+            });
         Bootstrap { initial_sequents, strategy: Stg::new(rest) }
     }
 }

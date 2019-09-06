@@ -250,6 +250,12 @@ impl fmt::Display for Rel {
     }
 }
 
+impl fmt::Debug for Rel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
 impl From<Pred> for Rel {
     fn from(predicate: Pred) -> Self {
         Rel(predicate.0)
@@ -284,6 +290,12 @@ impl<T: WitnessTermTrait> fmt::Display for Observation<T> {
             }
             Observation::Identity { left, right } => write!(f, "<{} = {}>", left, right),
         }
+    }
+}
+
+impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 

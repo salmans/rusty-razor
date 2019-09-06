@@ -1,10 +1,20 @@
-//! Contains a number of scheduling algorithms.
+//! Implements various implementations for [`SchedulerTrait`].
+//!
+//! [`SchedulerTrait`]: ../trait.SchedulerTrait.html
 use crate::chase::{ModelTrait, StrategyTrait, SequentTrait, SchedulerTrait};
 use std::collections::VecDeque;
 
-/// A scheduler to dispatch work to other strategies.
+/// Is a wrapper around other implementations of scheduler, preferred over a trait object that may
+/// contain different implementations where a choice among schedulers is desirable.
 pub enum Dispatch<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item=&'s S>> {
+    /// Wraps a [`FIFO`] scheduler, implementing a first-in-first-out algorithm.
+    ///
+    /// [`FIFO`]: ./struct.FIFO.html
     FIFO { scheduler: FIFO<'s, S, M, Stg> },
+
+    /// Wraps a [`LIFO`] scheduler, implementing a last-in-first-out algorithm.
+    ///
+    /// [`LIFO`]: ./struct.LIFO.html
     LIFO { scheduler: LIFO<'s, S, M, Stg> },
 }
 
@@ -12,12 +22,18 @@ impl<'s, S, M, Stg> Dispatch<'s, S, M, Stg>
     where S: 's + SequentTrait,
           M: ModelTrait,
           Stg: StrategyTrait<Item=&'s S> {
+    /// Returns a [`FIFO`], wrapped in a `Dispatch` scheduler.
+    ///
+    /// [`FIFO`]: ./struct.FIFO.html
     pub fn new_fifo() -> Self {
-        Dispatch::FIFO { scheduler: FIFO::new() }
+        Self::FIFO { scheduler: FIFO::new() }
     }
 
+    /// Returns a [`LIFO`], wrapped in a `Dispatch` scheduler.
+    ///
+    /// [`LIFO`]: ./struct.LIFO.html
     pub fn new_lifo() -> Self {
-        Dispatch::LIFO { scheduler: LIFO::new() }
+        Self::LIFO { scheduler: LIFO::new() }
     }
 }
 
@@ -27,15 +43,15 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for Dispatch<'s, S, M, Stg>
           Stg: StrategyTrait<Item=&'s S> {
     fn empty(&self) -> bool {
         match self {
-            Dispatch::FIFO { scheduler } => scheduler.empty(),
-            Dispatch::LIFO { scheduler } => scheduler.empty(),
+            Self::FIFO { scheduler } => scheduler.empty(),
+            Self::LIFO { scheduler } => scheduler.empty(),
         }
     }
 
     fn add(&mut self, model: M, strategy: Stg) {
         match self {
-            Dispatch::FIFO { scheduler } => scheduler.add(model, strategy),
-            Dispatch::LIFO { scheduler } => scheduler.add(model, strategy),
+            Self::FIFO { scheduler } => scheduler.add(model, strategy),
+            Self::LIFO { scheduler } => scheduler.add(model, strategy),
         }
     }
 
@@ -47,10 +63,13 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for Dispatch<'s, S, M, Stg>
     }
 }
 
-/// ### FIFO
-/// Arranges the branches of chase computation in a queue to implement a first-in-first-out scheduler.
-/// > FIFO is used as the basic scheduler for benchmarking and testing purposes.
+/// Schedules branches of the Chase in a queue in a a first-in-first-out manner.
 pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item=&'s S>> {
+    /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
+    /// first-in-first-out fashion.
+    ///
+    /// [model]: ../trait.ModelTrait.html
+    /// [strategy]: ../trait.StrategyTrait.html
     queue: VecDeque<(M, Stg)>
 }
 
@@ -80,9 +99,13 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for FIFO<'s, S, M, Stg>
     }
 }
 
-/// ### LIFO
-/// Arranges the branches of chase computation in a stack to implement a last-in-first-out scheduler.
+/// Schedules branches of the Chase in a queue in a a last-in-first-out manner.
 pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item=&'s S>> {
+    /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
+    /// last-in-first-out fashion.
+    ///
+    /// [model]: ../trait.ModelTrait.html
+    /// [strategy]: ../trait.StrategyTrait.html
     queue: VecDeque<(M, Stg)>
 }
 

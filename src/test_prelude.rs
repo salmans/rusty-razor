@@ -95,18 +95,6 @@ pub fn _R_() -> Rel { Rel::from("R") }
 #[allow(non_snake_case)]
 pub fn _S_() -> Rel { Rel::from("S") }
 
-impl fmt::Debug for Rel {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 impl fmt::Debug for basic::Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
@@ -177,7 +165,7 @@ pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::M
     let evaluator = basic::Evaluator {};
     let strategy = Linear::new(sequents.iter().collect());
     let mut scheduler = FIFO::new();
-    let bounder = DomainSize::new(bound);
+    let bounder = DomainSize::from(bound);
     let bounder: Option<&DomainSize> = Some(&bounder);
     scheduler.add(basic::Model::new(), strategy);
     solve_all(&mut scheduler, &evaluator, bounder)
