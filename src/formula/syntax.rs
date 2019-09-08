@@ -78,9 +78,9 @@ impl fmt::Debug for F {
 /// Is the trait for types that can be passed to a function of type [`F`] as arguments.
 ///
 /// [`F`]: ./struct.F.html
-// TODO: at a syntactic level, Term implements FApp but at a semantic level WitnessTerm does
+///
 pub trait FApp: Sized {
-    /// builds a complex term by applying `f` the `terms` as arguments.
+    /// Builds a complex term by applying `function` on `terms` as arguments.
     fn apply(function: F, terms: Vec<Self>) -> Self;
 }
 
@@ -144,7 +144,6 @@ impl fmt::Debug for C {
 }
 
 /// Represents a predicate symbol with a given name.
-/// TODO: Rel is the semantic counterpart of Pred
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Pred(pub String);
 
@@ -218,25 +217,25 @@ impl fmt::Debug for Pred {
 /// Represents a first-order term and consists of variables, constants and function applications.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Term {
-    /// Is a variable term and is used to wrap a [variable symbol].
+    /// Is a variable term, wrapping a [variable symbol].
     ///
     /// [variable symbol]: ./struct.V.html
     Var { variable: V },
 
-    /// Is a constant term and is used to wrap a [constant symbol].
+    /// Is a constant term, wrapping a [constant symbol].
     ///
     /// [constant symbol]: ./struct.C.html
     Const { constant: C },
 
-    /// Is a complex term, made by applying a function on a list of terms.
+    /// Is a complex term, made by applying a `function` on a list of `terms`.
     App { function: F, terms: Vec<Term> },
 }
 
 impl Term {
     /// Returns a list of all free variable symbols in the term.
     ///
-    /// **Note**: Each variable symbol appears only once in the list of free variables even if it
-    /// is present at multiple positions of the term.
+    /// **Note**: In the list of free variables, each variable symbol appears only once even if it
+    /// is present at multiple positions of the receiver term.
     ///
     /// **Example**:
     /// ```rust
@@ -277,7 +276,10 @@ impl Term {
         }
     }
 
-    /// Returns an equation (formula) between the receiver and `term`.
+    /// Returns an [equation] (formula) between the receiver and `term`.
+    ///
+    /// [equation]: ./enum.Formula.html#variant.Equals
+    ///
     pub fn equals(self, term: Term) -> Formula {
         Formula::Equals { left: self, right: term }
     }
@@ -321,7 +323,7 @@ impl fmt::Debug for Term {
     }
 }
 
-/// Is an abstract syntax tree (AST) for representing first-order formulae.
+/// Is an abstract syntax tree (AST) for first-order formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Formula {
     /// Is logical Top (⊤) or Truth
@@ -330,7 +332,7 @@ pub enum Formula {
     /// Is logical Bottom (⟘) or Falsehood
     Bottom,
 
-    /// Is an atomic formula, made by applying `predicate` on a `terms`.
+    /// Is an atomic formula, made by applying `predicate` on a list of `terms`.
     Atom { predicate: Pred, terms: Vec<Term> },
 
     /// Represents an equation among two terms.
@@ -338,7 +340,7 @@ pub enum Formula {
     /// **Note**: Equation is treated as a special type of atomic formula.
     Equals { left: Term, right: Term },
 
-    /// Constructs the negation of the `formula` that it holds.
+    /// Makes the negation of the `formula` that it holds.
     Not { formula: Box<Formula> },
 
     /// Makes a conjunction of the `left` and `right` formulae that it holds.
@@ -450,8 +452,8 @@ impl Formula {
 
     /// Returns a list of free variable symbols in the receiver formula.
     ///
-    /// **Note**: each variable symbol appears only once in the list of free variables even if it
-    /// is present at multiple positions of the formula.
+    /// **Note**: In the list of free variables, each variable symbol appears only once even if it
+    /// is present at multiple positions of the receiver formula.
     ///
     /// **Example**:
     /// ```rust
@@ -570,7 +572,7 @@ impl fmt::Display for Formula {
 // contains no non-ascii characters
 impl fmt::Debug for Formula {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        // a helper for writing binary formulas:
+        // a helper for writing binary formulae:
         fn write_binary
         (
             left: &Formula,

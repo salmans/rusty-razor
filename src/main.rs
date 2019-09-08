@@ -6,7 +6,7 @@ use rusty_razor::chase::{r#impl::batch::{Sequent, Model, Evaluator},
                          scheduler::Dispatch,
                          bounder::DomainSize,
                          Observation,
-                         solve};
+                         chase_step};
 use rusty_razor::trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND};
 use term::{color::{WHITE, BRIGHT_RED, GREEN, BRIGHT_YELLOW, BRIGHT_BLUE}};
 use std::{io::Read, fs, path::PathBuf, process::exit};
@@ -290,7 +290,7 @@ fn process_solve(
             if count.is_some() && found >= count.unwrap() {
                 break;
             }
-            solve(&mut scheduler, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
+            chase_step(&mut scheduler, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
         }
     };
 

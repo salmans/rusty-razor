@@ -1,9 +1,12 @@
-//! Provides a "basic" implementation of [Chase] as a reference for the correctness for other
-//! implementations.
+//! Provides a "basic" implementation of the Chase.
 //!
-//! **Note**: The performance of the "basic" implementation is not a concern.
+//! This implementation is used as a reference for the correctness of other implementations of the
+//! [Chase].
+//!
+//! **Note**: The performance of `chase::impl::basic` is not a concern.
 //!
 //! [Chase]: ../../index.html#the-chase
+//!
 use crate::chase::*;
 use crate::formula::syntax::*;
 use std::{collections::{HashMap, HashSet}, fmt, iter};
@@ -400,7 +403,7 @@ impl fmt::Display for Model {
     }
 }
 
-/// Represents atomic formulas in [`Sequent`].
+/// Represents atomic formulae in [`Sequent`].
 ///
 /// [`Sequent`]: ./struct.Sequent.html
 #[derive(Clone)]

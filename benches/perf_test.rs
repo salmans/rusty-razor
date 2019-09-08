@@ -6,7 +6,7 @@ use rusty_razor::{
         bounder::DomainSize,
         r#impl,
         strategy::{Bootstrap, Fair, Linear},
-        solve_all,
+        chase_all,
         scheduler::FIFO,
     },
     formula::syntax::Theory,
@@ -66,7 +66,7 @@ fn solve_basic(theory: &Theory) -> Vec<r#impl::basic::Model> {
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::basic::Model::new(), selector);
-    solve_all(&mut strategy, &evaluator, bounder)
+    chase_all(&mut strategy, &evaluator, bounder)
 }
 
 fn time_bootstrap(theories: &Vec<Theory>) {
@@ -86,7 +86,7 @@ fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::basic::Model::new(), selector);
-    solve_all(&mut strategy, &evaluator, bounder)
+    chase_all(&mut strategy, &evaluator, bounder)
 }
 
 fn time_reference(theories: &Vec<Theory>) {
@@ -106,7 +106,7 @@ fn solve_reference(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::reference::Model::new(), selector);
-    solve_all(&mut strategy, &evaluator, bounder)
+    chase_all(&mut strategy, &evaluator, bounder)
 }
 
 fn time_batch(theories: &Vec<Theory>) {
@@ -126,7 +126,7 @@ fn solve_batch(theory: &Theory) -> Vec<r#impl::reference::Model> {
     let mut strategy = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     strategy.add(r#impl::reference::Model::new(), selector);
-    solve_all(&mut strategy, &evaluator, bounder)
+    chase_all(&mut strategy, &evaluator, bounder)
 }
 
 pub fn read_theory_from_file(filename: &str) -> Theory {
