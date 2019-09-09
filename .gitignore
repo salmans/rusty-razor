@@ -11,3 +11,6 @@ Cargo.lock
 
 /target
 **/*.rs.bk
+rusty-razor.iml
+.idea/
+.criterion/

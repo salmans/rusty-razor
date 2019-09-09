@@ -152,7 +152,7 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     let mut scheduler= FIFO::new();
     let bounder: Option<&DomainSize> = None;
     scheduler.add(basic::Model::new(), strategy);
-    solve_all(&mut scheduler, &evaluator, bounder)
+    chase_all(&mut scheduler, &evaluator, bounder)
 }
 
 pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
@@ -168,7 +168,7 @@ pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::M
     let bounder = DomainSize::from(bound);
     let bounder: Option<&DomainSize> = Some(&bounder);
     scheduler.add(basic::Model::new(), strategy);
-    solve_all(&mut scheduler, &evaluator, bounder)
+    chase_all(&mut scheduler, &evaluator, bounder)
 }
 
 pub fn print_basic_model(model: basic::Model) -> String {

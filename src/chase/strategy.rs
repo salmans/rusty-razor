@@ -1,4 +1,6 @@
-//! Implements various implementations for [`StrategyTrait`].
+//! Implements various strategies for selecting sequents in a chase-step.
+//!
+//! The strategies are instances of [`StrategyTrait`].
 //!
 //! [`StrategyTrait`]: ../trait.StrategyTrait.html
 use crate::chase::{StrategyTrait, SequentTrait};
@@ -42,7 +44,7 @@ impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
     }
 }
 
-/// Avoids starving sequents by doing a round robin on its [sequents]. The internal state of the
+/// Avoids starving [sequents] by doing a round robin. The internal state of the
 /// strategy is preserved when cloned; thus, the cloned strategy preserves fairness.
 ///
 /// [sequents]: ../trait.SequentTrait.html
@@ -94,8 +96,8 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
     }
 }
 
-/// Behaves like the [strategy] is wrapped inside of this strategy chooses the initial [sequents]
-/// (sequents with empty body) only once at the beginning.
+/// Behaves like the [strategy] that it wraps but chooses the initial [sequents] (sequents with
+/// empty body) only once at the beginning.
 ///
 /// [strategy]: ../trait.StrategyTrait.html
 /// [sequents]: ../trait.SequentTrait.html
@@ -138,7 +140,7 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> Iterator for Bootstrap
 #[cfg(test)]
 mod test_fair {
     use crate::formula::syntax::Theory;
-    use crate::chase::{solve_all,
+    use crate::chase::{chase_all,
                        ModelTrait, StrategyTrait, SchedulerTrait,
                        bounder::DomainSize,
                        strategy::Fair,
@@ -175,7 +177,7 @@ mod test_fair {
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
-        solve_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]
@@ -195,7 +197,7 @@ mod test_fair {
 mod test_bootstrap {
     use crate::formula::syntax::Theory;
     use crate::chase::{SchedulerTrait, StrategyTrait, r#impl::basic::{Model, Sequent, Evaluator}
-                       , bounder::DomainSize, strategy::{Bootstrap, Fair}, solve_all};
+                       , bounder::DomainSize, strategy::{Bootstrap, Fair}, chase_all};
     use crate::test_prelude::*;
     use std::collections::HashSet;
     use std::fs;
@@ -213,7 +215,7 @@ mod test_bootstrap {
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
-        solve_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]

@@ -1,7 +1,10 @@
-//! Provides a fast implementation of [Chase] by using references to [`E`] wrapped in
-//! [`Element`] as the [`Model`] elements. Using object references allows for a faster equational
-//! reasoning where the information content of a model does not need to be
-//! rewritten ([as in `basic`][basic]) when the model is augmented by an [`Identity`].
+//! Provides a fast implementation of the Chase by using references to elements of the model to
+//! avoid additional operations for equational reasoning.
+//!
+//! `chase::impl::reference` is an implementation of the [Chase] that uses references to [`E`]
+//! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a faster
+//! equational reasoning where the information content of a model does not need to be rewritten
+//! ([as in `basic`][basic]) when the model is augmented by an [`Identity`].
 //!
 //! [Chase]: ../../index.html#the-chase
 //! [`E`]: ../../struct.E.html
@@ -617,7 +620,7 @@ mod test_reference {
     use super::{Model, Sequent, Evaluator, next_assignment};
     use crate::formula::syntax::Theory;
     use crate::chase::{SchedulerTrait, StrategyTrait, strategy::{Bootstrap, Fair}
-                       , scheduler::FIFO, bounder::DomainSize, solve_all};
+                       , scheduler::FIFO, bounder::DomainSize, chase_all};
     use crate::test_prelude::*;
     use std::collections::HashSet;
     use std::fs;
@@ -681,7 +684,7 @@ mod test_reference {
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
-        solve_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]
