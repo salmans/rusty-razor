@@ -40,12 +40,12 @@ To guarantee termination, limit the size of the resulting models by the number o
 razor solve -i <input> --bound domain=<number>
 ```
 
-### Model-Finding Strategy
+### Model-Finding Scheduler
 
-Use the `--strategy` option to choose how Razor processes search branches. The `fifo` strategy (the default strategy) schedules new branches last and is a more suitable option for processing theories with few small satisfying models. The `lifo` strategy schedules new branches first, and is more suitable for processing theories with many large models.
+Use the `--scheduler` option to choose how Razor processes search branches. The `fifo` scheduler (the default scheduler) schedules new branches last and is a more suitable option for processing theories with few small satisfying models. The `lifo` scheduler schedules new branches first, and is more suitable for processing theories with many large models.
 
 ```
-razor solve -i <input> --strategy <fifo/lifo>
+razor solve -i <input> --scheduler <fifo/lifo>
 ```
 
 ## Examples

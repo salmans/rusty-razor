@@ -1,6 +1,6 @@
 //! Implements a parser for first-order formulae and theories in Razor's syntax.
 //!
-//! This module provides a parser for first-order formulae by implementing [`FromStr`] for
+//! The module provides a parser for first-order formulae by implementing [`FromStr`] for
 //! [`Formula`] and [`Theory`]. The parser is often used implicitly through [`str::parse`] method.
 //!
 //! **Example**:

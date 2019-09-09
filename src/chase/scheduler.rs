@@ -1,4 +1,6 @@
-//! Implements various implementations for [`SchedulerTrait`].
+//! Implements various schedulers for scheduling branches of the Chase.
+//!
+//! The schedulers are instances of [`SchedulerTrait`].
 //!
 //! [`SchedulerTrait`]: ../trait.SchedulerTrait.html
 use crate::chase::{ModelTrait, StrategyTrait, SequentTrait, SchedulerTrait};
@@ -63,7 +65,7 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for Dispatch<'s, S, M, Stg>
     }
 }
 
-/// Schedules branches of the Chase in a queue in a a first-in-first-out manner.
+/// Schedules branches of the Chase in a first-in-first-out manner.
 pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item=&'s S>> {
     /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
     /// first-in-first-out fashion.
@@ -99,7 +101,7 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for FIFO<'s, S, M, Stg>
     }
 }
 
-/// Schedules branches of the Chase in a queue in a a last-in-first-out manner.
+/// Schedules branches of the Chase in a last-in-first-out manner.
 pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item=&'s S>> {
     /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
     /// last-in-first-out fashion.
@@ -139,7 +141,7 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for LIFO<'s, S, M, Stg>
 mod test_lifo {
     use crate::formula::syntax::Theory;
     use crate::chase::{r#impl::basic::{Sequent, Model, Evaluator}, strategy::Linear
-                       , bounder::DomainSize, SchedulerTrait, StrategyTrait, solve_all};
+                       , bounder::DomainSize, SchedulerTrait, StrategyTrait, chase_all};
     use std::collections::HashSet;
     use crate::test_prelude::*;
     use std::fs;
@@ -157,7 +159,7 @@ mod test_lifo {
         let mut scheduler = LIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
-        solve_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]

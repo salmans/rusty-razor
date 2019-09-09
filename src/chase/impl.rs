@@ -1,8 +1,11 @@
-//! Contains all implementations of [models], [sequents] and [evaluators].
+//! Contains all implementations of models, sequents and evaluators.
 //!
-//! [models]: ../trait.ModelTrait.html
-//! [sequents]: ../trait.SequentTrait.html
-//! [evaluators]: ../trait.EvaluatorTrait.html
+//! The module implements different versions of the Chase and various instances of
+//! [`ModelTrait`], [`SequentTrait`] and [`EvaluatorTrait`]
+//!
+//! [`ModelTrait`]: ../trait.ModelTrait.html
+//! [`SequentTrait`]: ../trait.SequentTrait.html
+//! [`EvaluatorTrait`]: ../trait.EvaluatorTrait.html
 pub mod basic;
 pub mod reference;
 pub mod batch;
