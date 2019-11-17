@@ -1,10 +1,10 @@
-// A person cannot be both "black of hair" and "golden head"
+// A person `x` cannot be both "black of hair" and "golden head":
 ~(BlackOfHair(x) & GoldenHead(x));
 
-// Traditionally, children inherited their father's family name
+// Traditionally, a Baratheon child `y` inherited his/her father's (`x`'s) family name:
 Baratheon(x) & father(y) = x -> Baratheon(y);
 
-// King Robert Baratheon has black
+// King Robert Baratheon is black of hair
 Baratheon('robert) & BlackOfHair('robert);
 
 // King Robert is Joffrey's father
@@ -13,5 +13,5 @@ father('joffrey) = 'robert;
 // Joffrey has golden hair
 GoldenHead('joffrey);
 
-// Ned Stark's discovery:
+// Ned Stark's discovery (every Baratheon `x` is black of hair):
 Baratheon(x) -> BlackOfHair(x);

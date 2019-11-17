@@ -559,7 +559,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
     scheduler: &mut Sch,
     evaluator: &E,
-    bounder: Option<&B>
+    bounder: Option<&B>,
 ) -> Vec<M>
     where S: 's + SequentTrait,
           M: ModelTrait,
@@ -569,14 +569,15 @@ pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
           B: BounderTrait {
     let mut result: Vec<M> = Vec::new();
     while !scheduler.empty() {
-        chase_step(scheduler, evaluator, bounder, |m| result.push(m));
+        chase_step(scheduler, evaluator, bounder, |m| result.push(m), |_|{});
     }
     result
 }
 
 /// Given a [`scheduler`], an [`evaluator`], possibly a [`bounder`] and a `consumer` closure, runs
 /// an implementation independent [chase-step]. Satisfying models of the theory that are produced
-/// by the `chase-step` will be consumed by the `consumer`.
+/// by the `chase-step` will be consumed by the `consumer`. In contrast, `incomplete_consumer`
+/// (if provided) consumes incomplete non-models of the theory that are rejected by the bounder.
 ///
 /// [`scheduler`]: ./trait.SchedulerTrait.html
 /// [`evaluator`]: ./trait.EvaluatorTrait.html
@@ -623,7 +624,8 @@ pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
 ///         &mut scheduler,
 ///         &evaluator,
 ///         bounder,
-///         |m| {counter += 1} // the closure counts the models found
+///         |m| {counter += 1}, // the closure counts the models found
+///         |_|{},               // ignore incomplete non-models
 ///     );
 /// }
 ///
@@ -633,13 +635,14 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
     scheduler: &mut Sch,
     evaluator: &E,
     bounder: Option<&B>,
-    mut consumer: impl FnMut(M)
+    mut consumer: impl FnMut(M),
+    mut incomplete_consumer: impl FnMut(M),
 ) where S: 's + SequentTrait,
-          M: ModelTrait,
-          Stg: StrategyTrait<Item=&'s S>,
-          Sch: SchedulerTrait<'s, S, M, Stg>,
-          E: EvaluatorTrait<'s, Stg, B, Sequent=S, Model=M>,
-          B: BounderTrait {
+        M: ModelTrait,
+        Stg: StrategyTrait<Item=&'s S>,
+        Sch: SchedulerTrait<'s, S, M, Stg>,
+        E: EvaluatorTrait<'s, Stg, B, Sequent=S, Model=M>,
+        B: BounderTrait {
     let (base_model, mut strategy) = scheduler.remove().unwrap();
     let base_id = &base_model.get_id();
     let span = span!(tracing::Level::TRACE, super::trace::CHASE_STEP, id = base_id);
@@ -665,7 +668,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
                         parent = base_id,
                         model = %m,
                     );
-                // drop the model
+                incomplete_consumer(m);
             });
         } else {
             let _enter = span.enter();
