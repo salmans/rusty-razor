@@ -11,6 +11,7 @@ To learn more about the theoretical foundation of Razor, check out my
 pub mod formula;
 pub mod chase;
 pub mod trace;
+pub mod utils;
 
 #[cfg(test)]
 mod test_prelude;

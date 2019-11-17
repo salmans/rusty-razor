@@ -1,29 +1,48 @@
 use structopt::StructOpt;
-use rusty_razor::formula::syntax::Theory;
-use rusty_razor::chase::{r#impl::batch::{Sequent, Model, Evaluator},
-                         ModelTrait, StrategyTrait, SchedulerTrait,
-                         strategy::{Fair, Bootstrap},
-                         scheduler::Dispatch,
-                         bounder::DomainSize,
-                         Observation,
-                         chase_step};
-use rusty_razor::trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND};
-use term::{color::{WHITE, BRIGHT_RED, GREEN, BRIGHT_YELLOW, BRIGHT_BLUE}};
-use std::{io::Read, fs, path::PathBuf, process::exit};
-use failure::Error;
+use rusty_razor::{
+    formula::syntax::Theory,
+    chase::{
+        r#impl::batch::{
+            Sequent, Model, Evaluator,
+        },
+        ModelTrait, StrategyTrait, SchedulerTrait,
+        strategy::{
+            Fair, Bootstrap,
+        },
+        scheduler::Dispatch,
+        bounder::DomainSize,
+        Observation,
+        chase_step,
+    },
+    trace::{
+        subscriber::JsonLogger,
+        DEFAULT_JSON_LOG_FILE, EXTEND,
+    },
+    utils::terminal::{
+        Terminal,
+        INFO_COLOR, LOGO_TOP_COLOR, ERROR_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
+        MODEL_FACTS_COLOR, INFO_ATTRIBUTE,
+    },
+};
+use std::{io::Read, fs};
+use failure::{Error, ResultExt};
 use itertools::Itertools;
+use exitfailure::ExitFailure;
 
 #[macro_use]
 extern crate tracing;
 
-const INFO_COLOR: term::color::Color = 27;
-const LOGO_TOP_COLOR: term::color::Color = 136;
-const LOGO_BOTTOM_COLOR: term::color::Color = WHITE;
-const ERROR_COLOR: term::color::Color = BRIGHT_RED;
-const MODEL_DOMAIN_COLOR: term::color::Color = GREEN;
-const MODEL_ELEMENTS_COLOR: term::color::Color = BRIGHT_YELLOW;
-const MODEL_FACTS_COLOR: term::color::Color = BRIGHT_BLUE;
-const INFO_ATTRIBUTE: term::Attr = term::Attr::Bold;
+const ASCII_ART: &str = r#"
+      ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+      ╟▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▌
+   ╫▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▌
+   ╫▓▓▀▀▓   ▓▓▀▀▓▓▓▓▓▀▀▀▓▓▓▓▓▀▀▓   ▓▓▀▀▓▓▌
+   ╫▓▓                                 ▓▓▌
+   ╫▓▓▄▄▓   ▓▓▄▄▓▓▓▓▓▄▄▄▓▓▓▓▓▄▄▓   ▓▓▄▄▓▓▌
+   ╟▓▓▓▓▓▓▓▓▓▓▓▓ Rusty Razor ▓▓▓▓▓▓▓▓▓▓▓▓▌
+      ╫▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▌
+      ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+            "#;
 
 #[derive(StructOpt)]
 enum BoundCommand {
@@ -51,12 +70,6 @@ impl std::str::FromStr for BoundCommand {
     }
 }
 
-impl Default for BoundCommand {
-    fn default() -> Self {
-        BoundCommand::Domain { size: 10 }
-    }
-}
-
 #[derive(StructOpt)]
 enum SchedulerOption {
     #[structopt(about = "When branching, process new models first.")]
@@ -69,22 +82,15 @@ impl std::str::FromStr for SchedulerOption {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.to_lowercase() == "lifo" {
+        if &s.to_lowercase() == "lifo" {
             Ok(SchedulerOption::LIFO)
-        } else if s.to_lowercase() == "fifo" {
+        } else if &s.to_lowercase() == "fifo" {
             Ok(SchedulerOption::FIFO)
         } else {
             Err("invalid scheduler")
         }
     }
 }
-
-impl Default for SchedulerOption {
-    fn default() -> Self {
-        SchedulerOption::FIFO
-    }
-}
-
 
 #[derive(StructOpt)]
 enum ProcessCommand {
@@ -96,19 +102,10 @@ enum ProcessCommand {
         count: Option<i32>,
         #[structopt(short = "b", long = "bound", name = "bound")]
         bound: Option<BoundCommand>,
+        #[structopt(long = "show-incomplete", help = "Show incomplete models.", parse(try_from_str), default_value = "true")]
+        show_incomplete: bool,
         #[structopt(short = "s", long = "scheduler", default_value = "fifo")]
         scheduler: SchedulerOption,
-    }
-}
-
-impl Default for ProcessCommand {
-    fn default() -> Self {
-        ProcessCommand::Solve {
-            input: PathBuf::from("theory.raz"),
-            count: None,
-            bound: None,
-            scheduler: SchedulerOption::FIFO,
-        }
     }
 }
 
@@ -124,127 +121,50 @@ struct Command {
     log: Option<std::path::PathBuf>,
 }
 
-impl Default for Command {
-    fn default() -> Self {
-        Command {
-            command: ProcessCommand::default(),
-            no_color: false,
-            log: None,
-        }
-    }
-}
-
-struct Terminal {
-    term: Box<term::StdoutTerminal>,
-    color: Option<term::color::Color>,
-    attribute: Option<term::Attr>,
-}
-
-impl Terminal {
-    fn new() -> Terminal {
-        Self {
-            term: term::stdout().unwrap(),
-            color: None,
-            attribute: None,
-        }
-    }
-
-    fn foreground(&mut self, color: Option<term::color::Color>) -> &mut Self {
-        self.color = color;
-        self
-    }
-
-    fn attribute(&mut self, attribute: Option<term::Attr>) -> &mut Self {
-        self.attribute = attribute;
-        self
-    }
-
-    fn apply(&mut self, closure: impl Fn() -> ()) -> &mut Self {
-        if let Some(color) = self.color {
-            self.term.fg(color).unwrap();
-        }
-        if let Some(attribute) = self.attribute {
-            self.term.attr(attribute).unwrap();
-        }
-        closure();
-        self
-    }
-
-    fn reset(&mut self) {
-        if self.color.is_some() || self.attribute.is_some() {
-            self.term.reset().unwrap();
-        }
-    }
-}
-
-fn main() {
+fn main() -> Result<(), ExitFailure> {
     let args = Command::from_args();
+
     let command = args.command;
     let color = !args.no_color;
     let log = args.log.map(|l| l.to_str().unwrap_or(DEFAULT_JSON_LOG_FILE).to_owned());
 
-    let (logo_top_color, logo_bottom_color, error_color) = if color {
-        (Some(LOGO_TOP_COLOR), Some(LOGO_BOTTOM_COLOR), Some(ERROR_COLOR))
-    } else {
-        (None, None, None)
-    };
-
-    let mut term = Terminal::new();
-    term.foreground(logo_top_color)
+    let mut term = Terminal::new(color);
+    term.foreground(LOGO_TOP_COLOR)
         .apply(|| {
-            println!("\n\
-   ┌════════════════════════════════┐\n\
-   │╤═╕╤ ╤╒═╕╒╤╕╤ ╤  ╦═╗╔═╗╔═╗╔═╗╦═╗│\n\
-   │├┬┘│ │└─┐ │ └┬┘  ╠╦╝╠═╣╔═╝║ ║╠╦╝│\n\
-   │┴└─└─┘└─┘ ┴  ┴   ╩╚═╩ ╩╚═╝╚═╝╩╚═│\n\
-   └═══════════╦-------╦════════════┘");
-        }).foreground(logo_bottom_color)
-        .apply(|| {
-            println!("            ╟-------╢             ");
-            println!("            ╟-------╢             ");
-            println!("            ╟-------╢             \n");
-        })
-        .reset();
+            println!("{}", ASCII_ART);
+        }).reset();
 
     match command {
-        ProcessCommand::Solve { input, count, bound, scheduler } => {
+        ProcessCommand::Solve {
+            input,
+            count,
+            bound,
+            show_incomplete,
+            scheduler
+        } => {
             if let Some(input) = input.to_str() {
-                let theory = read_theory_from_file(input);
-
-                if theory.is_ok() {
-                    process_solve(&theory.unwrap(), bound, scheduler, log, count, color)
-                } else {
-                    let message = format!("Parser error: {}", theory.err().unwrap().to_string());
-                    term.foreground(error_color)
-                        .apply(|| {
-                            println!("{}", message.clone());
-                        })
-                        .reset();
-                    println!();
-                    exit(1);
-                }
+                process_solve(input, bound, show_incomplete, scheduler, log, count, color)?;
             }
         }
     }
+    Ok(())
 }
 
 fn process_solve(
-    theory: &Theory,
+    theory: &str,
     bound: Option<BoundCommand>,
+    show_incomplete: bool,
     scheduler: SchedulerOption,
     log: Option<String>,
     count: Option<i32>,
     color: bool,
-) {
-    let mut term = Terminal::new();
-    let (info_color, info_attribute) = if color {
-        (Some(INFO_COLOR), Some(INFO_ATTRIBUTE))
-    } else {
-        (None, None)
-    };
+) -> Result<(), Error> {
+    let mut term = Terminal::new(color);
+    let theory = read_theory_from_file(theory)
+        .with_context(|e| e.to_string())?;
 
-    term.foreground(info_color)
-        .attribute(info_attribute)
+    term.foreground(INFO_COLOR)
+        .attribute(INFO_ATTRIBUTE)
         .apply(|| {
             println!("Finding models for theory:");
         })
@@ -262,16 +182,13 @@ fn process_solve(
         .map(|f| f.into()).collect();
     let evaluator = Evaluator {};
     let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
-
-    let bounder = if let Some(bound) = bound {
-        match bound {
-            BoundCommand::Domain { size } => Some(DomainSize::from(size)),
+    let bounder = bound.map(|b| {
+        match b {
+            BoundCommand::Domain { size } => DomainSize::from(size),
         }
-    } else {
-        None
-    };
-
-    let mut found = 0;
+    });
+    let mut complete_count = 0;
+    let mut incomplete_count = 0;
 
     let mut scheduler = match scheduler {
         SchedulerOption::FIFO => Dispatch::new_fifo(),
@@ -287,10 +204,16 @@ fn process_solve(
         );
         scheduler.add(initial_model, strategy);
         while !scheduler.empty() {
-            if count.is_some() && found >= count.unwrap() {
+            if count.is_some() && complete_count >= count.unwrap() {
                 break;
             }
-            chase_step(&mut scheduler, &evaluator, bounder.as_ref(), |m| print_model(m, color, &mut found))
+            chase_step(
+                &mut scheduler,
+                &evaluator,
+                bounder.as_ref(),
+                |m| print_model(m, color, &mut complete_count),
+                |m| if show_incomplete { print_model(m, color, &mut incomplete_count); },
+            )
         }
     };
 
@@ -304,52 +227,41 @@ fn process_solve(
 
     println!();
 
-    term.foreground(info_color)
-        .attribute(info_attribute)
+    term.foreground(INFO_COLOR)
+        .attribute(INFO_ATTRIBUTE)
         .apply(|| {
-            let grammar = if found == 1 { ("", "was") } else { ("s", "were") };
-            println!("{} model{} {} found.", found, grammar.0, grammar.1);
+            println!("{} complete and {} incomplete models were found.", complete_count, incomplete_count);
         })
         .reset();
 
     println!();
+    Ok(())
 }
 
 
 pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
-    let mut f = fs::File::open(filename).expect("file not found");
+    let mut f = fs::File::open(filename)
+        .with_context(|_| "could not find the input file")?;
 
     let mut contents = String::new();
     f.read_to_string(&mut contents)
-        .expect("something went wrong reading the file");
+        .with_context(|_| "something went wrong reading the input file")?;
 
     contents.parse()
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {
-    let (info_color, info_attribute, domain_color, elements_color, facts_color) = if color {
-        (
-            Some(INFO_COLOR),
-            Some(INFO_ATTRIBUTE),
-            Some(MODEL_DOMAIN_COLOR),
-            Some(MODEL_ELEMENTS_COLOR),
-            Some(MODEL_FACTS_COLOR),
-        )
-    } else {
-        (None, None, None, None, None)
-    };
-
     *count += 1;
 
-    let mut term = Terminal::new();
-    term.foreground(info_color)
-        .attribute(info_attribute)
+    let mut term = Terminal::new(color);
+    term.foreground(INFO_COLOR)
+        .attribute(INFO_ATTRIBUTE)
         .apply(|| {
             print!("Domain: ");
         })
         .reset();
     let domain = model.domain().iter().map(|e| e.get().to_string()).collect();
-    print_list(&domain, domain_color);
+    print_list(color, MODEL_DOMAIN_COLOR, &domain);
     println!("\n");
 
     let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
@@ -359,7 +271,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
     }).collect();
 
     term.apply(|| print!("Elements: "));
-    print_list(&elements, elements_color);
+    print_list(color, MODEL_ELEMENTS_COLOR, &elements);
     println!("\n");
 
     let facts: Vec<String> = model.facts().iter().map(|f| {
@@ -373,23 +285,21 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
     }).collect();
 
     term.apply(|| print!("Facts: "));
-    print_list(&facts, facts_color);
+    print_list(color, MODEL_FACTS_COLOR, &facts);
     println!("\n");
 
-    term.foreground(info_color)
-        .attribute(info_attribute)
+    term.foreground(INFO_COLOR)
+        .attribute(INFO_ATTRIBUTE)
         .apply(|| {
             println!("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
         })
         .reset();
 }
 
-fn print_list<T: std::fmt::Display>(list: &Vec<T>, color: Option<term::color::Color>) {
-    let item_attribute = if color.is_some() { Some(term::Attr::Bold) } else { None };
-
-    Terminal::new()
-        .foreground(color)
-        .attribute(item_attribute)
+fn print_list<T: std::fmt::Display>(color: bool, text_color: term::color::Color, list: &Vec<T>) {
+    let mut term = Terminal::new(color);
+    term.foreground(text_color)
+        .attribute(term::Attr::Bold)
         .apply(|| {
             let last = list.len() - 1;
             let mut index = 0;
