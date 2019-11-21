@@ -84,9 +84,9 @@ pub trait TermBased {
     /// [`VariableRenaming`]: ../transform/trait.VariableRenaming.html
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::{V, C, F, Term};
+    /// # use razor_fol::syntax::{V, C, F, Term};
+    /// use razor_fol::transform::TermBased;
     /// use std::collections::HashMap;
-    /// use rusty_razor::formula::transform::TermBased;
     ///
     /// // variable symbols:
     /// let x_sym = V::from("x");
@@ -119,8 +119,8 @@ pub trait TermBased {
     /// [`Substitution`]: ../transform/trait.Substitution.html
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::{V, C, F, Term};
-    /// use rusty_razor::formula::transform::TermBased;
+    /// # use razor_fol::syntax::{V, C, F, Term};
+    /// use razor_fol::transform::TermBased;
     ///
     /// // A substitution function that maps all variable symbols `x` to a constant term `c`.
     /// // Otherwise, wraps the variable symbol in a variable term.
@@ -281,7 +281,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
     /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", formula.pnf().to_string());
@@ -544,7 +544,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
     /// assert_eq!("P(x, sk#0(x))", formula.snf().to_string());
@@ -562,8 +562,8 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
-    /// use rusty_razor::formula::transform::SkolemGenerator;
+    /// # use razor_fol::syntax::Formula;
+    /// use razor_fol::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("skolem");
     /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
@@ -611,7 +611,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "not (P(x) iff Q(y))".parse().unwrap();
     /// assert_eq!("(P(x) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ Q(y))", formula.nnf().to_string());
@@ -683,7 +683,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "P(x) <=> Q(y)".parse().unwrap();
     /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", formula.cnf().to_string());
@@ -702,8 +702,8 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
-    /// use rusty_razor::formula::transform::SkolemGenerator;
+    /// # use razor_fol::syntax::Formula;
+    /// use razor_fol::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("s%");
     /// let formula: Formula = "exists x. ((forall y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
@@ -761,7 +761,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "P(x) iff Q(y)".parse().unwrap();
     /// assert_eq!("(((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ ((Q(y) ∧ (¬Q(y))) ∨ (Q(y) ∧ P(x)))",
@@ -781,8 +781,8 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
-    /// use rusty_razor::formula::transform::SkolemGenerator;
+    /// # use razor_fol::syntax::Formula;
+    /// use razor_fol::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("s%");
     /// let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
@@ -835,7 +835,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "not (not P())".parse().unwrap();
     /// assert_eq!("P()", formula.simplify().to_string());
@@ -956,7 +956,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
+    /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "P(x) & (Q(x) | R(x))".parse().unwrap();
     /// let gnf_to_string: Vec<String> = formula.gnf().iter().map(|f| f.to_string()).collect();
@@ -976,8 +976,8 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Formula;
-    /// use rusty_razor::formula::transform::SkolemGenerator;
+    /// # use razor_fol::syntax::Formula;
+    /// use razor_fol::transform::SkolemGenerator;
     ///
     /// let mut generator = SkolemGenerator::from("s%");
     /// let formula: Formula = "P(y) -> exists x. P(x) & Q(y)".parse().unwrap();
@@ -1053,7 +1053,7 @@ impl Theory {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::Theory;
+    /// # use razor_fol::syntax::Theory;
     ///
     /// let theory: Theory = r#"
     ///     not P(x) or Q(x);

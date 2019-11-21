@@ -3,8 +3,8 @@
 //! The strategies are instances of [`StrategyTrait`].
 //!
 //! [`StrategyTrait`]: ../trait.StrategyTrait.html
+use razor_fol::syntax::Formula;
 use crate::chase::{StrategyTrait, SequentTrait};
-use crate::formula::syntax::Formula;
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
@@ -139,7 +139,7 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item=&'s S>> Iterator for Bootstrap
 
 #[cfg(test)]
 mod test_fair {
-    use crate::formula::syntax::Theory;
+    use razor_fol::syntax::Theory;
     use crate::chase::{chase_all,
                        ModelTrait, StrategyTrait, SchedulerTrait,
                        bounder::DomainSize,
@@ -182,7 +182,7 @@ mod test_fair {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("theories/core").unwrap() {
+        for item in fs::read_dir("../theories/core").unwrap() {
             let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
@@ -195,7 +195,7 @@ mod test_fair {
 
 #[cfg(test)]
 mod test_bootstrap {
-    use crate::formula::syntax::Theory;
+    use razor_fol::syntax::Theory;
     use crate::chase::{SchedulerTrait, StrategyTrait, r#impl::basic::{Model, Sequent, Evaluator}
                        , bounder::DomainSize, strategy::{Bootstrap, Fair}, chase_all};
     use crate::test_prelude::*;
@@ -220,7 +220,7 @@ mod test_bootstrap {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("theories/core").unwrap() {
+        for item in fs::read_dir("../theories/core").unwrap() {
             let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);

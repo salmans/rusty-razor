@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use rusty_razor::{
+use razor_chase::{
     chase::{
         StrategyTrait,
         SchedulerTrait,
@@ -9,12 +9,12 @@ use rusty_razor::{
         chase_all,
         scheduler::FIFO,
     },
-    formula::syntax::Theory,
 };
+use razor_fol::syntax::Theory;
 use std::{fs, io::Read};
 
 fn basic_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("theories/core").unwrap()
+    let theories = &fs::read_dir("../theories/core").unwrap()
         .map(|item| read_theory_from_file(item.unwrap()
             .path().display().to_string().as_str())
             .gnf()
@@ -23,7 +23,7 @@ fn basic_benchmark(c: &mut Criterion) {
 }
 
 fn bootstrap_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("theories/core").unwrap()
+    let theories = &fs::read_dir("../theories/core").unwrap()
         .map(|item| read_theory_from_file(item.unwrap()
             .path().display().to_string().as_str())
             .gnf()
@@ -32,7 +32,7 @@ fn bootstrap_benchmark(c: &mut Criterion) {
 }
 
 fn reference_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("theories/core").unwrap()
+    let theories = &fs::read_dir("../theories/core").unwrap()
         .map(|item| read_theory_from_file(item.unwrap()
             .path().display().to_string().as_str())
             .gnf()
@@ -41,7 +41,7 @@ fn reference_benchmark(c: &mut Criterion) {
 }
 
 fn batch_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("theories/core").unwrap()
+    let theories = &fs::read_dir("../theories/core").unwrap()
         .map(|item| read_theory_from_file(item.unwrap()
             .path().display().to_string().as_str())
             .gnf()

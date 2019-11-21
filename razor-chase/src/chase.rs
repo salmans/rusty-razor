@@ -126,7 +126,7 @@ pub mod strategy;
 pub mod scheduler;
 pub mod bounder;
 
-use crate::formula::syntax::*;
+use razor_fol::syntax::*;
 use std::fmt;
 
 use tracing;
@@ -139,7 +139,7 @@ pub struct E(pub i32);
 impl E {
     /// Identifies the receiver with `other` element by collapsing their indices.
     /// ```rust
-    /// # use rusty_razor::chase::E;
+    /// # use razor_chase::chase::E;
     /// let mut e_1 = E::from(1);
     /// let e_2 = E::from(2);
     /// assert_ne!(e_1, e_2);
@@ -345,14 +345,10 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
 ///
 /// [sequent]: ./index.html#background
 pub trait SequentTrait: Clone {
-    /// Returns the *body* (premise) of the sequent as a [formula].
-    ///
-    /// [formula]: ../formula/syntax/enum.Formula.html
+    /// Returns the *body* (premise) of the sequent as a formula.
     fn body(&self) -> Formula;
 
-    /// Returns the *head* (consequence) of the sequent as a [formula].
-    ///
-    /// [formula]: ../formula/syntax/enum.Formula.html
+    /// Returns the *head* (consequence) of the sequent as a formula.
     fn head(&self) -> Formula;
 }
 
@@ -520,8 +516,8 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// [the Chase]: ./index.html#the-chase
 ///
 /// ```rust
-/// use rusty_razor::formula::syntax::Theory;
-/// use rusty_razor::chase::{
+/// use razor_fol::syntax::Theory;
+/// use razor_chase::chase::{
 ///     SchedulerTrait, StrategyTrait, chase_all,
 ///     r#impl::basic,
 ///     strategy::Linear,
@@ -585,8 +581,8 @@ pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
 /// [chase-step]: ./index.html#chase-step
 ///
 /// ```rust
-/// use rusty_razor::formula::syntax::Theory;
-/// use rusty_razor::chase::{
+/// use razor_fol::syntax::Theory;
+/// use razor_chase::chase::{
 ///     SchedulerTrait, StrategyTrait, chase_step,
 ///     r#impl::basic,
 ///     strategy::Linear,

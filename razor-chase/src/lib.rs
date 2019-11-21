@@ -8,7 +8,6 @@ To learn more about the theoretical foundation of Razor, check out my
 [PhD dissertation](https://digitalcommons.wpi.edu/etd-dissertations/458/). */
 
 #![doc(issue_tracker_base_url = "https://github.com/salmans/rusty-razor/issues")]
-pub mod formula;
 pub mod chase;
 pub mod trace;
 pub mod utils;

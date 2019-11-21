@@ -20,11 +20,15 @@ use std::{
     collections::HashMap,
     iter,
 };
-use crate::formula::syntax::V;
-use crate::chase::{r#impl::{
-    basic, reference,
-    reference::{WitnessTerm, Element},
-}, Rel, Observation, ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait, EvaluateResult};
+use razor_fol::syntax::V;
+use crate::chase::{
+    r#impl::{
+        basic, reference,
+        reference::{WitnessTerm, Element},
+    },
+    Rel, Observation, EvaluateResult,
+    ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait,
+};
 use itertools::{Itertools, Either};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
@@ -204,7 +208,7 @@ mod test_batch {
     use super::{Evaluator, next_assignment};
     use crate::chase::r#impl::reference::Model;
     use crate::chase::r#impl::basic::Sequent;
-    use crate::formula::syntax::Theory;
+    use razor_fol::syntax::Theory;
     use crate::chase::{
         SchedulerTrait, StrategyTrait, strategy::{Bootstrap, Fair},
         scheduler::FIFO, bounder::DomainSize, chase_all,
@@ -277,8 +281,9 @@ mod test_batch {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
+        println!("{}", std::env::current_dir().unwrap().to_str().unwrap());
+        for item in fs::read_dir("../theories/core").unwrap() {
+            let theory = read_theory_from_file(item.unwrap().path().to_str().unwrap());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
             let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_basic_model(m)).collect();
