@@ -1,6 +1,6 @@
 use structopt::StructOpt;
-use rusty_razor::{
-    formula::syntax::Theory,
+use razor_fol::syntax::Theory;
+use razor_chase::{
     chase::{
         r#impl::batch::{
             Sequent, Model, Evaluator,
@@ -20,7 +20,7 @@ use rusty_razor::{
     },
     utils::terminal::{
         Terminal,
-        INFO_COLOR, LOGO_TOP_COLOR, ERROR_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
+        INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
         MODEL_FACTS_COLOR, INFO_ATTRIBUTE,
     },
 };

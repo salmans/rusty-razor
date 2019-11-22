@@ -1,35 +1,6 @@
-[package]
-name = "rusty-razor"
-version = "0.1.0"
-authors = ["Salman Saghafi <salman.saghafi@me.com>"]
-edition = "2018"
+[workspace]
 
-[dependencies]
-itertools = "0.7"
-criterion = "0.1"
-structopt = "0.2"
-term = "0.2"
-failure = "0.1.6"
-exitfailure = "0.5.1"
-tracing = "0.1"
-rand = "0.6.5"
-serde = "1.0.93"
-serde_json = "1.0.39"
-serde_derive = "1.0.93"
-
-[dependencies.nom]
-version = "4.2.3"
-#features = ["verbose-errors"]
-
-[dependencies.nom_locate]
-version = "0.3.1"
-#features = ["verbose-errors"]
-
-[[bin]]
-bench = false
-path = "src/main.rs"
-name = "razor"
-
-[[bench]]
-name = "perf_test"
-harness = false
+members = [
+  "razor-fol",
+  "razor-chase",
+]

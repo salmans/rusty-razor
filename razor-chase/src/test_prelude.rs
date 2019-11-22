@@ -1,4 +1,4 @@
-use crate::formula::syntax::*;
+use razor_fol::syntax::*;
 use crate::chase::{*, r#impl::basic, r#impl::reference};
 use crate::chase::{bounder::DomainSize, strategy::Linear, scheduler::FIFO};
 use itertools::Itertools;
@@ -24,18 +24,25 @@ pub fn _y() -> V { V::from("y") }
 
 pub fn _z() -> V { V::from("z") }
 
+#[allow(dead_code)]
 pub fn u() -> Term { V::from("u").into() }
 
+#[allow(dead_code)]
 pub fn v() -> Term { V::from("v").into() }
 
+#[allow(dead_code)]
 pub fn w() -> Term { V::from("w").into() }
 
+#[allow(dead_code)]
 pub fn x() -> Term { V::from("x").into() }
 
+#[allow(dead_code)]
 pub fn x_1() -> Term { V::from("x`").into() }
 
+#[allow(dead_code)]
 pub fn y() -> Term { V::from("y").into() }
 
+#[allow(dead_code)]
 pub fn z() -> Term { V::from("z").into() }
 
 // Functions
@@ -43,6 +50,7 @@ pub fn f() -> F { F::from("f") }
 
 pub fn g() -> F { F::from("g") }
 
+#[allow(dead_code)]
 pub fn h() -> F { F::from("h") }
 
 // Constants
@@ -54,8 +62,10 @@ pub fn _c() -> C { C::from("c") }
 
 pub fn _d() -> C { C::from("d") }
 
+#[allow(dead_code)]
 pub fn a() -> Term { C::from("a").into() }
 
+#[allow(dead_code)]
 pub fn b() -> Term { C::from("b").into() }
 
 #[allow(dead_code)]
@@ -73,9 +83,11 @@ pub fn e_3() -> E { E::from(3) }
 pub fn e_4() -> E { E::from(4) }
 
 // Predicates
+#[allow(dead_code)]
 #[allow(non_snake_case)]
 pub fn P() -> Pred { Pred::from("P") }
 
+#[allow(dead_code)]
 #[allow(non_snake_case)]
 pub fn Q() -> Pred { Pred::from("Q") }
 
@@ -113,6 +125,7 @@ impl fmt::Debug for basic::Model {
     }
 }
 
+#[allow(dead_code)]
 pub fn assert_eq_vectors<T: Ord + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> () {
     assert!(first.iter().sorted() == second.iter().sorted());
 }
@@ -125,6 +138,7 @@ pub fn assert_debug_string<T: fmt::Debug>(expected: &str, value: T) {
     debug_assert_eq!(expected, format!("{:?}", value));
 }
 
+#[allow(dead_code)]
 pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
     let mut strings = value.iter().map(|v| format!("{:?}", v));
     debug_assert_eq!(expected, strings.join("\n"));

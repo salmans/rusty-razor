@@ -239,7 +239,7 @@ impl Term {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::{V, C, F, Term};
+    /// # use razor_fol::syntax::{V, C, F, Term};
     /// # use itertools::Itertools;
     ///
     /// // `x_sym` and `y_sym` are variable symbols:
@@ -457,7 +457,7 @@ impl Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use rusty_razor::formula::syntax::{V, Formula};
+    /// # use razor_fol::syntax::{V, Formula};
     /// # use itertools::Itertools;
     ///
     /// // `x`, `y` and `z` are variable symbols:

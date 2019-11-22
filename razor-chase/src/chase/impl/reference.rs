@@ -22,8 +22,12 @@ use std::{
     hash::{Hash, Hasher},
     ops::Deref,
 };
-use crate::formula::syntax::{FApp, Term, V, C, F};
-use crate::chase::{r#impl::basic, E, Rel, Observation, WitnessTermTrait, ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait, EvaluateResult};
+use razor_fol::syntax::{FApp, Term, V, C, F};
+use crate::chase::{
+    r#impl::basic,
+    E, Rel, Observation, EvaluateResult,
+    WitnessTermTrait, ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait,
+};
 use itertools::{Itertools, Either};
 
 /// Wraps a reference to [`E`] as the underlying [`ElementType`] of [`WitnessTerm`], used in the
@@ -618,7 +622,7 @@ pub type Literal = basic::Literal;
 #[cfg(test)]
 mod test_reference {
     use super::{Model, Sequent, Evaluator, next_assignment};
-    use crate::formula::syntax::Theory;
+    use razor_fol::syntax::Theory;
     use crate::chase::{SchedulerTrait, StrategyTrait, strategy::{Bootstrap, Fair}
                        , scheduler::FIFO, bounder::DomainSize, chase_all};
     use crate::test_prelude::*;
@@ -689,7 +693,7 @@ mod test_reference {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("theories/core").unwrap() {
+        for item in fs::read_dir("../theories/core").unwrap() {
             let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);

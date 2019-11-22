@@ -6,7 +6,7 @@
 //! **Example**:
 //! The following example parses a string into a [`Formula`]:
 //! ```rust
-//! use rusty_razor::formula::syntax::Formula;
+//! use razor_fol::syntax::Formula;
 //!
 //! // parse a string into `Formula`:
 //! let formula: Formula = "exists x. P(x) & Q(x)".parse().unwrap();
@@ -16,7 +16,7 @@
 //!
 //! Similarly, a [`Theory`] can be parsed from a string:
 //! ```rust
-//! use rusty_razor::formula::syntax::Theory;
+//! use razor_fol::syntax::Theory;
 //!
 //! // parse a string into `Theory` (formulae are separated by `;`)
 //! let theory: Theory = r#"

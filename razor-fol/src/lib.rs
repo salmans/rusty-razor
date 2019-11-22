@@ -3,3 +3,4 @@ formulae in Razor's syntax. */
 pub mod syntax;
 pub mod parser;
 pub mod transform;
+pub mod test_prelude;

@@ -139,7 +139,7 @@ impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for LIFO<'s, S, M, Stg>
 
 #[cfg(test)]
 mod test_lifo {
-    use crate::formula::syntax::Theory;
+    use razor_fol::syntax::Theory;
     use crate::chase::{r#impl::basic::{Sequent, Model, Evaluator}, strategy::Linear
                        , bounder::DomainSize, SchedulerTrait, StrategyTrait, chase_all};
     use std::collections::HashSet;
@@ -164,7 +164,7 @@ mod test_lifo {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("theories/core").unwrap() {
+        for item in fs::read_dir("../theories/core").unwrap() {
             let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
