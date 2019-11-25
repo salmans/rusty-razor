@@ -1,0 +1,20 @@
+[package]
+name = "razor-bin"
+version = "0.1.0"
+authors = ["Salman Saghafi <salman.saghafi@me.com>"]
+edition = "2018"
+
+[dependencies]
+razor-fol = { path = "../razor-fol" }
+razor-chase = { path = "../razor-chase" }
+itertools = "0.7"
+failure = "0.1.6"
+exitfailure = "0.5.1"
+structopt = "0.2"
+term = "0.2"
+tracing = "0.1"
+
+[[bin]]
+bench = false
+path = "src/main.rs"
+name = "razor"

@@ -1,3 +1,5 @@
+pub mod utils;
+
 use structopt::StructOpt;
 use razor_fol::syntax::Theory;
 use razor_chase::{
@@ -18,11 +20,11 @@ use razor_chase::{
         subscriber::JsonLogger,
         DEFAULT_JSON_LOG_FILE, EXTEND,
     },
-    utils::terminal::{
-        Terminal,
-        INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
-        MODEL_FACTS_COLOR, INFO_ATTRIBUTE,
-    },
+};
+use crate::utils::terminal::{
+    Terminal,
+    INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
+    MODEL_FACTS_COLOR, INFO_ATTRIBUTE,
 };
 use std::{io::Read, fs};
 use failure::{Error, ResultExt};
