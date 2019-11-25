@@ -10,7 +10,6 @@ To learn more about the theoretical foundation of Razor, check out my
 #![doc(issue_tracker_base_url = "https://github.com/salmans/rusty-razor/issues")]
 pub mod chase;
 pub mod trace;
-pub mod utils;
 
 #[cfg(test)]
 mod test_prelude;

@@ -1,6 +1,6 @@
 [workspace]
-
 members = [
   "razor-fol",
   "razor-chase",
+  "razor-bin",
 ]
