@@ -80,6 +80,8 @@ const CHAR_FORALL: &str = "∀";
 const DOT: &str = ".";
 const SEMI_COLON: &str = ";";
 const LINE_COMMENT: &str = "//";
+const L_BLOCK_COMMENT: &str = "/*";
+const R_BLOCK_COMMENT: &str = "*/";
 
 // Custom parsing errors:
 const ERR_DOT: u32 = 1;
@@ -158,6 +160,59 @@ impl fmt::Display for ParserError {
 
 type Span<'a> = LocatedSpan<CompleteStr<'a>>;
 
+named!(pub p_line_comment<Span, ()>,
+  map!(
+    many1!(
+      tuple!(
+        nom::space0,
+        preceded!(tag!(LINE_COMMENT), many0!(nom::not_line_ending)),
+        alt!(nom::line_ending | eof!())
+      )
+    ),
+    |_| ()
+  )
+);
+
+named!(pub p_block_comment<Span, ()>,
+  map!(
+    many1!(
+      tuple!(
+        nom::space0,
+        delimited!(
+            tag!(L_BLOCK_COMMENT),
+            many0!(is_not!(R_BLOCK_COMMENT)),
+            tag!(R_BLOCK_COMMENT)
+        )
+      )
+    ),
+    |_| ()
+  )
+);
+
+named!(pub spaces<Span, ()>,
+    map!(many0!(alt!(one_of!(&b" \t\n\r"[..]) => { |_|() } | p_line_comment | p_block_comment)), |_| ())
+);
+
+#[doc(hidden)]
+macro_rules! sp (
+  ($i:expr, $($args:tt)*) => (
+    {
+      use nom::Convert;
+      use nom::Err;
+
+      match sep!($i, spaces, $($args)*) {
+        Err(e) => Err(e),
+        Ok((i1,o))    => {
+          match spaces(i1) {
+            Err(e) => Err(Err::convert(e)),
+            Ok((i2,_))    => Ok((i2, o))
+          }
+        }
+      }
+    }
+  )
+);
+
 named!(p_lower_ident<Span, String>,
     map!(pair!(one_of!(LOWER), opt!(is_a!(ALPHA_NUMERIC))),
         |(first, rest): (char, Option<Span>)| {
@@ -183,23 +238,22 @@ named!(p_upper_ident<Span, String>,
 );
 
 named!(p_var<Span, V>,
-    map!(p_lower_ident,
-        |v| V::from(&v)
-    )
+    map!(p_lower_ident, |v| V::from(&v))
 );
 
 named!(p_vars<Span, Vec<V>>,
     terminated!(
         separated_nonempty_list!(
             tag!(COMMA),
-            ws!(p_var)
+            sp!(p_var)
         ),
-        opt!(ws!(tag!(COMMA)))
+        opt!(sp!(tag!(COMMA)))
     )
 );
 
 named!(p_const<Span, C>,
-    map!(preceded!(
+    map!(
+        preceded!(
             tag!(APOSTROPHE),
             return_error!(ErrorKind::Custom(ERR_LOWER), p_lower_ident)
         ),
@@ -214,17 +268,19 @@ named!(p_func<Span, F>,
 );
 
 named!(p_nonempty_terms<Span, Vec<Term>>,
-    terminated!(separated_nonempty_list!(
+    terminated!(
+        separated_nonempty_list!(
             tag!(COMMA),
             return_error!(ErrorKind::Custom(ERR_TERM), p_term)
         ),
-        opt!(ws!(tag!(COMMA)))
+        opt!(sp!(tag!(COMMA)))
     )
 );
 
 named!(p_term_args<Span, Vec<Term>>,
-    alt!(value!(vec![], delimited!(tag!(L_PAREN), opt!(space),tag!(R_PAREN)))
-        | delimited!(
+    alt!(
+        value!(vec![], delimited!(tag!(L_PAREN), opt!(space),tag!(R_PAREN))) |
+        delimited!(
             tag!(L_PAREN),
             p_nonempty_terms,
             return_error!(ErrorKind::Custom(ERR_R_PAREN), tag!(R_PAREN))
@@ -233,16 +289,18 @@ named!(p_term_args<Span, Vec<Term>>,
 );
 
 named!(p_term<Span, Term>,
-    alt!(map!(terminated!(ws!(p_var),
-                // The term is a complex term if followed by '('.
-                // Another way to deal with it is to look for a complex term first.
+    alt!(
+        map!(
+            terminated!(
+                sp!(p_var),
+                // The term is a complex term if followed by '(':
                 not!(tag!(L_PAREN))
             ),
             |v| v.into()
-        ) | map!(ws!(p_const),
-            |c| c.into()
-        ) | map!( // complex term
-            pair!(ws!(p_func), ws!(p_term_args)),
+        ) |
+        map!(sp!(p_const), |c| c.into()) |
+        map!( // complex term
+            pair!(sp!(p_func), sp!(p_term_args)),
             |(f, ts): (F, Vec<Term>)| f.app(ts)
         )
     )
@@ -263,14 +321,16 @@ named!(p_pred<Span, Pred>,
 );
 
 named!(p_atom<Span, Formula>,
-    alt!(value!(Top, alt!(tag!(TRUE) |  tag!(TOP)))
-        | value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM)))
-        | add_return_error!(ErrorKind::Custom(ERR_EQUALS), p_equals)
+    alt!(
+        value!(Top, alt!(tag!(TRUE) |  tag!(TOP))) |
+        value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM))) |
+        add_return_error!(ErrorKind::Custom(ERR_EQUALS), p_equals) |
         // complex term:
-        | map!(pair!(p_pred, ws!(p_term_args)),
+        map!(
+            pair!(p_pred, sp!(p_term_args)),
             |(p, ts): (Pred, Vec<Term>)| p.app(ts)
         ) |
-        delimited!(ws!(tag!(L_PAREN)),
+        delimited!(sp!(tag!(L_PAREN)),
             return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula),
             return_error!(ErrorKind::Custom(ERR_R_PAREN), tag!(R_PAREN))
         )
@@ -278,18 +338,25 @@ named!(p_atom<Span, Formula>,
 );
 
 named!(p_not<Span, Formula>,
-    alt!(preceded!(
-            ws!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
+    alt!(
+        preceded!(
+            sp!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
             map!(alt!(p_not | p_quantified), not)
-        ) | ws!(p_atom)
+        ) |
+        sp!(p_atom)
     )
 );
 
 named!(p_and<Span, Formula>,
-    map!(pair!(p_not, opt!(preceded!(
-                    ws!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
-                    alt!(p_and
-                        | return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
+    map!(
+        pair!(
+            p_not,
+            opt!(
+                preceded!(
+                    sp!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
+                    alt!(
+                        p_and |
+                        return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
                     )
                 )
             )
@@ -299,8 +366,12 @@ named!(p_and<Span, Formula>,
 );
 
 named!(p_or<Span, Formula>,
-    map!(pair!(p_and,
-            opt!(preceded!(ws!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
+    map!(
+        pair!(
+            p_and,
+            opt!(
+                preceded!(
+                    sp!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
                     return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
                 )
             )
@@ -310,34 +381,41 @@ named!(p_or<Span, Formula>,
 );
 
 named!(p_quantified<Span, Formula>,
-    alt!(do_parse!(
-            q: ws!(
-                alt!(value!(
+    alt!(
+        do_parse!(
+            q: sp!(
+                alt!(
+                    value!(
                         FORALL,
                         alt!(tag!(FORALL) | tag!(EXCLAMATION) | tag!(CHAR_FORALL))
-                    ) | value!(
+                    ) |
+                    value!(
                         EXISTS,
                         alt!(tag!(EXISTS) | tag!(QUESTION) | tag!(CHAR_EXISTS))
                     )
                 )
             ) >>
             vs: return_error!(ErrorKind::Custom(ERR_VARS), p_vars) >>
-            return_error!(ErrorKind::Custom(ERR_DOT), ws!(tag!(DOT))) >>
+            return_error!(ErrorKind::Custom(ERR_DOT), sp!(tag!(DOT))) >>
             f: return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified) >>
             ( if q == FORALL { forall(vs, f) } else { exists(vs, f) } )
-        ) | p_or
+        ) |
+        p_or
     )
 );
 
 named!(p_formula<Span, Formula>,
-    do_parse!(first: p_quantified >>
+    do_parse!(
+        first: p_quantified >>
         second: fold_many0!(
-            pair!(ws!(
+            pair!(
+                sp!(
                     alt!(
                         value!(
                             IMPLIES,
                             alt!(tag!(IMPLIES) | tag!(RIGHT_ARROW) | tag!(CHAR_RIGHT_ARROW))
-                        ) | value!(
+                        ) |
+                        value!(
                             IFF,
                             alt!(tag!(IFF) | tag!(DOUBLE_ARROW) | tag!(CHAR_DOUBLE_ARROW))
                         )
@@ -352,34 +430,6 @@ named!(p_formula<Span, Formula>,
     )
 );
 
-named!(p_spaces<Span, Span>, eat_separator!(&b" \t"[..]));
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! sp (
-    ($i: expr, $($args:tt)*) => (
-        {
-            sep!($i, p_spaces, $($args)*)
-        }
-    )
-);
-
-named!(p_empty_line<Span, ()>,
-    value!((),
-        nom::line_ending
-    )
-);
-
-named!(p_comment<Span, ()>,
-    value!((),
-        delimited!(
-            sp!(tag!(LINE_COMMENT)),
-            many0!(nom::not_line_ending),
-            nom::line_ending
-        )
-    )
-);
-
 named!(p_last_line_comment<Span, ()>,
     value!((),
         delimited!(
@@ -391,37 +441,26 @@ named!(p_last_line_comment<Span, ()>,
 );
 
 named!(pub theory<Span, Theory>,
-    map!(many_till!(
-            alt!(
-                value!(
-                    Option::None,
-                    many1!(p_empty_line)
-                ) |
-                value!(
-                    Option::None,
-                    many1!(p_comment)
-                ) |
-                map!(
-                    terminated!(
-                        p_formula,
-                        return_error!(ErrorKind::Custom(ERR_SEMI_COLON),
-                            ws!(tag!(SEMI_COLON))
-                        )
-                    ),
-                    |f| Option::Some(f)
-                )
+    map!(
+        many_till!(
+            map!(
+                terminated!(
+                    sp!(p_formula),
+                    return_error!(ErrorKind::Custom(ERR_SEMI_COLON),
+                        sp!(tag!(SEMI_COLON))
+                    )
+                ),
+                |f| Option::Some(f)
             ),
-            alt!(
-                p_last_line_comment |
-                value!((), eof!())
-            )
+            value!((), sp!(eof!()))
         ),
         |(fs, _)| {
             let formulae: Vec<Formula> = fs.into_iter()
                 .filter_map(|f| f)
                 .collect();
             Theory::from(formulae)
-        })
+        }
+    )
 );
 
 fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
@@ -434,8 +473,10 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
             };
             let code = *code;
             match code {
-                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
-                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN
+                    => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER
+                    => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
                 _ => ParserError::Failed { line: pos.line, column: pos.get_column() as u32 },
             }
         }
@@ -618,14 +659,26 @@ mod test_parser {
     }
 
     #[test]
-    fn test_comment() {
-        success(p_comment, "//\n", (), "");
-        success(p_comment, "  //\n", (), "");
-        success(p_comment, "// comment line \n", (), "");
-        success(p_comment, "//comment line \n", (), "");
-        success(p_comment, "   //   comment line \n", (), "");
-        fail(p_comment, "//");
-        fail(p_comment, "/");
+    fn test_line_comment() {
+        success(p_line_comment, "//\n", (), "");
+        success(p_line_comment, "  //\n", (), "");
+        success(p_line_comment, "// comment line \n", (), "");
+        success(p_line_comment, "//comment line \n", (), "");
+        success(p_line_comment, "   //   comment line \n", (), "");
+        success(p_line_comment, "//", (), "");
+        fail(p_line_comment, "/");
+    }
+
+    #[test]
+    fn test_block_comment() {
+        success(p_block_comment, "/**/", (), "");
+        success(p_block_comment, "  /**/", (), "");
+        success(p_block_comment, "/* comment line */", (), "");
+        success(p_block_comment, "/* comment line \n*/", (), "");
+        success(p_block_comment, "/*comment line */", (), "");
+        success(p_block_comment, "   /*   comment line \n*/", (), "");
+        fail(p_block_comment, "/*");
+        fail(p_block_comment, "/");
     }
 
     #[test]
@@ -800,6 +853,20 @@ mod test_parser {
             // another comment\n\
             E(x,y) -> E(y,x) ;\
             E(x,y) & E(y,z) -> E(x,z);",
+            "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
+            "",
+        );
+        success_to_string(
+            theory,
+            "// comment 0\n\
+            E /*reflexive*/(//first argument \n\
+            x, \n\
+            /*second argument*/ x)\
+            ;\
+            // another comment\n\
+            /* yet another comment */
+            E(x,y) -> E(y,x) /*symmetric*/ ;\
+            E(x,y) & E(y,z) -> /* transitivity */ E(x,z);",
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
             "",
         );
