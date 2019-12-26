@@ -102,7 +102,7 @@ enum ProcessCommand {
         input: std::path::PathBuf,
         #[structopt(long = "count", help = "Number of models to return")]
         count: Option<i32>,
-        #[structopt(short = "b", long = "bound", name = "bound")]
+        #[structopt(short = "b", long = "bound", name = "bound", help = "Bound the size of models.")]
         bound: Option<BoundCommand>,
         #[structopt(long = "show-incomplete", help = "Show incomplete models.", parse(try_from_str), default_value = "true")]
         show_incomplete: bool,
