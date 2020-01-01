@@ -100,7 +100,7 @@ pub enum WitnessTerm {
     /// [`C`]: ../../../formula/syntax/struct.C.html
     Const { constant: C },
 
-    /// Corresponds to a complex witness term, made by applying an instance of [`F`] to a list of
+    /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
     /// witness terms.
     ///
     /// [`F`]: ../../../formula/syntax/struct.F.html
@@ -182,7 +182,7 @@ pub struct Model {
 
     /// Maps *flat* witness terms to elements of this model.
     ///
-    /// **Hint**: Flat (witness) terms are terms that do not contain any complex sub-terms,
+    /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
     rewrites: HashMap<WitnessTerm, Element>,
 

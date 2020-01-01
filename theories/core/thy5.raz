@@ -1,1 +1,1 @@
-TRUE implies P('a, 'b);
+true implies P('a, 'b);

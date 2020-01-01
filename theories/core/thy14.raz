@@ -1,2 +1,2 @@
 P('a) or Q('b);
-P(x) implies FALSE;
+P(x) implies false;

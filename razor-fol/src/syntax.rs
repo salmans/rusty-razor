@@ -80,7 +80,7 @@ impl fmt::Debug for F {
 /// [`F`]: ./struct.F.html
 ///
 pub trait FApp: Sized {
-    /// Builds a complex term by applying `function` on `terms` as arguments.
+    /// Builds a composite term by applying `function` on `terms` as arguments.
     fn apply(function: F, terms: Vec<Self>) -> Self;
 }
 
@@ -227,7 +227,7 @@ pub enum Term {
     /// [constant symbol]: ./struct.C.html
     Const { constant: C },
 
-    /// Is a complex term, made by applying a `function` on a list of `terms`.
+    /// Is a composite term, made by applying a `function` on a list of `terms`.
     App { function: F, terms: Vec<Term> },
 }
 
@@ -335,9 +335,9 @@ pub enum Formula {
     /// Is an atomic formula, made by applying `predicate` on a list of `terms`.
     Atom { predicate: Pred, terms: Vec<Term> },
 
-    /// Represents an equation among two terms.
+    /// Represents an equality between two terms.
     ///
-    /// **Note**: Equation is treated as a special type of atomic formula.
+    /// **Note**: Equality is a special type of atomic formula.
     Equals { left: Term, right: Term },
 
     /// Makes the negation of the `formula` that it holds.
@@ -605,8 +605,8 @@ impl fmt::Debug for Formula {
         }
 
         match self {
-            Self::Top => write!(f, "{}", "TRUE"),
-            Self::Bottom => write!(f, "{}", "FALSE"),
+            Self::Top => write!(f, "{}", "true"),
+            Self::Bottom => write!(f, "{}", "false"),
             Self::Atom { predicate, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", predicate.to_string(), ts.join(", "))

@@ -3,4 +3,4 @@ exists y . Q(y);
 P(x) & Q(y) -> x = y;
 P(x) -> R(f(x));
 Q(x) -> S(f(x));
-R(x) & S(x) -> FALSE;
+R(x) & S(x) -> false;
