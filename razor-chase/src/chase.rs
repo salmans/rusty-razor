@@ -2,10 +2,10 @@
 //! Chase. It also implements entrypoints for running the Chase.
 //!
 //! ## Background
-//! Razor uses a variant of [the Chase] algorithm to construct models for first-order theories with
+//! Razor implements a variant of [the Chase] algorithm to construct models for first-order theories with
 //! equality. The Chase operates on *[geometric theories]*, theories that contain a syntactic
 //! variation of first-order formulae which we refer to as the Geometric Normal Form (GNF). Formulae
-//! in GNF have the following general shape:
+//! in GNF have the following shape:
 //!
 //! A<sub>1</sub> ∧ ... ∧ A<sub>m</sub> →
 //! (∃ x<sub>11</sub>, ..., x<sub>1j<sub>1</sub></sub> . A<sub>11</sub> ∧ ... ∧ A<sub>1n<sub>1</sub></sub>) </br>
@@ -16,12 +16,12 @@
 //! > > &nbsp;&nbsp;&nbsp;
 //! ∨ (∃ x<sub>i1</sub>, ..., x<sub>ij<sub>i</sub></sub> . A<sub>i1</sub> ∧ ... ∧ A<sub>in<sub>i</sub></sub>)
 //!
-//! where A<sub>k</sub>s are (positive) atomic formulae (possibly including equations) and free
+//! where A<sub>k</sub>s are (positive) atomic formulae (possibly including equality) and free
 //! variables are assumed to be universally qualified over the entire formula.
 //!
-//! In the context of a [run of the Chase], we refer to any formula in the geometric theory as a
-//! *[sequent]*. The premise (left side) and the consequence (right side) of the implication are
-//! respectively said to be the *body* and the *head* of the sequent.
+//! In the context of a [run of the Chase], we refer to formulae in the their GNF as
+//! [*sequents*][sequent]. The premise (left side) and the consequence (right side) of the
+//! implication are respectively said to be the *body* and the *head* of the sequent.
 //!
 //! ### Satisfiability of Geometric Theories
 //! It turns out that every first-order theory can be transformed to a geometric theory that is
@@ -34,14 +34,13 @@
 //! In the context of a model-finding application, the models that the Chase produces are desirable
 //! since they contain minimum amount of information, thus they induce minimal distraction.
 //! As a direct consequence of semi-decidability of satisfiability in first-order logic
-//! (see [Gödel's incompleteness theorems][godel]), satisfiability of geometric theories is too
-//! semi-decidable.
+//! (see [Gödel's incompleteness theorems][godel]), satisfiability of geometric theories is
+//! semi-decidable as well.
 //!
 //! **Note**: A comprehensive discussion on the properties of the models that are constructed by
 //! the Chase is out of the scope of this document.
 //!
 //! [the Chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
-//! [PhD dissertation]: https://digitalcommons.wpi.edu/etd-dissertations/458/
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 //! [run of the Chase]: ./fn.solve_all.html
 //! [sequent]: ./trait.SequentTrait.html
@@ -51,7 +50,7 @@
 //! ## The Chase
 //! Given a geometric theory and starting with an empty model, a run of Chase consists of repeated
 //! applications of [chase-step]s by which the model is augmented with *necessary* pieces of
-//! information until there is a contraction or the model satisfies the theory. Within
+//! information until there is a contradiction or the model satisfies the theory. Within
 //! Razor's implementation, instances of any type that implements [ModelTrait] can serve as a
 //! first-order model. Also, inspired by [Steven Vickers][vickers], we refer to the units of
 //! information that augment models as [observation]s.
@@ -96,9 +95,9 @@
 //! a very very long time.
 //! However, when the theory is satisfiable, a run of the Chase may not terminate, producing
 //! infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
-//! for a practical application such as for Razor, we can *bound* the size of models created by the
-//! Chase to guarantee termination. Razor uses instances of types that implement [BounderTrait] to
-//! implement various strategies to cap the size of search space for models.
+//! in practice, Razor can *bound* the size of models created by the Chase to guarantee termination.
+//! Razor uses instances of types that implement [BounderTrait] to implement various strategies to
+//! cap the size of search space for models.
 //!
 //! [BounderTrait]: ./trait.BounderTrait.html
 //!

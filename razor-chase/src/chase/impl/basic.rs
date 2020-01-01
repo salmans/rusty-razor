@@ -29,7 +29,7 @@ pub enum WitnessTerm {
     /// [`C`]: ../../../formula/syntax/struct.C.html
     Const { constant: C },
 
-    /// Corresponds to a complex witness term, made by applying an instance of [`F`] to a list of
+    /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
     /// witness terms.
     ///
     /// [`F`]: ../../../formula/syntax/struct.F.html
@@ -111,7 +111,7 @@ pub struct Model {
 
     /// Maps *flat* witness terms to elements of this model.
     ///
-    /// **Hint**: Flat (witness) terms are terms that do not contain any complex sub-terms,
+    /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
     rewrites: HashMap<WitnessTerm, E>,
 
@@ -414,7 +414,7 @@ pub enum Literal {
     /// [`Atom`]: ../../../formula/syntax/enum.Formula.html#variant.Atom
     Atm { predicate: Pred, terms: Vec<Term> },
 
-    /// Represents a equality literal, corresponding to an equation of variant [`Equals`].
+    /// Represents a equality literal, corresponding to an atomic [`Formula`] of variant [`Equals`].
     ///
     /// [`Equals`]: ../../../formula/syntax/enum.Formula.html#variant.Equals
     Eql { left: Term, right: Term },
@@ -624,7 +624,7 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 if body.iter().all(|o| initial_model.is_observed(o))
                     && !head.iter().any(|os| os.iter().all(|o| initial_model.is_observed(o))) {
                     if head.is_empty() {
-                        return None; // the chase fails if the head is empty (FALSE)
+                        return None; // the chase fails if the head is empty (false)
                     } else {
                         // if there is a bounder, only extend models that are not out of the given bound:
                         let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
@@ -908,21 +908,21 @@ mod test_basic {
     #[test]
     fn test_build_sequent() {
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"TRUE -> TRUE".parse().unwrap()));
+                            Sequent::from(&"true -> true".parse().unwrap()));
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"TRUE -> TRUE & TRUE".parse().unwrap()));
+                            Sequent::from(&"true -> true & true".parse().unwrap()));
         assert_debug_string("[] -> [[], []]",
-                            Sequent::from(&"TRUE -> TRUE | TRUE".parse().unwrap()));
+                            Sequent::from(&"true -> true | true".parse().unwrap()));
         assert_debug_string("[] -> []",
-                            Sequent::from(&"TRUE -> FALSE".parse().unwrap()));
+                            Sequent::from(&"true -> false".parse().unwrap()));
         assert_debug_string("[] -> []",
-                            Sequent::from(&"TRUE -> FALSE & TRUE".parse().unwrap()));
+                            Sequent::from(&"true -> false & true".parse().unwrap()));
         assert_debug_string("[] -> []",
-                            Sequent::from(&"TRUE -> TRUE & FALSE".parse().unwrap()));
+                            Sequent::from(&"true -> true & false".parse().unwrap()));
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"TRUE -> TRUE | FALSE".parse().unwrap()));
+                            Sequent::from(&"true -> true | false".parse().unwrap()));
         assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"TRUE -> FALSE | TRUE".parse().unwrap()));
+                            Sequent::from(&"true -> false | true".parse().unwrap()));
         assert_debug_string("[P(x)] -> [[Q(x)]]",
                             Sequent::from(&"P(x) -> Q(x)".parse().unwrap()));
         assert_debug_string("[P(x), Q(x)] -> [[Q(y)]]",
@@ -930,25 +930,25 @@ mod test_basic {
         assert_debug_string("[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
                             Sequent::from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()));
         assert_debug_string("[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-                            Sequent::from(&"TRUE -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))".parse().unwrap()));
+                            Sequent::from(&"true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))".parse().unwrap()));
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_1() {
-        Sequent::from(&"TRUE".parse().unwrap());
+        Sequent::from(&"true".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_2() {
-        Sequent::from(&"FALSE".parse().unwrap());
+        Sequent::from(&"false".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_3() {
-        Sequent::from(&"FALSE -> TRUE".parse().unwrap());
+        Sequent::from(&"false -> true".parse().unwrap());
     }
 
     #[test]
@@ -978,13 +978,13 @@ mod test_basic {
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_8() {
-        Sequent::from(&"TRUE -> ~FALSE".parse().unwrap());
+        Sequent::from(&"true -> ~false".parse().unwrap());
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_9() {
-        Sequent::from(&"TRUE -> ~TRUE".parse().unwrap());
+        Sequent::from(&"true -> ~true".parse().unwrap());
     }
 
     #[test]

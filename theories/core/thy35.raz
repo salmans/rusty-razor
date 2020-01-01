@@ -1,4 +1,4 @@
-TRUE -> (exists x . P(x));
+true -> (exists x . P(x));
 P(x) ->  (exists x . P1(x) ) | (exists x . P2(x));
 
 P1(x) ->  (exists x . P11(x) ) | (exists x . P12(x));

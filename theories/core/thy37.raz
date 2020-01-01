@@ -1,6 +1,6 @@
 R6(fv6) -> R3(fv6);
 R0(c1()) -> exists bv0. exists bv1. R8(c4(),bv1,bv1);
-R4(fv7,fv6) -> (FALSE & exists bv0. R3(fv6));
-TRUE -> R6(c4());
+R4(fv7,fv6) -> (false & exists bv0. R3(fv6));
+true -> R6(c4());
 R3(fv5) -> (R4(c6(),fv5) & R9(fv5));
 R8(c3(),c9(),c9()) -> R7(c4(),c6());

@@ -840,7 +840,7 @@ impl Formula {
     /// let formula: Formula = "not (not P())".parse().unwrap();
     /// assert_eq!("P()", formula.simplify().to_string());
     ///
-    /// let formula: Formula = "forall x. (P() and TRUE) | (Q(x) or FALSE)".parse().unwrap();
+    /// let formula: Formula = "forall x. (P() and true) | (Q(x) or false)".parse().unwrap();
     /// assert_eq!("∀ x. (P() ∨ Q(x))", formula.simplify().to_string());
     /// ```
     pub fn simplify(&self) -> Formula {
@@ -1670,12 +1670,12 @@ mod test_transform {
     #[test]
     fn test_pnf() {
         {
-            let formula: Formula = "TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.pnf());
+            let formula: Formula = "true".parse().unwrap();
+            assert_debug_string("true", formula.pnf());
         }
         {
-            let formula: Formula = "FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.pnf());
+            let formula: Formula = "false".parse().unwrap();
+            assert_debug_string("false", formula.pnf());
         }
         {
             let formula: Formula = "P(x)".parse().unwrap();
@@ -2175,12 +2175,12 @@ mod test_transform {
     #[test]
     fn test_nnf() {
         {
-            let formula: Formula = "TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.nnf());
+            let formula: Formula = "true".parse().unwrap();
+            assert_debug_string("true", formula.nnf());
         }
         {
-            let formula: Formula = "FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.nnf());
+            let formula: Formula = "false".parse().unwrap();
+            assert_debug_string("false", formula.nnf());
         }
         {
             let formula: Formula = "P(x)".parse().unwrap();
@@ -2220,12 +2220,12 @@ mod test_transform {
         }
         // sanity checking
         {
-            let formula: Formula = "~TRUE".parse().unwrap();
-            assert_debug_string("FALSE", formula.nnf());
+            let formula: Formula = "~true".parse().unwrap();
+            assert_debug_string("false", formula.nnf());
         }
         {
-            let formula: Formula = "~FALSE".parse().unwrap();
-            assert_debug_string("TRUE", formula.nnf());
+            let formula: Formula = "~false".parse().unwrap();
+            assert_debug_string("true", formula.nnf());
         }
         {
             let formula: Formula = "~~P(x)".parse().unwrap();
@@ -2338,12 +2338,12 @@ mod test_transform {
     #[test]
     fn test_cnf() {
         {
-            let formula: Formula = "TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.cnf());
+            let formula: Formula = "true".parse().unwrap();
+            assert_debug_string("true", formula.cnf());
         }
         {
-            let formula: Formula = "FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.cnf());
+            let formula: Formula = "false".parse().unwrap();
+            assert_debug_string("false", formula.cnf());
         }
         {
             let formula: Formula = "P(f(), g(f(), f()))".parse().unwrap();
@@ -2472,12 +2472,12 @@ mod test_transform {
     #[test]
     fn test_dnf() {
         {
-            let formula: Formula = "TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.dnf());
+            let formula: Formula = "true".parse().unwrap();
+            assert_debug_string("true", formula.dnf());
         }
         {
-            let formula: Formula = "FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.dnf());
+            let formula: Formula = "false".parse().unwrap();
+            assert_debug_string("false", formula.dnf());
         }
         {
             let formula: Formula = "P(f(), g(f(), f()))".parse().unwrap();
@@ -2605,47 +2605,47 @@ mod test_transform {
     #[test]
     fn test_simplify() {
         {
-            let formula: Formula = "~TRUE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "~true".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "~FALSE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "~false".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
             let formula: Formula = "~P(x)".parse().unwrap();
             assert_debug_string("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE & TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "true & true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE & FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "false & false".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE & TRUE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "false & true".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE & FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "true & false".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) & TRUE".parse().unwrap();
+            let formula: Formula = "P(x) & true".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE & P(x)".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "false & P(x)".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) & FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "P(x) & false".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE & P(x)".parse().unwrap();
+            let formula: Formula = "true & P(x)".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
@@ -2653,71 +2653,71 @@ mod test_transform {
             assert_debug_string("P(x) & Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE | TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "true | true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE | FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "false | false".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE | TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "false | true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE | FALSE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "true | false".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) | TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "P(x) | true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE | P(x)".parse().unwrap();
+            let formula: Formula = "false | P(x)".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) | FALSE".parse().unwrap();
+            let formula: Formula = "P(x) | false".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE | P(x)".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "true | P(x)".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
             let formula: Formula = "P(x) | Q(x)".parse().unwrap();
             assert_debug_string("P(x) | Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE -> TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "true -> true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE -> FALSE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "false -> false".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE -> TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "false -> true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE -> FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "true -> false".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) -> TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "P(x) -> true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE -> P(x)".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "false -> P(x)".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) -> FALSE".parse().unwrap();
+            let formula: Formula = "P(x) -> false".parse().unwrap();
             assert_debug_string("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE -> P(x)".parse().unwrap();
+            let formula: Formula = "true -> P(x)".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
@@ -2725,35 +2725,35 @@ mod test_transform {
             assert_debug_string("P(x) -> Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE <=> TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "true <=> true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE <=> FALSE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "false <=> false".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE <=> TRUE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "false <=> true".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE <=> FALSE".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "true <=> false".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) <=> TRUE".parse().unwrap();
+            let formula: Formula = "P(x) <=> true".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE <=> P(x)".parse().unwrap();
+            let formula: Formula = "false <=> P(x)".parse().unwrap();
             assert_debug_string("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) <=> FALSE".parse().unwrap();
+            let formula: Formula = "P(x) <=> false".parse().unwrap();
             assert_debug_string("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "TRUE <=> P(x)".parse().unwrap();
+            let formula: Formula = "true <=> P(x)".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
@@ -2794,27 +2794,27 @@ mod test_transform {
             assert_debug_string("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "~(TRUE -> FALSE)".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "~(true -> false)".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "FALSE | (P(x) & TRUE)".parse().unwrap();
+            let formula: Formula = "false | (P(x) & true)".parse().unwrap();
             assert_debug_string("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "?x. P(x) | TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "?x. P(x) | true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "?y. (P(x) -> FALSE) & (FALSE -> Q(x))".parse().unwrap();
+            let formula: Formula = "?y. (P(x) -> false) & (false -> Q(x))".parse().unwrap();
             assert_debug_string("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "!x. ?y. P(x, y) | TRUE".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "!x. ?y. P(x, y) | true".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "(((x = y -> FALSE) -> FALSE) -> FALSE) -> FALSE".parse().unwrap();
+            let formula: Formula = "(((x = y -> false) -> false) -> false) -> false".parse().unwrap();
             assert_debug_string("x = y", formula.simplify());
         }
         {
@@ -2822,36 +2822,36 @@ mod test_transform {
             assert_debug_string("! x. (P(x) | (w = x))", formula.simplify());
         }
         {
-            let formula: Formula = "(P(x) | FALSE) | (P(x) | TRUE)".parse().unwrap();
-            assert_debug_string("TRUE", formula.simplify());
+            let formula: Formula = "(P(x) | false) | (P(x) | true)".parse().unwrap();
+            assert_debug_string("true", formula.simplify());
         }
         {
-            let formula: Formula = "(P(x) & FALSE) & (P(x) & TRUE)".parse().unwrap();
-            assert_debug_string("FALSE", formula.simplify());
+            let formula: Formula = "(P(x) & false) & (P(x) & true)".parse().unwrap();
+            assert_debug_string("false", formula.simplify());
         }
     }
 
     #[test]
     fn test_gnf() {
         {
-            let formula: Formula = "TRUE".parse().unwrap();
-            assert_debug_strings("TRUE -> TRUE", formula.gnf());
+            let formula: Formula = "true".parse().unwrap();
+            assert_debug_strings("true -> true", formula.gnf());
         }
         {
-            let formula: Formula = "FALSE".parse().unwrap();
-            assert_debug_strings("TRUE -> FALSE", formula.gnf());
+            let formula: Formula = "false".parse().unwrap();
+            assert_debug_strings("true -> false", formula.gnf());
         }
         {
             let formula: Formula = "P(x)".parse().unwrap();
-            assert_debug_strings("TRUE -> P(x)", formula.gnf());
+            assert_debug_strings("true -> P(x)", formula.gnf());
         }
         {
             let formula: Formula = "x = y".parse().unwrap();
-            assert_debug_strings("TRUE -> (x = y)", formula.gnf());
+            assert_debug_strings("true -> (x = y)", formula.gnf());
         }
         {
             let formula: Formula = "~P(x)".parse().unwrap();
-            assert_debug_strings("P(x) -> FALSE", formula.gnf());
+            assert_debug_strings("P(x) -> false", formula.gnf());
         }
         {
             let formula: Formula = "P(x) -> Q(x)".parse().unwrap();
@@ -2859,19 +2859,19 @@ mod test_transform {
         }
         {
             let formula: Formula = "P(x) & Q(x)".parse().unwrap();
-            assert_debug_strings("TRUE -> P(x)\nTRUE -> Q(x)", formula.gnf());
+            assert_debug_strings("true -> P(x)\ntrue -> Q(x)", formula.gnf());
         }
         {
             let formula: Formula = "P(x) | Q(x)".parse().unwrap();
-            assert_debug_strings("TRUE -> (P(x) | Q(x))", formula.gnf());
+            assert_debug_strings("true -> (P(x) | Q(x))", formula.gnf());
         }
         {
             let formula: Formula = "! x. P(x)".parse().unwrap();
-            assert_debug_strings("TRUE -> P(x)", formula.gnf());
+            assert_debug_strings("true -> P(x)", formula.gnf());
         }
         {
             let formula: Formula = "? x. P(x)".parse().unwrap();
-            assert_debug_strings("TRUE -> P('sk#0)", formula.gnf());
+            assert_debug_strings("true -> P('sk#0)", formula.gnf());
         }
         {
             let formula: Formula = "P(x) & Q(x) -> P(y) | Q(y)".parse().unwrap();
@@ -2911,8 +2911,8 @@ mod test_transform {
             let formula: Formula = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))".parse().unwrap();
             assert_debug_strings("((P(x) & Q(y)) & R(x, y)) -> S(x, y)\n\
         ((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n\
-        TRUE -> ((R(x, y) | S(x, y)) | P(x))\n\
-        TRUE -> ((R(x, y) | S(x, y)) | Q(y))\n\
+        true -> ((R(x, y) | S(x, y)) | P(x))\n\
+        true -> ((R(x, y) | S(x, y)) | Q(y))\n\
         R(x, y) -> (R(x, y) | P(x))\n\
         R(x, y) -> (R(x, y) | Q(y))\n\
         S(x, y) -> (S(x, y) | P(x))\n\
@@ -2929,8 +2929,8 @@ mod test_transform {
             assert_debug_strings("P('sk#0) -> Q('sk#0)", formula.gnf());
         }
         {
-            let formula: Formula = "FALSE -> P(x)".parse().unwrap();
-            assert_debug_strings("TRUE -> TRUE", formula.gnf());
+            let formula: Formula = "false -> P(x)".parse().unwrap();
+            assert_debug_strings("true -> true", formula.gnf());
         }
     }
 
@@ -2939,19 +2939,19 @@ mod test_transform {
         // mostly testing if compression of heads works properly:
         {
             let theory: Theory = "P('a); P('b);".parse().unwrap();
-            assert_debug_strings("TRUE -> (P('a) & P('b))", theory.gnf().formulae);
+            assert_debug_strings("true -> (P('a) & P('b))", theory.gnf().formulae);
         }
         {
             let theory: Theory = "P('a); P(x);".parse().unwrap();
-            assert_debug_strings("TRUE -> P(x)\nTRUE -> P('a)", theory.gnf().formulae);
+            assert_debug_strings("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae);
         }
         {
             let theory: Theory = "P('a); P(x); P('b);".parse().unwrap();
-            assert_debug_strings("TRUE -> P(x)\nTRUE -> (P(\'a) & P(\'b))", theory.gnf().formulae);
+            assert_debug_strings("true -> P(x)\ntrue -> (P(\'a) & P(\'b))", theory.gnf().formulae);
         }
         {
             let theory: Theory = "(T() and V()) or (U() and V());".parse().unwrap();
-            assert_debug_strings("TRUE -> ((T() & V()) | (U() & V()))", theory.gnf().formulae);
+            assert_debug_strings("true -> ((T() & V()) | (U() & V()))", theory.gnf().formulae);
         }
     }
 }

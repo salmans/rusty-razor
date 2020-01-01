@@ -1,4 +1,4 @@
-TRUE -> (exists x, y . Q(x,y));
+true -> (exists x, y . Q(x,y));
 Q(x,y) ->  (exists x, y  . Q1(x,y) ) | (exists x, y  . Q2(x,y));
 
 

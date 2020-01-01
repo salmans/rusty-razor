@@ -1,4 +1,4 @@
-TRUE -> exists a . Q(a);
+true -> exists a . Q(a);
 Q(x) -> R(x,x) | S(x);
 Q(x) -> R(x,x);
 R(x,y) -> exists b  . S(b);

@@ -51,9 +51,11 @@ const COMMA: &str = ",";
 const APOSTROPHE: &str = "'";
 const L_PAREN: &str = "(";
 const R_PAREN: &str = ")";
-const TRUE: &str = "TRUE";
+const TRUE: &str = "true";
+const CHAR_TOP: &str = "'|'";
 const TOP: &str = "⊤";
-const FALSE: &str = "FALSE";
+const FALSE: &str = "false";
+const CHAR_BOTTOM: &str = "_|_";
 const BOTTOM: &str = "⟘";
 const EQUALS: &str = "=";
 const AND: &str = "and";
@@ -293,13 +295,13 @@ named!(p_term<Span, Term>,
         map!(
             terminated!(
                 sp!(p_var),
-                // The term is a complex term if followed by '(':
+                // The term is a composite term if followed by '(':
                 not!(tag!(L_PAREN))
             ),
             |v| v.into()
         ) |
         map!(sp!(p_const), |c| c.into()) |
-        map!( // complex term
+        map!( // composite term
             pair!(sp!(p_func), sp!(p_term_args)),
             |(f, ts): (F, Vec<Term>)| f.app(ts)
         )
@@ -322,10 +324,10 @@ named!(p_pred<Span, Pred>,
 
 named!(p_atom<Span, Formula>,
     alt!(
-        value!(Top, alt!(tag!(TRUE) |  tag!(TOP))) |
-        value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM))) |
+        value!(Top, alt!(tag!(TRUE) |  tag!(TOP) | tag!(CHAR_TOP))) |
+        value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM) | tag!(CHAR_BOTTOM))) |
         add_return_error!(ErrorKind::Custom(ERR_EQUALS), p_equals) |
-        // complex term:
+        // composite term:
         map!(
             pair!(p_pred, sp!(p_term_args)),
             |(p, ts): (Pred, Vec<Term>)| p.app(ts)
@@ -427,16 +429,6 @@ named!(p_formula<Span, Formula>,
             |acc: Formula, (q, f)| if q == IMPLIES { acc.implies(f) } else { acc.iff(f) }
         ) >>
         (second)
-    )
-);
-
-named!(p_last_line_comment<Span, ()>,
-    value!((),
-        delimited!(
-            sp!(tag!(LINE_COMMENT)),
-            many0!(nom::not_line_ending),
-            eof!()
-        )
     )
 );
 
@@ -684,8 +676,10 @@ mod test_parser {
     #[test]
     fn test_atom() {
         success(p_atom, TRUE, Top, "");
+        success(p_atom, CHAR_TOP, Top, "");
         success(p_atom, TOP, Top, "");
         success(p_atom, FALSE, Bottom, "");
+        success(p_atom, CHAR_BOTTOM, Bottom, "");
         success(p_atom, BOTTOM, Bottom, "");
         success_to_string(p_atom, "x = f('a)", "x = f('a)", "");
         success_to_string(p_atom, "P()", "P()", "");
@@ -708,11 +702,11 @@ mod test_parser {
 
     #[test]
     fn test_formula() {
-        success_to_string(p_formula, "TRUE", "⊤", "");
-        success_to_string(p_formula, "FALSE", "⟘", "");
-        success_to_string(p_formula, "((((TRUE))))", "⊤", "");
-        success_to_string(p_formula, "( TRUE)", "⊤", "");
-        success_to_string(p_formula, "(TRUE )", "⊤", "");
+        success_to_string(p_formula, "true", "⊤", "");
+        success_to_string(p_formula, "false", "⟘", "");
+        success_to_string(p_formula, "((((true))))", "⊤", "");
+        success_to_string(p_formula, "( true)", "⊤", "");
+        success_to_string(p_formula, "(true )", "⊤", "");
         success_to_string(p_formula, "P()", "P()", "");
         success_to_string(p_formula, "  P()", "P()", "");
         success_to_string(p_formula, "  ~P()", "¬P()", "");
@@ -781,10 +775,10 @@ mod test_parser {
         success_to_string(p_formula, "exists x . P(x) and exists y . Q(y)", "∃ x. (P(x) ∧ (∃ y. Q(y)))", "");
         success_to_string(p_formula, "P(x) and forall y . Q(y)", "P(x) ∧ (∀ y. Q(y))", "");
         success_to_string(p_formula, "exists x . P(x) and forall y . Q(y)", "∃ x. (P(x) ∧ (∀ y. Q(y)))", "");
-        success_to_string(p_formula, "not TRUE", "¬⊤", "");
-        success_to_string(p_formula, "not TRUE -> FALSE", "(¬⊤) → ⟘", "");
+        success_to_string(p_formula, "not true", "¬⊤", "");
+        success_to_string(p_formula, "not true -> false", "(¬⊤) → ⟘", "");
         success_to_string(p_formula, "~x=y", "¬(x = y)", "");
-        success_to_string(p_formula, "TRUE -> not FALSE", "⊤ → (¬⟘)", "");
+        success_to_string(p_formula, "true -> not false", "⊤ → (¬⟘)", "");
         success_to_string(p_formula, "not P(x, y) or Q(z)", "(¬P(x, y)) ∨ Q(z)", "");
         success_to_string(p_formula, "not P(x, y) and Q(z)", "(¬P(x, y)) ∧ Q(z)", "");
         success_to_string(p_formula, "not not R(x)", "¬(¬R(x))", "");
@@ -793,7 +787,7 @@ mod test_parser {
         success_to_string(p_formula, "exists x . not exists y . Q(y)", "∃ x. (¬(∃ y. Q(y)))", "");
         success_to_string(
             p_formula,
-            "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies FALSE)",
+            "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies false)",
             "P(x) → (Q(y) ∧ (∃ z. ((f(z) = g(f(z))) ∨ ((∀ y, z. S(y, z)) → ⟘))))",
             "",
         );
@@ -868,6 +862,12 @@ mod test_parser {
             E(x,y) -> E(y,x) /*symmetric*/ ;\
             E(x,y) & E(y,z) -> /* transitivity */ E(x,z);",
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
+            "",
+        );
+        success_to_string(
+            theory,
+            "P(x);exists x . Q(x);R(x) -> S(x);",
+            "P(x)\n∃ x. Q(x)\nR(x) → S(x)",
             "",
         );
     }
