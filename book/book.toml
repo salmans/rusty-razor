@@ -1,0 +1,5 @@
+[book]
+authors = ["Salman Saghafi"]
+multilingual = false
+src = "src"
+title = "rusty-razor"
