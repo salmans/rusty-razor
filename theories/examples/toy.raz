@@ -1,0 +1,8 @@
+// All cats love all toys:
+forall c, t . (Cat(c) and Toy(t) implies Loves(c, t));
+
+// All squishies are toys:
+forall s . (Squishy(s) implies Toy(s));
+
+Cat('duchess);   // Duchess is a cat
+Squishy('ducky); // Ducky is a squishy
