@@ -4,7 +4,7 @@ Rusty Razor is a tool for constructing finite models for first-order theories. T
 by [The Chase](https://en.wikipedia.org/wiki/Chase_(algorithm)) for database systems. Given a first-order theory,
 Razor constructs a set of *homomorphically minimal* models for the theory.
 
-Check out the [documentation page](https://salmans.github.io/rusty-razor/intro.html) for more information about the project and introductory examples.
+Check out Razor's [documentation](https://salmans.github.io/rusty-razor/intro.html) for more information about the project and introductory examples.
 
 ## Build
 
@@ -59,3 +59,40 @@ The `lifo` scheduler schedules new branches first, and is more suitable for proc
 ```
 razor solve -i <input> --scheduler <fifo/lifo>
 ```
+
+## Toy Example
+
+Consider the following example:
+
+```
+// All cats love all toys:
+forall c, t . (Cat(c) and Toy(t) implies Loves(c, t));
+
+// All squishies are toys:
+forall s . (Squishy(s) implies Toy(s));
+
+Cat('duchess);   // Duchess is a cat
+Squishy('ducky); // Ducky is a squishy
+```
+
+You can download the example file [here](https://github.com/salmans/rusty-razor/blob/master/theories/examples/toy.raz) and run the `razor` command-line tool on it:
+
+```
+razor solve -i theories/examples/toy.raz
+```
+
+Razor returns only one model with `e#0` and `e#1` as elements that denote `'duchess` and
+`'ducky` respectively. The facts `Cat(e#0)`, `Squishy(e#1)`, and `Toy(e#1)` in the model
+are directly forced by the last two formula in the input theory. The fact `Loves(e#0, e#1)`
+is deduced by Razor:
+
+```
+Domain: e#0, e#1
+
+Elements: 'duchess -> e#0, 'ducky -> e#1
+
+Facts: Cat(e#0), Loves(e#0, e#1), Squishy(e#1), Toy(e#1)
+```
+
+Razor's documentation describes the [syntax](https://salmans.github.io/rusty-razor/syntax.html)
+of Razor's input and contains more [examples](https://salmans.github.io/rusty-razor/example.html).
