@@ -9,7 +9,7 @@ pub const MODEL_FACTS_COLOR: term::color::Color = BRIGHT_BLUE;
 pub const INFO_ATTRIBUTE: term::Attr = term::Attr::Bold;
 
 pub struct Terminal {
-    term: Box<term::StdoutTerminal>,
+    term: Option<Box<term::StdoutTerminal>>,
     color: Option<term::color::Color>,
     attribute: Option<term::Attr>,
     formatted: bool,
@@ -17,8 +17,12 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(formatted: bool) -> Terminal {
+        let term = term::stdout();
+        // disable formatting if can't open the terminal
+        let formatted = if term.is_some() { formatted } else { false };
+
         Self {
-            term: term::stdout().unwrap(),
+            term,
             color: None,
             attribute: None,
             formatted,
@@ -41,10 +45,10 @@ impl Terminal {
 
     pub fn apply(&mut self, closure: impl Fn()) -> &mut Self {
         if let Some(color) = self.color {
-            self.term.fg(color).unwrap();
+            let _ = self.term.as_mut().unwrap().fg(color);
         }
         if let Some(attribute) = self.attribute {
-            self.term.attr(attribute).unwrap();
+            let _ = self.term.as_mut().unwrap().attr(attribute);
         }
         closure();
         self
@@ -52,7 +56,7 @@ impl Terminal {
 
     pub fn reset(&mut self) {
         if self.color.is_some() || self.attribute.is_some() {
-            self.term.reset().unwrap();
+            let _ = self.term.as_mut().unwrap().reset();
         }
     }
 }
