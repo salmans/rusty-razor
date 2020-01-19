@@ -78,12 +78,12 @@ pub fn assert_eq_sets<T: Eq + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> ()
 }
 
 pub fn assert_debug_string<T: fmt::Debug>(expected: &str, value: T) {
-    debug_assert_eq!(expected, format!("{:?}", value));
+    debug_assert_eq!(format!("{:?}", value), expected);
 }
 
 pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
     let mut strings = value.iter().map(|v| format!("{:?}", v));
-    debug_assert_eq!(expected, strings.join("\n"));
+    debug_assert_eq!(strings.join("\n"), expected);
 }
 
 pub fn read_theory_from_file(filename: &str) -> Theory {

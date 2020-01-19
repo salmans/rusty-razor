@@ -786,8 +786,7 @@ impl Formula {
     ///
     /// let mut generator = SkolemGenerator::from("s%");
     /// let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
-    /// assert_eq!("((¬P(y, s%0(y))) ∧ (¬Q(s%0(y)))) ∨ Q(y)",
-    ///     formula.dnf_with(&mut generator).to_string());
+    /// assert_eq!("((¬P(y, x)) ∧ (¬Q(x))) ∨ Q(y)", formula.dnf_with(&mut generator).to_string());
     /// ```
     pub fn dnf_with(&self, generator: &mut SkolemGenerator) -> Formula {
         // The following distributes disjunction in the given formula. The function assumes that
@@ -2124,6 +2123,10 @@ mod test_transform {
         }
         {
             let formula: Formula = "!x. (!y. P(x, y) -> ?y. Q(x, y))".parse().unwrap();
+            assert_debug_string("! x. (! y. (? y`. (P(x, y) -> Q(x, y`))))", formula.pnf());
+        }
+        {
+            let formula: Formula = "!x. ((!y. P(x, y)) -> ?y. Q(x, y))".parse().unwrap();
             assert_debug_string("! x. (? y. (? y`. (P(x, y) -> Q(x, y`))))", formula.pnf());
         }
     }
@@ -2433,6 +2436,10 @@ mod test_transform {
         }
         {
             let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
+            assert_debug_string("((~P(y, x)) | Q(y)) & ((~Q(x)) | Q(y))", formula.cnf());
+        }
+        {
+            let formula: Formula = "!y. ((!x. (P(y, x) | Q(x))) -> Q(y))".parse().unwrap();
             assert_debug_string("((~P(y, sk#0(y))) | Q(y)) & ((~Q(sk#0(y))) | Q(y))", formula.cnf());
         }
         {
@@ -2454,6 +2461,11 @@ mod test_transform {
         }
         {
             let formula: Formula = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))".parse().unwrap();
+            assert_debug_string("(P(y) | Q(sk#0(x, y), x)) & ((~Q(x, y)) | Q(sk#0(x, y), x))",
+                                formula.cnf());
+        }
+        {
+            let formula: Formula = "!x. ((!y. (P(y) -> Q(x, y))) -> ?y. Q(y, x))".parse().unwrap();
             assert_debug_string("(P(sk#0(x)) | Q(sk#1(x), x)) & ((~Q(x, sk#0(x))) | Q(sk#1(x), x))",
                                 formula.cnf());
         }
@@ -2566,6 +2578,10 @@ mod test_transform {
         }
         {
             let formula: Formula = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
+            assert_debug_string("((~P(y, x)) & (~Q(x))) | Q(y)", formula.dnf());
+        }
+        {
+            let formula: Formula = "!y. ((!x. (P(y, x) | Q(x))) -> Q(y))".parse().unwrap();
             assert_debug_string("((~P(y, sk#0(y))) & (~Q(sk#0(y)))) | Q(y)", formula.dnf());
         }
         {
@@ -2587,6 +2603,11 @@ mod test_transform {
         }
         {
             let formula: Formula = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))".parse().unwrap();
+            assert_debug_string("(P(y) & (~Q(x, y))) | Q(sk#0(x, y), x)",
+                                formula.dnf());
+        }
+        {
+            let formula: Formula = "!x. ((!y. (P(y) -> Q(x, y))) -> ?y. Q(y, x))".parse().unwrap();
             assert_debug_string("(P(sk#0(x)) & (~Q(x, sk#0(x)))) | Q(sk#1(x), x)",
                                 formula.dnf());
         }
@@ -2922,6 +2943,10 @@ mod test_transform {
         }
         {
             let formula: Formula = "? x. P(x) -> Q(x)".parse().unwrap();
+            assert_debug_strings("P('sk#0) -> Q('sk#0)", formula.gnf());
+        }
+        {
+            let formula: Formula = "(? x. P(x)) -> Q(x)".parse().unwrap();
             assert_debug_strings("P(x`) -> Q(x)", formula.gnf());
         }
         {

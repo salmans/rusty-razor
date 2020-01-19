@@ -19,7 +19,7 @@ impl Terminal {
     pub fn new(formatted: bool) -> Terminal {
         let term = term::stdout();
         // disable formatting if can't open the terminal
-        let formatted = if term.is_some() { formatted } else { false };
+        let formatted = term.is_some() && formatted;
 
         Self {
             term,
