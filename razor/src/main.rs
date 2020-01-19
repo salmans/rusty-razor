@@ -1,6 +1,7 @@
 pub mod utils;
 
 use structopt::StructOpt;
+use std::io;
 use razor_fol::syntax::Theory;
 use razor_chase::{
     chase::{
@@ -99,7 +100,7 @@ enum ProcessCommand {
     #[structopt(name = "solve", about = "Find models for the input theory")]
     Solve {
         #[structopt(short = "i", long = "input", parse(from_os_str), help = "Path to the input theory file")]
-        input: std::path::PathBuf,
+        input: Option<std::path::PathBuf>,
         #[structopt(long = "count", help = "Number of models to return")]
         count: Option<i32>,
         #[structopt(short = "b", long = "bound", name = "bound", help = "Bound the size of models.")]
@@ -144,16 +145,25 @@ fn main() -> Result<(), ExitFailure> {
             show_incomplete,
             scheduler
         } => {
-            if let Some(input) = input.to_str() {
-                process_solve(input, bound, show_incomplete, scheduler, log, count, color)?;
+            let theory: Theory;
+            if let Some(input) = input {
+                theory = read_theory_from_file(input.to_str().unwrap_or("."))
+                    .with_context(|e| e.to_string())?;
+            } else {
+                // input from the pipe
+                let mut buf: Vec<u8> = Vec::new();
+                io::stdin().read_to_end(&mut buf)?;
+                let s = String::from_utf8(buf)?;
+                theory = s.parse()?;
             }
+            process_solve(&theory, bound, show_incomplete, scheduler, log, count, color)?;
         }
     }
     Ok(())
 }
 
 fn process_solve(
-    theory: &str,
+    theory: &Theory,
     bound: Option<BoundCommand>,
     show_incomplete: bool,
     scheduler: SchedulerOption,
@@ -162,8 +172,6 @@ fn process_solve(
     color: bool,
 ) -> Result<(), Error> {
     let mut term = Terminal::new(color);
-    let theory = read_theory_from_file(theory)
-        .with_context(|e| e.to_string())?;
 
     term.foreground(INFO_COLOR)
         .attribute(INFO_ATTRIBUTE)
