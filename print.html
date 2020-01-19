@@ -1,0 +1,604 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>rusty-razor</title>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <base href="">
+
+        <link rel="stylesheet" href="book.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <link rel="shortcut icon" href="favicon.png">
+
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+
+        
+
+    </head>
+    <body class="light">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { } 
+            if (theme === null || theme === undefined) { theme = 'light'; }
+            document.body.className = theme;
+            document.querySelector('html').className = theme + ' js';
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <ol class="chapter"><li class="affix"><a href="intro.html">Introduction</a></li><li><a href="background.html"><strong aria-hidden="true">1.</strong> Background</a></li><li><ol class="section"><li><a href="background/satisfiability.html"><strong aria-hidden="true">1.1.</strong> Satisfiability of Geometric Theories</a></li><li><a href="background/chase.html"><strong aria-hidden="true">1.2.</strong> The Chase</a></li><li><a href="background/termination.html"><strong aria-hidden="true">1.3.</strong> Termination</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">2.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">2.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">2.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">2.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">3.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">4.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">4.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">4.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">5.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">5.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">5.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">5.3.</strong> Hold the Door</a></li></ol></li></ol>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar" class="menu-bar">
+                    <div id="menu-bar-sticky-container">
+                        <div class="left-buttons">
+                            <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                                <i class="fa fa-bars"></i>
+                            </button>
+                            <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                                <i class="fa fa-paint-brush"></i>
+                            </button>
+                            <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                                <li role="none"><button role="menuitem" class="theme" id="light">Light <span class="default">(default)</span></button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            </ul>
+                            
+                            <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                                <i class="fa fa-search"></i>
+                            </button>
+                            
+                        </div>
+
+                        <h1 class="menu-title">rusty-razor</h1> 
+
+                        <div class="right-buttons">
+                            <a href="print.html" title="Print this book" aria-label="Print this book">
+                                <i id="print-button" class="fa fa-print"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <a class="header" href="print.html#introduction" id="introduction"><h1>Introduction</h1></a>
+<p>Rusty Razor is a tool for constructing finite models for first-order theories. The model-finding algorithm is inspired
+by <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">The Chase</a> for database systems. Given a first-order theory,
+Razor constructs a set of <em>homomorphically minimal</em> models. The constructed models are models of an equisatisfiable
+theory over an alphabet, extended with Skolem functions that represent the existential quantifiers of the original theory.</p>
+<p>To learn more about the theoretical foundation of Razor, check out my
+<a href="https://digitalcommons.wpi.edu/etd-dissertations/458/">PhD dissertation</a>.</p>
+<a class="header" href="print.html#background" id="background"><h1>Background</h1></a>
+<p>Razor implements a variant of <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">The Chase</a> algorithm to construct models for first-order theories with equality. The Chase operates on <a href="https://www.cs.bham.ac.uk/%7Esjv/GLiCS.pdf">geometric theories</a>, theories that contain a syntactic
+variation of first-order formulae which we refer to as the <strong>Geometric Normal Form</strong> (GNF). Formulae
+in GNF have the following shape:</p>
+<p>A<sub>1</sub> ∧ ... ∧ A<sub>m</sub> →
+(∃ x<sub>11</sub>, ..., x<sub>1j<sub>1</sub></sub> . A<sub>11</sub> ∧ ... ∧ A<sub>1n<sub>1</sub></sub>) </br>
+   
+∨ (∃ x<sub>21</sub>, ..., x<sub>2j<sub>2</sub></sub> . A<sub>21</sub> ∧ ... ∧ A<sub>2n<sub>2</sub></sub>) </br>
+   
+∨ ... </br>
+   
+∨ (∃ x<sub>i1</sub>, ..., x<sub>ij<sub>i</sub></sub> . A<sub>i1</sub> ∧ ... ∧ A<sub>in<sub>i</sub></sub>)</p>
+<p>where A<sub>k</sub>s are (positive) atomic formulae (possibly including equality) and free
+variables are assumed to be universally qualified over the entire formula.</p>
+<p>In the context of a run of The Chase, we refer to the formulae in their GNF as
+<strong>sequents</strong>. The premise (left side) and the consequence (right side) of the implication are
+respectively said to be the <em>body</em> and the <em>head</em> of the sequent.</p>
+<a class="header" href="print.html#satisfiability-of-geometric-theories" id="satisfiability-of-geometric-theories"><h2>Satisfiability of Geometric Theories</h2></a>
+<p>It turns out that every first-order theory can be transformed to a geometric theory that is
+<em>equisatisfiable</em> to the original theory via standard syntactic manipulation.
+In fact, for every model <code>N</code> of the original theory, there exists a model <code>M</code> of the geometric
+theory such that there is a homomorphism from <code>M</code> to <code>N</code>. This is an important result that
+enables Razor to utilize The Chase to construct homomorphically minimal models of a given
+first-order theory.</p>
+<p>In the context of a model-finding application, the models that The Chase produces are desirable
+since they contain minimum amount of information, thus they induce minimal distraction.
+As a direct consequence of semi-decidability of satisfiability in first-order logic
+(see <a href="https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems">Gödel's incompleteness theorems</a>), satisfiability of geometric theories is
+semi-decidable as well.</p>
+<blockquote>
+<p><strong>Note:</strong> A comprehensive discussion on the properties of the models that are constructed by
+The Chase is out of the scope of this document.</p>
+</blockquote>
+<a class="header" href="print.html#the-chase" id="the-chase"><h2>The Chase</h2></a>
+<p>Given a geometric theory and starting with an empty model, a run of Chase consists of repeated
+applications of <a href="print.html#step">chase-steps</a> by which the model is augmented with <em>necessary</em> pieces of
+information until there is a contradiction or the model satisfies the theory. Inspired by
+<a href="https://www.cs.bham.ac.uk/%7Esjv/GeoZ.pdf">Steven Vickers</a>, we refer to the units of information that augment models as <em>observations</em>.</p>
+<a class="header" href="print.html#a-namestepchase-stepa" id="a-namestepchase-stepa"><h3><a name="step">Chase Step</a></h3></a>
+<p>Given a geometric theory and an existing model, a chase-step proceeds as follows:</p>
+<ol>
+<li>
+<p>A sequent from the theory is selected to be evaluated against the model.</p>
+</li>
+<li>
+<p>The selected sequent is evaluated against the model: given an assignment from the free
+variables of the sequent to the elements of the model, if the body of the sequent is true and
+its head is not true in the model, new observations are added to the model to make the
+sequent's head true.</p>
+<p>2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
+The Chase fails on the given model.</p>
+<p>2.2. If the head of the sequent contains more than one disjunct (with at least one
+non-trivial disjunction), The Chase branches and satisfies each disjunct independently on clones
+of the model.</p>
+<p>2.3. If no sequent can be found such that its body and head are respectively true and false
+in the model, the model already satisfies the theory and will be returned as an output of The
+Chase.</p>
+</li>
+</ol>
+<a class="header" href="print.html#termination" id="termination"><h2>Termination</h2></a>
+<p>As a result of semi-decidability of geometric theories, it can be shown if a geometric theory
+is unsatisfiable, a run of The Chase on the theory always terminates, although it may take
+a very very long time.
+However, when the theory is satisfiable, a run of The Chase may not terminate, producing
+infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
+in practice, Razor can <em>bound</em> the size of models created by The Chase to guarantee termination.</p>
+<a class="header" href="print.html#syntax" id="syntax"><h1>Syntax</h1></a>
+<p>The syntax and semantics of Razor's input is that of conventional
+<a href="https://en.wikipedia.org/wiki/First-order_logic">first-order logic</a>,
+also known as predicate logic.</p>
+<p>Razor's input supports three <a href="./syntax/variations.html">syntactic variations</a>
+for the logical symbols and follows one of the more predominant conventions for
+the <a href="./syntax/precedence.html">precedence</a> of the logical connectives.
+For consistency and readability purposes, we use the <em>alpha</em> variation
+everywhere in this document.</p>
+<a class="header" href="print.html#identifier" id="identifier"><h2>Identifier</h2></a>
+<p>Lowercase and uppercase identifiers in Razor are defined by the following:</p>
+<ul>
+<li>A <em>lowercase</em> identifier is a word starting with either a lowercase alphabetic character (<code>[a-z]</code>) or
+the underscore (<code>_</code>), followed by any number of alphanumeric characters (<code>[a-zA-Z0-9]</code>) and/or the
+underscore. For example, <code>rusty</code>, <code>_razor</code>, and <code>rusty123_RAZOR456</code> are lowercase identifiers.</li>
+<li>An <em>uppercase</em> identifier is a word that starts with an uppercase alphabetic character (<code>[A-Z]</code>) and
+is followed by any number of alphanumeric characters (<code>[a-zA-Z0-9]</code>) and/or the underscore (<code>_</code>).
+For example, <code>Rusty</code>, and <code>RAZOR_123</code> are uppercase identifiers.</li>
+</ul>
+<a class="header" href="print.html#term" id="term"><h2>Term</h2></a>
+<p>A <em>term</em> in Razor's input is a conventional first-order term, inductively defined by the following:</p>
+<ul>
+<li>A <strong>variable</strong> is a lowercase identifier, and it is a term on its own. For example, <code>v</code>,
+<code>variable</code>, and <code>_var</code> may be used as variable symbols.</li>
+<li>A <em>composite</em> term consists of a lowercase identifier as a <strong>function</strong> symbol that is applied
+to zero or more terms as arguments that are wrapped in parentheses. For example, <code>f()</code>, <code>f(a)</code>,
+<code>f(g(a, b), c)</code>, and <code>func(plus(x, y))</code> are terms.</li>
+</ul>
+<p>Razor treats <em>nullary</em> functions (of arity zero that take no arguments)
+as <strong>constants</strong>. An apostrophe (<code>'</code>) followed by a lowercase identifier is a syntactic sugar
+for constructing a constant. For example, <code>'a</code> is a constant that is syntactically
+equivalent to <code>a()</code>.</p>
+<a class="header" href="print.html#a-nameformulaformulaa" id="a-nameformulaformulaa"><h2><a name=formula>Formula</a></h2></a>
+<p>A <em>formula</em> in Razor's input is a conventional first-order formula <em>with equality</em>, inductively
+defined by the following:</p>
+<ul>
+<li>
+<p>An <strong>atomic</strong> formula consists of an upper case identifier as a <strong>predicate</strong> symbol that is
+applied to zero or more terms as arguments that are wrapped in parentheses. For example, <code>R()</code>,
+<code>R(x)</code>, and <code>R(f(x, 'a), y, 'b)</code> are atomic formulae.</p>
+</li>
+<li>
+<p>An <strong>equality</strong> is a especial type of atomic formula, with a binary infix connective <code>=</code> that is
+applied on two terms as its arguments. Razor treats an equality as identity between its arguments.
+For example, <code>x = y</code>, and <code>f(x) = g(f(y), 'a)</code> are equalities.</p>
+</li>
+<li>
+<p>The result of applying the logical connectives <code>and</code>, <code>or</code>, <code>implies</code> and <code>iff</code> as infix binary
+connectives to two fromulae is itself a formula. Parentheses may be used to override the conventional
+<a href="./syntax/precedence.html">precedence</a> of the connectives.
+For example <code>P(x) and x = y</code>, <code>P(x) and (Q(y) or R(x))</code>, and <code>P(x, y) implies x = y and R(z)</code>
+are formulae.</p>
+</li>
+<li>
+<p>The result of applying the logical connectives <code>forall</code> and <code>exists</code> to one or more comma (<code>,</code>)
+separated <em>bound</em> variables and a formula, as a propositional function, is itself a formula. The
+list of bound variables and the propositional function are separated by a period (<code>.</code>).
+For example, <code>exists x. P(x)</code>, <code>forall x, y . Q(x, y) or R(z)</code>, and
+<code>forall x. exists y. P(x, y)</code> are formulae.</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> A variable that is not bound by a universal (<code>forall</code>) or existential (<code>exists</code>) quantifier
+is said to be a <em>free</em> variable. Razor assumes all free variables to be universally
+quantified over the entire formula in which they appear.
+For example, <code>P(x) -&gt; exists y . Q(x, y)</code> is assumed to be equivalent to
+<code>forall x . (P(x) -&gt; exists y . Q(x, y))</code>.</p>
+</blockquote>
+<a class="header" href="print.html#input" id="input"><h2>Input</h2></a>
+<p>Razor's input is a first-order theory, consisting of a list of zero or more formulae, separated by
+the semi-colon (<code>;</code>). The input may contain conventional C-style comments (<code>//</code> for comment lines and
+<code>/*</code> and <code>*/</code> for comment blocks). Whitespaces including new lines are allowed.
+See the following input for an example:</p>
+<pre><code>// equality axioms
+
+forall x . x = x; /* Reflexitivity */
+forall x, y . (x = y implies y = x); /* Symmetry */
+forall x, y, z . (x = y and y = z implies x = z); /* Transitivity */
+</code></pre>
+<a class="header" href="print.html#syntactic-variations" id="syntactic-variations"><h2>Syntactic Variations</h2></a>
+<p>Razor supports three syntactic variations of the logical symbols in the input:</p>
+<ul>
+<li><strong>alpha</strong> where logical symbols are written as alphabetic words.</li>
+<li><strong>compact</strong> where ASCII notations represent logical symbols.</li>
+<li><strong>math</strong> where (Unicode) mathematical symbols are used.</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> Currently, Razor's parser accepts inputs that are comprised of any combination
+of the syntactic variations mentioned above. However, future releases of Razor may restrict
+the input to use only one of the variations above.</p>
+</blockquote>
+<p>The table below shows all syntactic variations of the logical symbols:</p>
+<table><thead><tr><th> symbol                   </th><th align="center"> alpha      </th><th align="center"> compact                          </th><th align="center"> math         </th></tr></thead><tbody>
+<tr><td> <em>truth</em>                  </td><td align="center"> <code>true</code>     </td><td align="center"> <code>'|'</code>            </td><td align="center"> <code>⊤</code> (U+22A4) </td></tr>
+<tr><td> <em>falsehood</em>              </td><td align="center"> <code>false</code>    </td><td align="center"> <code>_|_</code>    </td><td align="center"> <code>⟘</code> (U+27D8) </td></tr>
+<tr><td> <em>negation</em>               </td><td align="center"> <code>not</code>      </td><td align="center"> <code>~</code>                              </td><td align="center"> <code>¬</code> (U+00AC) </td></tr>
+<tr><td> <em>conjunction</em>            </td><td align="center"> <code>and</code>      </td><td align="center"> <code>&amp;</code>                              </td><td align="center"> <code>∧</code> (U+2227) </td></tr>
+<tr><td> <em>disjunction</em>            </td><td align="center"> <code>or</code>       </td><td align="center"> <code>|</code>              </td><td align="center"> <code>∨</code> (U+2228) </td></tr>
+<tr><td> <em>implication</em>            </td><td align="center"> <code>implies</code>  </td><td align="center"> <code>-&gt;</code>                             </td><td align="center"> <code>→</code> (U+2192) </td></tr>
+<tr><td> <em>bi-implication</em>         </td><td align="center"> <code>iff</code>      </td><td align="center"> <code>&lt;=&gt;</code>                            </td><td align="center"> <code>⇔</code> (U+21D4) </td></tr>
+<tr><td> <em>existential quantifier</em> </td><td align="center"> <code>exists</code>   </td><td align="center"> <code>?</code>                              </td><td align="center"> <code>∃</code> (U+2203) </td></tr>
+<tr><td> <em>universal quantifier</em>   </td><td align="center"> <code>forall</code>   </td><td align="center"> <code>!</code>                              </td><td align="center"> <code>∀</code> (U+2200) </td></tr>
+</tbody></table>
+<a class="header" href="print.html#connective-precedence" id="connective-precedence"><h2>Connective Precedence</h2></a>
+<p>When a formula contains two or more logical connectives, the connectives
+are applied by the following order from the highest to the lowest precedence:</p>
+<ul>
+<li>Negation (<code>not</code>) is applied first.</li>
+<li>Conjunction (<code>and</code>) is applied next.</li>
+<li>Disjunction (<code>or</code>) is applied next.</li>
+<li>Implication (<code>implies</code>) and bi-implication (<code>iff</code>) are applied next.</li>
+<li>Existential (<code>exists</code>) and universal (<code>forall</code>) quantifiers are applied last.</li>
+</ul>
+<p>A connective with a higher precedence is applied before a consecutive
+connective with a lower precedence; that is, the connective with the higher
+precedence binds tighter to the formula on which it operates.
+For example, <code>P() implies not Q() and R()</code> is a formula consisting of
+an implication where <code>P()</code> is the premise and the conjunction of <code>not Q()</code>
+and <code>R()</code> is the consequence.</p>
+<p>Parentheses may be used to override the precedence of connectives.
+For example, in <code>P() and (Q() or R())</code> the disjunction (<code>or</code>) is applied before
+the conjunction (<code>and</code>).</p>
+<a class="header" href="print.html#associativity" id="associativity"><h3>Associativity</h3></a>
+<p>All binary connectives of equal precedence except for implication
+(<code>implies</code>) and bi-implication (<code>iff</code>) are left-associative.
+For example, <code>P() | Q() | R()</code> is evaluated as <code>(P() | Q()) | R()</code>.</p>
+<p>Implication and bi-implication are right-associative.
+For example, <code>P() &lt;=&gt; Q() -&gt; R() &lt;=&gt; S()</code> is evaluated as
+<code>P() &lt;=&gt; (Q() -&gt; (R() &lt;=&gt; S()))</code>.</p>
+<a class="header" href="print.html#grammar" id="grammar"><h2>Grammar</h2></a>
+<p>The input theory accepted by Razor is defined by the grammar below:</p>
+<pre><code>LOWER       ::= [a-z_][a-zA-Z0-9_]*
+UPPER       ::= [A-Z][a-zA-Z0-9_]*
+
+TRUE        ::= &quot;true&quot;    | &quot;'|'&quot; | &quot;⊤&quot; (U+22A4)
+FALSE       ::= &quot;false&quot;   | &quot;_|_&quot; | &quot;⟘&quot; (U+27D8)
+NOT         ::= &quot;not&quot;     | &quot;~&quot;   | &quot;¬&quot; (U+00AC)
+AND         ::= &quot;and&quot;     | &quot;&amp;&quot;   | &quot;∧&quot; (U+2227)
+OR          ::= &quot;or&quot;      | &quot;|&quot;   | &quot;∨&quot; (U+2228)
+IMPLIES     ::= &quot;implies&quot; | &quot;-&gt;&quot;  | &quot;→&quot; (U+2192)
+IFF         ::= &quot;iff&quot;     | &quot;&lt;=&gt;&quot; | &quot;⇔&quot; (U+21D4)
+EXISTS      ::= &quot;exists&quot;  | &quot;?&quot;   | &quot;∃&quot; (U+2203)
+FORALL      ::= &quot;forall&quot;  | &quot;!&quot;   | &quot;∀&quot; (U+2200)
+
+VARIABLE    ::= LOWER
+FUNCTION    ::= LOWER
+PREDICATE   ::= UPPER
+VARIABLES   ::= VARIABLE (&quot;,&quot; VARIABLES)*
+TERM        ::= VARIABLE | FUNCTION &quot;(&quot; TERMS? &quot;)&quot;
+TERMS       ::= TERM (&quot;,&quot; TERMS)*
+
+ATOM        ::= TRUE | FALSE
+              | TERM &quot;=&quot; TERM | PREDICATE &quot;(&quot; TERMS? &quot;)&quot;
+              | &quot;(&quot; FORMULA &quot;)&quot;
+F_NOT        ::= NOT F_QUANTIFIED | ATOM
+F_AND        ::= F_NOT (AND F_QUANTIFIED)?
+F_OR         ::= F_AND (OR F_QUANTIFIED)?
+F_QUANTIFIED ::= (EXISTS | FORALL) VARIABLES &quot;.&quot; F_QUANTIFIED | F_OR
+FORMULA      ::= F_QUANTIFIED ((IMPLIES | IFF) F_QUANTIFIED)*
+
+THEORY       ::= (FORMULA &quot;;&quot;)*
+</code></pre>
+<a class="header" href="print.html#build" id="build"><h1>Build</h1></a>
+<p>rusty-razor is written in Rust, so you will need <a href="https://www.rust-lang.org">Rust</a> 1.37.0 or newer to compile it.
+To build rusty-razor:</p>
+<pre><code>git clone https://github.com/salmans/rusty-razor.git
+cd rusty-razor
+cargo build --release
+</code></pre>
+<p>This puts rusty-razor's executable in <code>/target/release</code>.</p>
+<a class="header" href="print.html#run" id="run"><h1>Run</h1></a>
+<a class="header" href="print.html#solve" id="solve"><h2><code>solve</code></h2></a>
+<p>Use the <code>solve</code> command to find models for an input theory. The <code>-i</code> (short for <code>--input</code>)
+reads the input from a file:</p>
+<pre><code>razor solve -i &lt;input&gt;
+</code></pre>
+<blockquote>
+<p>Run <code>solve</code> without the <code>-i</code> option to read the input from the standard input.</p>
+</blockquote>
+<p>The <code>--count</code> parameter limits the number of models to construct:</p>
+<pre><code>razor solve -i &lt;input&gt; --count &lt;number&gt;
+</code></pre>
+<a class="header" href="print.html#bounded-model-finding" id="bounded-model-finding"><h3>Bounded Model-Finding</h3></a>
+<p>Unlike conventional model-finders such as <a href="http://alloytools.org">Alloy</a>, Razor doesn't require the user to provide a
+bound on the size of the models that it constructs. However, Razor may never terminate when running on theories with
+non-finite models -- it can be shown that a run of Razor on an unsatisfiable theory (i.e., a theory with no models)
+is guaranteed to terminate (although it might take a very very long time).This is a direct consequence of
+semi-decidability of first-order logic.</p>
+<p>To guarantee termination, limit the size of the resulting models by the number of their elements using the <code>--bound</code>
+option with a value for the <code>domain</code> parameter:</p>
+<pre><code>razor solve -i &lt;input&gt; --bound domain=&lt;number&gt;
+</code></pre>
+<a class="header" href="print.html#model-finding-scheduler" id="model-finding-scheduler"><h3>Model-Finding Scheduler</h3></a>
+<p>Use the <code>--scheduler</code> option to choose how Razor processes search branches. The <code>fifo</code> scheduler (the default scheduler)
+schedules new branches last and is a more suitable option for processing theories with few small satisfying models.
+The <code>lifo</code> scheduler schedules new branches first, and is more suitable for processing theories with many large models.</p>
+<pre><code>razor solve -i &lt;input&gt; --scheduler &lt;fifo/lifo&gt;
+</code></pre>
+<a class="header" href="print.html#example" id="example"><h1>Example</h1></a>
+<p>This section presents sample first-order theories, written in Razor's syntax.
+All examples are inspired by the events of Game of Thrones (<em>spoiler alert!!</em>).</p>
+<ul>
+<li><a href="./example/valar-morghulis.html">Valar Morghulis</a>: demonstrates a run of Razor on a simple example.</li>
+<li><a href="./example/golden-head.html">Golden Head</a>: runs Razor over an unsatisfiable theory for which no models exist.</li>
+<li><a href="./example/hold-the-door.html">Hold the Door</a>: covers more advanced features of Razor on theories with infinite models.</li>
+</ul>
+<p>For more examples, see Razor's <a href="https://github.com/salmans/rusty-razor/tree/master/theories/examples">example theories</a>.</p>
+<a class="header" href="print.html#valar-morghulis" id="valar-morghulis"><h2>Valar Morghulis</h2></a>
+<p>All men must die.
+Ser Gregor is a man.</p>
+<pre><code>// All men must die:
+forall x. (Man(x) implies MustDie(x));
+
+// Ser Gregor is a man:
+Man('gregor);
+</code></pre>
+<p>Run Razor on the previous theory <a href="https://github.com/salmans/rusty-razor/blob/master/theories/examples/valar-morghulis.raz">valar-morghulis.raz</a>:</p>
+<pre><code>razor solve -i theories/examples/valar-morghulis.raz
+</code></pre>
+<p>Razor returns only one model:</p>
+<pre><code>Domain: e#0
+
+Elements: 'gregor -&gt; e#0
+
+Facts: Man(e#0), MustDie(e#0)
+</code></pre>
+<p>The model contains only one element <code>e#0</code> in its domain. This element denotes <code>'gregor</code>, a constant in the theory that
+represents Ser Gregor. The model also contains two facts: <code>Man(e#0)</code> is a fact that is derived from the second statement
+of the theory (i.e., <code>Man('gregor)</code>). The fact <code>MustDie(e#0)</code> is deduced by Razor according to the first statement of
+the theory.</p>
+<blockquote>
+<p>Notice that the previous model is a &quot;minimal&quot; model for the given theory. The element <code>e#0</code> is required to represent
+the constant <code>'gregor</code>; the fact <code>Man(e#0)</code> must be present because the theory says so; and, the fact <code>MustDie(e#0)</code>
+must be true because of the first statement. Removing any piece of information makes the given structure a non-model of
+the theory.</p>
+</blockquote>
+<a class="header" href="print.html#golden-head" id="golden-head"><h2>Golden Head</h2></a>
+<p>While reading &quot;The Lineages and Histories of the Great Houses of the Seven Kingdoms&quot;, Lord Eddard Stark learns that
+throughout the history, all male members of House Baratheon were described as &quot;black of hair&quot; and concludes that King
+Robert is not Prince Joffrey's (biological) father. A judgment that eventually put his head on a spike.</p>
+<p>The next theory describes Ned's thought process:</p>
+<pre><code>// A person &quot;x&quot; cannot be both &quot;black of hair&quot; and &quot;golden head&quot;
+~(BlackOfHair(x) &amp; GoldenHead(x));
+
+// Traditionally, a Baratheon child &quot;y&quot; inherited his/her father's (&quot;x&quot;'s) family name
+Baratheon(x) &amp; father(y) = x -&gt; Baratheon(y);
+
+// King Robert Baratheon is black of hair
+Baratheon('robert) &amp; BlackOfHair('robert);
+
+// King Robert is Joffrey's father
+father('joffrey) = 'robert;
+
+// Joffrey has golden hair
+GoldenHead('joffrey);
+
+// Ned Stark's discovery (every Baratheon &quot;x&quot; is black of hair)
+Baratheon(x) -&gt; BlackOfHair(x);
+</code></pre>
+<p>We can verify Ned's conclusion by running Razor on this theory
+<a href="https://github.com/salmans/rusty-razor/blob/master/theories/examples/golden-lion.raz">golden-lion.raz</a>, asking for a
+scenario (i.e., model of the theory) that justifies Joffrey's golden head:</p>
+<pre><code>razor solve -i theories/examples/golden-lion.raz
+</code></pre>
+<p>Razor cannot find a model for the previous theory, meaning the theory is inconsistent. Notice that this theory
+is satisfiable (i.e., has a model) in the absence of Ned's discovery (try running Razor after commenting out the last
+line).</p>
+<a class="header" href="print.html#hold-the-door" id="hold-the-door"><h2>Hold the Door</h2></a>
+<p>Wyllis was a young stable boy when he heard a voice from his future: &quot;Hold the Door!&quot; The voice transformed Wyllis to
+Hodor (Hold the door, Holdde door, Hoddedor, Hodor, Hodor...!), putting him on a life-long journey, leading him to the
+moment that he saves Bran's life. Indeed, because of this defining moment in his future, Wyllis became Hodor in his past.</p>
+<a class="header" href="print.html#linear-time" id="linear-time"><h4>Linear Time</h4></a>
+<p>The theory below describes Hodor's journey assuming that time progresses linearly
+<a href="https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-linear.raz">hodor-linear.raz</a></p>
+<pre><code>// Wyllis hears &quot;Hold the Door&quot; (at time `t`), then he becomes Hodor in the next
+// point of time
+HoldTheDoor(t) -&gt; Hodor(next(t));
+
+// Hodor, after turning into Hodor at time &quot;t&quot;, holds the Door at some time &quot;tt&quot;
+// in future (&quot;tt &gt; t&quot;)
+Hodor(t) -&gt; ? tt . HoldTheDoor(tt) &amp; After(t, tt);
+
+// These are the rules by which time progresses linearly:
+// (1) a point of time &quot;t1&quot; that is the next of &quot;t0&quot; (i.e., &quot;next(t0)&quot;) is a point of
+// time after &quot;t0&quot; (&quot;t1 &gt; t0&quot;)
+next(t0) = t1 -&gt; After(t0, t1);
+
+// (2) if a point of time &quot;t1&quot; is after &quot;t0&quot;, it is either immediately
+// after &quot;t0&quot; (i.e., &quot;next(t0)&quot;) or there exists some point of time &quot;t2&quot;
+// that is immediately after &quot;t0&quot; and before &quot;t1&quot;.
+After(t0, t1) -&gt; next(t0) = t1 | ? t2 . next(t0) = t2 &amp; After(t2, t1);
+
+// And we know at some point of time (namely &quot;'t_hodor&quot;), Wyllis became Hodor
+Hodor('t_hodor);
+</code></pre>
+<p>An unbounded run of Razor on the previous theory will never terminate (feel free to press <code>ctrl + c</code> after a
+few seconds):</p>
+<pre><code>razor solve -i theories/examples/hodor-linear.raz
+</code></pre>
+<p>Assuming that time progresses linearly, the circular causality between the two events of &quot;holding the door&quot; and
+&quot;becoming Hodor&quot; results in an infinitely large model where time progresses unboundedly. We can restrict the size of
+the structures constructed by Razor by bounding the number of their elements. For example, if we restrict the number of
+elements to 4, Razor will find 9 <em>incomplete</em> structures, which do <em>not</em> satisfy the theory:</p>
+<pre><code>razor solve -i theories/examples/hodor-linear.raz --bound domain=4
+</code></pre>
+<p>For example, the following structure corresponds to an incomplete model where <code>e#0</code> denotes the starting point <code>t_hodor</code>
+and <code>e#1</code>, <code>e#2</code> and <code>e#4</code> are other points in time:</p>
+<pre><code>Domain: e#0, e#2, e#4, e#1
+
+Elements: 't_hodor -&gt; e#0, sk#0[e#0] -&gt; e#1, next[e#0], sk#1[e#0, e#1] -&gt; e#2,
+next[e#1] -&gt; e#4
+
+Facts: After(e#0, e#1), After(e#2, e#1), Hodor(e#0), Hodor(e#4), HoldTheDoor(e#1)
+</code></pre>
+<p>Now consider <code>e#1</code> and <code>e#2</code>. The incomplete model shows that <code>e#1</code> is after <code>e#2</code>, but neither <code>e#1</code>
+immediately follows <code>e#2</code> (no next point for <code>e#2</code>) nor there exists a point that is after <code>e#2</code> and
+before <code>e#1</code>, violating the second rule of linear time progression. In general, it may be possible to extend the
+incomplete structure to a model of the theory by adding more information to the model. Any model of this particular
+theory, however, is infinitely large.</p>
+<a class="header" href="print.html#time-loop" id="time-loop"><h4>Time-Loop</h4></a>
+<p>Next, we model time as a &quot;big ball of wibbly wobbly timey wimey stuff!&quot; To make it simple, let's assume that time-loops
+can only happen at the moment that Hodor heard a voice from the future, namely <code>'t_hodor</code>, changing our rules of
+time progression (<a href="https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-time-loop.raz">hodor-time-loop.raz</a>):</p>
+<pre><code>HoldTheDoor(t) -&gt; Hodor(next(t));
+
+Hodor(t) -&gt; ? tt . HoldTheDoor(tt) &amp; After(t, tt);
+
+next(t0) = t1 -&gt; After(t0, t1);
+After(t0, t1) -&gt; (next(t0) = t1) | ? t2 . next(t0) = t2 &amp; After(t2, t1);
+
+// Hold the door moment only happens at 't_hodor
+HoldTheDoor(t) -&gt; t = 't_hodor;
+
+Hodor('t_hodor);
+</code></pre>
+<p>In presence of time-loops, Razor can explain Hodor's curious journey:</p>
+<pre><code>razor solve -i theories/examples/hodor-time-loop.raz
+</code></pre>
+<p>This time, Razor produces infinitely many (finite) models with time-loops of different size. Use can use the <code>--count</code>
+option to limit the number of models and halt the process.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+
+        
+        <script src="searchindex.js" type="text/javascript" charset="utf-8"></script>
+        
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+
+        
+        
+        <script type="text/javascript">
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+        
+        
+
+    </body>
+</html>

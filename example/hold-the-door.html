@@ -1,0 +1,264 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Hold the Door - rusty-razor</title>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <base href="../">
+
+        <link rel="stylesheet" href="book.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <link rel="shortcut icon" href="favicon.png">
+
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+
+        
+
+    </head>
+    <body class="light">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { } 
+            if (theme === null || theme === undefined) { theme = 'light'; }
+            document.body.className = theme;
+            document.querySelector('html').className = theme + ' js';
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <ol class="chapter"><li class="affix"><a href="intro.html">Introduction</a></li><li><a href="background.html"><strong aria-hidden="true">1.</strong> Background</a></li><li><ol class="section"><li><a href="background/satisfiability.html"><strong aria-hidden="true">1.1.</strong> Satisfiability of Geometric Theories</a></li><li><a href="background/chase.html"><strong aria-hidden="true">1.2.</strong> The Chase</a></li><li><a href="background/termination.html"><strong aria-hidden="true">1.3.</strong> Termination</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">2.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">2.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">2.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">2.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">3.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">4.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">4.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">4.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">5.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">5.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">5.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html" class="active"><strong aria-hidden="true">5.3.</strong> Hold the Door</a></li></ol></li></ol>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar" class="menu-bar">
+                    <div id="menu-bar-sticky-container">
+                        <div class="left-buttons">
+                            <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                                <i class="fa fa-bars"></i>
+                            </button>
+                            <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                                <i class="fa fa-paint-brush"></i>
+                            </button>
+                            <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                                <li role="none"><button role="menuitem" class="theme" id="light">Light <span class="default">(default)</span></button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            </ul>
+                            
+                            <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                                <i class="fa fa-search"></i>
+                            </button>
+                            
+                        </div>
+
+                        <h1 class="menu-title">rusty-razor</h1> 
+
+                        <div class="right-buttons">
+                            <a href="print.html" title="Print this book" aria-label="Print this book">
+                                <i id="print-button" class="fa fa-print"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <a class="header" href="example/hold-the-door.html#hold-the-door" id="hold-the-door"><h2>Hold the Door</h2></a>
+<p>Wyllis was a young stable boy when he heard a voice from his future: &quot;Hold the Door!&quot; The voice transformed Wyllis to
+Hodor (Hold the door, Holdde door, Hoddedor, Hodor, Hodor...!), putting him on a life-long journey, leading him to the
+moment that he saves Bran's life. Indeed, because of this defining moment in his future, Wyllis became Hodor in his past.</p>
+<a class="header" href="example/hold-the-door.html#linear-time" id="linear-time"><h4>Linear Time</h4></a>
+<p>The theory below describes Hodor's journey assuming that time progresses linearly
+<a href="https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-linear.raz">hodor-linear.raz</a></p>
+<pre><code>// Wyllis hears &quot;Hold the Door&quot; (at time `t`), then he becomes Hodor in the next
+// point of time
+HoldTheDoor(t) -&gt; Hodor(next(t));
+
+// Hodor, after turning into Hodor at time &quot;t&quot;, holds the Door at some time &quot;tt&quot;
+// in future (&quot;tt &gt; t&quot;)
+Hodor(t) -&gt; ? tt . HoldTheDoor(tt) &amp; After(t, tt);
+
+// These are the rules by which time progresses linearly:
+// (1) a point of time &quot;t1&quot; that is the next of &quot;t0&quot; (i.e., &quot;next(t0)&quot;) is a point of
+// time after &quot;t0&quot; (&quot;t1 &gt; t0&quot;)
+next(t0) = t1 -&gt; After(t0, t1);
+
+// (2) if a point of time &quot;t1&quot; is after &quot;t0&quot;, it is either immediately
+// after &quot;t0&quot; (i.e., &quot;next(t0)&quot;) or there exists some point of time &quot;t2&quot;
+// that is immediately after &quot;t0&quot; and before &quot;t1&quot;.
+After(t0, t1) -&gt; next(t0) = t1 | ? t2 . next(t0) = t2 &amp; After(t2, t1);
+
+// And we know at some point of time (namely &quot;'t_hodor&quot;), Wyllis became Hodor
+Hodor('t_hodor);
+</code></pre>
+<p>An unbounded run of Razor on the previous theory will never terminate (feel free to press <code>ctrl + c</code> after a
+few seconds):</p>
+<pre><code>razor solve -i theories/examples/hodor-linear.raz
+</code></pre>
+<p>Assuming that time progresses linearly, the circular causality between the two events of &quot;holding the door&quot; and
+&quot;becoming Hodor&quot; results in an infinitely large model where time progresses unboundedly. We can restrict the size of
+the structures constructed by Razor by bounding the number of their elements. For example, if we restrict the number of
+elements to 4, Razor will find 9 <em>incomplete</em> structures, which do <em>not</em> satisfy the theory:</p>
+<pre><code>razor solve -i theories/examples/hodor-linear.raz --bound domain=4
+</code></pre>
+<p>For example, the following structure corresponds to an incomplete model where <code>e#0</code> denotes the starting point <code>t_hodor</code>
+and <code>e#1</code>, <code>e#2</code> and <code>e#4</code> are other points in time:</p>
+<pre><code>Domain: e#0, e#2, e#4, e#1
+
+Elements: 't_hodor -&gt; e#0, sk#0[e#0] -&gt; e#1, next[e#0], sk#1[e#0, e#1] -&gt; e#2,
+next[e#1] -&gt; e#4
+
+Facts: After(e#0, e#1), After(e#2, e#1), Hodor(e#0), Hodor(e#4), HoldTheDoor(e#1)
+</code></pre>
+<p>Now consider <code>e#1</code> and <code>e#2</code>. The incomplete model shows that <code>e#1</code> is after <code>e#2</code>, but neither <code>e#1</code>
+immediately follows <code>e#2</code> (no next point for <code>e#2</code>) nor there exists a point that is after <code>e#2</code> and
+before <code>e#1</code>, violating the second rule of linear time progression. In general, it may be possible to extend the
+incomplete structure to a model of the theory by adding more information to the model. Any model of this particular
+theory, however, is infinitely large.</p>
+<a class="header" href="example/hold-the-door.html#time-loop" id="time-loop"><h4>Time-Loop</h4></a>
+<p>Next, we model time as a &quot;big ball of wibbly wobbly timey wimey stuff!&quot; To make it simple, let's assume that time-loops
+can only happen at the moment that Hodor heard a voice from the future, namely <code>'t_hodor</code>, changing our rules of
+time progression (<a href="https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-time-loop.raz">hodor-time-loop.raz</a>):</p>
+<pre><code>HoldTheDoor(t) -&gt; Hodor(next(t));
+
+Hodor(t) -&gt; ? tt . HoldTheDoor(tt) &amp; After(t, tt);
+
+next(t0) = t1 -&gt; After(t0, t1);
+After(t0, t1) -&gt; (next(t0) = t1) | ? t2 . next(t0) = t2 &amp; After(t2, t1);
+
+// Hold the door moment only happens at 't_hodor
+HoldTheDoor(t) -&gt; t = 't_hodor;
+
+Hodor('t_hodor);
+</code></pre>
+<p>In presence of time-loops, Razor can explain Hodor's curious journey:</p>
+<pre><code>razor solve -i theories/examples/hodor-time-loop.raz
+</code></pre>
+<p>This time, Razor produces infinitely many (finite) models with time-loops of different size. Use can use the <code>--count</code>
+option to limit the number of models and halt the process.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+                            <a rel="prev" href="example/golden-head.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+                    <a href="example/golden-head.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+
+        
+        <script src="searchindex.js" type="text/javascript" charset="utf-8"></script>
+        
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+
+        
+
+    </body>
+</html>
