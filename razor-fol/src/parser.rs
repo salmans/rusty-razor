@@ -350,86 +350,89 @@ named!(p_not<Span, Formula>,
 );
 
 named!(p_and<Span, Formula>,
-    map!(
-        pair!(
-            p_not,
-            opt!(
-                preceded!(
-                    sp!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
-                    alt!(
-                        p_and |
-                        return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
-                    )
-                )
-            )
-        ),
-        |(l, r)| if let Some(r) = r { l.and(r) } else { l }
+    do_parse!(
+        first: p_not >>
+        second: fold_many0!(
+            preceded!(
+                sp!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
+                return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_and | p_quantified))
+            ),
+            first,
+            |acc: Formula, f| acc.and(f)
+        ) >>
+        (second)
     )
 );
 
 named!(p_or<Span, Formula>,
+    do_parse!(
+        first: p_and >>
+        second: fold_many0!(
+            preceded!(
+                sp!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
+                return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_or | p_quantified))
+            ),
+            first,
+            |acc: Formula, f| acc.or(f)
+        ) >>
+        (second)
+    )
+);
+
+named!(p_implication<Span, Formula>,
     map!(
         pair!(
-            p_and,
+            p_or,
             opt!(
-                preceded!(
-                    sp!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
-                    return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
+                pair!(
+                    sp!(
+                        alt!(
+                            value!(
+                                IMPLIES,
+                                alt!(tag!(IMPLIES) | tag!(RIGHT_ARROW) | tag!(CHAR_RIGHT_ARROW))
+                            ) |
+                            value!(
+                                IFF,
+                                alt!(tag!(IFF) | tag!(DOUBLE_ARROW) | tag!(CHAR_DOUBLE_ARROW))
+                            )
+                        )
+                    ),
+                    return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_implication | p_quantified))
                 )
             )
         ),
-        |(l, r)| if let Some(r) = r { l.or(r) } else { l }
+        |(left, right)| {
+            match right {
+                Some((o, r)) => if o == IMPLIES { left.implies(r) } else { left.iff(r) },
+                None         => left
+            }
+        }
     )
 );
 
 named!(p_quantified<Span, Formula>,
-    alt!(
-        do_parse!(
-            q: sp!(
-                alt!(
-                    value!(
-                        FORALL,
-                        alt!(tag!(FORALL) | tag!(EXCLAMATION) | tag!(CHAR_FORALL))
-                    ) |
-                    value!(
-                        EXISTS,
-                        alt!(tag!(EXISTS) | tag!(QUESTION) | tag!(CHAR_EXISTS))
-                    )
+    do_parse!(
+        q: sp!(
+            alt!(
+                value!(
+                    FORALL,
+                    alt!(tag!(FORALL) | tag!(EXCLAMATION) | tag!(CHAR_FORALL))
+                ) |
+                value!(
+                    EXISTS,
+                    alt!(tag!(EXISTS) | tag!(QUESTION) | tag!(CHAR_EXISTS))
                 )
-            ) >>
-            vs: return_error!(ErrorKind::Custom(ERR_VARS), p_vars) >>
-            return_error!(ErrorKind::Custom(ERR_DOT), sp!(tag!(DOT))) >>
-            f: return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified) >>
-            ( if q == FORALL { forall(vs, f) } else { exists(vs, f) } )
-        ) |
-        p_or
+            )
+        ) >>
+        vs: return_error!(ErrorKind::Custom(ERR_VARS), p_vars) >>
+        return_error!(ErrorKind::Custom(ERR_DOT), sp!(tag!(DOT))) >>
+        f: return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula) >>
+        ( if q == FORALL { forall(vs, f) } else { exists(vs, f) } )
     )
 );
 
 named!(p_formula<Span, Formula>,
-    do_parse!(
-        first: p_quantified >>
-        second: fold_many0!(
-            pair!(
-                sp!(
-                    alt!(
-                        value!(
-                            IMPLIES,
-                            alt!(tag!(IMPLIES) | tag!(RIGHT_ARROW) | tag!(CHAR_RIGHT_ARROW))
-                        ) |
-                        value!(
-                            IFF,
-                            alt!(tag!(IFF) | tag!(DOUBLE_ARROW) | tag!(CHAR_DOUBLE_ARROW))
-                        )
-                    )
-                ),
-                return_error!(ErrorKind::Custom(ERR_FORMULA), p_quantified)
-            ),
-            first,
-            |acc: Formula, (q, f)| if q == IMPLIES { acc.implies(f) } else { acc.iff(f) }
-        ) >>
-        (second)
-    )
+    alt!(p_quantified | p_implication)
 );
 
 named!(pub theory<Span, Theory>,
@@ -466,9 +469,9 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
             let code = *code;
             match code {
                 ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN
-                    => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
+                => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
                 ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER
-                    => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
+                => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
                 _ => ParserError::Failed { line: pos.line, column: pos.get_column() as u32 },
             }
         }
@@ -525,8 +528,8 @@ mod test_parser {
         let parsed = parser(Span::new(CompleteStr(parse_str)));
         assert!(parsed.is_ok());
         let (str, result) = parsed.unwrap();
-        assert_eq!(expected, result.to_string());
-        assert_eq!(remaining, str.fragment.0);
+        assert_eq!(result.to_string(), expected);
+        assert_eq!(str.fragment.0, remaining);
     }
 
     fn fail<R: PartialEq + fmt::Debug>(
@@ -732,25 +735,25 @@ mod test_parser {
         success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
         success_to_string(p_formula, "f(x) = g(h(g(f(x)), y))", "f(x) = g(h(g(f(x)), y))", "");
         success_to_string(p_formula, "P(x) implies Q(x)", "P(x) → Q(x)", "");
-        success_to_string(p_formula, "P(x) implies Q(x) -> R(x)", "(P(x) → Q(x)) → R(x)", "");
+        success_to_string(p_formula, "P(x) implies Q(x) -> R(x)", "P(x) → (Q(x) → R(x))", "");
         success_to_string(p_formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
         success_to_string(p_formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
-        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x) -> Q(z))", "P(x) → ((Q(x) → R(x)) → Q(z))", "");
+        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x) -> Q(z))", "P(x) → (Q(x) → (R(x) → Q(z)))", "");
         success_to_string(p_formula, "P(x) iff Q(x)", "P(x) ⇔ Q(x)", "");
-        success_to_string(p_formula, "P(x) iff Q(x) <=> R(x)", "(P(x) ⇔ Q(x)) ⇔ R(x)", "");
+        success_to_string(p_formula, "P(x) iff Q(x) <=> R(x)", "P(x) ⇔ (Q(x) ⇔ R(x))", "");
         success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x))", "P(x) ⇔ (Q(x) ⇔ R(x))", "");
-        success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x) <=> Q(z))", "P(x) ⇔ ((Q(x) ⇔ R(x)) ⇔ Q(z))", "");
-        success_to_string(p_formula, "P(x) iff Q(x) implies R(x)", "(P(x) ⇔ Q(x)) → R(x)", "");
-        success_to_string(p_formula, "P(x) implies Q(x) iff R(x)", "(P(x) → Q(x)) ⇔ R(x)", "");
+        success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x) <=> Q(z))", "P(x) ⇔ (Q(x) ⇔ (R(x) ⇔ Q(z)))", "");
+        success_to_string(p_formula, "P(x) iff Q(x) implies R(x)", "P(x) ⇔ (Q(x) → R(x))", "");
+        success_to_string(p_formula, "P(x) implies Q(x) iff R(x)", "P(x) → (Q(x) ⇔ R(x))", "");
         success_to_string(p_formula, "exists x . P(x)", "∃ x. P(x)", "");
         success_to_string(p_formula, "exists x,y . P(x, y)", "∃ x, y. P(x, y)", "");
         success_to_string(p_formula, "exists x . exists y, z. P(x, y, z)", "∃ x. (∃ y, z. P(x, y, z))", "");
-        success_to_string(p_formula, "exists x . P(x) implies Q(x)", "(∃ x. P(x)) → Q(x)", "");
+        success_to_string(p_formula, "exists x . P(x) implies Q(x)", "∃ x. (P(x) → Q(x))", "");
         success_to_string(p_formula, "exists x . (P(x) implies Q(x))", "∃ x. (P(x) → Q(x))", "");
         success_to_string(p_formula, "forall x . P(x)", "∀ x. P(x)", "");
         success_to_string(p_formula, "forall x,y . P(x, y)", "∀ x, y. P(x, y)", "");
         success_to_string(p_formula, "forall x . forall y, z. P(x, y, z)", "∀ x. (∀ y, z. P(x, y, z))", "");
-        success_to_string(p_formula, "forall x . P(x) implies Q(x)", "(∀ x. P(x)) → Q(x)", "");
+        success_to_string(p_formula, "forall x . P(x) implies Q(x)", "∀ x. (P(x) → Q(x))", "");
         success_to_string(p_formula, "forall x . (P(x) implies Q(x))", "∀ x. (P(x) → Q(x))", "");
         success_to_string(p_formula, "forall x . exists y . P(x, y)", "∀ x. (∃ y. P(x, y))", "");
         success_to_string(p_formula, "P(x) or Q(y)", "P(x) ∨ Q(y)", "");
@@ -785,16 +788,19 @@ mod test_parser {
         success_to_string(p_formula, "not not not not not R(x) and S(y)", "(¬(¬(¬(¬(¬R(x)))))) ∧ S(y)", "");
         success_to_string(p_formula, "not exists y . Q(y)", "¬(∃ y. Q(y))", "");
         success_to_string(p_formula, "exists x . not exists y . Q(y)", "∃ x. (¬(∃ y. Q(y)))", "");
+        success_to_string(p_formula, "Q(y) & ! x. P(x)", "Q(y) ∧ (∀ x. P(x))", "");
+        success_to_string(p_formula, "Q(y) | ! x. P(x)", "Q(y) ∨ (∀ x. P(x))", "");
+        success_to_string(p_formula, "Q(y) -> ! x. P(x)", "Q(y) → (∀ x. P(x))", "");
         success_to_string(
             p_formula,
             "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies false)",
-            "P(x) → (Q(y) ∧ (∃ z. ((f(z) = g(f(z))) ∨ ((∀ y, z. S(y, z)) → ⟘))))",
+            "P(x) → (Q(y) ∧ (∃ z. ((f(z) = g(f(z))) ∨ (∀ y, z. (S(y, z) → ⟘)))))",
             "",
         );
         success_to_string(
             p_formula,
             "not forall x, y . P(x) and Q(y) implies h(z) = z",
-            "(¬(∀ x, y. (P(x) ∧ Q(y)))) → (h(z) = z)",
+            "¬(∀ x, y. ((P(x) ∧ Q(y)) → (h(z) = z)))",
             "",
         );
         success_to_string(
