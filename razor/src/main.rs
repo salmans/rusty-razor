@@ -131,11 +131,13 @@ fn main() -> Result<(), ExitFailure> {
     let color = !args.no_color;
     let log = args.log.map(|l| l.to_str().unwrap_or(DEFAULT_JSON_LOG_FILE).to_owned());
 
-    let mut term = Terminal::new(color);
-    term.foreground(LOGO_TOP_COLOR)
-        .apply(|| {
-            println!("{}", ASCII_ART);
-        }).reset();
+    if color {
+        let mut term = Terminal::new(color);
+        term.foreground(LOGO_TOP_COLOR)
+            .apply(|| {
+                println!("{}", ASCII_ART);
+            }).reset();
+    }
 
     match command {
         ProcessCommand::Solve {
