@@ -1,36 +1,27 @@
 pub mod utils;
 
-use structopt::StructOpt;
-use std::io;
-use razor_fol::syntax::Theory;
-use razor_chase::{
-    chase::{
-        r#impl::batch::{
-            Sequent, Model, Evaluator,
-        },
-        ModelTrait, StrategyTrait, SchedulerTrait,
-        strategy::{
-            Fair, Bootstrap,
-        },
-        scheduler::Dispatch,
-        bounder::DomainSize,
-        Observation,
-        chase_step,
-    },
-    trace::{
-        subscriber::JsonLogger,
-        DEFAULT_JSON_LOG_FILE, EXTEND,
-    },
-};
 use crate::utils::terminal::{
-    Terminal,
-    INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
-    MODEL_FACTS_COLOR, INFO_ATTRIBUTE,
+    Terminal, INFO_ATTRIBUTE, INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
+    MODEL_FACTS_COLOR,
 };
-use std::{io::Read, fs};
+use exitfailure::ExitFailure;
 use failure::{Error, ResultExt};
 use itertools::Itertools;
-use exitfailure::ExitFailure;
+use razor_chase::{
+    chase::{
+        bounder::DomainSize,
+        chase_step,
+        r#impl::batch::{Evaluator, Model, Sequent},
+        scheduler::Dispatch,
+        strategy::{Bootstrap, Fair},
+        ModelTrait, Observation, SchedulerTrait, StrategyTrait,
+    },
+    trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
+};
+use razor_fol::syntax::Theory;
+use std::io;
+use std::{fs, io::Read};
+use structopt::StructOpt;
 
 #[macro_use]
 extern crate tracing;
@@ -50,9 +41,7 @@ const ASCII_ART: &str = r#"
 #[derive(StructOpt)]
 enum BoundCommand {
     #[structopt(about = "Bound models by their domain size.")]
-    Domain {
-        size: usize,
-    },
+    Domain { size: usize },
 }
 
 impl std::str::FromStr for BoundCommand {
@@ -99,28 +88,51 @@ impl std::str::FromStr for SchedulerOption {
 enum ProcessCommand {
     #[structopt(name = "solve", about = "Find models for the input theory")]
     Solve {
-        #[structopt(short = "i", long = "input", parse(from_os_str), help = "Path to the input theory file")]
+        #[structopt(
+            short = "i",
+            long = "input",
+            parse(from_os_str),
+            help = "Path to the input theory file"
+        )]
         input: Option<std::path::PathBuf>,
         #[structopt(long = "count", help = "Number of models to return")]
         count: Option<i32>,
-        #[structopt(short = "b", long = "bound", name = "bound", help = "Bound the size of models.")]
+        #[structopt(
+            short = "b",
+            long = "bound",
+            name = "bound",
+            help = "Bound the size of models."
+        )]
         bound: Option<BoundCommand>,
-        #[structopt(long = "show-incomplete", help = "Show incomplete models.", parse(try_from_str), default_value = "true")]
+        #[structopt(
+            long = "show-incomplete",
+            help = "Show incomplete models.",
+            parse(try_from_str),
+            default_value = "true"
+        )]
         show_incomplete: bool,
         #[structopt(short = "s", long = "scheduler", default_value = "fifo")]
         scheduler: SchedulerOption,
-    }
+    },
 }
 
 #[derive(StructOpt)]
-#[structopt(name = "Rusty Razor", about = "A tool for exploring finite models of first-order theories")]
+#[structopt(
+    name = "Rusty Razor",
+    about = "A tool for exploring finite models of first-order theories"
+)]
 #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
 struct Command {
     #[structopt(subcommand, name = "command")]
     command: ProcessCommand,
     #[structopt(long = "no-color", help = "Makes it dim.")]
     no_color: bool,
-    #[structopt(short = "l", long = "log", parse(from_os_str), help = "Path to the log file.")]
+    #[structopt(
+        short = "l",
+        long = "log",
+        parse(from_os_str),
+        help = "Path to the log file."
+    )]
     log: Option<std::path::PathBuf>,
 }
 
@@ -129,14 +141,17 @@ fn main() -> Result<(), ExitFailure> {
 
     let command = args.command;
     let color = !args.no_color;
-    let log = args.log.map(|l| l.to_str().unwrap_or(DEFAULT_JSON_LOG_FILE).to_owned());
+    let log = args
+        .log
+        .map(|l| l.to_str().unwrap_or(DEFAULT_JSON_LOG_FILE).to_owned());
 
     if color {
         let mut term = Terminal::new(color);
         term.foreground(LOGO_TOP_COLOR)
             .apply(|| {
                 println!("{}", ASCII_ART);
-            }).reset();
+            })
+            .reset();
     }
 
     match command {
@@ -145,7 +160,7 @@ fn main() -> Result<(), ExitFailure> {
             count,
             bound,
             show_incomplete,
-            scheduler
+            scheduler,
         } => {
             let theory: Theory;
             if let Some(input) = input {
@@ -158,7 +173,15 @@ fn main() -> Result<(), ExitFailure> {
                 let s = String::from_utf8(buf)?;
                 theory = s.parse()?;
             }
-            process_solve(&theory, bound, show_incomplete, scheduler, log, count, color)?;
+            process_solve(
+                &theory,
+                bound,
+                show_incomplete,
+                scheduler,
+                log,
+                count,
+                color,
+            )?;
         }
     }
     Ok(())
@@ -188,16 +211,11 @@ fn process_solve(
     println!();
 
     let theory = theory.gnf();
-    let sequents: Vec<Sequent> = theory
-        .formulae
-        .iter()
-        .map(|f| f.into()).collect();
+    let sequents: Vec<Sequent> = theory.formulae.iter().map(|f| f.into()).collect();
     let evaluator = Evaluator {};
     let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
-    let bounder = bound.map(|b| {
-        match b {
-            BoundCommand::Domain { size } => DomainSize::from(size),
-        }
+    let bounder = bound.map(|b| match b {
+        BoundCommand::Domain { size } => DomainSize::from(size),
     });
     let mut complete_count = 0;
     let mut incomplete_count = 0;
@@ -224,7 +242,11 @@ fn process_solve(
                 &evaluator,
                 bounder.as_ref(),
                 |m| print_model(m, color, &mut complete_count),
-                |m| if show_incomplete { print_model(m, color, &mut incomplete_count); },
+                |m| {
+                    if show_incomplete {
+                        print_model(m, color, &mut incomplete_count);
+                    }
+                },
             )
         }
     };
@@ -242,7 +264,10 @@ fn process_solve(
     term.foreground(INFO_COLOR)
         .attribute(INFO_ATTRIBUTE)
         .apply(|| {
-            println!("{} complete and {} incomplete models were found.", complete_count, incomplete_count);
+            println!(
+                "{} complete and {} incomplete models were found.",
+                complete_count, incomplete_count
+            );
         })
         .reset();
 
@@ -250,10 +275,8 @@ fn process_solve(
     Ok(())
 }
 
-
 pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
-    let mut f = fs::File::open(filename)
-        .with_context(|_| "could not find the input file")?;
+    let mut f = fs::File::open(filename).with_context(|_| "could not find the input file")?;
 
     let mut contents = String::new();
     f.read_to_string(&mut contents)
@@ -276,25 +299,37 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
     print_list(color, MODEL_DOMAIN_COLOR, &domain);
     println!("\n");
 
-    let elements: Vec<String> = model.domain().iter().sorted().iter().map(|e| {
-        let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
-        let witnesses = witnesses.into_iter().sorted();
-        format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e.get())
-    }).collect();
+    let elements: Vec<String> = model
+        .domain()
+        .iter()
+        .sorted()
+        .iter()
+        .map(|e| {
+            let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
+            let witnesses = witnesses.into_iter().sorted();
+            format!(
+                "{} -> {}",
+                witnesses.into_iter().sorted().join(", "),
+                e.get()
+            )
+        })
+        .collect();
 
     term.apply(|| print!("Elements: "));
     print_list(color, MODEL_ELEMENTS_COLOR, &elements);
     println!("\n");
 
-    let facts: Vec<String> = model.facts().iter().map(|f| {
-        match f {
+    let facts: Vec<String> = model
+        .facts()
+        .iter()
+        .map(|f| match f {
             Observation::Fact { relation, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 format!("{}({})", relation, ts.join(", "))
             }
             Observation::Identity { left, right } => format!("{} = {}", left, right),
-        }
-    }).collect();
+        })
+        .collect();
 
     term.apply(|| print!("Facts: "));
     print_list(color, MODEL_FACTS_COLOR, &facts);

@@ -1,6 +1,6 @@
-use tracing::*;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use std::{fmt, fs::File, io::Write, sync::Mutex};
+use tracing::*;
 
 /// Thread safe json logger that rights records of `ChaseStepRecord` into a given log file.
 pub struct JsonLogger {
@@ -39,22 +39,18 @@ impl subscriber::Subscriber for JsonLogger {
         if let Some(event_type) = &event_record.event {
             match event_type.as_ref() {
                 super::EXTEND | super::MODEL | super::FAIL | super::BOUND => {
-                    let _ = self.chase_step_record
-                        .lock()
-                        .map(|mut rec| {
-                            rec.set_model(ModelRecord::try_from(event_record).ok());
-                            rec
-                        });
+                    let _ = self.chase_step_record.lock().map(|mut rec| {
+                        rec.set_model(ModelRecord::try_from(event_record).ok());
+                        rec
+                    });
                 }
                 super::EVALUATE => {
                     let mut evaluate_record = Recorder::new();
                     event.record(&mut evaluate_record);
-                    let _ = self.chase_step_record
-                        .lock()
-                        .map(|mut rec| {
-                            rec.set_evaluate(EvaluateRecord::try_from(event_record).ok());
-                            rec
-                        });
+                    let _ = self.chase_step_record.lock().map(|mut rec| {
+                        rec.set_evaluate(EvaluateRecord::try_from(event_record).ok());
+                        rec
+                    });
                 }
                 _ => (),
             }
@@ -68,10 +64,12 @@ impl subscriber::Subscriber for JsonLogger {
         self.log_file
             .lock()
             .unwrap()
-            .write_all(serde_json::to_string_pretty(&*record)
-                .unwrap()
-                .to_string()
-                .as_bytes())
+            .write_all(
+                serde_json::to_string_pretty(&*record)
+                    .unwrap()
+                    .to_string()
+                    .as_bytes(),
+            )
             .expect("unable to write data");
     }
 }

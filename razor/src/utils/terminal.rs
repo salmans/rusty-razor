@@ -1,4 +1,4 @@
-use term::{color::{BRIGHT_RED, GREEN, BRIGHT_YELLOW, BRIGHT_BLUE}};
+use term::color::{BRIGHT_BLUE, BRIGHT_RED, BRIGHT_YELLOW, GREEN};
 
 pub const INFO_COLOR: term::color::Color = 27;
 pub const LOGO_TOP_COLOR: term::color::Color = 136;

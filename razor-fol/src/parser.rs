@@ -37,11 +37,11 @@
 //! [`Theory`]: ../syntax/struct.theory.html
 //! [`FromStr`]: https://doc.rust-lang.org/stable/core/str/trait.FromStr.html
 //! [`str::parse`]: https://doc.rust-lang.org/stable/std/primitive.str.html#method.parse
-use super::syntax::{*, Formula::*};
-use nom::{*, types::CompleteStr};
+use super::syntax::{Formula::*, *};
+use failure::{Error, Fail};
+use nom::{types::CompleteStr, *};
 use nom_locate::LocatedSpan;
-use std::fmt as fmt;
-use failure::{Fail, Error};
+use std::fmt;
 use std::str::FromStr;
 
 const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
@@ -137,25 +137,38 @@ enum ParserError {
 impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            ParserError::Missing { line, column, code } => {
-                write!(f, "missing '{}' at line {}, column {}", error_code_to_string(*code), line, column)
-            }
-            ParserError::Expecting { line, column, code, found } => {
-                write!(f, "expecting '{}' on line {}, column {}", error_code_to_string(*code), line, column)
-                    .and_then(|result| {
-                        if let Some(found) = found {
-                            write!(f, "; found \"{}\"", found)
-                        } else {
-                            Ok(result)
-                        }
-                    })
-            }
-            ParserError::Failed { line, column } => {
-                write!(f, "failed to parse the input at line {}, column {}", line, column)
-            }
-            ParserError::Unknown => {
-                write!(f, "an error occurred while parsing the input")
-            }
+            ParserError::Missing { line, column, code } => write!(
+                f,
+                "missing '{}' at line {}, column {}",
+                error_code_to_string(*code),
+                line,
+                column
+            ),
+            ParserError::Expecting {
+                line,
+                column,
+                code,
+                found,
+            } => write!(
+                f,
+                "expecting '{}' on line {}, column {}",
+                error_code_to_string(*code),
+                line,
+                column
+            )
+            .and_then(|result| {
+                if let Some(found) = found {
+                    write!(f, "; found \"{}\"", found)
+                } else {
+                    Ok(result)
+                }
+            }),
+            ParserError::Failed { line, column } => write!(
+                f,
+                "failed to parse the input at line {}, column {}",
+                line, column
+            ),
+            ParserError::Unknown => write!(f, "an error occurred while parsing the input"),
         }
     }
 }
@@ -460,7 +473,8 @@ named!(pub theory<Span, Theory>,
 
 fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
     match error {
-        Err::Error(Context::Code(pos, ErrorKind::Custom(code))) | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
+        Err::Error(Context::Code(pos, ErrorKind::Custom(code)))
+        | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
             let found = if pos.fragment.len() != 0 {
                 Some(pos.fragment.0.to_owned())
             } else {
@@ -468,15 +482,28 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
             };
             let code = *code;
             match code {
-                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN
-                => ParserError::Missing { line: pos.line, column: pos.get_column() as u32, code },
-                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER
-                => ParserError::Expecting { line: pos.line, column: pos.get_column() as u32, code, found },
-                _ => ParserError::Failed { line: pos.line, column: pos.get_column() as u32 },
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParserError::Missing {
+                    line: pos.line,
+                    column: pos.get_column() as u32,
+                    code,
+                },
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting {
+                    line: pos.line,
+                    column: pos.get_column() as u32,
+                    code,
+                    found,
+                },
+                _ => ParserError::Failed {
+                    line: pos.line,
+                    column: pos.get_column() as u32,
+                },
             }
         }
         Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
-            ParserError::Failed { line: pos.line, column: pos.get_column() as u32 }
+            ParserError::Failed {
+                line: pos.line,
+                column: pos.get_column() as u32,
+            }
         }
         _ => ParserError::Unknown,
     }
@@ -505,14 +532,15 @@ impl FromStr for Theory {
 #[cfg(test)]
 mod test_parser {
     use super::*;
-    use std::fmt;
     use crate::test_prelude::*;
+    use std::fmt;
 
     fn success<R: PartialEq + fmt::Debug>(
         parser: fn(Span) -> nom::IResult<Span, R, u32>,
         parse_str: &str,
         expected: R,
-        remaining: &str) {
+        remaining: &str,
+    ) {
         let parsed = parser(Span::new(CompleteStr(parse_str)));
         assert!(parsed.is_ok());
         let (rem, res) = parsed.unwrap();
@@ -524,7 +552,8 @@ mod test_parser {
         parser: fn(Span) -> nom::IResult<Span, R, u32>,
         parse_str: &str,
         expected: &str,
-        remaining: &str) {
+        remaining: &str,
+    ) {
         let parsed = parser(Span::new(CompleteStr(parse_str)));
         assert!(parsed.is_ok());
         let (str, result) = parsed.unwrap();
@@ -534,7 +563,8 @@ mod test_parser {
 
     fn fail<R: PartialEq + fmt::Debug>(
         parser: fn(Span) -> nom::IResult<Span, R, u32>,
-        parse_str: &str) {
+        parse_str: &str,
+    ) {
         let result = parser(Span::new(CompleteStr(parse_str)));
         assert!(result.is_err());
     }
@@ -620,7 +650,12 @@ mod test_parser {
         success_to_string(p_term, "f(x)", "f(x)", "");
         success_to_string(p_term, "f(x,   y   )", "f(x, y)", "");
         success_to_string(p_term, "f(x,   y   \n , z)", "f(x, y, z)", "");
-        success_to_string(p_term, "f(f(f(f(f(f(f(x)))))))", "f(f(f(f(f(f(f(x)))))))", "");
+        success_to_string(
+            p_term,
+            "f(f(f(f(f(f(f(x)))))))",
+            "f(f(f(f(f(f(f(x)))))))",
+            "",
+        );
         success_to_string(p_term, "f  (x)", "f(x)", "");
         success_to_string(p_term, "f  (   x   )   ", "f(x)", "");
         success_to_string(p_term, "f(w, g (  x, y, z))", "f(w, g(x, y, z))", "");
@@ -690,7 +725,12 @@ mod test_parser {
         success_to_string(p_atom, "P(x)", "P(x)", "");
         success_to_string(p_atom, "P(x,   y   )", "P(x, y)", "");
         success_to_string(p_atom, "P(x,   y   \n , z)", "P(x, y, z)", "");
-        success_to_string(p_atom, "P(f(f(f(f(f(f(x)))))))", "P(f(f(f(f(f(f(x)))))))", "");
+        success_to_string(
+            p_atom,
+            "P(f(f(f(f(f(f(x)))))))",
+            "P(f(f(f(f(f(f(x)))))))",
+            "",
+        );
         success_to_string(p_atom, "P  (x)", "P(x)", "");
         success_to_string(p_atom, "P  (   x   )   ", "P(x)", "");
         success_to_string(p_atom, "P(w, g (  x, y, z))", "P(w, g(x, y, z))", "");
@@ -727,57 +767,252 @@ mod test_parser {
             "P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(x)))))))))))))))))))))",
             "",
         );
-        success_to_string(p_formula, "P(f(x, g(y)), g(f(g(y))))", "P(f(x, g(y)), g(f(g(y))))", "");
+        success_to_string(
+            p_formula,
+            "P(f(x, g(y)), g(f(g(y))))",
+            "P(f(x, g(y)), g(f(g(y))))",
+            "",
+        );
         success_to_string(p_formula, "'a = 'b", "'a = 'b", "");
         success_to_string(p_formula, "x = x", "x = x", "");
         success_to_string(p_formula, "f() = x", "f() = x", "");
         success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
         success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
-        success_to_string(p_formula, "f(x) = g(h(g(f(x)), y))", "f(x) = g(h(g(f(x)), y))", "");
+        success_to_string(
+            p_formula,
+            "f(x) = g(h(g(f(x)), y))",
+            "f(x) = g(h(g(f(x)), y))",
+            "",
+        );
         success_to_string(p_formula, "P(x) implies Q(x)", "P(x) → Q(x)", "");
-        success_to_string(p_formula, "P(x) implies Q(x) -> R(x)", "P(x) → (Q(x) → R(x))", "");
-        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
-        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x))", "P(x) → (Q(x) → R(x))", "");
-        success_to_string(p_formula, "P(x) implies (Q(x) -> R(x) -> Q(z))", "P(x) → (Q(x) → (R(x) → Q(z)))", "");
+        success_to_string(
+            p_formula,
+            "P(x) implies Q(x) -> R(x)",
+            "P(x) → (Q(x) → R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) implies (Q(x) -> R(x))",
+            "P(x) → (Q(x) → R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) implies (Q(x) -> R(x))",
+            "P(x) → (Q(x) → R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) implies (Q(x) -> R(x) -> Q(z))",
+            "P(x) → (Q(x) → (R(x) → Q(z)))",
+            "",
+        );
         success_to_string(p_formula, "P(x) iff Q(x)", "P(x) ⇔ Q(x)", "");
-        success_to_string(p_formula, "P(x) iff Q(x) <=> R(x)", "P(x) ⇔ (Q(x) ⇔ R(x))", "");
-        success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x))", "P(x) ⇔ (Q(x) ⇔ R(x))", "");
-        success_to_string(p_formula, "P(x) iff (Q(x) <=> R(x) <=> Q(z))", "P(x) ⇔ (Q(x) ⇔ (R(x) ⇔ Q(z)))", "");
-        success_to_string(p_formula, "P(x) iff Q(x) implies R(x)", "P(x) ⇔ (Q(x) → R(x))", "");
-        success_to_string(p_formula, "P(x) implies Q(x) iff R(x)", "P(x) → (Q(x) ⇔ R(x))", "");
+        success_to_string(
+            p_formula,
+            "P(x) iff Q(x) <=> R(x)",
+            "P(x) ⇔ (Q(x) ⇔ R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) iff (Q(x) <=> R(x))",
+            "P(x) ⇔ (Q(x) ⇔ R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) iff (Q(x) <=> R(x) <=> Q(z))",
+            "P(x) ⇔ (Q(x) ⇔ (R(x) ⇔ Q(z)))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) iff Q(x) implies R(x)",
+            "P(x) ⇔ (Q(x) → R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) implies Q(x) iff R(x)",
+            "P(x) → (Q(x) ⇔ R(x))",
+            "",
+        );
         success_to_string(p_formula, "exists x . P(x)", "∃ x. P(x)", "");
         success_to_string(p_formula, "exists x,y . P(x, y)", "∃ x, y. P(x, y)", "");
-        success_to_string(p_formula, "exists x . exists y, z. P(x, y, z)", "∃ x. (∃ y, z. P(x, y, z))", "");
-        success_to_string(p_formula, "exists x . P(x) implies Q(x)", "∃ x. (P(x) → Q(x))", "");
-        success_to_string(p_formula, "exists x . (P(x) implies Q(x))", "∃ x. (P(x) → Q(x))", "");
+        success_to_string(
+            p_formula,
+            "exists x . exists y, z. P(x, y, z)",
+            "∃ x. (∃ y, z. P(x, y, z))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . P(x) implies Q(x)",
+            "∃ x. (P(x) → Q(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . (P(x) implies Q(x))",
+            "∃ x. (P(x) → Q(x))",
+            "",
+        );
         success_to_string(p_formula, "forall x . P(x)", "∀ x. P(x)", "");
         success_to_string(p_formula, "forall x,y . P(x, y)", "∀ x, y. P(x, y)", "");
-        success_to_string(p_formula, "forall x . forall y, z. P(x, y, z)", "∀ x. (∀ y, z. P(x, y, z))", "");
-        success_to_string(p_formula, "forall x . P(x) implies Q(x)", "∀ x. (P(x) → Q(x))", "");
-        success_to_string(p_formula, "forall x . (P(x) implies Q(x))", "∀ x. (P(x) → Q(x))", "");
-        success_to_string(p_formula, "forall x . exists y . P(x, y)", "∀ x. (∃ y. P(x, y))", "");
+        success_to_string(
+            p_formula,
+            "forall x . forall y, z. P(x, y, z)",
+            "∀ x. (∀ y, z. P(x, y, z))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "forall x . P(x) implies Q(x)",
+            "∀ x. (P(x) → Q(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "forall x . (P(x) implies Q(x))",
+            "∀ x. (P(x) → Q(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "forall x . exists y . P(x, y)",
+            "∀ x. (∃ y. P(x, y))",
+            "",
+        );
         success_to_string(p_formula, "P(x) or Q(y)", "P(x) ∨ Q(y)", "");
-        success_to_string(p_formula, "P(x) or Q(y) or R(z)", "P(x) ∨ (Q(y) ∨ R(z))", "");
-        success_to_string(p_formula, "(P(x) or Q(y)) or R(z)", "(P(x) ∨ Q(y)) ∨ R(z)", "");
-        success_to_string(p_formula, "P(x) or Q(y) or (R(z) or S(z))", "P(x) ∨ (Q(y) ∨ (R(z) ∨ S(z)))", "");
-        success_to_string(p_formula, "P(x) implies Q(x) or R(x)", "P(x) → (Q(x) ∨ R(x))", "");
-        success_to_string(p_formula, "P(x) or Q(x) implies R(x)", "(P(x) ∨ Q(x)) → R(x)", "");
-        success_to_string(p_formula, "exists x . P(x) or Q(x)", "∃ x. (P(x) ∨ Q(x))", "");
-        success_to_string(p_formula, "P(x) or exists y . Q(y)", "P(x) ∨ (∃ y. Q(y))", "");
-        success_to_string(p_formula, "exists x . P(x) or exists y . Q(y)", "∃ x. (P(x) ∨ (∃ y. Q(y)))", "");
-        success_to_string(p_formula, "P(x) or forall y . Q(y)", "P(x) ∨ (∀ y. Q(y))", "");
-        success_to_string(p_formula, "exists x . P(x) or forall y . Q(y)", "∃ x. (P(x) ∨ (∀ y. Q(y)))", "");
-        success_to_string(p_formula, "P(x) and Q(y) or R(z)", "(P(x) ∧ Q(y)) ∨ R(z)", "");
-        success_to_string(p_formula, "P(x) and (Q(y) or R(z))", "P(x) ∧ (Q(y) ∨ R(z))", "");
-        success_to_string(p_formula, "P(x) or Q(y) and R(z)", "P(x) ∨ (Q(y) ∧ R(z))", "");
-        success_to_string(p_formula, "P(x) and Q(y) and R(z)", "P(x) ∧ (Q(y) ∧ R(z))", "");
-        success_to_string(p_formula, "P(w) and Q(x) and R(y) and S(z)", "P(w) ∧ (Q(x) ∧ (R(y) ∧ S(z)))", "");
-        success_to_string(p_formula, "(P(x) and Q(y)) and R(z)", "(P(x) ∧ Q(y)) ∧ R(z)", "");
-        success_to_string(p_formula, "P(x) and Q(y) implies R(z)", "(P(x) ∧ Q(y)) → R(z)", "");
-        success_to_string(p_formula, "P(x) and exists y . Q(y)", "P(x) ∧ (∃ y. Q(y))", "");
-        success_to_string(p_formula, "exists x . P(x) and exists y . Q(y)", "∃ x. (P(x) ∧ (∃ y. Q(y)))", "");
-        success_to_string(p_formula, "P(x) and forall y . Q(y)", "P(x) ∧ (∀ y. Q(y))", "");
-        success_to_string(p_formula, "exists x . P(x) and forall y . Q(y)", "∃ x. (P(x) ∧ (∀ y. Q(y)))", "");
+        success_to_string(
+            p_formula,
+            "P(x) or Q(y) or R(z)",
+            "P(x) ∨ (Q(y) ∨ R(z))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "(P(x) or Q(y)) or R(z)",
+            "(P(x) ∨ Q(y)) ∨ R(z)",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) or Q(y) or (R(z) or S(z))",
+            "P(x) ∨ (Q(y) ∨ (R(z) ∨ S(z)))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) implies Q(x) or R(x)",
+            "P(x) → (Q(x) ∨ R(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) or Q(x) implies R(x)",
+            "(P(x) ∨ Q(x)) → R(x)",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . P(x) or Q(x)",
+            "∃ x. (P(x) ∨ Q(x))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) or exists y . Q(y)",
+            "P(x) ∨ (∃ y. Q(y))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . P(x) or exists y . Q(y)",
+            "∃ x. (P(x) ∨ (∃ y. Q(y)))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) or forall y . Q(y)",
+            "P(x) ∨ (∀ y. Q(y))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . P(x) or forall y . Q(y)",
+            "∃ x. (P(x) ∨ (∀ y. Q(y)))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) and Q(y) or R(z)",
+            "(P(x) ∧ Q(y)) ∨ R(z)",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) and (Q(y) or R(z))",
+            "P(x) ∧ (Q(y) ∨ R(z))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) or Q(y) and R(z)",
+            "P(x) ∨ (Q(y) ∧ R(z))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) and Q(y) and R(z)",
+            "P(x) ∧ (Q(y) ∧ R(z))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(w) and Q(x) and R(y) and S(z)",
+            "P(w) ∧ (Q(x) ∧ (R(y) ∧ S(z)))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "(P(x) and Q(y)) and R(z)",
+            "(P(x) ∧ Q(y)) ∧ R(z)",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) and Q(y) implies R(z)",
+            "(P(x) ∧ Q(y)) → R(z)",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) and exists y . Q(y)",
+            "P(x) ∧ (∃ y. Q(y))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . P(x) and exists y . Q(y)",
+            "∃ x. (P(x) ∧ (∃ y. Q(y)))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "P(x) and forall y . Q(y)",
+            "P(x) ∧ (∀ y. Q(y))",
+            "",
+        );
+        success_to_string(
+            p_formula,
+            "exists x . P(x) and forall y . Q(y)",
+            "∃ x. (P(x) ∧ (∀ y. Q(y)))",
+            "",
+        );
         success_to_string(p_formula, "not true", "¬⊤", "");
         success_to_string(p_formula, "not true -> false", "(¬⊤) → ⟘", "");
         success_to_string(p_formula, "~x=y", "¬(x = y)", "");
@@ -785,9 +1020,19 @@ mod test_parser {
         success_to_string(p_formula, "not P(x, y) or Q(z)", "(¬P(x, y)) ∨ Q(z)", "");
         success_to_string(p_formula, "not P(x, y) and Q(z)", "(¬P(x, y)) ∧ Q(z)", "");
         success_to_string(p_formula, "not not R(x)", "¬(¬R(x))", "");
-        success_to_string(p_formula, "not not not not not R(x) and S(y)", "(¬(¬(¬(¬(¬R(x)))))) ∧ S(y)", "");
+        success_to_string(
+            p_formula,
+            "not not not not not R(x) and S(y)",
+            "(¬(¬(¬(¬(¬R(x)))))) ∧ S(y)",
+            "",
+        );
         success_to_string(p_formula, "not exists y . Q(y)", "¬(∃ y. Q(y))", "");
-        success_to_string(p_formula, "exists x . not exists y . Q(y)", "∃ x. (¬(∃ y. Q(y)))", "");
+        success_to_string(
+            p_formula,
+            "exists x . not exists y . Q(y)",
+            "∃ x. (¬(∃ y. Q(y)))",
+            "",
+        );
         success_to_string(p_formula, "Q(y) & ! x. P(x)", "Q(y) ∧ (∀ x. P(x))", "");
         success_to_string(p_formula, "Q(y) | ! x. P(x)", "Q(y) ∨ (∀ x. P(x))", "");
         success_to_string(p_formula, "Q(y) -> ! x. P(x)", "Q(y) → (∀ x. P(x))", "");
@@ -831,12 +1076,7 @@ mod test_parser {
 
     #[test]
     fn test_theory() {
-        success_to_string(
-            theory,
-            "  P(x)   ;",
-            "P(x)",
-            "",
-        );
+        success_to_string(theory, "  P(x)   ;", "P(x)", "");
         success_to_string(
             theory,
             "E(x,x);\
@@ -882,118 +1122,200 @@ mod test_parser {
     fn parse_failure() {
         {
             let parsed: Result<Theory, Error> = "P(X)".parse();
-            assert_eq!("expecting 'term' on line 1, column 3; found \"X)\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'term' on line 1, column 3; found \"X)\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P('A)".parse();
-            assert_eq!("expecting 'term' on line 1, column 3; found \"'A)\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'term' on line 1, column 3; found \"'A)\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x)".parse();
-            assert_eq!("missing ';' at line 1, column 5", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "missing ';' at line 1, column 5",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x".parse();
-            assert_eq!("missing ')' at line 1, column 4", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "missing ')' at line 1, column 4",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "~P(x".parse();
-            assert_eq!("missing ')' at line 1, column 5", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "missing ')' at line 1, column 5",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) and ".parse();
-            assert_eq!("expecting 'formula' on line 1, column 10", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 10",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) and X".parse();
-            assert_eq!("expecting 'formula' on line 1, column 10; found \"X\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 10; found \"X\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) or".parse();
-            assert_eq!("expecting 'formula' on line 1, column 8", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 8",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) or X".parse();
-            assert_eq!("expecting 'formula' on line 1, column 9; found \"X\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 9; found \"X\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) ->".parse();
-            assert_eq!("expecting 'formula' on line 1, column 8", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 8",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) -> X".parse();
-            assert_eq!("expecting 'formula' on line 1, column 9; found \"X\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 9; found \"X\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) <=>".parse();
-            assert_eq!("expecting 'formula' on line 1, column 9", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 9",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) <=> X".parse();
-            assert_eq!("expecting 'formula' on line 1, column 10; found \"X\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 10; found \"X\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "!x P(x".parse();
-            assert_eq!("missing '.' at line 1, column 4", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "missing '.' at line 1, column 4",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "! P(x)".parse();
-            assert_eq!("expecting 'variables' on line 1, column 3; found \"P(x)\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'variables' on line 1, column 3; found \"P(x)\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "!x . ".parse();
-            assert_eq!("expecting 'formula' on line 1, column 6", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 6",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "!x . X".parse();
-            assert_eq!("expecting 'formula' on line 1, column 6; found \"X\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 6; found \"X\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "?x P(x".parse();
-            assert_eq!("missing '.' at line 1, column 4", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "missing '.' at line 1, column 4",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "? P(x)".parse();
-            assert_eq!("expecting 'variables' on line 1, column 3; found \"P(x)\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'variables' on line 1, column 3; found \"P(x)\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "?x . ".parse();
-            assert_eq!("expecting 'formula' on line 1, column 6", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 6",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "?x . X".parse();
-            assert_eq!("expecting 'formula' on line 1, column 6; found \"X\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 6; found \"X\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "x".parse();
-            assert_eq!("failed to parse the input at line 1, column 1", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "failed to parse the input at line 1, column 1",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "(X)".parse();
-            assert_eq!("expecting 'formula' on line 1, column 2; found \"X)\"", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "expecting 'formula' on line 1, column 2; found \"X)\"",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "(P(x)".parse();
-            assert_eq!("missing ')' at line 1, column 6", parsed.err().unwrap().to_string());
+            assert_eq!(
+                "missing ')' at line 1, column 6",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x)\n\
-            Q(x) <=> R(x);".parse();
-            assert_eq!("missing ';' at line 2, column 1", parsed.err().unwrap().to_string());
+            Q(x) <=> R(x);"
+                .parse();
+            assert_eq!(
+                "missing ';' at line 2, column 1",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x);\n\
             Q(x) <=> R(x);\n\
-            S(x) => Q(x);".parse();
-            assert_eq!("missing ';' at line 3, column 6", parsed.err().unwrap().to_string());
+            S(x) => Q(x);"
+                .parse();
+            assert_eq!(
+                "missing ';' at line 3, column 6",
+                parsed.err().unwrap().to_string()
+            );
         }
         {
             let parsed: Result<Theory, Error> = "P(x);\n\
             Q(x) <=> R(x);\n\
-            S(x) and ".parse();
-            assert_eq!("expecting 'formula' on line 3, column 10", parsed.err().unwrap().to_string());
+            S(x) and "
+                .parse();
+            assert_eq!(
+                "expecting 'formula' on line 3, column 10",
+                parsed.err().unwrap().to_string()
+            );
         }
     }
 }
-
-

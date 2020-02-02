@@ -120,16 +120,16 @@
 //! [strategies]: ./trait.StrategyTrait.html
 //! [bounding]: ./trait.BounderTrait.html
 //!
-pub mod r#impl;
-pub mod strategy;
-pub mod scheduler;
 pub mod bounder;
+pub mod r#impl;
+pub mod scheduler;
+pub mod strategy;
 
 use razor_fol::syntax::*;
 use std::fmt;
 
-use tracing;
 use itertools::Either;
+use tracing;
 
 /// Is a symbol to represent elements of first-order models. An element is identified by an index.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
@@ -188,7 +188,10 @@ pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FApp {
     /// [`Observation`]: ./enum.Observation.html
     /// [witness term]: ./trait.WitnessTermTrait.html
     fn equals(self, rhs: Self) -> Observation<Self> {
-        Observation::Identity { left: self, right: rhs }
+        Observation::Identity {
+            left: self,
+            right: rhs,
+        }
     }
 }
 
@@ -204,37 +207,71 @@ pub struct Rel(pub String);
 impl Rel {
     /// Applies the receiver to a list of witness terms.
     pub fn app<T: WitnessTermTrait>(self, terms: Vec<T>) -> Observation<T> {
-        Observation::Fact { relation: self, terms }
+        Observation::Fact {
+            relation: self,
+            terms,
+        }
     }
 
     /// Applies the (nullary) receiver.
     pub fn app0<T: WitnessTermTrait>(self) -> Observation<T> {
-        Observation::Fact { relation: self, terms: vec![] }
+        Observation::Fact {
+            relation: self,
+            terms: vec![],
+        }
     }
 
     /// Applies the (unary) receiver on a witness term.
     pub fn app1<T: WitnessTermTrait>(self, first: T) -> Observation<T> {
-        Observation::Fact { relation: self, terms: vec![first] }
+        Observation::Fact {
+            relation: self,
+            terms: vec![first],
+        }
     }
 
     /// Applies the (binary) receiver on two witness terms.
     pub fn app2<T: WitnessTermTrait>(self, first: T, second: T) -> Observation<T> {
-        Observation::Fact { relation: self, terms: vec![first, second] }
+        Observation::Fact {
+            relation: self,
+            terms: vec![first, second],
+        }
     }
 
     /// Applies the (ternary) receiver on three witness terms.
     pub fn app3<T: WitnessTermTrait>(self, first: T, second: T, third: T) -> Observation<T> {
-        Observation::Fact { relation: self, terms: vec![first, second, third] }
+        Observation::Fact {
+            relation: self,
+            terms: vec![first, second, third],
+        }
     }
 
     /// Applies the (4-ary) receiver on four witness terms.
-    pub fn app4<T: WitnessTermTrait>(self, first: T, second: T, third: T, fourth: T) -> Observation<T> {
-        Observation::Fact { relation: self, terms: vec![first, second, third, fourth] }
+    pub fn app4<T: WitnessTermTrait>(
+        self,
+        first: T,
+        second: T,
+        third: T,
+        fourth: T,
+    ) -> Observation<T> {
+        Observation::Fact {
+            relation: self,
+            terms: vec![first, second, third, fourth],
+        }
     }
 
     /// Applies the (5-ary) receiver on five witness terms.
-    pub fn app5<T: WitnessTermTrait>(self, first: T, second: T, third: T, fourth: T, fifth: T) -> Observation<T> {
-        Observation::Fact { relation: self, terms: vec![first, second, third, fourth, fifth] }
+    pub fn app5<T: WitnessTermTrait>(
+        self,
+        first: T,
+        second: T,
+        third: T,
+        fourth: T,
+        fifth: T,
+    ) -> Observation<T> {
+        Observation::Fact {
+            relation: self,
+            terms: vec![first, second, third, fourth, fifth],
+        }
     }
 }
 
@@ -333,10 +370,16 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
     fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool;
 
     /// Returns a set of all witness terms in the receiver that are denoted by `element`.
-    fn witness(&self, element: &<Self::TermType as WitnessTermTrait>::ElementType) -> Vec<&Self::TermType>;
+    fn witness(
+        &self,
+        element: &<Self::TermType as WitnessTermTrait>::ElementType,
+    ) -> Vec<&Self::TermType>;
 
     /// Returns the element in the receiver that is denoted by `witness`.
-    fn element(&self, witness: &Self::TermType) -> Option<&<Self::TermType as WitnessTermTrait>::ElementType>;
+    fn element(
+        &self,
+        witness: &Self::TermType,
+    ) -> Option<&<Self::TermType as WitnessTermTrait>::ElementType>;
 }
 
 /// Is the trait for types that represents a [geometric sequent][sequent] in the
@@ -378,7 +421,7 @@ pub trait BounderTrait {
 /// [SequentTrait]: ./trait.SequentTrait.html
 /// [ModelTrait]: ./trait.ModelTrait.html
 /// [chase-step]: ./index.html#chase-step
-pub trait EvaluatorTrait<'s, Stg: StrategyTrait<Item=&'s Self::Sequent>, B: BounderTrait> {
+pub trait EvaluatorTrait<'s, Stg: StrategyTrait<Item = &'s Self::Sequent>, B: BounderTrait> {
     /// The type of [sequents] that can be processed by this evaluator.
     ///
     /// [SequentTrait]: ./trait.SequentTrait.html
@@ -487,7 +530,8 @@ impl<M: ModelTrait> From<Vec<Either<M, M>>> for EvaluateResult<M> {
 /// [model]: ./trait.ModelTrait.html
 /// [strategy]: ./trait.StrategyTrait.html
 /// [here]: ./index.html#implementation
-pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item=&'s S>> {
+pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item = &'s S>>
+{
     /// Returns true if the scheduler is empty and false otherwise.
     fn empty(&self) -> bool;
 
@@ -556,15 +600,17 @@ pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
     evaluator: &E,
     bounder: Option<&B>,
 ) -> Vec<M>
-    where S: 's + SequentTrait,
-          M: ModelTrait,
-          Stg: StrategyTrait<Item=&'s S>,
-          Sch: SchedulerTrait<'s, S, M, Stg>,
-          E: EvaluatorTrait<'s, Stg, B, Sequent=S, Model=M>,
-          B: BounderTrait {
+where
+    S: 's + SequentTrait,
+    M: ModelTrait,
+    Stg: StrategyTrait<Item = &'s S>,
+    Sch: SchedulerTrait<'s, S, M, Stg>,
+    E: EvaluatorTrait<'s, Stg, B, Sequent = S, Model = M>,
+    B: BounderTrait,
+{
     let mut result: Vec<M> = Vec::new();
     while !scheduler.empty() {
-        chase_step(scheduler, evaluator, bounder, |m| result.push(m), |_|{});
+        chase_step(scheduler, evaluator, bounder, |m| result.push(m), |_| {});
     }
     result
 }
@@ -632,15 +678,21 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
     bounder: Option<&B>,
     mut consumer: impl FnMut(M),
     mut incomplete_consumer: impl FnMut(M),
-) where S: 's + SequentTrait,
-        M: ModelTrait,
-        Stg: StrategyTrait<Item=&'s S>,
-        Sch: SchedulerTrait<'s, S, M, Stg>,
-        E: EvaluatorTrait<'s, Stg, B, Sequent=S, Model=M>,
-        B: BounderTrait {
+) where
+    S: 's + SequentTrait,
+    M: ModelTrait,
+    Stg: StrategyTrait<Item = &'s S>,
+    Sch: SchedulerTrait<'s, S, M, Stg>,
+    E: EvaluatorTrait<'s, Stg, B, Sequent = S, Model = M>,
+    B: BounderTrait,
+{
     let (base_model, mut strategy) = scheduler.remove().unwrap();
     let base_id = &base_model.get_id();
-    let span = span!(tracing::Level::TRACE, super::trace::CHASE_STEP, id = base_id);
+    let span = span!(
+        tracing::Level::TRACE,
+        super::trace::CHASE_STEP,
+        id = base_id
+    );
     let models = evaluator.evaluate(&base_model, &mut strategy, bounder);
 
     if let Some(models) = models {
@@ -648,21 +700,21 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
             models.open_models.into_iter().for_each(|m| {
                 let _enter = span.enter();
                 info!(
-                        event = super::trace::EXTEND,
-                        model_id = &m.get_id(),
-                        parent = base_id,
-                        model = %m,
-                    );
+                    event = super::trace::EXTEND,
+                    model_id = &m.get_id(),
+                    parent = base_id,
+                    model = %m,
+                );
                 scheduler.add(m, strategy.clone());
             });
             models.bounded_models.into_iter().for_each(|m| {
                 let _enter = span.enter();
                 info!(
-                        event = super::trace::BOUND,
-                        model_id = &m.get_id(),
-                        parent = base_id,
-                        model = %m,
-                    );
+                    event = super::trace::BOUND,
+                    model_id = &m.get_id(),
+                    parent = base_id,
+                    model = %m,
+                );
                 incomplete_consumer(m);
             });
         } else {
