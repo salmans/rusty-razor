@@ -7,5 +7,5 @@
 //! [`SequentTrait`]: ../trait.SequentTrait.html
 //! [`EvaluatorTrait`]: ../trait.EvaluatorTrait.html
 pub mod basic;
-pub mod reference;
 pub mod batch;
+pub mod reference;

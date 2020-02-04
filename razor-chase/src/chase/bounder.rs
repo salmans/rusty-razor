@@ -3,7 +3,7 @@
 //! The bounders are instances of [`BounderTrait`].
 //!
 //! [`BounderTrait`]: ../trait.BounderTrait.html
-use crate::chase::{BounderTrait, ModelTrait, WitnessTermTrait, Observation};
+use crate::chase::{BounderTrait, ModelTrait, Observation, WitnessTermTrait};
 
 /// Bounds the size of a [model] by the number of elements in its [domain].
 ///
@@ -17,8 +17,10 @@ pub struct DomainSize {
 }
 
 impl From<usize> for DomainSize {
-    fn from(size : usize) -> Self {
-        Self { max_domain_size: size }
+    fn from(size: usize) -> Self {
+        Self {
+            max_domain_size: size,
+        }
     }
 }
 
@@ -27,9 +29,13 @@ impl BounderTrait for DomainSize {
         match observation {
             Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
-                let terms: Vec<Option<&<<M as ModelTrait>::TermType as WitnessTermTrait>::ElementType>> = terms.iter()
+                let terms: Vec<
+                    Option<&<<M as ModelTrait>::TermType as WitnessTermTrait>::ElementType>,
+                > = terms
+                    .iter()
                     .map(|t| model.element(t))
-                    .filter(|t| t.is_none()).collect();
+                    .filter(|t| t.is_none())
+                    .collect();
                 let size = terms.len();
                 model_size + size > self.max_domain_size
             }

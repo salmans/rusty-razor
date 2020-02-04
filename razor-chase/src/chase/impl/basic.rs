@@ -8,9 +8,12 @@
 //! [Chase]: ../../index.html#the-chase
 //!
 use crate::chase::*;
-use razor_fol::syntax::*;
-use std::{collections::{HashMap, HashSet}, fmt, iter};
 use itertools::{Either, Itertools};
+use razor_fol::syntax::*;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt, iter,
+};
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
 /// [`E`].
@@ -44,14 +47,18 @@ impl WitnessTerm {
     /// [`Model`]: ./struct.Model.html
     fn witness(term: &Term, assign: &impl Fn(&V) -> E) -> Self {
         match term {
-            Term::Const { constant } => Self::Const { constant: constant.clone() },
-            Term::Var { variable } => Self::Elem { element: assign(&variable) },
+            Term::Const { constant } => Self::Const {
+                constant: constant.clone(),
+            },
+            Term::Var { variable } => Self::Elem {
+                element: assign(&variable),
+            },
             Term::App { function, terms } => {
-                let terms = terms
-                    .iter()
-                    .map(|t| Self::witness(t, assign))
-                    .collect();
-                Self::App { function: function.clone(), terms }
+                let terms = terms.iter().map(|t| Self::witness(t, assign)).collect();
+                Self::App {
+                    function: function.clone(),
+                    terms,
+                }
             }
         }
     }
@@ -156,7 +163,9 @@ impl Model {
         while {
             next = self.equality_history.get(result);
             next.is_some() && next.unwrap() != result
-        } { result = next.unwrap() }
+        } {
+            result = next.unwrap()
+        }
 
         result.clone()
     }
@@ -193,11 +202,12 @@ impl Model {
                 }
             }
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms
-                    .into_iter()
-                    .map(|t| self.record(t).into())
-                    .collect();
-                let witness = WitnessTerm::App { function: function.clone(), terms };
+                let terms: Vec<WitnessTerm> =
+                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let witness = WitnessTerm::App {
+                    function: function.clone(),
+                    terms,
+                };
                 if let Some(e) = self.rewrites.get(&witness) {
                     (*e).clone()
                 } else {
@@ -225,7 +235,9 @@ impl Model {
                 terms.iter().for_each(|t| {
                     if let WitnessTerm::Elem { element } = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem { element: from.clone() });
+                            new_terms.push(WitnessTerm::Elem {
+                                element: from.clone(),
+                            });
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -233,16 +245,15 @@ impl Model {
                         new_terms.push(t.clone());
                     }
                 });
-                WitnessTerm::App { function: function.clone(), terms: new_terms }
+                WitnessTerm::App {
+                    function: function.clone(),
+                    terms: new_terms,
+                }
             } else {
                 k.clone()
             };
 
-            let value = if v == to {
-                from.clone()
-            } else {
-                v.clone()
-            };
+            let value = if v == to { from.clone() } else { v.clone() };
             new_rewrite.insert(key, value);
         });
         self.rewrites = new_rewrite;
@@ -258,24 +269,38 @@ impl Model {
     /// [`Observation`]: ../../enum.Observation.html
     /// [witness term]: ../../trait.WitnessTermTrait.html
     fn reduce_facts(&mut self, from: &E, to: &E) {
-        self.facts = self.facts.iter().map(|f| {
-            if let Observation::Fact { ref relation, ref terms } = f {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| {
-                    if let WitnessTerm::Elem { element } = t {
-                        if element == to {
-                            from.clone().into()
-                        } else {
-                            (*t).clone()
-                        }
-                    } else {
-                        (*t).clone() // should never happen
+        self.facts = self
+            .facts
+            .iter()
+            .map(|f| {
+                if let Observation::Fact {
+                    ref relation,
+                    ref terms,
+                } = f
+                {
+                    let terms: Vec<WitnessTerm> = terms
+                        .iter()
+                        .map(|t| {
+                            if let WitnessTerm::Elem { element } = t {
+                                if element == to {
+                                    from.clone().into()
+                                } else {
+                                    (*t).clone()
+                                }
+                            } else {
+                                (*t).clone() // should never happen
+                            }
+                        })
+                        .collect();
+                    Observation::Fact {
+                        relation: relation.clone(),
+                        terms,
                     }
-                }).collect();
-                Observation::Fact { relation: relation.clone(), terms }
-            } else {
-                f.clone() // should never happen
-            }
-        }).collect();
+                } else {
+                    f.clone() // should never happen
+                }
+            })
+            .collect();
     }
 }
 
@@ -296,7 +321,9 @@ impl Clone for Model {
 impl ModelTrait for Model {
     type TermType = WitnessTerm;
 
-    fn get_id(&self) -> u64 { self.id }
+    fn get_id(&self) -> u64 {
+        self.id
+    }
 
     fn domain(&self) -> Vec<&E> {
         self.rewrites.values().into_iter().unique().collect()
@@ -309,11 +336,12 @@ impl ModelTrait for Model {
     fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms
-                    .into_iter()
-                    .map(|t| self.record(t).into())
-                    .collect();
-                let observation = Observation::Fact { relation: relation.clone(), terms };
+                let terms: Vec<WitnessTerm> =
+                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let observation = Observation::Fact {
+                    relation: relation.clone(),
+                    terms,
+                };
                 self.facts.insert(observation);
             }
             Observation::Identity { left, right } => {
@@ -347,7 +375,10 @@ impl ModelTrait for Model {
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    let obs = Observation::Fact { relation: relation.clone(), terms };
+                    let obs = Observation::Fact {
+                        relation: relation.clone(),
+                        terms,
+                    };
                     self.facts.iter().find(|f| obs.eq(f)).is_some()
                 }
             }
@@ -359,7 +390,8 @@ impl ModelTrait for Model {
     }
 
     fn witness(&self, element: &E) -> Vec<&WitnessTerm> {
-        self.rewrites.iter()
+        self.rewrites
+            .iter()
             .filter(|(_, e)| *e == element)
             .map(|(t, _)| t)
             .collect()
@@ -367,9 +399,7 @@ impl ModelTrait for Model {
 
     fn element(&self, witness: &WitnessTerm) -> Option<&E> {
         match witness {
-            WitnessTerm::Elem { element } => {
-                self.domain().into_iter().find(|e| e.eq(&element))
-            }
+            WitnessTerm::Elem { element } => self.domain().into_iter().find(|e| e.eq(&element)),
             WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| e),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element(t)).collect();
@@ -380,7 +410,12 @@ impl ModelTrait for Model {
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    self.rewrites.get(&WitnessTerm::App { function: (*function).clone(), terms }).map(|e| e)
+                    self.rewrites
+                        .get(&WitnessTerm::App {
+                            function: (*function).clone(),
+                            terms,
+                        })
+                        .map(|e| e)
                 }
             }
         }
@@ -390,16 +425,26 @@ impl ModelTrait for Model {
 impl fmt::Display for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
-        let elements: Vec<String> = self.domain().iter().sorted().iter().map(|e| {
-            let witnesses: Vec<String> = self.witness(e).iter().map(|w| w.to_string()).collect();
-            let witnesses = witnesses.into_iter().sorted();
-            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
-        }).collect();
+        let elements: Vec<String> = self
+            .domain()
+            .iter()
+            .sorted()
+            .iter()
+            .map(|e| {
+                let witnesses: Vec<String> =
+                    self.witness(e).iter().map(|w| w.to_string()).collect();
+                let witnesses = witnesses.into_iter().sorted();
+                format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
+            })
+            .collect();
         let facts: Vec<String> = self.facts().into_iter().map(|e| e.to_string()).collect();
-        write!(f, "Domain: {{{}}}\nElements:{}\nFacts: {}\n",
-               domain.join(", "),
-               elements.join(", "),
-               facts.join(", "))
+        write!(
+            f,
+            "Domain: {{{}}}\nElements:{}\nFacts: {}\n",
+            domain.join(", "),
+            elements.join(", "),
+            facts.join(", ")
+        )
     }
 }
 
@@ -429,17 +474,21 @@ impl Literal {
     fn build_body(formula: &Formula) -> Vec<Literal> {
         match formula {
             Formula::Top => vec![],
-            Formula::Atom { predicate, terms } =>
-                vec![Literal::Atm { predicate: predicate.clone(), terms: terms.to_vec() }],
-            Formula::Equals { left, right } =>
-                vec![Literal::Eql { left: left.clone(), right: right.clone() }],
+            Formula::Atom { predicate, terms } => vec![Literal::Atm {
+                predicate: predicate.clone(),
+                terms: terms.to_vec(),
+            }],
+            Formula::Equals { left, right } => vec![Literal::Eql {
+                left: left.clone(),
+                right: right.clone(),
+            }],
             Formula::And { left, right } => {
                 let mut left = Literal::build_body(left);
                 let mut right = Literal::build_body(right);
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form.")
+            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
         }
     }
 
@@ -452,10 +501,14 @@ impl Literal {
         match formula {
             Formula::Top => vec![vec![]],
             Formula::Bottom => vec![],
-            Formula::Atom { predicate, terms } =>
-                vec![vec![Literal::Atm { predicate: predicate.clone(), terms: terms.to_vec() }]],
-            Formula::Equals { left, right } =>
-                vec![vec![Literal::Eql { left: left.clone(), right: right.clone() }]],
+            Formula::Atom { predicate, terms } => vec![vec![Literal::Atm {
+                predicate: predicate.clone(),
+                terms: terms.to_vec(),
+            }]],
+            Formula::Equals { left, right } => vec![vec![Literal::Eql {
+                left: left.clone(),
+                right: right.clone(),
+            }]],
             Formula::And { left, right } => {
                 let mut left = Literal::build_head(left);
                 let mut right = Literal::build_head(right);
@@ -478,7 +531,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form.")
+            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
         }
     }
 }
@@ -538,14 +591,21 @@ impl From<&Formula> for Sequent {
     fn from(formula: &Formula) -> Self {
         match formula {
             Formula::Implies { left, right } => {
-                let free_vars: Vec<V> = formula.free_vars().into_iter().map(|v| v.clone()).collect();
+                let free_vars: Vec<V> =
+                    formula.free_vars().into_iter().map(|v| v.clone()).collect();
                 let body_literals = Literal::build_body(left);
                 let head_literals = Literal::build_head(right);
                 let body = *left.clone();
                 let head = *right.clone();
-                Sequent { free_vars, body, head, body_literals, head_literals }
+                Sequent {
+                    free_vars,
+                    body,
+                    head,
+                    body_literals,
+                    head_literals,
+                }
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form.")
+            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
         }
     }
 }
@@ -553,11 +613,14 @@ impl From<&Formula> for Sequent {
 impl fmt::Display for Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let body: Vec<String> = self.body_literals.iter().map(|l| l.to_string()).collect();
-        let head: Vec<String> =
-            self.head_literals.iter().map(|ls| {
+        let head: Vec<String> = self
+            .head_literals
+            .iter()
+            .map(|ls| {
                 let ls: Vec<String> = ls.iter().map(|l| l.to_string()).collect();
                 format!("[{}]", ls.join(", "))
-            }).collect();
+            })
+            .collect();
         write!(f, "[{}] -> [{}]", body.join(", "), head.join(", "))
     }
 }
@@ -579,10 +642,17 @@ impl SequentTrait for Sequent {
 /// [chase-step]: ../../index.html#chase-step
 pub struct Evaluator {}
 
-impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B> for Evaluator {
+impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
+    for Evaluator
+{
     type Sequent = Sequent;
     type Model = Model;
-    fn evaluate(&self, initial_model: &Model, strategy: &mut Stg, bounder: Option<&B>) -> Option<EvaluateResult<Model>> {
+    fn evaluate(
+        &self,
+        initial_model: &Model,
+        strategy: &mut Stg,
+        bounder: Option<&B>,
+    ) -> Option<EvaluateResult<Model>> {
         let domain: Vec<&E> = initial_model.domain().clone();
         let domain_size = domain.len();
         for sequent in strategy {
@@ -601,7 +671,10 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, E> = HashMap::new();
                 for i in 0..vars_size {
-                    assignment_map.insert(vars.get(i).unwrap(), (*domain.get(assignment[i]).unwrap()).clone());
+                    assignment_map.insert(
+                        vars.get(i).unwrap(),
+                        (*domain.get(assignment[i]).unwrap()).clone(),
+                    );
                 }
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
@@ -610,11 +683,10 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> = sequent.body_literals
-                    .iter()
-                    .map(&observe_literal)
-                    .collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals
+                let body: Vec<Observation<WitnessTerm>> =
+                    sequent.body_literals.iter().map(&observe_literal).collect();
+                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                    .head_literals
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
                     .collect();
@@ -622,7 +694,10 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 // if all body observations are true in the model but not all the head observations
                 // are true, extend the model:
                 if body.iter().all(|o| initial_model.is_observed(o))
-                    && !head.iter().any(|os| os.iter().all(|o| initial_model.is_observed(o))) {
+                    && !head
+                        .iter()
+                        .any(|os| os.iter().all(|o| initial_model.is_observed(o)))
+                {
                     if head.is_empty() {
                         return None; // the chase fails if the head is empty (false)
                     } else {
@@ -655,9 +730,8 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
-{
+    model: &'m Model,
+) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
     move |os: &'m Vec<Observation<WitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
@@ -672,8 +746,7 @@ fn make_extend<'m>(
 fn make_bounded_extend<'m, B: BounderTrait>(
     bounder: &'m B,
     model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
-{
+) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
     move |os: &Vec<Observation<WitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
@@ -698,22 +771,24 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
-fn make_observe_literal(assignment_func: impl Fn(&V) -> E)
-                        -> impl Fn(&Literal) -> Observation<WitnessTerm> {
-    move |lit: &Literal| {
-        match lit {
-            Literal::Atm { predicate, terms } => {
-                let terms = terms
-                    .into_iter()
-                    .map(|t| WitnessTerm::witness(t, &assignment_func))
-                    .collect();
-                Observation::Fact { relation: Rel(predicate.0.clone()), terms }
+fn make_observe_literal(
+    assignment_func: impl Fn(&V) -> E,
+) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+    move |lit: &Literal| match lit {
+        Literal::Atm { predicate, terms } => {
+            let terms = terms
+                .into_iter()
+                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .collect();
+            Observation::Fact {
+                relation: Rel(predicate.0.clone()),
+                terms,
             }
-            Literal::Eql { left, right } => {
-                let left = WitnessTerm::witness(left, &assignment_func);
-                let right = WitnessTerm::witness(right, &assignment_func);
-                Observation::Identity { left, right }
-            }
+        }
+        Literal::Eql { left, right } => {
+            let left = WitnessTerm::witness(left, &assignment_func);
+            let right = WitnessTerm::witness(right, &assignment_func);
+            Observation::Identity { left, right }
         }
     }
 }
@@ -742,24 +817,42 @@ mod test_basic {
     use std::iter::FromIterator;
 
     // Witness Elements
-    pub fn _e_0() -> WitnessTerm { e_0().into() }
+    pub fn _e_0() -> WitnessTerm {
+        e_0().into()
+    }
 
-    pub fn _e_1() -> WitnessTerm { e_1().into() }
+    pub fn _e_1() -> WitnessTerm {
+        e_1().into()
+    }
 
-    pub fn _e_2() -> WitnessTerm { e_2().into() }
+    pub fn _e_2() -> WitnessTerm {
+        e_2().into()
+    }
 
-    pub fn _e_3() -> WitnessTerm { e_3().into() }
+    pub fn _e_3() -> WitnessTerm {
+        e_3().into()
+    }
 
-    pub fn _e_4() -> WitnessTerm { e_4().into() }
+    pub fn _e_4() -> WitnessTerm {
+        e_4().into()
+    }
 
     // Witness Constants
-    pub fn _a_() -> WitnessTerm { WitnessTerm::Const { constant: _a() } }
+    pub fn _a_() -> WitnessTerm {
+        WitnessTerm::Const { constant: _a() }
+    }
 
-    pub fn _b_() -> WitnessTerm { WitnessTerm::Const { constant: _b() } }
+    pub fn _b_() -> WitnessTerm {
+        WitnessTerm::Const { constant: _b() }
+    }
 
-    pub fn _c_() -> WitnessTerm { WitnessTerm::Const { constant: _c() } }
+    pub fn _c_() -> WitnessTerm {
+        WitnessTerm::Const { constant: _c() }
+    }
 
-    pub fn _d_() -> WitnessTerm { WitnessTerm::Const { constant: _d() } }
+    pub fn _d_() -> WitnessTerm {
+        WitnessTerm::Const { constant: _d() }
+    }
 
     #[test]
     fn test_witness_const() {
@@ -770,7 +863,10 @@ mod test_basic {
     #[test]
     fn test_observation() {
         assert_eq!("<R(e#0)>", _R_().app1(_e_0()).to_string());
-        assert_eq!("<R(e#0, e#1, e#2)>", _R_().app3(_e_0(), _e_1(), _e_2()).to_string());
+        assert_eq!(
+            "<R(e#0, e#1, e#2)>",
+            _R_().app3(_e_0(), _e_1(), _e_2()).to_string()
+        );
         assert_eq!("<e#0 = e#1>", _e_0().equals(_e_1()).to_string());
     }
 
@@ -805,7 +901,10 @@ mod test_basic {
             let mut model = Model::new();
             model.observe(&_R_().app1(_c_()));
             assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_R_().app1(_e_0())].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![_R_().app1(_e_0())].iter()),
+                &model.facts(),
+            );
             assert!(model.is_observed(&_R_().app1(_c_())));
             assert!(model.is_observed(&_R_().app1(_e_0())));
             assert!(!model.is_observed(&_R_().app1(_e_1())));
@@ -817,7 +916,10 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
             let empty_facts: Vec<&Observation<WitnessTerm>> = Vec::new();
             assert_eq_sets(&empty_facts, &model.facts());
-            assert_eq_sets(&Vec::from_iter(vec![&_a_(), &_b_()]), &model.witness(&e_0()));
+            assert_eq_sets(
+                &Vec::from_iter(vec![&_a_(), &_b_()]),
+                &model.witness(&e_0()),
+            );
         }
         {
             let mut model = Model::new();
@@ -833,30 +935,45 @@ mod test_basic {
             model.observe(&_Q_().app1(_b_()));
             model.observe(&_a_().equals(_b_()));
             assert_eq_sets(&Vec::from_iter(vec![&e_0()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_P_().app1(_e_0()), _Q_().app1(_e_0())].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![_P_().app1(_e_0()), _Q_().app1(_e_0())].iter()),
+                &model.facts(),
+            );
             assert!(model.is_observed(&_P_().app1(_e_0())));
             assert!(model.is_observed(&_P_().app1(_a_())));
             assert!(model.is_observed(&_P_().app1(_b_())));
             assert!(model.is_observed(&_Q_().app1(_e_0())));
             assert!(model.is_observed(&_Q_().app1(_a_())));
             assert!(model.is_observed(&_Q_().app1(_b_())));
-            assert_eq_sets(&Vec::from_iter(vec![&_a_(), &_b_()]), &model.witness(&e_0()));
+            assert_eq_sets(
+                &Vec::from_iter(vec![&_a_(), &_b_()]),
+                &model.witness(&e_0()),
+            );
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app1(f().app1(_c_())));
             assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_R_().app1(_e_1())].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![_R_().app1(_e_1())].iter()),
+                &model.facts(),
+            );
             assert!(model.is_observed(&_R_().app1(_e_1())));
             assert!(model.is_observed(&_R_().app1(f().app1(_c_()))));
             assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
-            assert_eq_sets(&Vec::from_iter(vec![&f().app1(_e_0())]), &model.witness(&e_1()));
+            assert_eq_sets(
+                &Vec::from_iter(vec![&f().app1(_e_0())]),
+                &model.witness(&e_1()),
+            );
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())].iter()),
+                &model.facts(),
+            );
             assert!(model.is_observed(&_R_().app2(_e_0(), _e_1())));
             assert!(!model.is_observed(&_R_().app2(_e_0(), _e_0())));
             assert_eq_sets(&Vec::from_iter(vec![&_a_()]), &model.witness(&e_0()));
@@ -865,23 +982,41 @@ mod test_basic {
         {
             let mut model = Model::new();
             model.observe(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_()))));
-            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![&e_0(), &e_1(), &e_2()]),
+                &model.domain(),
+            );
+            assert_eq_sets(
+                &Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())].iter()),
+                &model.facts(),
+            );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
             assert!(model.is_observed(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_())))));
             assert!(model.is_observed(&_R_().app2(f().app1(_c_()), _e_2())));
             assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
-            assert_eq_sets(&Vec::from_iter(vec![&f().app1(_e_0())]), &model.witness(&e_1()));
-            assert_eq_sets(&Vec::from_iter(vec![&g().app1(_e_1())]), &model.witness(&e_2()));
+            assert_eq_sets(
+                &Vec::from_iter(vec![&f().app1(_e_0())]),
+                &model.witness(&e_1()),
+            );
+            assert_eq_sets(
+                &Vec::from_iter(vec![&g().app1(_e_1())]),
+                &model.witness(&e_2()),
+            );
         }
         {
             let mut model = Model::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             model.observe(&_S_().app2(_c_(), _d_()));
-            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())
-                                                , _S_().app2(_e_2(), _e_3())
-            ].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]),
+                &model.domain(),
+            );
+            assert_eq_sets(
+                &Vec::from_iter(
+                    vec![_R_().app2(_e_0(), _e_1()), _S_().app2(_e_2(), _e_3())].iter(),
+                ),
+                &model.facts(),
+            );
         }
         {
             let mut model = Model::new();
@@ -889,12 +1024,22 @@ mod test_basic {
             model.observe(&_S_().app1(_b_()));
             model.observe(&_R_().app2(g().app1(f().app1(_a_())), _b_()));
             model.observe(&_S_().app1(_c_()));
-            assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]), &model.domain());
-            assert_eq_sets(&Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())
-                                                , _S_().app1(_e_4())
-                                                , _S_().app1(_e_2())
-                                                , _R_().app2(_e_3(), _e_2())
-            ].iter()), &model.facts());
+            assert_eq_sets(
+                &Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]),
+                &model.domain(),
+            );
+            assert_eq_sets(
+                &Vec::from_iter(
+                    vec![
+                        _R_().app2(_e_0(), _e_1()),
+                        _S_().app1(_e_4()),
+                        _S_().app1(_e_2()),
+                        _R_().app2(_e_3(), _e_2()),
+                    ]
+                    .iter(),
+                ),
+                &model.facts(),
+            );
         }
     }
 
@@ -907,30 +1052,55 @@ mod test_basic {
 
     #[test]
     fn test_build_sequent() {
-        assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"true -> true".parse().unwrap()));
-        assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"true -> true & true".parse().unwrap()));
-        assert_debug_string("[] -> [[], []]",
-                            Sequent::from(&"true -> true | true".parse().unwrap()));
-        assert_debug_string("[] -> []",
-                            Sequent::from(&"true -> false".parse().unwrap()));
-        assert_debug_string("[] -> []",
-                            Sequent::from(&"true -> false & true".parse().unwrap()));
-        assert_debug_string("[] -> []",
-                            Sequent::from(&"true -> true & false".parse().unwrap()));
-        assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"true -> true | false".parse().unwrap()));
-        assert_debug_string("[] -> [[]]",
-                            Sequent::from(&"true -> false | true".parse().unwrap()));
-        assert_debug_string("[P(x)] -> [[Q(x)]]",
-                            Sequent::from(&"P(x) -> Q(x)".parse().unwrap()));
-        assert_debug_string("[P(x), Q(x)] -> [[Q(y)]]",
-                            Sequent::from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()));
-        assert_debug_string("[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
-                            Sequent::from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()));
-        assert_debug_string("[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-                            Sequent::from(&"true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))".parse().unwrap()));
+        assert_debug_string(
+            "[] -> [[]]",
+            Sequent::from(&"true -> true".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[] -> [[]]",
+            Sequent::from(&"true -> true & true".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[] -> [[], []]",
+            Sequent::from(&"true -> true | true".parse().unwrap()),
+        );
+        assert_debug_string("[] -> []", Sequent::from(&"true -> false".parse().unwrap()));
+        assert_debug_string(
+            "[] -> []",
+            Sequent::from(&"true -> false & true".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[] -> []",
+            Sequent::from(&"true -> true & false".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[] -> [[]]",
+            Sequent::from(&"true -> true | false".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[] -> [[]]",
+            Sequent::from(&"true -> false | true".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[P(x)] -> [[Q(x)]]",
+            Sequent::from(&"P(x) -> Q(x)".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[P(x), Q(x)] -> [[Q(y)]]",
+            Sequent::from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
+            Sequent::from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()),
+        );
+        assert_debug_string(
+            "[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
+            Sequent::from(
+                &"true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
+                    .parse()
+                    .unwrap(),
+            ),
+        );
     }
 
     #[test]
@@ -995,43 +1165,76 @@ mod test_basic {
 
     #[test]
     fn test_core() {
-        assert_eq!("Domain: {e#0}\n\
+        assert_eq!(
+            "Domain: {e#0}\n\
                       Facts: <P(e#0)>\n\
                       'a -> e#0",
-                   print_basic_models(solve_basic(&&read_theory_from_file("../theories/core/thy0.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
+            print_basic_models(solve_basic(&&read_theory_from_file(
+                "../theories/core/thy0.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1}\n\
                        Facts: <P(e#0)>, <P(e#1)>\n\
                        'a -> e#0\n\
                        'b -> e#1",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy1.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy1.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <Q(e#0)>\n\
                        'a -> e#0",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy2.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy2.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1}\n\
                        Facts: <R(e#0, e#1)>\n\
                        'sk#0 -> e#0\n\
                        'sk#1 -> e#1",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy3.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy3.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                 Facts: \n\
                 'a, 'b -> e#0",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy4.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy4.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1}\n\
                        Facts: <P(e#0, e#1)>\n\
                        'a -> e#0\n\
                        'b -> e#1",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy5.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy5.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1}\n\
                        Facts: <P(e#1)>\n\
                        'a -> e#0\n\
                        f[e#0] -> e#1",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy6.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy6.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>\n\
                        'a -> e#0",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy7.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy7.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>\n\
                        'a -> e#0\n\
                        -- -- -- -- -- -- -- -- -- --\n\
@@ -1042,44 +1245,94 @@ mod test_basic {
                        Domain: {e#0}\n\
                        Facts: <R(e#0)>\n\
                        'c -> e#0",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy8.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy8.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <Q(e#0)>\n\
                        'a, 'b -> e#0",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy9.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy9.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <R(e#0)>\n\
                        'a -> e#0\n\
                        -- -- -- -- -- -- -- -- -- --\n\
                        Domain: {e#0}\n\
                        Facts: <Q(e#0)>, <S(e#0)>\n\
                        'b -> e#0",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy10.raz"))));
-        assert_eq!("Domain: {}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy10.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {}\n\
                        Facts: \n",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy11.raz"))));
-        assert_eq!("Domain: {}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy11.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {}\n\
                        Facts: \n",
-                   print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy12.raz"))));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy13.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy12.raz"
+            )))
+        );
+        assert_eq!(
+            "",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy13.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <Q(e#0)>\n\
-                       'b -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy14.raz"))));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy15.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+                       'b -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy14.raz"
+            )))
+        );
+        assert_eq!(
+            "",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy15.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0, e#0)>, <Q(e#0)>\n\
-                       'c -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy16.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2}\n\
+                       'c -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy16.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2}\n\
                        Facts: <P(e#0, e#0)>, <P(e#1, e#2)>, <Q(e#0)>\n\
                        'c -> e#0\n\
                        'a -> e#1\n\
-                       'b -> e#2", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy17.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2}\n\
+                       'b -> e#2",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy17.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2}\n\
                        Facts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\
                        'a -> e#0\n\
                        'b -> e#1\n\
-                       'c -> e#2", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy18.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+                       'c -> e#2",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy18.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
                        Facts: \n\
                        'a -> e#0\n\
                        f[e#0] -> e#1\n\
@@ -1091,7 +1344,11 @@ mod test_basic {
                        f[e#6] -> e#7\n\
                        f[e#7] -> e#8\n\
                        f[e#8] -> e#9\n\
-                       'b, f[e#9] -> e#10", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy19.raz"))));
+                       'b, f[e#9] -> e#10",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy19.raz"
+            )))
+        );
         assert_eq!("Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
                        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
                        'a -> e#0\n\
@@ -1118,35 +1375,71 @@ mod test_basic {
                        f[e#7] -> e#8\n\
                        f[e#8] -> e#9\n\
                        'b, f[e#9] -> e#10", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy21.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        assert_eq!(
+            "Domain: {e#0}\n\
                 Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>\n\
-                'a -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy22.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+                'a -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy22.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy23.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+                       'sk#0, 'sk#1, 'sk#2 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy23.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>, <T(e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy24.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2, e#3}\n\
+                       'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy24.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2, e#3}\n\
                        Facts: <P(e#0)>, <Q(e#1)>, <R(e#2)>, <S(e#3)>\n\
                        'sk#0 -> e#0\n\
                        'sk#1 -> e#1\n\
                        'sk#2 -> e#2\n\
-                       'sk#3 -> e#3", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy25.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+                       'sk#3 -> e#3",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy25.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <P(e#0)>\n\
                        'sk#0 -> e#0\n\
                        -- -- -- -- -- -- -- -- -- --\n\
                        Domain: {e#0}\n\
                        Facts: <P(e#0)>\n\
-                       'sk#1 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy26.raz"))));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy27.raz"))));
-        assert_eq!("Domain: {}\n\
+                       'sk#1 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy26.raz"
+            )))
+        );
+        assert_eq!(
+            "",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy27.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {}\n\
         Facts: <T()>, <V()>\n\n\
         -- -- -- -- -- -- -- -- -- --\n\
         Domain: {}\n\
-        Facts: <U()>, <V()>\n", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy28.raz"))));
-        assert_eq!("Domain: {}\n\
+        Facts: <U()>, <V()>\n",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy28.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {}\n\
         Facts: <P()>\n\n\
         -- -- -- -- -- -- -- -- -- --\n\
         Domain: {}\n\
@@ -1162,16 +1455,36 @@ mod test_basic {
         Facts: <Q()>, <S()>, <X()>\n\n\
         -- -- -- -- -- -- -- -- -- --\n\
         Domain: {}\n\
-        Facts: <Q()>, <S()>, <Y()>\n", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy29.raz"))));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy30.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        Facts: <Q()>, <S()>, <Y()>\n",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy29.raz"
+            )))
+        );
+        assert_eq!(
+            "",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy30.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <Q(e#0, e#0)>, <R(e#0)>, <U(e#0)>\n\
-                       'sk#0 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy31.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
+                       'sk#0 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy31.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1}\n\
         Facts: <Q(e#0, e#1)>, <R(e#0)>\n\
         'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy32.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        sk#1[e#0] -> e#1",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy32.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
         Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\
         'sk#0 -> e#0\n\
         sk#1[e#0] -> e#1\n\
@@ -1297,7 +1610,11 @@ mod test_basic {
         sk#1[e#0] -> e#1\n\
         sk#5[e#1] -> e#2\n\
         sk#13[e#2] -> e#3\n\
-        sk#29[e#3] -> e#4", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy35.raz"))));
+        sk#29[e#3] -> e#4",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy35.raz"
+            )))
+        );
         assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
         Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\
         'sk#0 -> e#0\n\
@@ -1505,11 +1822,22 @@ mod test_basic {
         sk#27[e#4, e#5] -> e#7\n\
         sk#58[e#6, e#7] -> e#8\n\
         sk#59[e#6, e#7] -> e#9", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy36.raz"))));
-        assert_eq!("", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy37.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        assert_eq!(
+            "",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy37.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
                        Facts: <R(e#0, e#0, e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy38.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6}\n\
+                       'sk#0, 'sk#1, 'sk#2 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy38.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6}\n\
                        Facts: <Q(e#1)>, <R(e#1, e#6)>\n\
                        'sk#0 -> e#0\n\
                        f[e#0] -> e#1\n\
@@ -1517,89 +1845,137 @@ mod test_basic {
                        f[e#2] -> e#3\n\
                        f[e#3] -> e#4\n\
                        f[e#4] -> e#5\n\
-                       f[e#5] -> e#6", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy39.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+                       f[e#5] -> e#6",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy39.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
         Facts: <P(e#1)>, <Q(e#1)>, <R(e#0, e#1)>, <R(e#1, e#3)>, <S(e#4)>\n\
         'sk#0 -> e#0\n\
         f[e#0] -> e#1\n\
         f[e#1] -> e#2\n\
         f[e#2] -> e#3\n\
-        sk#1[e#1] -> e#4", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy40.raz"))));
-        assert_eq!("Domain: {}\n\
-                       Facts: \n", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy41.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        sk#1[e#1] -> e#4",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy40.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {}\n\
+                       Facts: \n",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy41.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
         Facts: \n\
-        'e, 'sk#0, f[e#0, e#0], i[e#0] -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy42.raz"))));
-        assert_eq!("Domain: {e#0, e#1}\n\
+        'e, 'sk#0, f[e#0, e#0], i[e#0] -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy42.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0, e#1}\n\
         Facts: <P(e#0)>, <P(e#1)>, <Q(e#0)>, <Q(e#1)>\n\
         'a -> e#0\n\
-        'b -> e#1", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy43.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        'b -> e#1",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy43.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
         Facts: <P(e#0)>, <Q(e#0)>\n\
         'a -> e#0\n\
         -- -- -- -- -- -- -- -- -- --\n\
         Domain: {e#0}\n\
         Facts: <P(e#0)>, <R(e#0)>\n\
-        'a -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy44.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        'a -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy44.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
         Facts: <P(e#0)>, <Q(e#0)>\n\
         'a, \'b -> e#0\n\
         -- -- -- -- -- -- -- -- -- --\n\
         Domain: {e#0, e#1}\n\
         Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
         'a -> e#0\n\
-        'b -> e#1", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy45.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        'b -> e#1",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy45.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
         Facts: <P(e#0)>, <Q(e#0)>, <R(e#0, e#0)>\n\
-        'sk#0, 'sk#1 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy46.raz"))));
-        assert_eq!("Domain: {e#0}\n\
+        'sk#0, 'sk#1 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy46.raz"
+            )))
+        );
+        assert_eq!(
+            "Domain: {e#0}\n\
         Facts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\
-        'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy47.raz"))));
+        'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy47.raz"
+            )))
+        );
     }
 
     #[test]
     fn test_bounded() {
-//        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-//        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
-//        'a -> e#0\n\
-//        f[e#0] -> e#1\n\
-//        f[e#1] -> e#2\n\
-//        f[e#2] -> e#3\n\
-//        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 5)));
-//        assert_eq!("Domain: {e#0, e#1, e#10, e#11, e#12, e#13, e#14, e#15, e#16, e#17, e#18, e#19, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-//        Facts: <P(e#0)>, <P(e#1)>, <P(e#10)>, <P(e#11)>, <P(e#12)>, <P(e#13)>, <P(e#14)>, <P(e#15)>, <P(e#16)>, <P(e#17)>, <P(e#18)>, <P(e#19)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
-//        'a -> e#0\n\
-//        f[e#0] -> e#1\n\
-//        f[e#1] -> e#2\n\
-//        f[e#2] -> e#3\n\
-//        f[e#3] -> e#4\n\
-//        f[e#4] -> e#5\n\
-//        f[e#5] -> e#6\n\
-//        f[e#6] -> e#7\n\
-//        f[e#7] -> e#8\n\
-//        f[e#8] -> e#9\n\
-//        f[e#9] -> e#10\n\
-//        f[e#10] -> e#11\n\
-//        f[e#11] -> e#12\n\
-//        f[e#12] -> e#13\n\
-//        f[e#13] -> e#14\n\
-//        f[e#14] -> e#15\n\
-//        f[e#15] -> e#16\n\
-//        f[e#16] -> e#17\n\
-//        f[e#17] -> e#18\n\
-//        f[e#18] -> e#19", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 20)));
-//        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-//        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
-//        'a -> e#0\n\
-//        f[e#0] -> e#1\n\
-//        f[e#1] -> e#2\n\
-//        f[e#2] -> e#3\n\
-//        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy2.raz"), 5)));
+        //        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
+        //        'a -> e#0\n\
+        //        f[e#0] -> e#1\n\
+        //        f[e#1] -> e#2\n\
+        //        f[e#2] -> e#3\n\
+        //        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 5)));
+        //        assert_eq!("Domain: {e#0, e#1, e#10, e#11, e#12, e#13, e#14, e#15, e#16, e#17, e#18, e#19, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#10)>, <P(e#11)>, <P(e#12)>, <P(e#13)>, <P(e#14)>, <P(e#15)>, <P(e#16)>, <P(e#17)>, <P(e#18)>, <P(e#19)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
+        //        'a -> e#0\n\
+        //        f[e#0] -> e#1\n\
+        //        f[e#1] -> e#2\n\
+        //        f[e#2] -> e#3\n\
+        //        f[e#3] -> e#4\n\
+        //        f[e#4] -> e#5\n\
+        //        f[e#5] -> e#6\n\
+        //        f[e#6] -> e#7\n\
+        //        f[e#7] -> e#8\n\
+        //        f[e#8] -> e#9\n\
+        //        f[e#9] -> e#10\n\
+        //        f[e#10] -> e#11\n\
+        //        f[e#11] -> e#12\n\
+        //        f[e#12] -> e#13\n\
+        //        f[e#13] -> e#14\n\
+        //        f[e#14] -> e#15\n\
+        //        f[e#15] -> e#16\n\
+        //        f[e#16] -> e#17\n\
+        //        f[e#17] -> e#18\n\
+        //        f[e#18] -> e#19", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 20)));
+        //        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
+        //        'a -> e#0\n\
+        //        f[e#0] -> e#1\n\
+        //        f[e#1] -> e#2\n\
+        //        f[e#2] -> e#3\n\
+        //        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy2.raz"), 5)));
         assert_eq!(
             r#"Domain: {e#0}
 Facts: <P(e#0)>, <Q(e#0)>
 'sk#0 -> e#0"#,
-            print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy3.raz"), 5)));
+            print_basic_models(solve_domain_bounded_basic(
+                &read_theory_from_file("../theories/bounded/thy3.raz"),
+                5
+            ))
+        );
         assert_eq!(
             r#"Domain: {e#0}
 Facts: <P(e#0)>, <Q(e#0)>
@@ -1630,6 +2006,10 @@ sk#0[e#0] -> e#1
 sk#0[e#1] -> e#2
 sk#0[e#2] -> e#3
 sk#0[e#3] -> e#4"#,
-            print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy4.raz"), 5)));
+            print_basic_models(solve_domain_bounded_basic(
+                &read_theory_from_file("../theories/bounded/thy4.raz"),
+                5
+            ))
+        );
     }
 }

@@ -16,25 +16,23 @@
 //! [`chase::impl::reference`]: ../reference/index.html
 //! [`chase::impl::batch`]: ./index.html
 
-use std::{
-    collections::HashMap,
-    iter,
-};
-use razor_fol::syntax::V;
 use crate::chase::{
     r#impl::{
         basic, reference,
-        reference::{WitnessTerm, Element},
+        reference::{Element, WitnessTerm},
     },
-    Rel, Observation, EvaluateResult,
-    ModelTrait, StrategyTrait, EvaluatorTrait, BounderTrait,
+    BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation, Rel, StrategyTrait,
 };
-use itertools::{Itertools, Either};
+use itertools::{Either, Itertools};
+use razor_fol::syntax::V;
+use std::{collections::HashMap, iter};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator {}
 
-impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B> for Evaluator {
+impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
+    for Evaluator
+{
     type Sequent = Sequent;
     type Model = Model;
     fn evaluate(
@@ -63,7 +61,10 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, Element> = HashMap::new();
                 for i in 0..vars_size {
-                    assignment_map.insert(vars.get(i).unwrap(), (*domain.get(assignment[i]).unwrap()).clone());
+                    assignment_map.insert(
+                        vars.get(i).unwrap(),
+                        (*domain.get(assignment[i]).unwrap()).clone(),
+                    );
                 }
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
@@ -72,15 +73,21 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> = sequent.body_literals
-                    .iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent.head_literals
-                    .iter().map(|l| l.iter().map(&observe_literal).collect()).collect();
+                let body: Vec<Observation<WitnessTerm>> =
+                    sequent.body_literals.iter().map(&observe_literal).collect();
+                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                    .head_literals
+                    .iter()
+                    .map(|l| l.iter().map(&observe_literal).collect())
+                    .collect();
 
                 // if all body observations are true in the model but not all the head observations
                 // are true, extend the model:
                 if body.iter().all(|o| initial_model.is_observed(o))
-                    && !head.iter().any(|os| os.iter().all(|o| initial_model.is_observed(o))) {
+                    && !head
+                        .iter()
+                        .any(|os| os.iter().all(|o| initial_model.is_observed(o)))
+                {
                     if head.is_empty() {
                         return None; // the chase fails if the head is empty (FALSE)
                     } else {
@@ -89,16 +96,20 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
                         }
 
                         // extending all extensions of this model with the new observations:
-                        let models: Vec<Either<Model, Model>> = result.open_models.iter().flat_map(|m| {
-                            let ms: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
-                                let extend = make_bounded_extend(bounder, m);
-                                head.iter().map(extend).collect()
-                            } else {
-                                let extend = make_extend(m);
-                                head.iter().map(extend).collect()
-                            };
-                            ms
-                        }).collect();
+                        let models: Vec<Either<Model, Model>> = result
+                            .open_models
+                            .iter()
+                            .flat_map(|m| {
+                                let ms: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
+                                    let extend = make_bounded_extend(bounder, m);
+                                    head.iter().map(extend).collect()
+                                } else {
+                                    let extend = make_extend(m);
+                                    head.iter().map(extend).collect()
+                                };
+                                ms
+                            })
+                            .collect();
 
                         // all previous extensions are now extended further. so remove them from
                         // the result:
@@ -119,9 +130,8 @@ impl<'s, Stg: StrategyTrait<Item=&'s Sequent>, B: BounderTrait> EvaluatorTrait<'
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
-{
+    model: &'m Model,
+) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
     move |os: &'m Vec<Observation<WitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
@@ -136,8 +146,7 @@ fn make_extend<'m>(
 fn make_bounded_extend<'m, B: BounderTrait>(
     bounder: &'m B,
     model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model>
-{
+) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
     move |os: &Vec<Observation<WitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
@@ -162,22 +171,24 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
-fn make_observe_literal(assignment_func: impl Fn(&V) -> Element)
-                        -> impl Fn(&Literal) -> Observation<WitnessTerm> {
-    move |lit: &Literal| {
-        match lit {
-            basic::Literal::Atm { predicate, terms } => {
-                let terms = terms
-                    .into_iter()
-                    .map(|t| WitnessTerm::witness(t, &assignment_func))
-                    .collect();
-                Observation::Fact { relation: Rel(predicate.0.clone()), terms }
+fn make_observe_literal(
+    assignment_func: impl Fn(&V) -> Element,
+) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+    move |lit: &Literal| match lit {
+        basic::Literal::Atm { predicate, terms } => {
+            let terms = terms
+                .into_iter()
+                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .collect();
+            Observation::Fact {
+                relation: Rel(predicate.0.clone()),
+                terms,
             }
-            basic::Literal::Eql { left, right } => {
-                let left = WitnessTerm::witness(left, &assignment_func);
-                let right = WitnessTerm::witness(right, &assignment_func);
-                Observation::Identity { left, right }
-            }
+        }
+        basic::Literal::Eql { left, right } => {
+            let left = WitnessTerm::witness(left, &assignment_func);
+            let right = WitnessTerm::witness(right, &assignment_func);
+            Observation::Identity { left, right }
         }
     }
 }
@@ -205,15 +216,18 @@ pub type Model = reference::Model;
 
 #[cfg(test)]
 mod test_batch {
-    use super::{Evaluator, next_assignment};
-    use crate::chase::r#impl::reference::Model;
+    use super::{next_assignment, Evaluator};
     use crate::chase::r#impl::basic::Sequent;
-    use razor_fol::syntax::Theory;
+    use crate::chase::r#impl::reference::Model;
     use crate::chase::{
-        SchedulerTrait, StrategyTrait, strategy::{Bootstrap, Fair},
-        scheduler::FIFO, bounder::DomainSize, chase_all,
+        bounder::DomainSize,
+        chase_all,
+        scheduler::FIFO,
+        strategy::{Bootstrap, Fair},
+        SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
+    use razor_fol::syntax::Theory;
     use std::collections::HashSet;
     use std::fs;
 
@@ -266,10 +280,7 @@ mod test_batch {
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory
-            .formulae
-            .iter()
-            .map(|f| f.into()).collect();
+        let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
 
         let evaluator = Evaluator {};
         let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
@@ -286,8 +297,14 @@ mod test_batch {
             let theory = read_theory_from_file(item.unwrap().path().to_str().unwrap());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models.into_iter().map(|m| print_basic_model(m)).collect();
-            let test_models: HashSet<String> = test_models.into_iter().map(|m| print_reference_model(m)).collect();
+            let basic_models: HashSet<String> = basic_models
+                .into_iter()
+                .map(|m| print_basic_model(m))
+                .collect();
+            let test_models: HashSet<String> = test_models
+                .into_iter()
+                .map(|m| print_reference_model(m))
+                .collect();
             assert_eq!(basic_models, test_models);
         }
     }
