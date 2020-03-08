@@ -287,24 +287,9 @@ impl Model {
             }
         }
     }
-}
 
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
-
-    fn get_id(&self) -> u64 {
-        self.id
-    }
-
-    fn domain(&self) -> Vec<&Element> {
-        self.domain.iter().unique().collect()
-    }
-
-    fn facts(&self) -> Vec<&Observation<Self::TermType>> {
-        self.facts.iter().sorted().into_iter().dedup().collect()
-    }
-
-    fn observe(&mut self, observation: &Observation<Self::TermType>) {
+    /// Augments the receiver with `observation`, making `observation`true in the receiver.
+    pub fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<WitnessTerm> =
@@ -330,7 +315,8 @@ impl ModelTrait for Model {
         }
     }
 
-    fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool {
+    /// Returns true if `observation` is true in the receiver; otherwise, returns false.
+    pub fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<Option<&Element>> = terms.iter().map(|t| self.element(t)).collect();
@@ -353,6 +339,22 @@ impl ModelTrait for Model {
                 left.is_some() && left == self.element(right)
             }
         }
+    }
+}
+
+impl ModelTrait for Model {
+    type TermType = WitnessTerm;
+
+    fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    fn domain(&self) -> Vec<&Element> {
+        self.domain.iter().unique().collect()
+    }
+
+    fn facts(&self) -> Vec<&Observation<Self::TermType>> {
+        self.facts.iter().sorted().into_iter().dedup().collect()
     }
 
     fn witness(&self, element: &Element) -> Vec<&Self::TermType> {

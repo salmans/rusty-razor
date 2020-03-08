@@ -363,12 +363,6 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
     /// [`Fact`]: ./enum.Observation.html#variant.Fact
     fn facts(&self) -> Vec<&Observation<Self::TermType>>;
 
-    /// Augments the receiver with `observation`, making `observation`true in the receiver.
-    fn observe(&mut self, observation: &Observation<Self::TermType>);
-
-    /// Returns true if `observation` is true in the receiver; otherwise, returns false.
-    fn is_observed(&self, observation: &Observation<Self::TermType>) -> bool;
-
     /// Returns a set of all witness terms in the receiver that are denoted by `element`.
     fn witness(
         &self,
