@@ -302,37 +302,8 @@ impl Model {
             })
             .collect();
     }
-}
 
-impl Clone for Model {
-    fn clone(&self) -> Self {
-        Self {
-            id: rand::random(),
-            element_index: self.element_index.clone(),
-            rewrites: self.rewrites.clone(),
-            facts: self.facts.clone(),
-            // In the `basic` implementation, a model is cloned after being processed in a
-            // chase-step, so its `equality_history` does not need to persist after cloning it.
-            equality_history: HashMap::new(),
-        }
-    }
-}
-
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
-
-    fn get_id(&self) -> u64 {
-        self.id
-    }
-
-    fn domain(&self) -> Vec<&E> {
-        self.rewrites.values().into_iter().unique().collect()
-    }
-
-    fn facts(&self) -> Vec<&Observation<Self::TermType>> {
-        self.facts.iter().sorted().into_iter().dedup().collect()
-    }
-
+    /// Augments the receiver with `observation`, making `observation`true in the receiver.
     fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
@@ -364,6 +335,7 @@ impl ModelTrait for Model {
         }
     }
 
+    /// Returns true if `observation` is true in the receiver; otherwise, returns false.
     fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
@@ -387,6 +359,36 @@ impl ModelTrait for Model {
                 left.is_some() && left == self.element(right)
             }
         }
+    }
+}
+
+impl Clone for Model {
+    fn clone(&self) -> Self {
+        Self {
+            id: rand::random(),
+            element_index: self.element_index.clone(),
+            rewrites: self.rewrites.clone(),
+            facts: self.facts.clone(),
+            // In the `basic` implementation, a model is cloned after being processed in a
+            // chase-step, so its `equality_history` does not need to persist after cloning it.
+            equality_history: HashMap::new(),
+        }
+    }
+}
+
+impl ModelTrait for Model {
+    type TermType = WitnessTerm;
+
+    fn get_id(&self) -> u64 {
+        self.id
+    }
+
+    fn domain(&self) -> Vec<&E> {
+        self.rewrites.values().into_iter().unique().collect()
+    }
+
+    fn facts(&self) -> Vec<&Observation<Self::TermType>> {
+        self.facts.iter().sorted().into_iter().dedup().collect()
     }
 
     fn witness(&self, element: &E) -> Vec<&WitnessTerm> {
