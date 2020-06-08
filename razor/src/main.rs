@@ -4,8 +4,7 @@ use crate::utils::terminal::{
     Terminal, INFO_ATTRIBUTE, INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
     MODEL_FACTS_COLOR,
 };
-use exitfailure::ExitFailure;
-use failure::{Error, ResultExt};
+use anyhow::Error;
 use itertools::Itertools;
 use razor_chase::{
     chase::{
@@ -136,7 +135,7 @@ struct Command {
     log: Option<std::path::PathBuf>,
 }
 
-fn main() -> Result<(), ExitFailure> {
+fn main() -> Result<(), Error> {
     let args = Command::from_args();
 
     let command = args.command;
@@ -164,8 +163,7 @@ fn main() -> Result<(), ExitFailure> {
         } => {
             let theory: Theory;
             if let Some(input) = input {
-                theory = read_theory_from_file(input.to_str().unwrap_or("."))
-                    .with_context(|e| e.to_string())?;
+                theory = read_theory_from_file(input.to_str().unwrap_or("."))?
             } else {
                 // input from the pipe
                 let mut buf: Vec<u8> = Vec::new();
@@ -276,11 +274,12 @@ fn process_solve(
 }
 
 pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
-    let mut f = fs::File::open(filename).with_context(|_| "could not find the input file")?;
+    let mut f = fs::File::open(filename)
+        .map_err(|e| Error::new(e).context("could not find the input file"))?;
 
     let mut contents = String::new();
     f.read_to_string(&mut contents)
-        .with_context(|_| "something went wrong reading the input file")?;
+        .map_err(|e| Error::new(e).context("something went wrong reading the input file"))?;
 
     contents.parse()
 }

@@ -38,7 +38,7 @@
 //! [`FromStr`]: https://doc.rust-lang.org/stable/core/str/trait.FromStr.html
 //! [`str::parse`]: https://doc.rust-lang.org/stable/std/primitive.str.html#method.parse
 use super::syntax::{Formula::*, *};
-use failure::{Error, Fail};
+use anyhow::Error;
 use nom::{types::CompleteStr, *};
 use nom_locate::LocatedSpan;
 use std::fmt;
@@ -114,8 +114,8 @@ fn error_code_to_string(code: u32) -> &'static str {
     }
 }
 
-#[derive(Debug, Fail)]
-enum ParserError {
+#[derive(Debug)]
+pub enum ParseError {
     Missing {
         line: u32,
         column: u32,
@@ -134,17 +134,19 @@ enum ParserError {
     Unknown,
 }
 
-impl fmt::Display for ParserError {
+impl std::error::Error for ParseError {}
+
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            ParserError::Missing { line, column, code } => write!(
+            ParseError::Missing { line, column, code } => write!(
                 f,
                 "missing '{}' at line {}, column {}",
                 error_code_to_string(*code),
                 line,
                 column
             ),
-            ParserError::Expecting {
+            ParseError::Expecting {
                 line,
                 column,
                 code,
@@ -163,12 +165,12 @@ impl fmt::Display for ParserError {
                     Ok(result)
                 }
             }),
-            ParserError::Failed { line, column } => write!(
+            ParseError::Failed { line, column } => write!(
                 f,
                 "failed to parse the input at line {}, column {}",
                 line, column
             ),
-            ParserError::Unknown => write!(f, "an error occurred while parsing the input"),
+            ParseError::Unknown => write!(f, "an error occurred while parsing the input"),
         }
     }
 }
@@ -471,7 +473,7 @@ named!(pub theory<Span, Theory>,
     )
 );
 
-fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
+fn make_parser_error(error: &Err<Span, u32>) -> ParseError {
     match error {
         Err::Error(Context::Code(pos, ErrorKind::Custom(code)))
         | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
@@ -482,30 +484,30 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
             };
             let code = *code;
             match code {
-                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParserError::Missing {
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParseError::Missing {
                     line: pos.line,
                     column: pos.get_column() as u32,
                     code,
                 },
-                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting {
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParseError::Expecting {
                     line: pos.line,
                     column: pos.get_column() as u32,
                     code,
                     found,
                 },
-                _ => ParserError::Failed {
+                _ => ParseError::Failed {
                     line: pos.line,
                     column: pos.get_column() as u32,
                 },
             }
         }
         Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
-            ParserError::Failed {
+            ParseError::Failed {
                 line: pos.line,
                 column: pos.get_column() as u32,
             }
         }
-        _ => ParserError::Unknown,
+        _ => ParseError::Unknown,
     }
 }
 
