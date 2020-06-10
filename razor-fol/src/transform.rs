@@ -1082,19 +1082,23 @@ impl Theory {
     ///
     /// let theory: Theory = r#"
     ///     not P(x) or Q(x);
-    ///     Q(x) -> exists y. P(x, y);
+    ///     Q(x) -> exists y. R(x, y);
     /// "#.parse().unwrap();
     /// assert_eq!(r#"P(x) → Q(x)
-    /// Q(x) → P(x, sk#0(x))"#, theory.gnf().to_string());
+    /// Q(x) → R(x, sk#0(x))"#, theory.gnf().to_string());
     /// ```
     pub fn gnf(&self) -> Theory {
+        use core::convert::TryFrom;
+
         let mut generator = SkolemGenerator::new();
         let formulae: Vec<Formula> = self
             .formulae
             .iter()
             .flat_map(|f| f.gnf_with(&mut generator))
             .collect();
-        Theory::from(compress_geometric(formulae))
+
+        // assuming that conversion to gnf won't change the signature
+        Theory::try_from(compress_geometric(formulae)).unwrap()
     }
 }
 
