@@ -1,3 +1,7 @@
+/*! Defines a ['Sig'] to represent the signature of first-order theories.
+
+['Sig']: ./struct.Sig.html
+*/
 use super::{Formula, Pred, Term, C, F};
 use anyhow::{bail, Error, Result};
 use core::convert::TryFrom;
@@ -10,10 +14,13 @@ use std::{
 /// Predicate symbol to represent the signature of equality.
 pub const EQ_PRED_SYM: &'static str = "=";
 
-/// contains the signature information for function symbols.
+/// Contains the signature information for a function.
 #[derive(PartialEq, Eq, Debug)]
 pub struct FSig {
+    /// Is the function symbol.
     pub symbol: F,
+
+    /// Is the arity of the function.
     pub arity: u8,
 }
 
@@ -23,10 +30,13 @@ impl fmt::Display for FSig {
     }
 }
 
-/// contains the signature information for predicate symbols.
+/// Contains the signature information for a predicate.
 #[derive(PartialEq, Eq, Debug)]
 pub struct PSig {
+    /// Is the predicate symbol.
     pub symbol: Pred,
+
+    /// Is the arity of the predicate.
     pub arity: u8,
 }
 
@@ -36,16 +46,16 @@ impl fmt::Display for PSig {
     }
 }
 
-/// is the signature of a first-order theory.
+/// Is the signature of a first-order theory.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Sig {
-    /// is the constant symbols in a theory.
+    /// Is the constant symbols in a theory.
     pub constants: HashSet<C>,
 
-    /// is the signature of functions in a theory.
+    /// Is the signature of functions in a theory.
     pub functions: HashMap<F, FSig>,
 
-    /// is the signature of predicates in a theory.
+    /// Is the signature of predicates in a theory.
     pub predicates: HashMap<Pred, PSig>,
 }
 
@@ -63,6 +73,7 @@ impl Sig {
         self.constants.insert(constant);
     }
 
+    // adds the signature of a function.
     fn add_function(&mut self, function: FSig) -> Result<()> {
         if let Some(sig) = self.functions.get(&function.symbol) {
             if *sig != function {
@@ -77,6 +88,7 @@ impl Sig {
         Ok(())
     }
 
+    // adds the signature of a predicate.
     fn add_predicate(&mut self, predicate: PSig) -> Result<()> {
         if let Some(sig) = self.predicates.get(&predicate.symbol) {
             if *sig != predicate {
@@ -141,6 +153,8 @@ impl TryFrom<&Vec<Formula>> for Sig {
     }
 }
 
+// returns the constants and function signatures in the input term and its
+// subterms and fails if a functions with different signatures exist.
 fn term_signature(term: &Term) -> (Vec<C>, Vec<FSig>) {
     match term {
         Term::Var { .. } => (Vec::new(), Vec::new()),
@@ -165,6 +179,9 @@ fn term_signature(term: &Term) -> (Vec<C>, Vec<FSig>) {
     }
 }
 
+// returns the constants, functions signatures and predicates signatures in
+// the given formula and its subformulae and fails if a function or a predicate
+// with different signatures exist.
 fn formula_signature(formula: &Formula) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
     match formula {
         Formula::Top | Formula::Bottom => (Vec::new(), Vec::new(), Vec::new()),
