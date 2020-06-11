@@ -13,7 +13,7 @@ categories = ["parser-implementations", "mathematics"]
 
 [dependencies]
 itertools = "0.7"
-failure = "0.1.6"
+anyhow = "^1.0.31"
 
 [dependencies.nom]
 version = "4.2.3"

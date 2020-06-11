@@ -1,3 +1,3 @@
 'b0 = 'c0 and 'b1 = 'c1 and 'b2 = 'c2 and 'b3 = 'c3;
-f('b0) = 'd0 and f('b0, 'b1) = 'd1 and f('b0, 'b1, 'b2) = 'd2 and f('b0, 'b1, 'b2, 'b3) = 'd3;
-f('c0) = 'd0 and f('c0, 'c1) = 'd1 and f('c0, 'c1, 'c2) = 'd2 and f('c0, 'c1, 'c2, 'c3) = 'd3 implies false;
+f('b0) = 'd0 and g('b0, 'b1) = 'd1 and h('b0, 'b1, 'b2) = 'd2 and i('b0, 'b1, 'b2, 'b3) = 'd3;
+f('c0) = 'd0 and g('c0, 'c1) = 'd1 and h('c0, 'c1, 'c2) = 'd2 and i('c0, 'c1, 'c2, 'c3) = 'd3 implies false;

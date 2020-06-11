@@ -1,7 +1,10 @@
 /*! Defines an abstract syntax tree (AST) for first-order terms and formulae with equality. */
-use itertools::Itertools;
+mod signature;
 
-use std::fmt;
+use anyhow::{Error, Result};
+use itertools::Itertools;
+use signature::Sig;
+use std::{convert::TryFrom, fmt};
 
 /// Represents an uninterpreted function symbol with a given name.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -728,15 +731,26 @@ impl fmt::Debug for Formula {
     }
 }
 
-/// Is a first-order theory, containing a set of first-order formulae.
+/// is a first-order theory, containing a set of first-order formulae.
 pub struct Theory {
-    /// Is the list of first-order formulae in this theory.
+    /// is the signature of the theory, containing constants, function symbols, and predicates.
+    pub signature: Sig,
+
+    /// is the list of first-order formulae in this theory.
     pub formulae: Vec<Formula>,
 }
 
-impl From<Vec<Formula>> for Theory {
-    fn from(formulae: Vec<Formula>) -> Self {
-        Theory { formulae }
+impl TryFrom<Vec<Formula>> for Theory {
+    type Error = Error;
+
+    fn try_from(formulae: Vec<Formula>) -> Result<Self> {
+        let signature =
+            Sig::try_from(&formulae).map_err(|e| e.context("invalid theory signature"))?;
+
+        Ok(Theory {
+            signature,
+            formulae,
+        })
     }
 }
 
@@ -749,7 +763,7 @@ impl fmt::Display for Theory {
 
 //// Tests -------------------------------------
 #[cfg(test)]
-mod test_syntax {
+mod tests {
     use super::Formula::*;
     use super::*;
     use crate::test_prelude::*;
@@ -1282,10 +1296,7 @@ mod test_syntax {
 
     #[test]
     fn test_formula_to_string() {
-        let expected = "∀ x. (x = x)\n\
-            ∀ x, y. ((x = y) → (y = x))\n\
-        ∀ x, y, z. (((x = y) ∧ (y = z)) → (x = z))";
-        let theory = Theory::from(vec![
+        let formulae = vec![
             forall1(_x(), x().equals(x())),
             forall2(_x(), _y(), x().equals(y()).implies(y().equals(x()))),
             forall3(
@@ -1296,7 +1307,15 @@ mod test_syntax {
                     .and(y().equals(z()))
                     .implies(x().equals(z())),
             ),
-        ]);
-        assert_eq!(expected, theory.to_string());
+        ];
+
+        let expected_sig = Sig::try_from(&formulae).unwrap();
+        let expected = "∀ x. (x = x)\n\
+            ∀ x, y. ((x = y) → (y = x))\n\
+            ∀ x, y, z. (((x = y) ∧ (y = z)) → (x = z))";
+
+        let theory = Theory::try_from(formulae).unwrap();
+        assert_eq!(expected, &theory.to_string());
+        assert_eq!(&expected_sig, &theory.signature);
     }
 }

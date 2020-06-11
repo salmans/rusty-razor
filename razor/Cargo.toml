@@ -12,11 +12,10 @@ keywords = ["razor", "chase", "logic", "model-finder"]
 categories = ["mathematics", "command-line-utilities"]
 
 [dependencies]
-razor-fol = "0.1.0"
-razor-chase = "0.1.0"
+razor-fol = {path = "../razor-fol"}
+razor-chase = {path = "../razor-chase"}
 itertools = "0.7"
-failure = "0.1.6"
-exitfailure = "0.5.1"
+anyhow = "^1.0.31"
 structopt = "0.2"
 term = "0.2"
 tracing = "0.1"

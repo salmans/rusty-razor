@@ -38,7 +38,8 @@
 //! [`FromStr`]: https://doc.rust-lang.org/stable/core/str/trait.FromStr.html
 //! [`str::parse`]: https://doc.rust-lang.org/stable/std/primitive.str.html#method.parse
 use super::syntax::{Formula::*, *};
-use failure::{Error, Fail};
+use anyhow::{Error, Result};
+use core::convert::TryFrom;
 use nom::{types::CompleteStr, *};
 use nom_locate::LocatedSpan;
 use std::fmt;
@@ -114,8 +115,8 @@ fn error_code_to_string(code: u32) -> &'static str {
     }
 }
 
-#[derive(Debug, Fail)]
-enum ParserError {
+#[derive(Debug)]
+pub enum ParseError {
     Missing {
         line: u32,
         column: u32,
@@ -134,17 +135,19 @@ enum ParserError {
     Unknown,
 }
 
-impl fmt::Display for ParserError {
+impl std::error::Error for ParseError {}
+
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            ParserError::Missing { line, column, code } => write!(
+            ParseError::Missing { line, column, code } => write!(
                 f,
                 "missing '{}' at line {}, column {}",
                 error_code_to_string(*code),
                 line,
                 column
             ),
-            ParserError::Expecting {
+            ParseError::Expecting {
                 line,
                 column,
                 code,
@@ -163,12 +166,12 @@ impl fmt::Display for ParserError {
                     Ok(result)
                 }
             }),
-            ParserError::Failed { line, column } => write!(
+            ParseError::Failed { line, column } => write!(
                 f,
                 "failed to parse the input at line {}, column {}",
                 line, column
             ),
-            ParserError::Unknown => write!(f, "an error occurred while parsing the input"),
+            ParseError::Unknown => write!(f, "an error occurred while parsing the input"),
         }
     }
 }
@@ -448,7 +451,7 @@ named!(p_formula<Span, Formula>,
     alt!(p_quantified | p_implication)
 );
 
-named!(pub theory<Span, Theory>,
+named!(pub theory<Span, Result<Theory>>,
     map!(
         many_till!(
             map!(
@@ -466,12 +469,12 @@ named!(pub theory<Span, Theory>,
             let formulae: Vec<Formula> = fs.into_iter()
                 .filter_map(|f| f)
                 .collect();
-            Theory::from(formulae)
+            Theory::try_from(formulae)
         }
     )
 );
 
-fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
+fn make_parser_error(error: &Err<Span, u32>) -> ParseError {
     match error {
         Err::Error(Context::Code(pos, ErrorKind::Custom(code)))
         | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
@@ -482,30 +485,30 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParserError {
             };
             let code = *code;
             match code {
-                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParserError::Missing {
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParseError::Missing {
                     line: pos.line,
                     column: pos.get_column() as u32,
                     code,
                 },
-                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParserError::Expecting {
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParseError::Expecting {
                     line: pos.line,
                     column: pos.get_column() as u32,
                     code,
                     found,
                 },
-                _ => ParserError::Failed {
+                _ => ParseError::Failed {
                     line: pos.line,
                     column: pos.get_column() as u32,
                 },
             }
         }
         Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
-            ParserError::Failed {
+            ParseError::Failed {
                 line: pos.line,
                 column: pos.get_column() as u32,
             }
         }
-        _ => ParserError::Unknown,
+        _ => ParseError::Unknown,
     }
 }
 
@@ -522,10 +525,10 @@ impl FromStr for Formula {
 impl FromStr for Theory {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         theory(Span::new(CompleteStr(s)))
             .map(|r| r.1)
-            .map_err(|e| make_parser_error(&e).into())
+            .map_err(|e| make_parser_error(&e))?
     }
 }
 
@@ -546,6 +549,19 @@ mod test_parser {
         let (rem, res) = parsed.unwrap();
         assert_eq!(expected, res);
         assert_eq!(CompleteStr(remaining), rem.fragment);
+    }
+
+    fn unsafe_success_to_string<R: ToString>(
+        parser: fn(Span) -> nom::IResult<Span, Result<R>, u32>,
+        parse_str: &str,
+        expected: &str,
+        remaining: &str,
+    ) {
+        let parsed = parser(Span::new(CompleteStr(parse_str)));
+        assert!(parsed.is_ok());
+        let (str, result) = parsed.unwrap();
+        assert_eq!(result.unwrap().to_string(), expected);
+        assert_eq!(str.fragment.0, remaining);
     }
 
     fn success_to_string<R: ToString>(
@@ -1076,8 +1092,8 @@ mod test_parser {
 
     #[test]
     fn test_theory() {
-        success_to_string(theory, "  P(x)   ;", "P(x)", "");
-        success_to_string(
+        unsafe_success_to_string(theory, "  P(x)   ;", "P(x)", "");
+        unsafe_success_to_string(
             theory,
             "E(x,x);\
             E(x,y) -> E(y,x) ;\
@@ -1085,7 +1101,7 @@ mod test_parser {
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
             "",
         );
-        success_to_string(
+        unsafe_success_to_string(
             theory,
             "// comment 0\n\
             E(x,x)\
@@ -1096,7 +1112,7 @@ mod test_parser {
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
             "",
         );
-        success_to_string(
+        unsafe_success_to_string(
             theory,
             "// comment 0\n\
             E /*reflexive*/(//first argument \n\
@@ -1110,7 +1126,7 @@ mod test_parser {
             "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
             "",
         );
-        success_to_string(
+        unsafe_success_to_string(
             theory,
             "P(x);exists x . Q(x);R(x) -> S(x);",
             "P(x)\n∃ x. Q(x)\nR(x) → S(x)",

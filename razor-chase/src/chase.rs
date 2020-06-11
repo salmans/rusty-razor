@@ -566,7 +566,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// let theory: Theory = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
-///   R(x) -> exists y . Q(x, y);
+///   R(x) -> exists y . S(x, y);
 /// "#.parse().unwrap();
 ///
 /// let geometric_theory = theory.gnf(); // convert the theory to geometric
@@ -633,7 +633,7 @@ where
 /// let theory: Theory = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
-///   R(x) -> exists y . Q(x, y);
+///   R(x) -> exists y . S(x, y);
 /// "#.parse().unwrap();
 ///
 /// let geometric_theory = theory.gnf(); // convert the theory to geometric
