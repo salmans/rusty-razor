@@ -77,90 +77,10 @@ pub fn exists(variables: Vec<V>, formula: Formula) -> Formula {
     }
 }
 
-/// Returns an existentially quantified formula on one variable.
-pub fn exists1(first: V, formula: Formula) -> Formula {
-    Formula::Exists {
-        variables: vec![first],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns an existentially quantified formula on two variables.
-pub fn exists2(first: V, second: V, formula: Formula) -> Formula {
-    Formula::Exists {
-        variables: vec![first, second],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns an existentially quantified formula on three variables.
-pub fn exists3(first: V, second: V, third: V, formula: Formula) -> Formula {
-    Formula::Exists {
-        variables: vec![first, second, third],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns an existentially quantified formula on four variables.
-pub fn exists4(first: V, second: V, third: V, fourth: V, formula: Formula) -> Formula {
-    Formula::Exists {
-        variables: vec![first, second, third, fourth],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns an existentially quantified formula on five variables.
-pub fn exists5(first: V, second: V, third: V, fourth: V, fifth: V, formula: Formula) -> Formula {
-    Formula::Exists {
-        variables: vec![first, second, third, fourth, fifth],
-        formula: Box::new(formula),
-    }
-}
-
 /// Returns a universally quantified formula with the given `variables` and `formula`.
 pub fn forall(variables: Vec<V>, formula: Formula) -> Formula {
     Formula::Forall {
         variables,
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns a universally quantified formula on one variable.
-pub fn forall1(first: V, formula: Formula) -> Formula {
-    Formula::Forall {
-        variables: vec![first],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns a universally quantified formula on two variables.
-pub fn forall2(first: V, second: V, formula: Formula) -> Formula {
-    Formula::Forall {
-        variables: vec![first, second],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns a universally quantified formula on three variables.
-pub fn forall3(first: V, second: V, third: V, formula: Formula) -> Formula {
-    Formula::Forall {
-        variables: vec![first, second, third],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns a universally quantified formula on four variables.
-pub fn forall4(first: V, second: V, third: V, fourth: V, formula: Formula) -> Formula {
-    Formula::Forall {
-        variables: vec![first, second, third, fourth],
-        formula: Box::new(formula),
-    }
-}
-
-/// Returns a universally quantified formula on five variables.
-pub fn forall5(first: V, second: V, third: V, fourth: V, fifth: V, formula: Formula) -> Formula {
-    Formula::Forall {
-        variables: vec![first, second, third, fourth, fifth],
         formula: Box::new(formula),
     }
 }
@@ -379,6 +299,7 @@ impl fmt::Debug for Formula {
 #[cfg(test)]
 mod tests {
     use super::{Formula::*, *};
+    use crate::formula;
     use crate::test_prelude::*;
 
     #[test]
@@ -682,34 +603,25 @@ mod tests {
 
     #[test]
     fn test_exists_to_string() {
-        assert_eq!("∃ x. P(x)", exists1(_x(), P().app1(x())).to_string());
-        assert_eq!(
-            "∃ x, y. P(x, y)",
-            exists2(_x(), _y(), P().app2(x(), y())).to_string()
-        );
-        assert_eq!(
-            "∃ x, y. (x = y)",
-            exists2(_x(), _y(), x().equals(y())).to_string()
-        );
-        assert_eq!(
-            "∃ x. (¬Q(x))",
-            exists1(_x(), not(Q().app1(x()))).to_string()
-        );
+        assert_eq!("∃ x. P(x)", formula!(? x. (P(x))).to_string());
+        assert_eq!("∃ x, y. P(x, y)", formula!(? x, y. (P(x, y))).to_string());
+        assert_eq!("∃ x, y. (x = y)", formula!(? x, y. ((x) = (y))).to_string());
+        assert_eq!("∃ x. (¬Q(x))", formula!(? x. (~(Q(x)))).to_string());
         assert_eq!(
             "∃ x. (Q(x) ∧ R(x))",
-            exists1(_x(), Q().app1(x()).and(R().app1(x()))).to_string()
+            formula!(? x. ((Q(x)) & (R(x)))).to_string()
         );
         assert_eq!(
             "∃ x. (Q(x) ∨ R(x))",
-            exists1(_x(), Q().app1(x()).or(R().app1(x()))).to_string()
+            formula!(? x. ((Q(x)) | (R(x)))).to_string()
         );
         assert_eq!(
             "∃ x. (Q(x) → R(x))",
-            exists1(_x(), Q().app1(x()).implies(R().app1(x()))).to_string()
+            formula!(? x. ((Q(x)) -> (R(x)))).to_string()
         );
         assert_eq!(
             "∃ x. (Q(x) ⇔ R(x))",
-            exists1(_x(), Q().app1(x()).iff(R().app1(x()))).to_string()
+            formula!(? x. ((Q(x)) <=> (R(x)))).to_string()
         );
     }
 
@@ -717,68 +629,53 @@ mod tests {
     fn test_exists_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &exists1(_x(), P().app1(x())).free_vars());
+            assert_eq_vectors(&expected, &formula!(? x. (P(x))).free_vars());
         }
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(
-                &expected,
-                &exists2(_x(), _y(), P().app2(x(), y())).free_vars(),
-            );
+            assert_eq_vectors(&expected, &formula!(? x, y. (P(x, y))).free_vars());
         }
         {
             let vars = vec![_y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &exists1(_x(), x().equals(y())).free_vars());
+            assert_eq_vectors(&expected, &formula!(? x. ((x) = (y))).free_vars());
         }
         {
             let vars = vec![_y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(
-                &expected,
-                &exists1(_x(), Q().app1(x()).and(R().app1(y()))).free_vars(),
-            );
+            assert_eq_vectors(&expected, &formula!(? x. ((Q(x)) & (R(y)))).free_vars());
         }
         {
             let vars = vec![_y(), _z()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
             assert_eq_vectors(
                 &expected,
-                &exists1(_x(), Q().app2(x(), z()).and(R().app2(x(), y()))).free_vars(),
+                &formula!(? x. ((Q(x, z)) & (R(x, y)))).free_vars(),
             );
         }
     }
 
     #[test]
     fn test_forall_to_string() {
-        assert_eq!("∀ x. P(x)", forall1(_x(), P().app1(x())).to_string());
-        assert_eq!(
-            "∀ x, y. P(x, y)",
-            forall2(_x(), _y(), P().app2(x(), y())).to_string()
-        );
-        assert_eq!(
-            "∀ x, y. (x = y)",
-            forall2(_x(), _y(), x().equals(y())).to_string()
-        );
-        assert_eq!(
-            "∀ x. (¬Q(x))",
-            forall1(_x(), not(Q().app1(x()))).to_string()
-        );
+        assert_eq!("∀ x. P(x)", formula!(! x. (P(x))).to_string());
+        assert_eq!("∀ x, y. P(x, y)", formula!(! x, y. (P(x, y))).to_string());
+        assert_eq!("∀ x, y. (x = y)", formula!(! x, y. ((x) = (y))).to_string());
+        assert_eq!("∀ x. (¬Q(x))", formula!(! x. (~(Q(x)))).to_string());
         assert_eq!(
             "∀ x. (Q(x) ∧ R(x))",
-            forall1(_x(), Q().app1(x()).and(R().app1(x()))).to_string()
+            formula!(! x. ((Q(x)) & (R(x)))).to_string()
         );
         assert_eq!(
             "∀ x. (Q(x) ∨ R(x))",
-            forall1(_x(), Q().app1(x()).or(R().app1(x()))).to_string()
+            formula!(! x. ((Q(x)) | (R(x)))).to_string()
         );
         assert_eq!(
             "∀ x. (Q(x) → R(x))",
-            forall1(_x(), Q().app1(x()).implies(R().app1(x()))).to_string()
+            formula!(! x. ((Q(x)) -> (R(x)))).to_string()
         );
         assert_eq!(
             "∀ x. (Q(x) ⇔ R(x))",
-            forall1(_x(), Q().app1(x()).iff(R().app1(x()))).to_string()
+            formula!(! x. ((Q(x)) <=> (R(x)))).to_string()
         );
     }
 
@@ -786,34 +683,28 @@ mod tests {
     fn test_forall_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &forall1(_x(), P().app1(x())).free_vars());
+            assert_eq_vectors(&expected, &formula!(! x. (P(x))).free_vars());
         }
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(
-                &expected,
-                &forall2(_x(), _y(), P().app2(x(), y())).free_vars(),
-            );
+            assert_eq_vectors(&expected, &formula!(! x, y. (P(x, y))).free_vars());
         }
         {
             let vars = vec![_y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &forall1(_x(), x().equals(y())).free_vars());
+            assert_eq_vectors(&expected, &formula!(! x. ((x) = (y))).free_vars());
         }
         {
             let vars = vec![_y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(
-                &expected,
-                &forall1(_x(), Q().app1(x()).and(R().app1(y()))).free_vars(),
-            );
+            assert_eq_vectors(&expected, &formula!(! x. ((Q(x)) & (R(y)))).free_vars());
         }
         {
             let vars = vec![_y(), _z()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
             assert_eq_vectors(
                 &expected,
-                &forall1(_x(), Q().app2(x(), z()).and(R().app2(x(), y()))).free_vars(),
+                &formula!(! x. ((Q(x, z)) & (R(x, y)))).free_vars(),
             );
         }
     }

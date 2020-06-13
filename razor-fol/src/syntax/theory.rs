@@ -38,22 +38,14 @@ impl fmt::Display for Theory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::syntax::{forall1, forall2, forall3};
-    use crate::test_prelude::*;
+    use crate::formula;
 
     #[test]
     fn test_formula_to_string() {
         let formulae = vec![
-            forall1(_x(), x().equals(x())),
-            forall2(_x(), _y(), x().equals(y()).implies(y().equals(x()))),
-            forall3(
-                _x(),
-                _y(),
-                _z(),
-                x().equals(y())
-                    .and(y().equals(z()))
-                    .implies(x().equals(z())),
-            ),
+            formula!(!x. ((x) = (x))),
+            formula!(!x, y. (((x) = (y)) -> ((y) = (x)))),
+            formula!(!x, y, z. ((((x) = (y)) & ((y) = (z))) -> ((x) = (z)))),
         ];
 
         let expected_sig = Sig::try_from(&formulae).unwrap();

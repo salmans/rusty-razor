@@ -1214,6 +1214,7 @@ fn simplify_dnf(formula: Formula) -> Formula {
 #[cfg(test)]
 mod test_transform {
     use super::*;
+    use crate::formula;
     use crate::test_prelude::*;
     use std::collections::HashMap;
 
@@ -1593,8 +1594,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            exists2(_x(), _y(), P().app3(y(), y(), y())),
-            exists2(_x(), _y(), P().app3(x(), y(), z())).rename_vars(&|v: &V| {
+            formula!(? x, y. (P(y, y, y))),
+            formula!(? x, y. (P(x, y, z))).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _y()
                 } else if *v == _z() {
@@ -1605,8 +1606,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            forall2(_x(), _y(), P().app3(y(), y(), y())),
-            forall2(_x(), _y(), P().app3(x(), y(), z())).rename_vars(&|v: &V| {
+            formula!(! x, y. (P(y, y, y))),
+            formula!(! x, y. (P(x, y, z))).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _y()
                 } else if *v == _z() {
@@ -1617,25 +1618,18 @@ mod test_transform {
             })
         );
         assert_eq!(
-            exists1(
-                _x(),
-                forall1(_y(), P().app1(y()).or(Q().app1(z()).and(R().app1(z()))),)
-                    .and(not(z().equals(z())))
-            ),
-            exists1(
-                _x(),
-                forall1(_y(), P().app1(x()).or(Q().app1(y()).and(R().app1(z()))),)
-                    .and(not(y().equals(y()))),
+            formula!(? x. ((!y. ((P(y)) | ((Q(z)) & (R(z))))) & (~((z) = (z))))),
+            formula!(? x. ((!y. ((P(x)) | ((Q(y)) & (R(z))))) & (~((y) = (y))))).rename_vars(
+                &|v: &V| {
+                    if *v == _x() {
+                        _y()
+                    } else if *v == _y() {
+                        _z()
+                    } else {
+                        v.clone()
+                    }
+                }
             )
-            .rename_vars(&|v: &V| {
-                if *v == _x() {
-                    _y()
-                } else if *v == _y() {
-                    _z()
-                } else {
-                    v.clone()
-                }
-            })
         );
     }
 
@@ -1790,8 +1784,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            exists2(_x(), _y(), P().app3(f().app1(g().app1(y())), y(), y())),
-            exists2(_x(), _y(), P().app3(x(), y(), z())).substitute(&|v: &V| {
+            formula!(? x, y. (P(f(g(y)), y, y))),
+            formula!(? x, y. (P(x, y, z))).substitute(&|v: &V| {
                 if *v == _x() {
                     f().app1(g().app1(y()))
                 } else if *v == _z() {
@@ -1802,8 +1796,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            forall2(_x(), _y(), P().app3(f().app1(g().app1(y())), y(), y())),
-            forall2(_x(), _y(), P().app3(x(), y(), z())).substitute(&|v: &V| {
+            formula!(!x, y. (P(f(g(y)), y, y))),
+            formula!(!x, y. (P(x, y, z))).substitute(&|v: &V| {
                 if *v == _x() {
                     f().app1(g().app1(y()))
                 } else if *v == _z() {
@@ -1814,15 +1808,19 @@ mod test_transform {
             })
         );
         assert_eq!(
-            exists1(
-                _x(),
-                forall1(_y(), P().app1(y()).or(Q().app1(z()).and(R().app1(z()))),)
-                    .and(not(z().equals(z())))
+            formula!(
+                ? x. (
+                    (!y. (
+                        (P(y)) | ((Q(z)) & (R(z))))
+                    ) & (~((z) = (z)))
+                )
             ),
-            exists1(
-                _x(),
-                forall1(_y(), P().app1(x()).or(Q().app1(y()).and(R().app1(z()))),)
-                    .and(not(y().equals(y()))),
+            formula!(
+                ? x. (
+                    (!y. (
+                        (P(x)) | ((Q(y)) & (R(z))))
+                    ) & (~((y) = (z)))
+                )
             )
             .substitute(&|v: &V| {
                 if *v == _x() {
@@ -2119,166 +2117,198 @@ mod test_transform {
         //renaming tests
         assert_debug_string(
             "! x``, x`. (P(x``) & Q(x))",
-            forall2(_x(), _x_1(), P().app1(x()))
+            forall(vec![_x(), _x_1()], P().app1(x()))
                 .and(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (P(x``) & Q(x))",
-            exists2(_x(), _x_1(), P().app1(x()))
+            exists(vec![_x(), _x_1()], P().app1(x()))
                 .and(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``) & Q(x, x`))",
-            exists1(_x(), P().app1(x())).and(Q().app2(x(), x_1())).pnf(),
+            exists(vec![_x()], P().app1(x()))
+                .and(Q().app2(x(), x_1()))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``, x`) & Q(x))",
-            exists1(_x(), P().app2(x(), x_1())).and(Q().app1(x())).pnf(),
+            exists(vec![_x()], P().app2(x(), x_1()))
+                .and(Q().app1(x()))
+                .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (Q(x) & P(x``))",
             Q().app1(x())
-                .and(forall2(_x(), _x_1(), P().app1(x())))
+                .and(forall(vec![_x(), _x_1()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (Q(x) & P(x``))",
             Q().app1(x())
-                .and(exists2(_x(), _x_1(), P().app1(x())))
+                .and(exists(vec![_x(), _x_1()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x, x`) & P(x``))",
-            Q().app2(x(), x_1()).and(exists1(_x(), P().app1(x()))).pnf(),
+            Q().app2(x(), x_1())
+                .and(exists(vec![_x()], P().app1(x())))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x) & P(x``, x`))",
-            Q().app1(x()).and(exists1(_x(), P().app2(x(), x_1()))).pnf(),
+            Q().app1(x())
+                .and(exists(vec![_x()], P().app2(x(), x_1())))
+                .pnf(),
         );
 
         assert_debug_string(
             "! x``, x`. (P(x``) | Q(x))",
-            forall2(_x(), _x_1(), P().app1(x())).or(Q().app1(x())).pnf(),
+            forall(vec![_x(), _x_1()], P().app1(x()))
+                .or(Q().app1(x()))
+                .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (P(x``) | Q(x))",
-            exists2(_x(), _x_1(), P().app1(x())).or(Q().app1(x())).pnf(),
+            exists(vec![_x(), _x_1()], P().app1(x()))
+                .or(Q().app1(x()))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``) | Q(x, x`))",
-            exists1(_x(), P().app1(x())).or(Q().app2(x(), x_1())).pnf(),
+            exists(vec![_x()], P().app1(x()))
+                .or(Q().app2(x(), x_1()))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``, x`) | Q(x))",
-            exists1(_x(), P().app2(x(), x_1())).or(Q().app1(x())).pnf(),
+            exists(vec![_x()], P().app2(x(), x_1()))
+                .or(Q().app1(x()))
+                .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (Q(x) | P(x``))",
-            Q().app1(x()).or(forall2(_x(), _x_1(), P().app1(x()))).pnf(),
+            Q().app1(x())
+                .or(forall(vec![_x(), _x_1()], P().app1(x())))
+                .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (Q(x) | P(x``))",
-            Q().app1(x()).or(exists2(_x(), _x_1(), P().app1(x()))).pnf(),
+            Q().app1(x())
+                .or(exists(vec![_x(), _x_1()], P().app1(x())))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x, x`) | P(x``))",
-            Q().app2(x(), x_1()).or(exists1(_x(), P().app1(x()))).pnf(),
+            Q().app2(x(), x_1())
+                .or(exists(vec![_x()], P().app1(x())))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x) | P(x``, x`))",
-            Q().app1(x()).or(exists1(_x(), P().app2(x(), x_1()))).pnf(),
+            Q().app1(x())
+                .or(exists(vec![_x()], P().app2(x(), x_1())))
+                .pnf(),
         );
 
         assert_debug_string(
             "? x``, x`. (P(x``) -> Q(x))",
-            forall2(_x(), _x_1(), P().app1(x()))
+            forall(vec![_x(), _x_1()], P().app1(x()))
                 .implies(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (P(x``) -> Q(x))",
-            exists2(_x(), _x_1(), P().app1(x()))
+            exists(vec![_x(), _x_1()], P().app1(x()))
                 .implies(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (P(x``) -> Q(x, x`))",
-            exists1(_x(), P().app1(x()))
+            exists(vec![_x()], P().app1(x()))
                 .implies(Q().app2(x(), x_1()))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (P(x``, x`) -> Q(x))",
-            exists1(_x(), P().app2(x(), x_1()))
+            exists(vec![_x()], P().app2(x(), x_1()))
                 .implies(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (Q(x) -> P(x``))",
             Q().app1(x())
-                .implies(forall2(_x(), _x_1(), P().app1(x())))
+                .implies(forall(vec![_x(), _x_1()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (Q(x) -> P(x``))",
             Q().app1(x())
-                .implies(exists2(_x(), _x_1(), P().app1(x())))
+                .implies(exists(vec![_x(), _x_1()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x, x`) -> P(x``))",
             Q().app2(x(), x_1())
-                .implies(exists1(_x(), P().app1(x())))
+                .implies(exists(vec![_x()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x) -> P(x``, x`))",
             Q().app1(x())
-                .implies(exists1(_x(), P().app2(x(), x_1())))
+                .implies(exists(vec![_x()], P().app2(x(), x_1())))
                 .pnf(),
         );
 
         assert_debug_string(
             "? x``, x`. (! x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            forall2(_x(), _x_1(), P().app1(x()))
+            forall(vec![_x(), _x_1()], P().app1(x()))
                 .iff(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (? x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            exists2(_x(), _x_1(), P().app1(x()))
+            exists(vec![_x(), _x_1()], P().app1(x()))
                 .iff(Q().app1(x()))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (? x```. ((P(x``) -> Q(x, x`)) & (Q(x, x`) -> P(x```))))",
-            exists1(_x(), P().app1(x())).iff(Q().app2(x(), x_1())).pnf(),
+            exists(vec![_x()], P().app1(x()))
+                .iff(Q().app2(x(), x_1()))
+                .pnf(),
         );
         assert_debug_string(
             "! x``. (? x```. ((P(x``, x`) -> Q(x)) & (Q(x) -> P(x```, x`))))",
-            exists1(_x(), P().app2(x(), x_1())).iff(Q().app1(x())).pnf(),
+            exists(vec![_x()], P().app2(x(), x_1()))
+                .iff(Q().app1(x()))
+                .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (? x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
             Q().app1(x())
-                .iff(forall2(_x(), _x_1(), P().app1(x())))
+                .iff(forall(vec![_x(), _x_1()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (! x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
             Q().app1(x())
-                .iff(exists2(_x(), _x_1(), P().app1(x())))
+                .iff(exists(vec![_x(), _x_1()], P().app1(x())))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (! x```. ((Q(x, x`) -> P(x``)) & (P(x```) -> Q(x, x`))))",
-            Q().app2(x(), x_1()).iff(exists1(_x(), P().app1(x()))).pnf(),
+            Q().app2(x(), x_1())
+                .iff(exists(vec![_x()], P().app1(x())))
+                .pnf(),
         );
         assert_debug_string(
             "? x``. (! x```. ((Q(x) -> P(x``, x`)) & (P(x```, x`) -> Q(x))))",
-            Q().app1(x()).iff(exists1(_x(), P().app2(x(), x_1()))).pnf(),
+            Q().app1(x())
+                .iff(exists(vec![_x()], P().app2(x(), x_1())))
+                .pnf(),
         );
         // both sides of binary formulae
         {
@@ -2436,79 +2466,38 @@ mod test_transform {
 
     #[test]
     fn test_snf() {
-        assert_debug_string("P('sk#0)", exists1(_x(), P().app1(x())).snf());
-        assert_debug_string(
-            "! x. P(x, sk#0(x))",
-            forall1(_x(), exists1(_y(), P().app2(x(), y()))).snf(),
-        );
-        assert_debug_string("P(x, sk#0(x))", exists1(_y(), P().app2(x(), y())).snf());
+        assert_debug_string("P('sk#0)", formula!(? x. (P(x))).snf());
+
+        assert_debug_string("! x. P(x, sk#0(x))", formula!(!x. (?y. (P(x, y)))).snf());
+        assert_debug_string("P(x, sk#0(x))", formula!(?y. (P(x, y))).snf());
         assert_debug_string(
             "! x. P(x, f(g(sk#0(x)), h(sk#0(x))))",
-            forall1(
-                _x(),
-                exists1(_y(), P().app2(x(), f().app2(g().app1(y()), h().app1(y())))),
-            )
-            .snf(),
+            formula!(!x. (? y. (P(x, f(g(y), h(y)))))).snf(),
         );
         assert_debug_string(
             "('sk#0 = 'sk#1) & ('sk#1 = 'sk#2)",
-            exists3(_x(), _y(), _z(), x().equals(y()).and(y().equals(z()))).snf(),
+            formula!(? x, y, z. (((x) = (y)) & ((y) = (z)))).snf(),
         );
         assert_debug_string(
             "! y. (Q('sk#0, y) | P(sk#1(y), y, sk#2(y)))",
-            exists1(
-                _x(),
-                forall1(
-                    _y(),
-                    Q().app2(x(), y())
-                        .or(exists2(_x(), _z(), P().app3(x(), y(), z()))),
-                ),
-            )
-            .snf(),
+            formula!(? x. (! y. ((Q(x, y)) | (? x, z. (P(x, y, z)))))).snf(),
         );
         assert_debug_string(
             "! x. (! z. P(x, sk#0(x), z))",
-            forall1(_x(), exists1(_y(), forall1(_z(), P().app3(x(), y(), z())))).snf(),
+            formula!(! x. (? y.( ! z. (P(x, y, z))))).snf(),
         );
         assert_debug_string(
             "! x. (R(g(x)) | R(x, sk#0(x)))",
-            forall1(
-                _x(),
-                R().app1(g().app1(x()))
-                    .or(exists1(_y(), R().app2(x(), y()))),
-            )
-            .snf(),
+            formula!(! x. ((R(g(x))) | (? y. (R(x, y))))).snf(),
         );
         assert_debug_string(
             "! y. (! z. (! v. P('sk#0, y, z, sk#1(y, z), v, sk#2(y, z, v))))",
-            exists1(
-                _x(),
-                forall1(
-                    _y(),
-                    forall1(
-                        _z(),
-                        exists1(
-                            _u(),
-                            forall1(
-                                _v(),
-                                exists1(_w(), P().app(vec![x(), y(), z(), u(), v(), w()])),
-                            ),
-                        ),
-                    ),
-                ),
-            )
-            .snf(),
+            formula!(? x. (! y. (! z. (? u. (! v. (? w. (P(x, y, z, u, v, w)))))))).snf(),
         );
         {
             let mut generator = SkolemGenerator::new();
-            assert_debug_string(
-                "P('sk#0)",
-                exists1(_x(), P().app1(x())).snf_with(&mut generator),
-            );
-            assert_debug_string(
-                "Q('sk#1)",
-                exists1(_x(), Q().app1(x())).snf_with(&mut generator),
-            );
+            assert_debug_string("P('sk#0)", formula!(? x. (P(x))).snf_with(&mut generator));
+            assert_debug_string("Q('sk#1)", formula!(? x. (Q(x))).snf_with(&mut generator));
         }
     }
 
