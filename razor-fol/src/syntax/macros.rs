@@ -1,4 +1,32 @@
 #[macro_export]
+macro_rules! v {
+    ($v:ident) => {
+        $crate::syntax::V::from(stringify!($v))
+    };
+}
+
+#[macro_export]
+macro_rules! f {
+    ($f:ident) => {
+        $crate::syntax::F::from(stringify!($f))
+    };
+}
+
+#[macro_export]
+macro_rules! c {
+    ($c:ident) => {
+        $crate::syntax::C::from(stringify!($c))
+    };
+}
+
+#[macro_export]
+macro_rules! pred {
+    ($p:ident) => {
+        $crate::syntax::Pred::from(stringify!($p))
+    };
+}
+
+#[macro_export]
 macro_rules! term {
     ($v:ident) => {
         $crate::syntax::Term::Var {

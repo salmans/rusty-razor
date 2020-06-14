@@ -165,41 +165,29 @@ impl fmt::Debug for Pred {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_prelude::*;
+    use crate::{c, f, pred, v};
 
     #[test]
     fn test_var_to_string() {
-        assert_eq!("x", x().to_string());
-        assert_eq!("y", y().to_string());
-    }
-
-    #[test]
-    fn test_var_free_vars() {
-        assert_eq_vectors(&vec![&V("x".to_owned())], &x().free_vars());
+        assert_eq!("x", v!(x).to_string());
+        assert_eq!("y", v!(y).to_string());
     }
 
     #[test]
     fn test_func_to_string() {
-        assert_eq!("f", f().to_string());
-        assert_eq!("g", g().to_string());
+        assert_eq!("f", f!(f).to_string());
+        assert_eq!("g", f!(g).to_string());
     }
 
     #[test]
     fn test_const_to_string() {
-        assert_eq!("'a", a().to_string());
-        assert_eq!("'b", b().to_string());
-    }
-
-    #[test]
-    fn test_const_free_vars() {
-        let expected: Vec<&V> = Vec::new();
-        assert_eq_vectors(&expected, &a().free_vars());
+        assert_eq!("'a", c!(a).to_string());
+        assert_eq!("'b", c!(b).to_string());
     }
 
     #[test]
     fn test_pred_to_string() {
-        assert_eq!("P", P().to_string());
-        assert_eq!("Q", Q().to_string());
+        assert_eq!("P", pred!(P).to_string());
+        assert_eq!("Q", pred!(Q).to_string());
     }
 }

@@ -124,7 +124,21 @@ impl fmt::Debug for Term {
 mod tests {
     use super::*;
     use crate::term;
-    use crate::test_prelude::*;
+    use crate::{assert_eq_sorted_vecs, v};
+
+    #[test]
+    fn test_var_free_vars() {
+        let term = term!(x);
+        let x = v!(x);
+        assert_eq_sorted_vecs!(vec![&x], term.free_vars());
+    }
+
+    #[test]
+    fn test_const_free_vars() {
+        let expected: Vec<&V> = Vec::new();
+        let fmla = term!(@a);
+        assert_eq_sorted_vecs!(expected, fmla.free_vars());
+    }
 
     #[test]
     fn test_app_to_string() {
@@ -141,30 +155,33 @@ mod tests {
     fn test_app_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &term!(f()).free_vars());
+            let fmla = term!(f());
+            assert_eq_sorted_vecs!(expected, fmla.free_vars());
         }
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &term!(f(g(h(), g()))).free_vars());
+            let fmla = term!(f(g(h(), g())));
+            assert_eq_sorted_vecs!(expected, fmla.free_vars());
         }
         {
-            let expected = vec![_x()];
-            assert_eq_vectors(&expected.iter().collect(), &term!(f(x)).free_vars());
+            let expected = vec![v!(x)];
+            let term = term!(f(x));
+            assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.free_vars());
         }
         {
-            let expected = [_x(), _y(), _z()];
-            assert_eq_vectors(&expected.iter().collect(), &term!(f(x, y, z)).free_vars());
+            let expected = [v!(x), v!(y), v!(z)];
+            let term = term!(f(x, y, z));
+            assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.free_vars());
         }
         {
-            let expected = vec![_x(), _y()];
-            assert_eq_vectors(&expected.iter().collect(), &term!(f(x, y, x)).free_vars());
+            let expected = vec![v!(x), v!(y)];
+            let term = term!(f(x, y, x));
+            assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.free_vars());
         }
         {
-            let expected = vec![_x(), _y(), _z()];
-            assert_eq_vectors(
-                &expected.iter().collect(),
-                &term!(f(g(x), h(y, f(g(z))))).free_vars(),
-            );
+            let expected = vec![v!(x), v!(y), v!(z)];
+            let term = term!(f(g(x), h(y, f(g(z)))));
+            assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.free_vars(),);
         }
     }
 }

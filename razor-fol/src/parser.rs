@@ -535,8 +535,7 @@ impl FromStr for Theory {
 #[cfg(test)]
 mod test_parser {
     use super::*;
-    use crate::term;
-    use crate::test_prelude::*;
+    use crate::{c, f, pred, term, v};
     use std::fmt;
 
     fn success<R: PartialEq + fmt::Debug>(
@@ -618,7 +617,7 @@ mod test_parser {
 
     #[test]
     fn test_var() {
-        success(p_var, "x", _x(), "");
+        success(p_var, "x", v!(x), "");
 
         fail(p_var, "  x");
         fail(p_var, "'a");
@@ -627,13 +626,13 @@ mod test_parser {
 
     #[test]
     fn test_vars() {
-        success(p_vars, "x", vec![_x()], "");
-        success(p_vars, "x,y", vec![_x(), _y()], "");
-        success(p_vars, "  x", vec![_x()], "");
-        success(p_vars, "x, y", vec![_x(), _y()], "");
-        success(p_vars, "x, y\t,\nz", vec![_x(), _y(), _z()], "");
-        success(p_vars, "x,", vec![_x()], "");
-        success(p_vars, "x,y   ,   ", vec![_x(), _y()], "");
+        success(p_vars, "x", vec![v!(x)], "");
+        success(p_vars, "x,y", vec![v!(x), v!(y)], "");
+        success(p_vars, "  x", vec![v!(x)], "");
+        success(p_vars, "x, y", vec![v!(x), v!(y)], "");
+        success(p_vars, "x, y\t,\nz", vec![v!(x), v!(y), v!(z)], "");
+        success(p_vars, "x,", vec![v!(x)], "");
+        success(p_vars, "x,y   ,   ", vec![v!(x), v!(y)], "");
 
         fail(p_vars, ",x");
         fail(p_vars, "B");
@@ -641,7 +640,7 @@ mod test_parser {
 
     #[test]
     fn test_const() {
-        success(p_const, "'a", _a(), "");
+        success(p_const, "'a", c!(a), "");
         fail(p_const, "x");
         fail(p_const, "   'a");
         fail(p_const, "'  a");
@@ -651,7 +650,7 @@ mod test_parser {
 
     #[test]
     fn test_func() {
-        success(p_func, "f", f(), "");
+        success(p_func, "f", f!(f), "");
         fail(p_func, "  f");
         fail(p_func, "'a");
         fail(p_func, "'B");
@@ -660,8 +659,8 @@ mod test_parser {
 
     #[test]
     fn test_term() {
-        success(p_term, "x", x(), "");
-        success(p_term, "'a", a(), "");
+        success(p_term, "x", term!(x), "");
+        success(p_term, "'a", term!(@a), "");
         success(p_term, "f()", term!(f()), "");
         success(p_term, "f( )", term!(f()), "");
         success_to_string(p_term, "f(x)", "f(x)", "");
@@ -699,7 +698,7 @@ mod test_parser {
 
     #[test]
     fn test_pred() {
-        success(p_pred, "P", P(), "");
+        success(p_pred, "P", pred!(P), "");
         fail(p_pred, "  P");
         fail(p_pred, "'a");
         fail(p_pred, "x");
