@@ -326,14 +326,13 @@ mod tests {
 
     #[test]
     fn test_atom_to_string() {
-        assert_eq!("R()", R().app0().to_string());
-        assert_eq!("R(x, y)", R().app2(x(), y()).to_string());
-        assert_eq!("R(g(x, y))", R().app1(g().app2(x(), y())).to_string());
+        assert_eq!("R()", formula!(R()).to_string());
+        assert_eq!("R(x, y)", formula!(R(x, y)).to_string());
+        assert_eq!("R(g(x, y))", formula!(R(g(x, y))).to_string());
         {
             assert_eq!(
                 "R(f(f(f(f(f(f(x)))))))",
-                R().app1(f().app1(f().app1(f().app1(f().app1(f().app1(f().app1(x())))))))
-                    .to_string()
+                formula!(R(f(f(f(f(f(f(x)))))))).to_string()
             );
         }
     }
@@ -342,35 +341,28 @@ mod tests {
     fn test_atom_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &R().app0().free_vars());
+            assert_eq_vectors(&expected, &formula!(R()).free_vars());
         }
         {
             let vars = vec![_x(), _y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &R().app2(x(), y()).free_vars());
+            assert_eq_vectors(&expected, &formula!(R(x, y)).free_vars());
         }
         {
             let vars = vec![_x(), _y(), _z()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &R().app2(y(), g().app2(x(), z())).free_vars());
+            assert_eq_vectors(&expected, &formula!(R(y, g(x, z))).free_vars());
         }
         {
             let vars = vec![_x(), _z()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(
-                &expected,
-                &R().app2(
-                    z(),
-                    f().app1(f().app1(f().app1(f().app1(f().app1(f().app1(x())))))),
-                )
-                .free_vars(),
-            );
+            assert_eq_vectors(&expected, &formula!(R(z, f(f(f(f(f(f(x)))))))).free_vars());
         }
     }
 
     #[test]
     fn test_equals_to_string() {
-        assert_eq!("x = y", x().equals(y()).to_string());
+        assert_eq!("x = y", formula!((x) = (y)).to_string());
     }
 
     #[test]
@@ -378,40 +370,40 @@ mod tests {
         {
             let vars = vec![_x(), _y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &x().equals(y()).free_vars());
+            assert_eq_vectors(&expected, &formula!((x) = (y)).free_vars());
         }
         {
             let vars = vec![_x()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &x().equals(g().app0()).free_vars());
+            assert_eq_vectors(&expected, &formula!((x) = (g())).free_vars());
         }
     }
 
     #[test]
     fn test_not_to_string() {
-        assert_eq!("¬R()", not(R().app0()).to_string());
-        assert_eq!("¬(¬R())", not(not(R().app0())).to_string());
-        assert_eq!("¬(x = y)", not(x().equals(y())).to_string());
-        assert_eq!("¬R(x, y)", not(R().app2(x(), y())).to_string());
+        assert_eq!("¬R()", formula!(~(R())).to_string());
+        assert_eq!("¬(¬R())", formula!(~(~(R()))).to_string());
+        assert_eq!("¬(x = y)", formula!(~((x) = (y))).to_string());
+        assert_eq!("¬R(x, y)", formula!(~(R(x, y))).to_string());
         assert_eq!(
             "¬(R(x, y) ∧ Q(z))",
-            not(R().app2(x(), y()).and(Q().app1(z()))).to_string()
+            formula!(~{(R(x, y)) & (Q(z))}).to_string()
         );
         assert_eq!(
             "¬(R(x, y) ∨ Q(z))",
-            not(R().app2(x(), y()).or(Q().app1(z()))).to_string()
+            formula!(~{(R(x, y)) | (Q(z))}).to_string(),
         );
         assert_eq!(
-            "¬(R(x, y) ∧ (¬Q(z)))",
-            not(R().app2(x(), y()).and(not(Q().app1(z())))).to_string()
+            "¬(R(x, y) ∨ (¬Q(z)))",
+            formula!(~{(R(x, y)) | (~(Q(z)))}).to_string(),
         );
         assert_eq!(
             "¬(R(x, y) → Q(z))",
-            not(R().app2(x(), y()).implies(Q().app1(z()))).to_string()
+            formula!(~{(R(x, y)) -> (Q(z))}).to_string(),
         );
         assert_eq!(
             "¬(R(x, y) ⇔ Q(z))",
-            not(R().app2(x(), y()).iff(Q().app1(z()))).to_string()
+            formula!(~{(R(x, y)) <=> (Q(z))}).to_string(),
         );
     }
 
@@ -419,44 +411,47 @@ mod tests {
     fn test_not_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &not(R().app0()).free_vars());
+            assert_eq_vectors(&expected, &formula!(~(R())).free_vars());
         }
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &not(not(R().app0())).free_vars());
+            assert_eq_vectors(&expected, &formula!(~(~(R()))).free_vars());
         }
         {
             let vars = vec![_x(), _y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &not(x().equals(y())).free_vars());
+            assert_eq_vectors(&expected, &formula!(~{(x) = (y)}).free_vars());
         }
         {
             let vars = vec![_x(), _y()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &not(R().app2(x(), y())).free_vars());
+            assert_eq_vectors(&expected, &formula!(~(R(x, y))).free_vars());
         }
     }
 
     #[test]
     fn test_and_to_string() {
-        assert_eq!("P() ∧ Q()", P().app0().and(Q().app0()).to_string());
-        assert_eq!("P() ∧ (x = y)", P().app0().and(x().equals(y())).to_string());
-        assert_eq!("P() ∧ (¬Q())", P().app0().and(not(Q().app0())).to_string());
+        assert_eq!("P() ∧ Q()", formula!((P()) & (Q())).to_string());
+        assert_eq!(
+            "P() ∧ (x = y)",
+            formula!({ P() } & { (x) = (y) }).to_string()
+        );
+        assert_eq!("P() ∧ (¬Q())", formula!({P()} & {~(Q())}).to_string());
         assert_eq!(
             "P() ∧ (Q() ∧ R())",
-            P().app0().and(Q().app0().and(R().app0())).to_string()
+            formula!({ P() } & { (Q()) & (R()) }).to_string()
         );
         assert_eq!(
             "P() ∧ (Q() ∨ R())",
-            P().app0().and(Q().app0().or(R().app0())).to_string()
+            formula!({ P() } & { (Q()) | (R()) }).to_string()
         );
         assert_eq!(
             "P() ∧ (Q() → R())",
-            P().app0().and(Q().app0().implies(R().app0())).to_string()
+            formula!({ P() } & { (Q()) -> (R()) }).to_string()
         );
         assert_eq!(
             "P() ∧ (Q() ⇔ R())",
-            P().app0().and(Q().app0().iff(R().app0())).to_string()
+            formula!({ P() } & { (Q()) <=> (R()) }).to_string()
         );
     }
 
@@ -464,38 +459,41 @@ mod tests {
     fn test_and_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &P().app0().and(Q().app0()).free_vars());
+            assert_eq_vectors(&expected, &formula!((P()) & (Q())).free_vars());
         }
         {
             let vars = vec![_x(), _y(), _z()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
             assert_eq_vectors(
                 &expected,
-                &P().app2(z(), y()).and(x().equals(y())).free_vars(),
+                &formula!({ P(z, y) } & { (x) = (y) }).free_vars(),
             );
         }
     }
 
     #[test]
     fn test_or_to_string() {
-        assert_eq!("P() ∨ Q()", P().app0().or(Q().app0()).to_string());
-        assert_eq!("P() ∨ (x = y)", P().app0().or(x().equals(y())).to_string());
-        assert_eq!("P() ∨ (¬Q())", P().app0().or(not(Q().app0())).to_string());
+        assert_eq!("P() ∨ Q()", formula!((P()) | (Q())).to_string());
+        assert_eq!(
+            "P() ∨ (x = y)",
+            formula!({ P() } | { (x) = (y) }).to_string()
+        );
+        assert_eq!("P() ∨ (¬Q())", formula!({P()} | {~(Q())}).to_string());
         assert_eq!(
             "P() ∨ (Q() ∧ R())",
-            P().app0().or(Q().app0().and(R().app0())).to_string()
+            formula!({ P() } | { (Q()) & (R()) }).to_string(),
         );
         assert_eq!(
             "P() ∨ (Q() ∨ R())",
-            P().app0().or(Q().app0().or(R().app0())).to_string()
+            formula!({ P() } | { (Q()) | (R()) }).to_string(),
         );
         assert_eq!(
             "P() ∨ (Q() → R())",
-            P().app0().or(Q().app0().implies(R().app0())).to_string()
+            formula!({P()} | {(Q()) -> (R())}).to_string(),
         );
         assert_eq!(
             "P() ∨ (Q() ⇔ R())",
-            P().app0().or(Q().app0().iff(R().app0())).to_string()
+            formula!({P()} | {(Q()) <=> (R())}).to_string(),
         );
     }
 
@@ -503,46 +501,38 @@ mod tests {
     fn test_or_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &P().app0().or(Q().app0()).free_vars());
+            assert_eq_vectors(&expected, &formula!((P()) | (Q())).free_vars());
         }
         {
             let vars = vec![_x(), _y(), _z()];
             let expected: Vec<&V> = vars.iter().map(|x| x).collect();
             assert_eq_vectors(
                 &expected,
-                &P().app2(z(), y()).or(x().equals(y())).free_vars(),
+                &formula!({ P(z, y) } | { (x) = (y) }).free_vars(),
             );
         }
     }
 
     #[test]
     fn test_implies_to_string() {
-        assert_eq!("P() → Q()", P().app0().implies(Q().app0()).to_string());
-        assert_eq!(
-            "P() → (x = y)",
-            P().app0().implies(x().equals(y())).to_string()
-        );
-        assert_eq!(
-            "P() → (¬Q())",
-            P().app0().implies(not(Q().app0())).to_string()
-        );
+        assert_eq!("P() → Q()", formula!((P()) -> (Q())).to_string());
+        assert_eq!("P() → (x = y)", formula!({P()} -> {(x) = (y)}).to_string());
+        assert_eq!("P() → (¬Q())", formula!({P()} -> {~(Q())}).to_string());
         assert_eq!(
             "P() → (Q() ∧ R())",
-            P().app0().implies(Q().app0().and(R().app0())).to_string()
+            formula!({P()} -> {(Q()) & (R())}).to_string(),
         );
         assert_eq!(
             "P() → (Q() ∨ R())",
-            P().app0().implies(Q().app0().or(R().app0())).to_string()
+            formula!({P()} -> {(Q()) | (R())}).to_string(),
         );
         assert_eq!(
             "P() → (Q() → R())",
-            P().app0()
-                .implies(Q().app0().implies(R().app0()))
-                .to_string()
+            formula!({P()} -> {(Q()) -> (R())}).to_string(),
         );
         assert_eq!(
             "P() → (Q() ⇔ R())",
-            P().app0().implies(Q().app0().iff(R().app0())).to_string()
+            formula!({P()} -> {(Q()) <=> (R())}).to_string(),
         );
     }
 
@@ -550,38 +540,37 @@ mod tests {
     fn test_implies_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &P().app0().implies(Q().app0()).free_vars());
+            assert_eq_vectors(&expected, &formula!((P()) -> (Q())).free_vars());
         }
         {
-            let vars = vec![_x(), _y(), _z()];
-            let expected: Vec<&V> = vars.iter().map(|x| x).collect();
+            let expected = vec![_x(), _y(), _z()];
             assert_eq_vectors(
-                &expected,
-                &P().app2(z(), y()).implies(x().equals(y())).free_vars(),
+                &expected.iter().collect(),
+                &formula!({P(z, y)} -> {(x) = (y)}).free_vars(),
             );
         }
     }
 
     #[test]
     fn test_iff_to_string() {
-        assert_eq!("P() ⇔ Q()", P().app0().iff(Q().app0()).to_string());
-        assert_eq!("P() ⇔ (x = y)", P().app0().iff(x().equals(y())).to_string());
-        assert_eq!("P() ⇔ (¬Q())", P().app0().iff(not(Q().app0())).to_string());
+        assert_eq!("P() ⇔ Q()", formula!((P()) <=> (Q())).to_string());
+        assert_eq!("P() ⇔ (x = y)", formula!({P()} <=> {(x) = (y)}).to_string());
+        assert_eq!("P() ⇔ (¬Q())", formula!({P()} <=> {~(Q())}).to_string());
         assert_eq!(
             "P() ⇔ (Q() ∧ R())",
-            P().app0().iff(Q().app0().and(R().app0())).to_string()
+            formula!({P()} <=> {(Q()) & (R())}).to_string(),
         );
         assert_eq!(
             "P() ⇔ (Q() ∨ R())",
-            P().app0().iff(Q().app0().or(R().app0())).to_string()
+            formula!({P()} <=> {(Q()) | (R())}).to_string(),
         );
         assert_eq!(
             "P() ⇔ (Q() → R())",
-            P().app0().iff(Q().app0().implies(R().app0())).to_string()
+            formula!({P()} <=> {(Q()) -> (R())}).to_string(),
         );
         assert_eq!(
             "P() ⇔ (Q() ⇔ R())",
-            P().app0().iff(Q().app0().iff(R().app0())).to_string()
+            formula!({P()} <=> {(Q()) <=> (R())}).to_string(),
         );
     }
 
@@ -589,14 +578,13 @@ mod tests {
     fn test_iff_free_vars() {
         {
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &P().app0().iff(Q().app0()).free_vars());
+            assert_eq_vectors(&expected, &formula!((P()) <=> (Q())).free_vars());
         }
         {
-            let vars = vec![_x(), _y(), _z()];
-            let expected: Vec<&V> = vars.iter().map(|x| x).collect();
+            let expected = vec![_x(), _y(), _z()];
             assert_eq_vectors(
-                &expected,
-                &P().app2(z(), y()).iff(x().equals(y())).free_vars(),
+                &expected.iter().collect(),
+                &formula!({P(z, y)} <=> {(x) = (y)}).free_vars(),
             );
         }
     }

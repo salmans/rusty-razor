@@ -883,12 +883,15 @@ mod test_basic {
 
     #[test]
     fn test_witness_app() {
-        let f_0: WitnessTerm = f().app0();
+        let f_0: WitnessTerm = f().app(vec![]);
         assert_eq!("f[]", f_0.to_string());
-        assert_eq!("f['c]", f().app1(_c_()).to_string());
-        let g_0: WitnessTerm = g().app0();
-        assert_eq!("f[g[]]", f().app1(g_0).to_string());
-        assert_eq!("f['c, g['d]]", f().app2(_c_(), g().app1(_d_())).to_string());
+        assert_eq!("f['c]", f().app(vec![_c_()]).to_string());
+        let g_0: WitnessTerm = g().app(vec![]);
+        assert_eq!("f[g[]]", f().app(vec![g_0]).to_string());
+        assert_eq!(
+            "f['c, g['d]]",
+            f().app(vec![_c_(), g().app(vec![_d_()])]).to_string()
+        );
     }
 
     #[test]
@@ -954,17 +957,17 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app1(f().app1(_c_())));
+            model.observe(&_R_().app1(f().app(vec![_c_()])));
             assert_eq_sets(&Vec::from_iter(vec![&e_0(), &e_1()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app1(_e_1())].iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app1(_e_1())));
-            assert!(model.is_observed(&_R_().app1(f().app1(_c_()))));
+            assert!(model.is_observed(&_R_().app1(f().app(vec![_c_()]))));
             assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![&f().app1(_e_0())]),
+                &Vec::from_iter(vec![&f().app(vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
         }
@@ -983,7 +986,7 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_()))));
+            model.observe(&_R_().app2(f().app(vec![_c_()]), g().app(vec![f().app(vec![_c_()])])));
             assert_eq_sets(
                 &Vec::from_iter(vec![&e_0(), &e_1(), &e_2()]),
                 &model.domain(),
@@ -993,22 +996,24 @@ mod test_basic {
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
-            assert!(model.is_observed(&_R_().app2(f().app1(_c_()), g().app1(f().app1(_c_())))));
-            assert!(model.is_observed(&_R_().app2(f().app1(_c_()), _e_2())));
+            assert!(model.is_observed(
+                &_R_().app2(f().app(vec![_c_()]), g().app(vec![f().app(vec![_c_()])]))
+            ));
+            assert!(model.is_observed(&_R_().app(vec![f().app(vec![_c_()]), _e_2()])));
             assert_eq_sets(&Vec::from_iter(vec![&_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![&f().app1(_e_0())]),
+                &Vec::from_iter(vec![&f().app(vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
             assert_eq_sets(
-                &Vec::from_iter(vec![&g().app1(_e_1())]),
+                &Vec::from_iter(vec![&g().app(vec![_e_1()])]),
                 &model.witness(&e_2()),
             );
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app2(_a_(), _b_()));
-            model.observe(&_S_().app2(_c_(), _d_()));
+            model.observe(&_R_().app(vec![_a_(), _b_()]));
+            model.observe(&_S_().app(vec![_c_(), _d_()]));
             assert_eq_sets(
                 &Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3()]),
                 &model.domain(),
@@ -1022,10 +1027,10 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app2(_a_(), f().app1(_a_())));
-            model.observe(&_S_().app1(_b_()));
-            model.observe(&_R_().app2(g().app1(f().app1(_a_())), _b_()));
-            model.observe(&_S_().app1(_c_()));
+            model.observe(&_R_().app(vec![_a_(), f().app(vec![_a_()])]));
+            model.observe(&_S_().app(vec![_b_()]));
+            model.observe(&_R_().app(vec![g().app(vec![f().app(vec![_a_()])]), _b_()]));
+            model.observe(&_S_().app(vec![_c_()]));
             assert_eq_sets(
                 &Vec::from_iter(vec![&e_0(), &e_1(), &e_2(), &e_3(), &e_4()]),
                 &model.domain(),

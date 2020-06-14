@@ -86,7 +86,7 @@ pub trait TermBased {
     /// [`VariableRenaming`]: ../transform/trait.VariableRenaming.html
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{V, C, F, Term};
+    /// # use razor_fol::{syntax::{V, C, F, Term}, term};
     /// use razor_fol::transform::TermBased;
     /// use std::collections::HashMap;
     ///
@@ -108,8 +108,7 @@ pub trait TermBased {
     /// let f = F::from("f");
     /// let g = F::from("g");
     ///
-    /// // t = f(x, z, g(x, y, x))
-    /// let t = f.app3(x.clone(), z.clone(), g.app3(x.clone(), y.clone(), x.clone()));
+    /// let t = term!(f(x, z, g(x, y, x)));
     ///
     /// let s = t.rename_vars(&renaming); // s = f(a, z, g(a, b, a))
     /// assert_eq!("f(a, z, g(a, b, a))", s.to_string())
@@ -121,7 +120,7 @@ pub trait TermBased {
     /// [`Substitution`]: ../transform/trait.Substitution.html
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{V, C, F, Term};
+    /// # use razor_fol::{syntax::{V, C, F, Term}, term};
     /// use razor_fol::transform::TermBased;
     ///
     /// // A substitution function that maps all variable symbols `x` to a constant term `c`.
@@ -142,7 +141,7 @@ pub trait TermBased {
     /// let f = F::from("f");
     /// let g = F::from("g");
     ///
-    /// let t = f.app2(x.clone(), g.app3(x.clone(), y.clone(), x.clone())); // t = f(x, g(x, y, x))
+    /// let t = term!(f(x, g(x, y, x)));
     ///
     /// let s = t.substitute(&x_to_c); // s = f('c, g('c, y, 'c))
     /// assert_eq!("f('c, g('c, y, 'c))", s.to_string())
@@ -1214,8 +1213,8 @@ fn simplify_dnf(formula: Formula) -> Formula {
 #[cfg(test)]
 mod test_transform {
     use super::*;
-    use crate::formula;
     use crate::test_prelude::*;
+    use crate::{formula, term};
     use std::collections::HashMap;
 
     #[test]
@@ -1236,15 +1235,12 @@ mod test_transform {
             let mut map: HashMap<&V, Term> = HashMap::new();
             let x_v = &_x();
             let y_v = &_y();
-            let term_1 = g().app1(z());
-            let term_2 = h().app2(z(), y());
+            let term_1 = term!(g(z));
+            let term_2 = term!(h(z, y));
 
             map.insert(x_v, term_1);
             map.insert(y_v, term_2);
-            assert_eq!(
-                f().app2(g().app1(z()), h().app2(z(), y())),
-                f().app2(x(), y()).substitute(&map)
-            );
+            assert_eq!(term!(f(g(z), h(z, y))), term!(f(x, y)).substitute(&map));
         }
     }
 
@@ -1272,8 +1268,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app1(y()),
-            f().app1(x()).rename_vars(&|v: &V| {
+            term!(f(y)),
+            term!(f(x)).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _y()
                 } else {
@@ -1282,8 +1278,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app1(x()),
-            f().app1(x()).rename_vars(&|v: &V| {
+            term!(f(x)),
+            term!(f(x)).rename_vars(&|v: &V| {
                 if *v == _z() {
                     _y()
                 } else {
@@ -1292,8 +1288,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app2(z(), z()),
-            f().app2(x(), y()).rename_vars(&|v: &V| {
+            term!(f(z, z)),
+            term!(f(x, y)).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _z()
                 } else if *v == _y() {
@@ -1304,17 +1300,16 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app2(y(), g().app2(y(), h().app1(z()))),
-            f().app2(x(), g().app2(x(), h().app1(y())))
-                .rename_vars(&|v: &V| {
-                    if *v == _x() {
-                        _y()
-                    } else if *v == _y() {
-                        _z()
-                    } else {
-                        v.clone()
-                    }
-                })
+            term!(f(y, g(y, h(z)))),
+            term!(f(x, g(x, h(y)))).rename_vars(&|v: &V| {
+                if *v == _x() {
+                    _y()
+                } else if *v == _y() {
+                    _z()
+                } else {
+                    v.clone()
+                }
+            })
         );
     }
 
@@ -1352,10 +1347,10 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app1(z()),
+            term!(f(z)),
             x().substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app1(z())
+                    term!(f(z))
                 } else {
                     v.clone().into()
                 }
@@ -1372,8 +1367,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app1(y()),
-            f().app1(x()).substitute(&|v: &V| {
+            term!(f(y)),
+            term!(f(x)).substitute(&|v: &V| {
                 if *v == _x() {
                     y()
                 } else {
@@ -1382,18 +1377,18 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app1(g().app1(h().app2(y(), z()))),
-            f().app1(x()).substitute(&|v: &V| {
+            term!(f(g(h(y, z)))),
+            term!(f(x)).substitute(&|v: &V| {
                 if *v == _x() {
-                    g().app1(h().app2(y(), z()))
+                    term!(g(h(y, z)))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            f().app1(x()),
-            f().app1(x()).substitute(&|v: &V| {
+            term!(f(x)),
+            term!(f(x)).substitute(&|v: &V| {
                 if *v == _y() {
                     z()
                 } else {
@@ -1402,45 +1397,40 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app2(g().app1(z()), h().app2(z(), y())),
-            f().app2(x(), y()).substitute(&|v: &V| {
+            term!(f(g(z), h(z, y))),
+            term!(f(x, y)).substitute(&|v: &V| {
                 if *v == _x() {
-                    g().app1(z())
+                    term!(g(z))
                 } else if *v == _y() {
-                    h().app2(z(), y())
+                    term!(h(z, y))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            f().app2(
-                f().app1(f().app0()),
-                g().app2(f().app1(f().app0()), h().app1(z()))
-            ),
-            f().app2(x(), g().app2(x(), h().app1(y())))
-                .substitute(&|v: &V| {
-                    if *v == _x() {
-                        f().app1(f().app0())
-                    } else if *v == _y() {
-                        z()
-                    } else {
-                        v.clone().into()
-                    }
-                })
+            term!(f(f(f()), g(f(f()), h(z)))),
+            term!(f(x, g(x, h(y)))).substitute(&|v: &V| {
+                if *v == _x() {
+                    term!(f(f()))
+                } else if *v == _y() {
+                    z()
+                } else {
+                    v.clone().into()
+                }
+            })
         );
         assert_eq!(
-            f().app2(f().app1(a()), g().app2(f().app1(a()), h().app1(z()))),
-            f().app2(x(), g().app2(x(), h().app1(y())))
-                .substitute(&|v: &V| {
-                    if *v == _x() {
-                        f().app1(a())
-                    } else if *v == _y() {
-                        z()
-                    } else {
-                        v.clone().into()
-                    }
-                })
+            term!(f(f(@a), g(f(@a), h(z)))),
+            term!(f(x, g(x, h(y)))).substitute(&|v: &V| {
+                if *v == _x() {
+                    term!(f(@a))
+                } else if *v == _y() {
+                    z()
+                } else {
+                    v.clone().into()
+                }
+            })
         );
     }
 
@@ -1490,8 +1480,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            z().equals(z()),
-            x().equals(y()).rename_vars(&|v: &V| {
+            formula!((z) = (z)),
+            formula!((x) = (y)).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _z()
                 } else if *v == _y() {
@@ -1502,8 +1492,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(x()),
-            P().app1(x()).rename_vars(&|v: &V| {
+            formula!(P(x)),
+            formula!(P(x)).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _x()
                 } else {
@@ -1512,8 +1502,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(y()),
-            P().app1(x()).rename_vars(&|v: &V| {
+            formula!(P(y)),
+            formula!(P(x)).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _y()
                 } else {
@@ -1522,20 +1512,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app3(y(), z(), y()),
-            P().app3(x(), y(), x()).rename_vars(&|v: &V| {
-                if *v == _x() {
-                    _y()
-                } else if *v == _y() {
-                    _z()
-                } else {
-                    v.clone()
-                }
-            })
-        );
-        assert_eq!(
-            not(P().app3(y(), z(), y())),
-            not(P().app3(x(), y(), x())).rename_vars(&|v: &V| {
+            formula!(P(y, z, y)),
+            formula!(P(x, y, x)).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _y()
                 } else if *v == _y() {
@@ -1546,8 +1524,20 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(z()).and(Q().app1(z())),
-            P().app1(x()).and(Q().app1(y())).rename_vars(&|v: &V| {
+            formula!(~(P(y, z, y))),
+            formula!(~(P(x, y, x))).rename_vars(&|v: &V| {
+                if *v == _x() {
+                    _y()
+                } else if *v == _y() {
+                    _z()
+                } else {
+                    v.clone()
+                }
+            })
+        );
+        assert_eq!(
+            formula!((P(z)) & (Q(z))),
+            formula!((P(x)) & (Q(y))).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _z()
                 } else if *v == _y() {
@@ -1558,8 +1548,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(z()).or(Q().app1(z())),
-            P().app1(x()).or(Q().app1(y())).rename_vars(&|v: &V| {
+            formula!((P(z)) | (Q(z))),
+            formula!((P(x)) | (Q(y))).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _z()
                 } else if *v == _y() {
@@ -1570,8 +1560,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(z()).implies(Q().app1(z())),
-            P().app1(x()).implies(Q().app1(y())).rename_vars(&|v: &V| {
+            formula!((P(z)) -> (Q(z))),
+            formula!((P(x)) -> (Q(y))).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _z()
                 } else if *v == _y() {
@@ -1582,8 +1572,8 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(z()).iff(Q().app1(z())),
-            P().app1(x()).iff(Q().app1(y())).rename_vars(&|v: &V| {
+            formula!((P(z)) <=> (Q(z))),
+            formula!((P(x)) <=> (Q(y))).rename_vars(&|v: &V| {
                 if *v == _x() {
                     _z()
                 } else if *v == _y() {
@@ -1656,54 +1646,54 @@ mod test_transform {
             })
         );
         assert_eq!(
-            f().app1(g().app1(z())).equals(g().app1(f().app1(z()))),
-            x().equals(y()).substitute(&|v: &V| {
+            formula!({ f(g(z)) } = { g(f(z)) }),
+            formula!((x) = (y)).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app1(g().app1(z()))
+                    term!(f(g(z)))
                 } else if *v == _y() {
-                    g().app1(f().app1(z()))
+                    term!(g(f(z)))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app1(h().app1(y())),
-            P().app1(x()).substitute(&|v: &V| {
+            formula!(P(h(y))),
+            formula!(P(x)).substitute(&|v: &V| {
                 if *v == _x() {
-                    h().app1(y())
+                    term!(h(y))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app1(g().app1(g().app1(x()))),
-            P().app1(x()).substitute(&|v: &V| {
+            formula!(P(g(g(x)))),
+            formula!(P(x)).substitute(&|v: &V| {
                 if *v == _x() {
-                    g().app1(g().app1(x()))
+                    term!(g(g(x)))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app3(y(), f().app1(z()), y()),
-            P().app3(x(), y(), x()).substitute(&|v: &V| {
+            formula!(P(y, f(z), y)),
+            formula!(P(x, y, x)).substitute(&|v: &V| {
                 if *v == _x() {
                     y()
                 } else if *v == _y() {
-                    f().app1(z())
+                    term!(f(z))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            not(P().app3(h().app0(), z(), h().app0())),
-            not(P().app3(x(), y(), x())).substitute(&|v: &V| {
+            formula!(~{P(h(), z, h())}),
+            formula!(~{P(x, y, x)}).substitute(&|v: &V| {
                 if *v == _x() {
-                    h().app0()
+                    term!(h())
                 } else if *v == _y() {
                     z()
                 } else {
@@ -1712,44 +1702,44 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(f().app1(g().app0())).and(Q().app1(h().app1(z()))),
-            P().app1(x()).and(Q().app1(y())).substitute(&|v: &V| {
+            formula!({ P(f(g())) } & { Q(h(z)) }),
+            formula!({ P(x) } & { Q(y) }).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app1(g().app0())
+                    term!(f(g()))
                 } else if *v == _y() {
-                    h().app1(z())
+                    term!(h(z))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app1(f().app1(g().app0())).or(Q().app1(h().app1(z()))),
-            P().app1(x()).or(Q().app1(y())).substitute(&|v: &V| {
+            formula!({ P(f(g())) } | { Q(h(z)) }),
+            formula!({ P(x) } | { Q(y) }).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app1(g().app0())
+                    term!(f(g()))
                 } else if *v == _y() {
-                    h().app1(z())
+                    term!(h(z))
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app1(f().app0()).implies(Q().app1(g().app0())),
-            P().app1(x()).implies(Q().app1(y())).substitute(&|v: &V| {
+            formula!({ P(f()) } -> { Q(g()) }),
+            formula!({ P(x) } -> { Q(y) }).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app0()
+                    term!(f())
                 } else if *v == _y() {
-                    g().app0()
+                    term!(g())
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app1(a()).implies(Q().app1(b())),
-            P().app1(x()).implies(Q().app1(y())).substitute(&|v: &V| {
+            formula!({P(@a)} -> {Q(@b)}),
+            formula!({P(x)} -> {Q(y)}).substitute(&|v: &V| {
                 if *v == _x() {
                     a()
                 } else if *v == _y() {
@@ -1760,20 +1750,20 @@ mod test_transform {
             })
         );
         assert_eq!(
-            P().app1(f().app0()).iff(Q().app1(g().app0())),
-            P().app1(x()).iff(Q().app1(y())).substitute(&|v: &V| {
+            formula!({P(f())} <=> {Q(g())}),
+            formula!({P(x)} <=> {Q(y)}).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app0()
+                    term!(f())
                 } else if *v == _y() {
-                    g().app0()
+                    term!(g())
                 } else {
                     v.clone().into()
                 }
             })
         );
         assert_eq!(
-            P().app1(a()).iff(Q().app1(b())),
-            P().app1(x()).iff(Q().app1(y())).substitute(&|v: &V| {
+            formula!({P(@a)} <=> {Q(@b)}),
+            formula!({P(x)} <=> {Q(y)}).substitute(&|v: &V| {
                 if *v == _x() {
                     a()
                 } else if *v == _y() {
@@ -1787,7 +1777,7 @@ mod test_transform {
             formula!(? x, y. (P(f(g(y)), y, y))),
             formula!(? x, y. (P(x, y, z))).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app1(g().app1(y()))
+                    term!(f(g(y)))
                 } else if *v == _z() {
                     y()
                 } else {
@@ -1799,7 +1789,7 @@ mod test_transform {
             formula!(!x, y. (P(f(g(y)), y, y))),
             formula!(!x, y. (P(x, y, z))).substitute(&|v: &V| {
                 if *v == _x() {
-                    f().app1(g().app1(y()))
+                    term!(f(g(y)))
                 } else if *v == _z() {
                     y()
                 } else {
@@ -2117,197 +2107,197 @@ mod test_transform {
         //renaming tests
         assert_debug_string(
             "! x``, x`. (P(x``) & Q(x))",
-            forall(vec![_x(), _x_1()], P().app1(x()))
-                .and(Q().app1(x()))
+            forall(vec![_x(), _x_1()], P().app(vec![x()]))
+                .and(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (P(x``) & Q(x))",
-            exists(vec![_x(), _x_1()], P().app1(x()))
-                .and(Q().app1(x()))
+            exists(vec![_x(), _x_1()], P().app(vec![x()]))
+                .and(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``) & Q(x, x`))",
-            exists(vec![_x()], P().app1(x()))
-                .and(Q().app2(x(), x_1()))
+            exists(vec![_x()], formula!(P(x)))
+                .and(Q().app(vec![x(), x_1()]))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``, x`) & Q(x))",
-            exists(vec![_x()], P().app2(x(), x_1()))
-                .and(Q().app1(x()))
+            exists(vec![_x()], P().app(vec![x(), x_1()]))
+                .and(formula!(Q(x)))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (Q(x) & P(x``))",
-            Q().app1(x())
-                .and(forall(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .and(forall(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (Q(x) & P(x``))",
-            Q().app1(x())
-                .and(exists(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .and(exists(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x, x`) & P(x``))",
-            Q().app2(x(), x_1())
-                .and(exists(vec![_x()], P().app1(x())))
+            Q().app(vec![x(), x_1()])
+                .and(exists(vec![_x()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x) & P(x``, x`))",
-            Q().app1(x())
-                .and(exists(vec![_x()], P().app2(x(), x_1())))
+            Q().app(vec![x()])
+                .and(exists(vec![_x()], P().app(vec![x(), x_1()])))
                 .pnf(),
         );
 
         assert_debug_string(
             "! x``, x`. (P(x``) | Q(x))",
-            forall(vec![_x(), _x_1()], P().app1(x()))
-                .or(Q().app1(x()))
+            forall(vec![_x(), _x_1()], P().app(vec![x()]))
+                .or(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (P(x``) | Q(x))",
-            exists(vec![_x(), _x_1()], P().app1(x()))
-                .or(Q().app1(x()))
+            exists(vec![_x(), _x_1()], P().app(vec![x()]))
+                .or(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``) | Q(x, x`))",
-            exists(vec![_x()], P().app1(x()))
-                .or(Q().app2(x(), x_1()))
+            exists(vec![_x()], P().app(vec![x()]))
+                .or(Q().app(vec![x(), x_1()]))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (P(x``, x`) | Q(x))",
-            exists(vec![_x()], P().app2(x(), x_1()))
-                .or(Q().app1(x()))
+            exists(vec![_x()], P().app(vec![x(), x_1()]))
+                .or(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (Q(x) | P(x``))",
-            Q().app1(x())
-                .or(forall(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .or(forall(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (Q(x) | P(x``))",
-            Q().app1(x())
-                .or(exists(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .or(exists(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x, x`) | P(x``))",
-            Q().app2(x(), x_1())
-                .or(exists(vec![_x()], P().app1(x())))
+            Q().app(vec![x(), x_1()])
+                .or(exists(vec![_x()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x) | P(x``, x`))",
-            Q().app1(x())
-                .or(exists(vec![_x()], P().app2(x(), x_1())))
+            Q().app(vec![x()])
+                .or(exists(vec![_x()], P().app(vec![x(), x_1()])))
                 .pnf(),
         );
 
         assert_debug_string(
             "? x``, x`. (P(x``) -> Q(x))",
-            forall(vec![_x(), _x_1()], P().app1(x()))
-                .implies(Q().app1(x()))
+            forall(vec![_x(), _x_1()], P().app(vec![x()]))
+                .implies(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (P(x``) -> Q(x))",
-            exists(vec![_x(), _x_1()], P().app1(x()))
-                .implies(Q().app1(x()))
+            exists(vec![_x(), _x_1()], P().app(vec![x()]))
+                .implies(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (P(x``) -> Q(x, x`))",
-            exists(vec![_x()], P().app1(x()))
-                .implies(Q().app2(x(), x_1()))
+            exists(vec![_x()], P().app(vec![x()]))
+                .implies(Q().app(vec![x(), x_1()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (P(x``, x`) -> Q(x))",
-            exists(vec![_x()], P().app2(x(), x_1()))
-                .implies(Q().app1(x()))
+            exists(vec![_x()], P().app(vec![x(), x_1()]))
+                .implies(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (Q(x) -> P(x``))",
-            Q().app1(x())
-                .implies(forall(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .implies(forall(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (Q(x) -> P(x``))",
-            Q().app1(x())
-                .implies(exists(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .implies(exists(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x, x`) -> P(x``))",
-            Q().app2(x(), x_1())
-                .implies(exists(vec![_x()], P().app1(x())))
+            Q().app(vec![x(), x_1()])
+                .implies(exists(vec![_x()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (Q(x) -> P(x``, x`))",
-            Q().app1(x())
-                .implies(exists(vec![_x()], P().app2(x(), x_1())))
+            Q().app(vec![x()])
+                .implies(exists(vec![_x()], P().app(vec![x(), x_1()])))
                 .pnf(),
         );
 
         assert_debug_string(
             "? x``, x`. (! x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            forall(vec![_x(), _x_1()], P().app1(x()))
-                .iff(Q().app1(x()))
+            forall(vec![_x(), _x_1()], P().app(vec![x()]))
+                .iff(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (? x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            exists(vec![_x(), _x_1()], P().app1(x()))
-                .iff(Q().app1(x()))
+            exists(vec![_x(), _x_1()], P().app(vec![x()]))
+                .iff(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (? x```. ((P(x``) -> Q(x, x`)) & (Q(x, x`) -> P(x```))))",
-            exists(vec![_x()], P().app1(x()))
-                .iff(Q().app2(x(), x_1()))
+            exists(vec![_x()], P().app(vec![x()]))
+                .iff(Q().app(vec![x(), x_1()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``. (? x```. ((P(x``, x`) -> Q(x)) & (Q(x) -> P(x```, x`))))",
-            exists(vec![_x()], P().app2(x(), x_1()))
-                .iff(Q().app1(x()))
+            exists(vec![_x()], P().app(vec![x(), x_1()]))
+                .iff(Q().app(vec![x()]))
                 .pnf(),
         );
         assert_debug_string(
             "! x``, x`. (? x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            Q().app1(x())
-                .iff(forall(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .iff(forall(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``, x`. (! x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            Q().app1(x())
-                .iff(exists(vec![_x(), _x_1()], P().app1(x())))
+            Q().app(vec![x()])
+                .iff(exists(vec![_x(), _x_1()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (! x```. ((Q(x, x`) -> P(x``)) & (P(x```) -> Q(x, x`))))",
-            Q().app2(x(), x_1())
-                .iff(exists(vec![_x()], P().app1(x())))
+            Q().app(vec![x(), x_1()])
+                .iff(exists(vec![_x()], P().app(vec![x()])))
                 .pnf(),
         );
         assert_debug_string(
             "? x``. (! x```. ((Q(x) -> P(x``, x`)) & (P(x```, x`) -> Q(x))))",
-            Q().app1(x())
-                .iff(exists(vec![_x()], P().app2(x(), x_1())))
+            Q().app(vec![x()])
+                .iff(exists(vec![_x()], P().app(vec![x(), x_1()])))
                 .pnf(),
         );
         // both sides of binary formulae

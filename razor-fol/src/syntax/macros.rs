@@ -12,7 +12,8 @@ macro_rules! term {
     };
     ($func:ident ($($t:tt)*)) => {
         {
-            $crate::syntax::F(stringify!($func).to_string()).app($crate::terms!($($t)*))
+            let ts: Vec<$crate::syntax::Term> = $crate::terms!($($t)*);
+            $crate::syntax::F(stringify!($func).to_string()).app(ts)
         }
     };
 }

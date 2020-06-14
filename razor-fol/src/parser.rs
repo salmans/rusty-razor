@@ -535,6 +535,7 @@ impl FromStr for Theory {
 #[cfg(test)]
 mod test_parser {
     use super::*;
+    use crate::term;
     use crate::test_prelude::*;
     use std::fmt;
 
@@ -661,8 +662,8 @@ mod test_parser {
     fn test_term() {
         success(p_term, "x", x(), "");
         success(p_term, "'a", a(), "");
-        success(p_term, "f()", f().app0(), "");
-        success(p_term, "f( )", f().app0(), "");
+        success(p_term, "f()", term!(f()), "");
+        success(p_term, "f( )", term!(f()), "");
         success_to_string(p_term, "f(x)", "f(x)", "");
         success_to_string(p_term, "f(x,   y   )", "f(x, y)", "");
         success_to_string(p_term, "f(x,   y   \n , z)", "f(x, y, z)", "");

@@ -28,7 +28,7 @@ impl Term {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{V, C, F, Term};
+    /// # use razor_fol::{syntax::{V, C, F, Term}, term};
     /// # use itertools::Itertools;
     ///
     /// // `x_sym` and `y_sym` are variable symbols:
@@ -50,7 +50,7 @@ impl Term {
     /// let g = F::from("g");
     ///
     /// // f(x, g(y, c, x)):
-    /// let t = f.app2(x.clone(), g.app3(y, c, x.clone()));
+    /// let t = term!(f(x, g(y, @c, x)));
     ///
     /// // comparing the two (unordered) lists:
     /// assert_eq!(vec![&x_sym, &y_sym].iter().sorted(), t.free_vars().iter().sorted())
@@ -123,58 +123,47 @@ impl fmt::Debug for Term {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::term;
     use crate::test_prelude::*;
 
     #[test]
     fn test_app_to_string() {
-        let term_0: Term = f().app0();
-        assert_eq!("f()", term_0.to_string());
-        assert_eq!("f(x, y)", f().app2(x(), y()).to_string());
-        assert_eq!("f(g(x), y)", f().app2(g().app1(x()), y()).to_string());
-        {
-            assert_eq!(
-                "f(f(f(f(f(f(f(x)))))))",
-                f().app1(f().app1(f().app1(f().app1(f().app1(f().app1(f().app1(x())))))))
-                    .to_string()
-            );
-        }
+        assert_eq!("f()", term!(f()).to_string());
+        assert_eq!("f(x, y)", term!(f(x, y)).to_string());
+        assert_eq!("f(g(x), y)", term!(f(g(x), y)).to_string());
+        assert_eq!(
+            "f(f(f(f(f(f(f(x)))))))",
+            term!(f(f(f(f(f(f(f(x)))))))).to_string(),
+        );
     }
 
     #[test]
     fn test_app_free_vars() {
         {
-            let term_0: Term = f().app0();
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &term_0.free_vars());
+            assert_eq_vectors(&expected, &term!(f()).free_vars());
         }
         {
-            let g_0: Term = g().app0();
-            let h_0: Term = g().app0();
             let expected: Vec<&V> = vec![];
-            assert_eq_vectors(&expected, &f().app1(g().app2(h_0, g_0)).free_vars());
+            assert_eq_vectors(&expected, &term!(f(g(h(), g()))).free_vars());
         }
         {
-            let vars = vec![_x()];
-            let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &f().app1(x()).free_vars());
+            let expected = vec![_x()];
+            assert_eq_vectors(&expected.iter().collect(), &term!(f(x)).free_vars());
         }
         {
-            let vars = vec![_x(), _y(), _z()];
-            let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &f().app3(x(), y(), z()).free_vars());
+            let expected = [_x(), _y(), _z()];
+            assert_eq_vectors(&expected.iter().collect(), &term!(f(x, y, z)).free_vars());
         }
         {
-            let vars = vec![_x(), _y()];
-            let expected: Vec<&V> = vars.iter().map(|x| x).collect();
-            assert_eq_vectors(&expected, &f().app3(x(), y(), x()).free_vars());
+            let expected = vec![_x(), _y()];
+            assert_eq_vectors(&expected.iter().collect(), &term!(f(x, y, x)).free_vars());
         }
         {
-            let vars = vec![_x(), _y(), _z()];
-            let expected: Vec<&V> = vars.iter().map(|x| x).collect();
+            let expected = vec![_x(), _y(), _z()];
             assert_eq_vectors(
-                &expected,
-                &f().app2(g().app1(x()), h().app2(y(), f().app1(g().app1(z()))))
-                    .free_vars(),
+                &expected.iter().collect(),
+                &term!(f(g(x), h(y, f(g(z))))).free_vars(),
             );
         }
     }

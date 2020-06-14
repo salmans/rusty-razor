@@ -24,36 +24,6 @@ impl F {
     pub fn app<T: FApp>(self, args: Vec<T>) -> T {
         T::apply(self, args)
     }
-
-    /// Applies the (nullary) function.
-    pub fn app0<T: FApp>(self) -> T {
-        T::apply(self, vec![])
-    }
-
-    /// Applies the (unary) receiver on an argument.
-    pub fn app1<T: FApp>(self, first: T) -> T {
-        T::apply(self, vec![first])
-    }
-
-    /// Applies the (binary) receiver on two arguments.
-    pub fn app2<T: FApp>(self, first: T, second: T) -> T {
-        T::apply(self, vec![first, second])
-    }
-
-    /// Applies the (ternary) receiver on three arguments.
-    pub fn app3<T: FApp>(self, first: T, second: T, third: T) -> T {
-        T::apply(self, vec![first, second, third])
-    }
-
-    /// Applies the (4-ary) receiver on four arguments.
-    pub fn app4<T: FApp>(self, first: T, second: T, third: T, fourth: T) -> T {
-        T::apply(self, vec![first, second, third, fourth])
-    }
-
-    /// Applies the (5-ary) receiver on five arguments.
-    pub fn app5<T: FApp>(self, first: T, second: T, third: T, fourth: T, fifth: T) -> T {
-        T::apply(self, vec![first, second, third, fourth, fifth])
-    }
 }
 
 impl From<&str> for F {
@@ -165,61 +135,6 @@ impl Pred {
         Formula::Atom {
             predicate: self,
             terms,
-        }
-    }
-
-    /// Applies the (nullary) receiver.
-    pub fn app0(self) -> Formula {
-        Formula::Atom {
-            predicate: self,
-            terms: vec![],
-        }
-    }
-
-    /// Applies the (unary) receiver on a term.
-    pub fn app1(self, first: Term) -> Formula {
-        Formula::Atom {
-            predicate: self,
-            terms: vec![first],
-        }
-    }
-
-    /// Applies the (binary) receiver on two terms.
-    pub fn app2(self, first: Term, second: Term) -> Formula {
-        Formula::Atom {
-            predicate: self,
-            terms: vec![first, second],
-        }
-    }
-
-    /// Applies the (ternary) receiver on three terms.
-    pub fn app3(self, first: Term, second: Term, third: Term) -> Formula {
-        Formula::Atom {
-            predicate: self,
-            terms: vec![first, second, third],
-        }
-    }
-
-    /// Applies the (4-ary) receiver on four terms.
-    pub fn app4(self, first: Term, second: Term, third: Term, fourth: Term) -> Formula {
-        Formula::Atom {
-            predicate: self,
-            terms: vec![first, second, third, fourth],
-        }
-    }
-
-    /// Applies the (5-ary) receiver on five terms.
-    pub fn app5(
-        self,
-        first: Term,
-        second: Term,
-        third: Term,
-        fourth: Term,
-        fifth: Term,
-    ) -> Formula {
-        Formula::Atom {
-            predicate: self,
-            terms: vec![first, second, third, fourth, fifth],
         }
     }
 }
