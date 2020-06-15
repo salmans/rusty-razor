@@ -1,3 +1,7 @@
+/*! Provides a number of macros for testing purposes. */
+
+// Creates a variable with the given name followed by one (otherwise illegal) '`'.
+// Internal variable renaming in PNF transformation appends '`' to variables.
 #[macro_export]
 macro_rules! v_1 {
     ($v:ident) => {{
@@ -6,6 +10,7 @@ macro_rules! v_1 {
     }};
 }
 
+// Creates a variable with the given name followed by two '`'.
 #[macro_export]
 macro_rules! v_2 {
     ($v:ident) => {{
@@ -14,6 +19,7 @@ macro_rules! v_2 {
     }};
 }
 
+// Creates a variable with the given name followed by three '`'.
 #[macro_export]
 macro_rules! v_3 {
     ($v:ident) => {{
@@ -22,6 +28,7 @@ macro_rules! v_3 {
     }};
 }
 
+// Asserts equality between two vectors as multisets.
 #[macro_export]
 macro_rules! assert_eq_sorted_vecs {
     ($left:expr, $right:expr) => {{
@@ -40,6 +47,7 @@ macro_rules! assert_eq_sorted_vecs {
     };
 }
 
+// Asserts that the debug representation of `value` is equal to `expected`.
 #[macro_export]
 macro_rules! assert_debug_string {
     ($expected:expr, $value:expr) => {{
@@ -52,6 +60,8 @@ macro_rules! assert_debug_string {
     };
 }
 
+// Asserts that the debug representation of the items in an input iterator `value`
+// separated by newline is equal to `expected`.
 #[macro_export]
 macro_rules! assert_debug_strings {
     ($expected:expr, $value:expr) => {{
