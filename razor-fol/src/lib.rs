@@ -2,5 +2,6 @@
 formulae in Razor's syntax. */
 pub mod parser;
 pub mod syntax;
-pub mod test_prelude;
+#[cfg(test)]
+pub mod test_macros;
 pub mod transform;
