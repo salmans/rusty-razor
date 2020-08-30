@@ -10,8 +10,7 @@ use razor_chase::{
     chase::{
         bounder::DomainSize,
         chase_step,
-        r#impl::batch::{Evaluator, Model, Sequent},
-        r#impl::reference::PreProcessor,
+        r#impl::relational::{Evaluator, Model, PreProcessor, Sequent},
         scheduler::Dispatch,
         strategy::{Bootstrap, Fair},
         ModelTrait, Observation, PreProcessorEx, SchedulerTrait, StrategyTrait,
@@ -204,7 +203,7 @@ fn process_solve(
         })
         .reset();
 
-    theory.formulae.iter().for_each(|f| println!("  {}", f));
+    theory.formulae().iter().for_each(|f| println!("  {}", f));
 
     println!();
     println!();
@@ -297,7 +296,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             print!("Domain: ");
         })
         .reset();
-    let domain = model.domain().iter().map(|e| e.get().to_string()).collect();
+    let domain = model.domain().iter().map(|e| e.to_string()).collect();
     print_list(color, MODEL_DOMAIN_COLOR, &domain);
     println!("\n");
 
@@ -309,11 +308,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
         .map(|e| {
             let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
             let witnesses = witnesses.into_iter().sorted();
-            format!(
-                "{} -> {}",
-                witnesses.into_iter().sorted().join(", "),
-                e.get()
-            )
+            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
         })
         .collect();
 

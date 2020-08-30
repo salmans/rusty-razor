@@ -668,7 +668,7 @@ impl PreProcessorEx for PreProcessor {
 
     fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
         (
-            theory.gnf().formulae.iter().map(|f| f.into()).collect(),
+            theory.gnf().formulae().iter().map(|f| f.into()).collect(),
             Model::new(),
         )
     }

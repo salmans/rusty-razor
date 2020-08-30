@@ -2,16 +2,12 @@
 
 ['Sig']: ./struct.Sig.html
 */
-use super::{Error, Formula, Pred, Term, C, F};
+use super::{Error, Formula, Pred, Term, C, EQ_SYM, F};
 use core::convert::TryFrom;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
 };
-
-#[doc(hidden)]
-/// Predicate symbol to represent the signature of equality.
-pub const EQ_PRED_SYM: &'static str = "=";
 
 /// Contains the signature information for a function.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -46,7 +42,7 @@ impl fmt::Display for PSig {
 }
 
 /// Is the signature of a first-order theory.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Sig {
     /// Is the constant symbols in a theory.
     pub constants: HashSet<C>,
@@ -209,7 +205,7 @@ fn formula_signature(formula: &Formula) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
                 cs,
                 fs,
                 vec![PSig {
-                    symbol: Pred(EQ_PRED_SYM.to_string()),
+                    symbol: Pred(EQ_SYM.to_string()),
                     arity: 2,
                 }],
             )
@@ -270,7 +266,7 @@ mod tests {
         {
             let mut sig = Sig::new();
             sig.add_predicate(PSig {
-                symbol: Pred(EQ_PRED_SYM.to_string()),
+                symbol: Pred(EQ_SYM.to_string()),
                 arity: 2,
             })
             .unwrap();

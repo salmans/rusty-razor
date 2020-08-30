@@ -163,6 +163,10 @@ impl fmt::Debug for Pred {
     }
 }
 
+#[doc(hidden)]
+/// Predicate symbol to represent the signature of equality.
+pub const EQ_SYM: &'static str = "=";
+
 #[cfg(test)]
 mod tests {
     use crate::{c, f, pred, v};

@@ -593,7 +593,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 ///
 /// // create sequents for the geometric theory:
 /// let sequents: Vec<basic::Sequent> = geometric_theory
-///     .formulae
+///     .formulae()
 ///     .iter()
 ///     .map(|f| f.into())
 ///     .collect();
@@ -660,7 +660,7 @@ where
 ///
 /// // create sequents for the geometric theory:
 /// let sequents: Vec<basic::Sequent> = geometric_theory
-///     .formulae
+///     .formulae()
 ///     .iter()
 ///     .map(|f| f.into())
 ///     .collect();

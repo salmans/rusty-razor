@@ -234,7 +234,7 @@ impl Theory {
 
         let mut generator = SkolemGenerator::new();
         let formulae: Vec<GNF> = self
-            .formulae
+            .formulae()
             .iter()
             .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
             .collect();
@@ -390,22 +390,25 @@ mod test_transform {
         // mostly testing if compression of heads works properly:
         {
             let theory: Theory = "P('a); P('b);".parse().unwrap();
-            assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae);
+            assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae());
         }
         {
             let theory: Theory = "P('a); P(x);".parse().unwrap();
-            assert_debug_strings!("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae);
+            assert_debug_strings!("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae());
         }
         {
             let theory: Theory = "P('a); P(x); P('b);".parse().unwrap();
             assert_debug_strings!(
                 "true -> P(x)\ntrue -> (P(\'a) & P(\'b))",
-                theory.gnf().formulae,
+                theory.gnf().formulae(),
             );
         }
         {
             let theory: Theory = "(T() and V()) or (U() and V());".parse().unwrap();
-            assert_debug_strings!("true -> ((T() & V()) | (U() & V()))", theory.gnf().formulae);
+            assert_debug_strings!(
+                "true -> ((T() & V()) | (U() & V()))",
+                theory.gnf().formulae()
+            );
         }
     }
 }

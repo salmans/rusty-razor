@@ -514,7 +514,7 @@ impl PreProcessorEx for PreProcessor {
 
     fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
         (
-            theory.gnf().formulae.iter().map(|f| f.into()).collect(),
+            theory.gnf().formulae().iter().map(|f| f.into()).collect(),
             Model::new(),
         )
     }
@@ -780,7 +780,11 @@ mod test_reference {
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
+        let sequents: Vec<Sequent> = geometric_theory
+            .formulae()
+            .iter()
+            .map(|f| f.into())
+            .collect();
 
         let evaluator = Evaluator;
         let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
