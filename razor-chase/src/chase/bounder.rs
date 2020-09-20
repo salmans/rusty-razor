@@ -30,7 +30,7 @@ impl BounderTrait for DomainSize {
             Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
                 let terms: Vec<
-                    Option<&<<M as ModelTrait>::TermType as WitnessTermTrait>::ElementType>,
+                    Option<<<M as ModelTrait>::TermType as WitnessTermTrait>::ElementType>,
                 > = terms
                     .iter()
                     .map(|t| model.element(t))

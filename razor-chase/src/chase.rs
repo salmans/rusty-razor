@@ -356,24 +356,24 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
 
     /// Returns the domain of the receiver. The domain of a model consists of all elements in the
     /// model.
-    fn domain(&self) -> Vec<&<Self::TermType as WitnessTermTrait>::ElementType>;
+    fn domain(&self) -> Vec<<Self::TermType as WitnessTermTrait>::ElementType>;
 
     /// Returns the set of relational [`Fact`]s that are true in the receiver.
     ///
     /// [`Fact`]: ./enum.Observation.html#variant.Fact
-    fn facts(&self) -> Vec<&Observation<Self::TermType>>;
+    fn facts(&self) -> Vec<Observation<Self::TermType>>;
 
     /// Returns a set of all witness terms in the receiver that are denoted by `element`.
     fn witness(
         &self,
         element: &<Self::TermType as WitnessTermTrait>::ElementType,
-    ) -> Vec<&Self::TermType>;
+    ) -> Vec<Self::TermType>;
 
     /// Returns the element in the receiver that is denoted by `witness`.
     fn element(
         &self,
         witness: &Self::TermType,
-    ) -> Option<&<Self::TermType as WitnessTermTrait>::ElementType>;
+    ) -> Option<<Self::TermType as WitnessTermTrait>::ElementType>;
 }
 
 /// Is the trait for types that represents a [geometric sequent][sequent] in the
