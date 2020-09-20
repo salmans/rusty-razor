@@ -21,7 +21,7 @@ use crate::chase::{
         basic, reference,
         reference::{Element, WitnessTerm},
     },
-    BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation, Rel, StrategyTrait,
+    BounderTrait, EvaluateResult, EvaluatorTrait, Observation, Rel, StrategyTrait,
 };
 use itertools::{Either, Itertools};
 use razor_fol::syntax::V;
@@ -43,7 +43,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
     ) -> Option<EvaluateResult<Model>> {
         let mut result = EvaluateResult::new();
 
-        let domain: Vec<&Element> = initial_model.domain();
+        let domain: Vec<&Element> = initial_model.domain_ref();
         let domain_size = domain.len();
         for sequent in strategy {
             let vars = &sequent.free_vars;

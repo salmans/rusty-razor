@@ -229,6 +229,35 @@ impl Model {
         }
     }
 
+    /// Returns references to the elements of this model.
+    pub fn domain_ref(&self) -> Vec<&Element> {
+        self.domain.iter().unique().collect()
+    }
+
+    /// Returns a reference to an element witnessed by the given witness term.
+    fn element_ref(&self, witness: &WitnessTerm) -> Option<&Element> {
+        match witness {
+            WitnessTerm::Elem { element } => self.domain.iter().find(|e| e == &element),
+            WitnessTerm::Const { .. } => self.rewrites.get(witness),
+            WitnessTerm::App { function, terms } => {
+                let terms: Vec<Option<&Element>> =
+                    terms.iter().map(|t| self.element_ref(t)).collect();
+                if terms.iter().any(|e| e.is_none()) {
+                    None
+                } else {
+                    let terms: Vec<WitnessTerm> = terms
+                        .into_iter()
+                        .map(|e| e.unwrap().clone().into())
+                        .collect();
+                    self.rewrites.get(&WitnessTerm::App {
+                        function: (*function).clone(),
+                        terms,
+                    })
+                }
+            }
+        }
+    }
+
     /// Applies the rewrite rules in `equality_history` of the receiver to reduce an element to
     /// the representative element of the equational class to which it belongs.
     fn history(&self, element: &Element) -> Element {
@@ -319,7 +348,8 @@ impl Model {
     pub fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<Option<&Element>> = terms.iter().map(|t| self.element(t)).collect();
+                let terms: Vec<Option<&Element>> =
+                    terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
@@ -349,15 +379,21 @@ impl ModelTrait for Model {
         self.id
     }
 
-    fn domain(&self) -> Vec<&Element> {
-        self.domain.iter().unique().collect()
+    fn domain(&self) -> Vec<Element> {
+        self.domain_ref().into_iter().cloned().collect()
     }
 
-    fn facts(&self) -> Vec<&Observation<Self::TermType>> {
-        self.facts.iter().sorted().into_iter().dedup().collect()
+    fn facts(&self) -> Vec<Observation<Self::TermType>> {
+        self.facts
+            .clone()
+            .into_iter()
+            .sorted()
+            .into_iter()
+            .dedup()
+            .collect()
     }
 
-    fn witness(&self, element: &Element) -> Vec<&Self::TermType> {
+    fn witness(&self, element: &Element) -> Vec<Self::TermType> {
         self.rewrites
             .iter()
             .filter(|(_, e)| (*e).eq(element))
@@ -365,29 +401,12 @@ impl ModelTrait for Model {
             .sorted()
             .into_iter()
             .dedup()
+            .cloned()
             .collect()
     }
 
-    fn element(&self, witness: &Self::TermType) -> Option<&Element> {
-        match witness {
-            WitnessTerm::Elem { element } => self.domain.iter().find(|e| e == &element),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness),
-            WitnessTerm::App { function, terms } => {
-                let terms: Vec<Option<&Element>> = terms.iter().map(|t| self.element(t)).collect();
-                if terms.iter().any(|e| e.is_none()) {
-                    None
-                } else {
-                    let terms: Vec<WitnessTerm> = terms
-                        .into_iter()
-                        .map(|e| e.unwrap().clone().into())
-                        .collect();
-                    self.rewrites.get(&WitnessTerm::App {
-                        function: (*function).clone(),
-                        terms,
-                    })
-                }
-            }
-        }
+    fn element(&self, witness: &Self::TermType) -> Option<Element> {
+        self.element_ref(witness).cloned()
     }
 }
 
@@ -502,7 +521,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
         strategy: &mut Stg,
         bounder: Option<&B>,
     ) -> Option<EvaluateResult<Model>> {
-        let domain: Vec<&Element> = initial_model.domain();
+        let domain: Vec<&Element> = initial_model.domain_ref();
         let domain_size = domain.len();
         for sequent in strategy {
             let vars = &sequent.free_vars;
