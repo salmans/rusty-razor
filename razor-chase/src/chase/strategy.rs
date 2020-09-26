@@ -21,8 +21,11 @@ pub struct Linear<'s, S: SequentTrait> {
 }
 
 impl<'s, S: SequentTrait> StrategyTrait for Linear<'s, S> {
-    fn new(sequents: Vec<&'s S>) -> Linear<'s, S> {
-        Linear { sequents, index: 0 }
+    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
+        Linear {
+            sequents: sequents.into_iter().collect(),
+            index: 0,
+        }
     }
 }
 
@@ -66,9 +69,9 @@ pub struct Fair<'s, S: SequentTrait> {
 }
 
 impl<'s, S: SequentTrait> StrategyTrait for Fair<'s, S> {
-    fn new(sequents: Vec<&'s S>) -> Fair<'s, S> {
+    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
         Fair {
-            sequents,
+            sequents: sequents.into_iter().collect(),
             index: 0,
             start: 0,
             full_circle: false,
@@ -122,7 +125,7 @@ pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
 impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait
     for Bootstrap<'s, S, Stg>
 {
-    fn new(sequents: Vec<&'s S>) -> Bootstrap<'s, S, Stg> {
+    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
         let (initial_sequents, rest) = sequents
             .into_iter()
             .partition(|s| s.body() == Formula::Top && s.head().free_vars().is_empty());
@@ -150,10 +153,10 @@ mod test_fair {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, Sequent},
+        r#impl::basic::{Evaluator, Model, PreProcessor},
         scheduler::FIFO,
         strategy::Fair,
-        ModelTrait, SchedulerTrait, StrategyTrait,
+        ModelTrait, PreProcessorEx, SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::{read_theory_from_file, solve_basic};
     use itertools::Itertools;
@@ -185,11 +188,10 @@ mod test_fair {
     }
 
     fn run_test(theory: &Theory) -> Vec<Model> {
-        let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
-
-        let evaluator = Evaluator {};
-        let strategy = Fair::new(sequents.iter().collect());
+        let preprocessor = PreProcessor;
+        let sequents = preprocessor.pre_process(theory);
+        let evaluator = Evaluator;
+        let strategy = Fair::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
@@ -217,9 +219,9 @@ mod test_bootstrap {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, Sequent},
+        r#impl::basic::{Evaluator, Model, PreProcessor, Sequent},
         strategy::{Bootstrap, Fair},
-        SchedulerTrait, StrategyTrait,
+        PreProcessorEx, SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::Theory;
@@ -227,11 +229,10 @@ mod test_bootstrap {
     use std::fs;
 
     fn run_test(theory: &Theory) -> Vec<Model> {
-        let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
-
-        let evaluator = Evaluator {};
-        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+        let pre_processor = PreProcessor;
+        let sequents = pre_processor.pre_process(theory);
+        let evaluator = Evaluator;
+        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);

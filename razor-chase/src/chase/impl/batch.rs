@@ -28,13 +28,14 @@ use razor_fol::syntax::V;
 use std::{collections::HashMap, iter};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
-pub struct Evaluator {}
+pub struct Evaluator;
 
 impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
     for Evaluator
 {
     type Sequent = Sequent;
     type Model = Model;
+
     fn evaluate(
         &self,
         initial_model: &Model,
@@ -211,6 +212,7 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 }
 
 pub type Sequent = basic::Sequent;
+pub type PreProcessor = basic::PreProcessor;
 pub type Literal = basic::Literal;
 pub type Model = reference::Model;
 
@@ -282,8 +284,8 @@ mod test_batch {
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
 
-        let evaluator = Evaluator {};
-        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+        let evaluator = Evaluator;
+        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
