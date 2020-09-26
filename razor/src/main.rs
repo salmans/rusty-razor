@@ -10,10 +10,11 @@ use razor_chase::{
     chase::{
         bounder::DomainSize,
         chase_step,
+        r#impl::basic::PreProcessor,
         r#impl::batch::{Evaluator, Model, Sequent},
         scheduler::Dispatch,
         strategy::{Bootstrap, Fair},
-        ModelTrait, Observation, SchedulerTrait, StrategyTrait,
+        ModelTrait, Observation, PreProcessorEx, SchedulerTrait, StrategyTrait,
     },
     trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
 };
@@ -208,10 +209,11 @@ fn process_solve(
     println!();
     println!();
 
-    let theory = theory.gnf();
-    let sequents: Vec<Sequent> = theory.formulae.iter().map(|f| f.into()).collect();
-    let evaluator = Evaluator {};
-    let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter().collect());
+    let pre_processor = PreProcessor;
+    let sequents = pre_processor.pre_process(&theory);
+
+    let evaluator = Evaluator;
+    let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
     let bounder = bound.map(|b| match b {
         BoundCommand::Domain { size } => DomainSize::from(size),
     });

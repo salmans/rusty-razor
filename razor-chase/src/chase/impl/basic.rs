@@ -654,18 +654,36 @@ impl SequentTrait for Sequent {
     }
 }
 
-/// Evaluates a [`Sequent`] in a [`Model`] within a [chase-step].
+/// A simple instance of [`PreProcessorEx`] that converts the input theory to a vector of [`Sequent`] following
+/// the standard conversion to geometric normal form.
 ///
+/// [`Sequent`]: ./struct.Sequent.html
+/// [`PreProcessorEx`]: ../../trait.PreProcessorEx.html
+pub struct PreProcessor;
+
+impl PreProcessorEx for PreProcessor {
+    type Sequent = Sequent;
+
+    fn pre_process(&self, theory: &Theory) -> Vec<Self::Sequent> {
+        theory.gnf().formulae.iter().map(|f| f.into()).collect()
+    }
+}
+
+/// Is a reference implementation of [`EvaluatorTrait`] for evaluating a basic [`Sequent`] in a basic [`Model`]
+/// within a [chase-step].
+///
+/// [`EvaluatorTrait`]: ../../trait.EvaluatorTrait.html
 /// [`Sequent`]: ./struct.Sequent.html
 /// [`Model`]: ./struct.Model.html
 /// [chase-step]: ../../index.html#chase-step
-pub struct Evaluator {}
+pub struct Evaluator;
 
 impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
     for Evaluator
 {
     type Sequent = Sequent;
     type Model = Model;
+
     fn evaluate(
         &self,
         initial_model: &Model,

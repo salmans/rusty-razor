@@ -163,9 +163,9 @@ mod test_lifo {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, Sequent},
+        r#impl::basic::{Evaluator, Model, PreProcessor},
         strategy::Linear,
-        SchedulerTrait, StrategyTrait,
+        PreProcessorEx, SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::Theory;
@@ -173,11 +173,10 @@ mod test_lifo {
     use std::fs;
 
     pub fn run_test(theory: &Theory) -> Vec<Model> {
-        let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
-
-        let evaluator = Evaluator {};
-        let strategy = Linear::new(sequents.iter().collect());
+        let pre_processor = PreProcessor;
+        let sequents = pre_processor.pre_process(theory);
+        let evaluator = Evaluator;
+        let strategy = Linear::new(sequents.iter());
         let mut scheduler = LIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);
