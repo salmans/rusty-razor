@@ -189,12 +189,12 @@ mod test_fair {
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let preprocessor = PreProcessor;
-        let sequents = preprocessor.pre_process(theory);
+        let (sequents, init_model) = preprocessor.pre_process(theory);
         let evaluator = Evaluator;
         let strategy = Fair::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        scheduler.add(Model::new(), strategy);
+        scheduler.add(init_model, strategy);
         chase_all(&mut scheduler, &evaluator, bounder)
     }
 
@@ -230,12 +230,12 @@ mod test_bootstrap {
 
     fn run_test(theory: &Theory) -> Vec<Model> {
         let pre_processor = PreProcessor;
-        let sequents = pre_processor.pre_process(theory);
+        let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = Evaluator;
         let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        scheduler.add(Model::new(), strategy);
+        scheduler.add(init_model, strategy);
         chase_all(&mut scheduler, &evaluator, bounder)
     }
 

@@ -388,16 +388,24 @@ pub trait SequentTrait: Clone {
     fn head(&self) -> Formula;
 }
 
-/// Is the trait of objects that convert an initial theory to sequents of a particular implementation.
+/// Is the trait of objects that convert an initial theory to sequents and provide the initial
+/// (empty) model for a particular implementation.
 pub trait PreProcessorEx {
-    /// Is the type of sequents created by this preprocessor.
+    /// Is the type of [sequents] created by this preprocessor.
+    ///
+    /// [sequents]: ./trait.SequentTrait.html    
     type Sequent;
 
-    /// Given a theory, returns an iterator of [sequents], applying the necessary
-    /// pre-processing for sequents that can be evaluated by this evaluator.
+    /// Is the type of the initial [model], created by this preprocessor.
+    ///
+    /// [model]: ./trait.ModelTrait.html    
+    type Model;
+
+    /// Given a theory, returns an iterator of [sequents] and an initial [model] by
+    /// applying the necessary pre-processing.
     ///
     /// [sequents]: ./trait.SequentTrait.html
-    fn pre_process(&self, theory: &Theory) -> Vec<Self::Sequent>;
+    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model);
 }
 
 /// Strategy is the trait of algorithms for choosing sequents in the context of an implementation

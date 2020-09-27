@@ -212,7 +212,7 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 }
 
 pub type Sequent = basic::Sequent;
-pub type PreProcessor = basic::PreProcessor;
+pub type PreProcessor = reference::PreProcessor;
 pub type Literal = basic::Literal;
 pub type Model = reference::Model;
 

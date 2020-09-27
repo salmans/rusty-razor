@@ -10,8 +10,8 @@ use razor_chase::{
     chase::{
         bounder::DomainSize,
         chase_step,
-        r#impl::basic::PreProcessor,
         r#impl::batch::{Evaluator, Model, Sequent},
+        r#impl::reference::PreProcessor,
         scheduler::Dispatch,
         strategy::{Bootstrap, Fair},
         ModelTrait, Observation, PreProcessorEx, SchedulerTrait, StrategyTrait,
@@ -210,7 +210,7 @@ fn process_solve(
     println!();
 
     let pre_processor = PreProcessor;
-    let sequents = pre_processor.pre_process(&theory);
+    let (sequents, init_model) = pre_processor.pre_process(&theory);
 
     let evaluator = Evaluator;
     let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
@@ -225,14 +225,13 @@ fn process_solve(
         SchedulerOption::LIFO => Dispatch::new_lifo(),
     };
 
-    let initial_model = Model::new();
     let run = || {
         info!(
             event = EXTEND,
-            model_id = &initial_model.get_id(),
-            model = %initial_model,
+            model_id = &init_model.get_id(),
+            model = %init_model,
         );
-        scheduler.add(initial_model, strategy);
+        scheduler.add(init_model, strategy);
         while !scheduler.empty() {
             if count.is_some() && complete_count >= count.unwrap() {
                 break;

@@ -13,11 +13,11 @@
 //! [`Identity`]: ../../enum.Observation.html#variant.Identity
 //! [basic]: ../basic/struct.Model.html#method.reduce_rewrites
 use crate::chase::{
-    r#impl::basic, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation, Rel,
-    StrategyTrait, WitnessTermTrait, E,
+    r#impl::basic, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation,
+    PreProcessorEx, Rel, StrategyTrait, WitnessTermTrait, E,
 };
 use itertools::{Either, Itertools};
-use razor_fol::syntax::{FApp, Term, C, F, V};
+use razor_fol::syntax::{FApp, Term, Theory, C, F, V};
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
@@ -503,6 +503,23 @@ impl fmt::Display for Model {
     }
 }
 
+/// Is the [preprocessor] instance for this implementation.
+///
+/// [preprocessor]: ../../trait.PreProcessorEx.html
+pub struct PreProcessor;
+
+impl PreProcessorEx for PreProcessor {
+    type Sequent = Sequent;
+    type Model = Model;
+
+    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+        (
+            theory.gnf().formulae.iter().map(|f| f.into()).collect(),
+            Model::new(),
+        )
+    }
+}
+
 /// Evaluates a [`Sequent`] in a [`Model`] within a [chase-step].
 ///
 /// [`Sequent`]: ./struct.Sequent.html
@@ -689,15 +706,6 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 /// [`chase::impl::reference`]: ./index.html
 /// [`chase::impl::basic`]: ../basic/index.html
 pub type Sequent = basic::Sequent;
-
-/// Is a type synonym for [`basic::PreProcessor`].
-///
-/// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
-///
-/// [`basic::PreProcessor`]: ../basic/struct.PreProcessor.html
-/// [`chase::impl::reference`]: ./index.html
-/// [`chase::impl::basic`]: ../basic/index.html
-pub type PreProcessor = basic::PreProcessor;
 
 /// Is a type synonym for [`basic::Literal`].
 ///
