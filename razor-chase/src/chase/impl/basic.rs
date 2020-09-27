@@ -655,17 +655,22 @@ impl SequentTrait for Sequent {
 }
 
 /// A simple instance of [`PreProcessorEx`] that converts the input theory to a vector of [`Sequent`] following
-/// the standard conversion to geometric normal form.
+/// the standard conversion to geometric normal form. Also provides the empty [`Model`];
 ///
 /// [`Sequent`]: ./struct.Sequent.html
+/// [`Model`]: ./struct.Model.html
 /// [`PreProcessorEx`]: ../../trait.PreProcessorEx.html
 pub struct PreProcessor;
 
 impl PreProcessorEx for PreProcessor {
     type Sequent = Sequent;
+    type Model = Model;
 
-    fn pre_process(&self, theory: &Theory) -> Vec<Self::Sequent> {
-        theory.gnf().formulae.iter().map(|f| f.into()).collect()
+    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+        (
+            theory.gnf().formulae.iter().map(|f| f.into()).collect(),
+            Model::new(),
+        )
     }
 }
 

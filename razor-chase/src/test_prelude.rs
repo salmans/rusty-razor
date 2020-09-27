@@ -227,24 +227,24 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
 
 pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     let pre_processor = basic::PreProcessor;
-    let sequents = pre_processor.pre_process(theory);
+    let (sequents, init_model) = pre_processor.pre_process(theory);
     let evaluator = basic::Evaluator;
     let strategy = Linear::new(sequents.iter());
     let mut scheduler = FIFO::new();
     let bounder: Option<&DomainSize> = None;
-    scheduler.add(basic::Model::new(), strategy);
+    scheduler.add(init_model, strategy);
     chase_all(&mut scheduler, &evaluator, bounder)
 }
 
 pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
     let pre_processor = basic::PreProcessor;
-    let sequents = pre_processor.pre_process(theory);
+    let (sequents, init_model) = pre_processor.pre_process(theory);
     let evaluator = basic::Evaluator;
     let strategy = Linear::new(sequents.iter());
     let mut scheduler = FIFO::new();
     let bounder = DomainSize::from(bound);
     let bounder: Option<&DomainSize> = Some(&bounder);
-    scheduler.add(basic::Model::new(), strategy);
+    scheduler.add(init_model, strategy);
     chase_all(&mut scheduler, &evaluator, bounder)
 }
 
