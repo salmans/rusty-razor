@@ -3,7 +3,7 @@
 mod formula;
 mod macros;
 mod signature;
-mod symbol;
+pub mod symbol;
 mod term;
 mod theory;
 

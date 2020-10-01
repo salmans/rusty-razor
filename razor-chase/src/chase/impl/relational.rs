@@ -1,18 +1,21 @@
 mod expression;
 mod memo;
-mod relationalize;
 
 use crate::chase::{
     r#impl::basic::WitnessTerm, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait,
     Observation, PreProcessorEx, Rel, SequentTrait, StrategyTrait, E,
 };
 use anyhow::{bail, Result};
-use expression::{make_expression, Attributes, Tup};
+use expression::{make_expression, Attributes, Tuple};
 use itertools::{Either, Itertools};
-use razor_fol::syntax::{Formula, Sig, Term, C, F, V};
+use razor_fol::{
+    syntax::{Formula, Sig, Term, C, F, V},
+    transform::relationalize,
+};
 use relalg::expression::{Difference, Empty, Mono, Relation};
-use relationalize::{range_restrict, relationalize};
 use std::{collections::HashMap, fmt};
+
+const DOMAIN: &str = "$$domain";
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -29,20 +32,20 @@ impl Model {
         let mut database = relalg::Database::new();
         for c in signature.constants.iter() {
             // FIXME
-            database.add_relation::<Tup>(&format!("${}", c)).unwrap();
+            database.add_relation::<Tuple>(&format!("${}", c)).unwrap();
         }
         for f in signature.functions.values() {
             // FIXME
             database
-                .add_relation::<Tup>(&format!("${}", f.symbol))
+                .add_relation::<Tuple>(&format!("${}", f.symbol))
                 .unwrap();
         }
         for p in signature.predicates.values() {
             // FIXME
-            database.add_relation::<Tup>(&p.symbol.0).unwrap();
+            database.add_relation::<Tuple>(&p.symbol.0).unwrap();
         }
-        database.add_relation::<Tup>("$$domain").unwrap(); // FIXME
-        let _ = database.add_relation::<Tup>("="); // FIXME
+        database.add_relation::<Tuple>("$$domain").unwrap(); // FIXME
+        let _ = database.add_relation::<Tuple>("="); // FIXME
 
         Self {
             id: rand::random(),
@@ -69,7 +72,7 @@ impl ModelTrait for Model {
 
     fn domain(&self) -> Vec<E> {
         self.database
-            .evaluate::<Tup, _>(&Relation::new("$$domain"))
+            .evaluate::<Tuple, _>(&Relation::new("$$domain"))
             .unwrap()
             .iter()
             .map(|e| e[0].clone())
@@ -84,7 +87,7 @@ impl ModelTrait for Model {
             }
             let tuples = self
                 .database
-                .evaluate(&Relation::<Tup>::new(&p.symbol.0))
+                .evaluate(&Relation::<Tuple>::new(&p.symbol.0))
                 .unwrap(); // FIXME
 
             for t in tuples.items.into_iter() {
@@ -100,7 +103,7 @@ impl ModelTrait for Model {
         for f in self.signature.functions.values() {
             let tuples = self
                 .database
-                .evaluate(&Relation::<Tup>::new(&format!("${}", f.symbol)))
+                .evaluate(&Relation::<Tuple>::new(&format!("${}", f.symbol)))
                 .unwrap();
 
             for mut t in tuples.items.into_iter() {
@@ -120,7 +123,7 @@ impl ModelTrait for Model {
         for c in &self.signature.constants {
             let tuples = self
                 .database
-                .evaluate(&Relation::<Tup>::new(&format!("${}", c)))
+                .evaluate(&Relation::<Tuple>::new(&format!("${}", c)))
                 .unwrap();
 
             for mut t in tuples.items.into_iter() {
@@ -217,7 +220,7 @@ pub struct Sequent {
     branches: Vec<Branch>,
     attributes: Attributes,
     projected: Attributes,
-    expression: Mono<Tup>,
+    expression: Mono<Tuple>,
     body_formula: Formula,
     head_formula: Formula,
 }
@@ -241,7 +244,7 @@ impl From<&Formula> for Sequent {
                 .iter()
                 .filter_map(|v| {
                     // This is a hack for now: remove existentially quantified variables
-                    if !v.0.starts_with("$") && !v.0.starts_with("?") {
+                    if !v.0.starts_with("~") && !v.0.starts_with("?") {
                         Some((*v).clone())
                     } else {
                         None
@@ -262,17 +265,17 @@ impl From<&Formula> for Sequent {
                 .collect::<Vec<V>>()
                 .into();
 
-            let rr_left = range_restrict(left, &right_attrs).unwrap(); // FIXME
-            let rr_right = range_restrict(right, &right_attrs).unwrap(); // FIXME
+            let rr_left = relationalize::range_restrict(left, &right_attrs, DOMAIN).unwrap(); // FIXME
+            let rr_right = relationalize::range_restrict(right, &right_attrs, DOMAIN).unwrap(); // FIXME
 
-            let mut left_attrs: Attributes = rr_left
+            let left_attrs: Attributes = rr_left
                 .free_vars()
                 .into_iter()
                 .map(|v| v.clone())
                 .collect::<Vec<V>>()
                 .into();
 
-            left_attrs.retain(&right_attrs);
+            let left_attrs = left_attrs.intersect(&right_attrs);
 
             let branches: Vec<Branch> = build_branches(&rr_right)
                 .unwrap() // FIXME
@@ -286,16 +289,16 @@ impl From<&Formula> for Sequent {
                 branches
             };
 
-            let left_expression = make_expression(&rr_left, &vec![].into(), &left_attrs).unwrap(); // FIXME
-            let right_expression = make_expression(&rr_right, &vec![].into(), &left_attrs).unwrap(); // FIXME
+            let left_expression = make_expression(&rr_left, &left_attrs).unwrap(); // FIXME
+            let right_expression = make_expression(&rr_right, &left_attrs).unwrap(); // FIXME
 
             let expression = match &branches[..] {
-                [] => left_expression.expression,
+                [] => left_expression,
                 _ => match &branches[0][..] {
                     [] => Mono::Empty(Empty::new()),
                     _ => Mono::Difference(Difference::new(
-                        &Box::new(left_expression.expression),
-                        &Box::new(right_expression.expression),
+                        &Box::new(left_expression),
+                        &Box::new(right_expression),
                     )),
                 },
             };
@@ -391,9 +394,11 @@ impl PreProcessorEx for PreProcessor {
                 .into_iter()
                 .map(|f| match f {
                     Formula::Implies { left, right } => {
-                        let left = relationalize(&left)
+                        let left = relationalize::Relationalizer::new()
+                            .relationalize(&left)
                             .expect(&format!("failed to relationalize formula: {}", left));
-                        let right = relationalize(&right)
+                        let right = relationalize::Relationalizer::new()
+                            .relationalize(&right)
                             .expect(&format!("failed to relationalize formula: {}", right));
                         Sequent::from(&Formula::implies(left, right))
                     }
@@ -437,7 +442,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
 
                         for branch in &sequent.branches {
                             let mut relation_tuples =
-                                HashMap::<(&str, &Attributes), Vec<Tup>>::new();
+                                HashMap::<(&str, &Attributes), Vec<Tuple>>::new();
                             let mut existentials = HashMap::<&V, E>::new();
                             let mut new_model = model.clone();
 
@@ -527,7 +532,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                             }
                             new_model
                                 .database
-                                .insert::<Tup>(
+                                .insert::<Tuple>(
                                     &Relation::new("$$domain"),
                                     existentials
                                         .values()
@@ -579,9 +584,9 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<RelationAttr>>> {
             for term in terms {
                 match term {
                     Term::Var { variable } => {
-                        if variable.0.starts_with("$") {
+                        if variable.0.starts_with("~") {
                             // Variables introduced by equality on right can take their value from the original variable.
-                            if let Some(end) = variable.0.find("!") {
+                            if let Some(end) = variable.0.find(":") {
                                 let var_name = variable.0[1..end].to_string();
                                 attributes.push(V(var_name));
                             } else {

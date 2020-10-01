@@ -1,163 +1,196 @@
+/*! Implements the algorithm for converting a relational formula to a relational expression in `relalg`.*/
+
 use crate::chase::E;
 use anyhow::{bail, Result};
-use razor_fol::syntax::{Formula, Pred, V};
+use razor_fol::syntax::{Formula, Pred};
 use relalg::{expression::Mono, *};
 use std::ops::Deref;
 
-pub(crate) type Tup = Vec<E>;
+/// Is the type of tuples in database instances.
+pub(super) type Tuple = Vec<E>;
 
-trait TupleMap: FnMut(&Tup) -> Tup {}
-impl<F: FnMut(&Tup) -> Tup> TupleMap for F {}
+/// Is the trait of objects that map a tuple to another.
+trait TupleMap: FnMut(&Tuple) -> Tuple {}
+impl<F: FnMut(&Tuple) -> Tuple> TupleMap for F {}
 
+/// In the context of a relational expression, a variable is refered to as an `Attribute`.
+/// In fact, every position on a relational formula is an attribute.
+/// However, because every position is occupied by a unique variable, every
+/// variable identifies an attribute.
+type Attribute = razor_fol::syntax::V;
+
+/// Represents the attributes of a relational expression.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Attributes(pub(crate) Vec<V>);
+pub(super) struct Attributes(Vec<Attribute>);
 
 impl Attributes {
-    pub(crate) fn union(&self, other: &Attributes) -> Attributes {
-        let mut result = self.iter().map(|v| v.clone()).collect::<Vec<V>>();
-        let diff = other
-            .iter()
-            .filter(|v| !self.contains(v))
-            .map(|v| v.clone())
-            .collect::<Vec<V>>();
-        result.extend(diff);
-        Self(result)
+    /// Returns the set union of the attributes in the receiver and those in `other`.
+    pub fn union(&self, other: &Attributes) -> Attributes {
+        self.iter()
+            .chain(other.iter().filter(|v| !self.contains(v)))
+            .cloned()
+            .collect::<Vec<_>>()
+            .into()
     }
 
-    pub(crate) fn intersect(&self, other: &Attributes) -> Attributes {
-        Self(
-            self.iter()
-                .filter(|v| other.contains(v))
-                .map(|v| (*v).clone())
-                .collect(),
-        )
+    /// Returns the attributes that are present in both the receiver and `other`.
+    pub fn intersect(&self, other: &Attributes) -> Attributes {
+        self.iter()
+            .filter(|v| other.contains(v))
+            .cloned()
+            .collect::<Vec<_>>()
+            .into()
     }
 
-    pub(crate) fn retain(&mut self, other: &Self) {
-        self.0.retain(|x| other.contains(x));
+    /// Makes a `TupleMap` closure that given a `Tuple` over the attributes of the receiver,
+    /// returns a `Tuple` projected by `attributes`.
+    fn project(&self, attributes: &Attributes) -> impl TupleMap {
+        let mut key_indices = Vec::new();
+        for v in &attributes.0 {
+            let mut iter = self.iter();
+            key_indices.push(iter.position(|item| item == v).unwrap().clone());
+        }
+
+        move |t: &Tuple| {
+            let mut key = vec![];
+            key_indices.iter().for_each(|i| {
+                key.push(t[*i]);
+            });
+            key
+        }
     }
 }
 
 impl Deref for Attributes {
-    type Target = Vec<V>;
+    type Target = Vec<Attribute>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<Vec<V>> for Attributes {
-    fn from(vars: Vec<V>) -> Self {
-        Self(vars)
+impl<I: IntoIterator<Item = Attribute>> From<I> for Attributes {
+    fn from(attributes: I) -> Self {
+        Self(attributes.into_iter().collect())
     }
 }
 
-pub(crate) struct SubExp {
+/// Represents a relational expression of type `Mono<Tuple>` while the expression
+/// is being constructed.
+pub(super) struct SubExpression {
+    /// Is the attributes associated to this expression.
     attributes: Attributes,
+
+    /// Maps a tuple of `expression` to the keys that are used to join this subexpression with
+    /// another subexpression at the upper level of the expression tree.
     join_key: Box<dyn TupleMap>,
-    pub(crate) expression: Mono<Tup>,
+
+    /// Is the (sub)expression in the context of a larger expression.
+    expression: Mono<Tuple>,
 }
 
-fn make_key(key_attrs: &Attributes, attrs: &Attributes) -> impl TupleMap {
-    let mut key_indices = Vec::new();
-    for v in &key_attrs.0 {
-        let mut iter = attrs.iter();
-        key_indices.push(iter.position(|item| item == v).unwrap().clone());
-    }
-
-    move |t: &Tup| {
-        let mut key = vec![];
-        key_indices.iter().for_each(|i| {
-            key.push(t[*i]);
-        });
-        key
+impl SubExpression {
+    /// Consumes the receiver and returns its `expression`.
+    pub fn into_expression(self) -> Mono<Tuple> {
+        self.expression
     }
 }
 
-fn make_relation(
+/// Creates a relational expression (projection over an instance) for a predicate `pred` applied
+/// to a list of variables `vars`. `key_attrs` is the expected key attributes for joining the
+/// resulting subexpression with the subexpression at the upper level in the expression tree.
+/// `attrs` is the expected attributes of the resulting subexpression.
+fn atomic_expression(
     pred: &Pred,
-    vars: &Vec<&V>,
+    vars: &Vec<razor_fol::syntax::V>,
     key_attrs: &Attributes,
     attrs: &Attributes,
-) -> Result<SubExp> {
-    let mut project_attrs = Vec::new();
-    let mut project_indices = Vec::new();
-    for v in &attrs.0 {
+) -> Result<SubExpression> {
+    let mut expr_attrs = Vec::new(); // attributes of the resulting expression
+    let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
+
+    for v in attrs.iter() {
         let mut vars_iter = vars.iter();
-        if let Some(p) = vars_iter.position(|item| *item == v) {
-            project_indices.push(p);
-            project_attrs.push(v.clone());
+        if let Some(p) = vars_iter.position(|item| item == v) {
+            expr_indices.push(p);
+            expr_attrs.push(v.clone());
         }
     }
 
-    // TODO: probably don't need to project keys yet
-    let project = Project::new(
-        &Box::new(Mono::Relation(Relation::<Tup>::new(&pred.0))),
-        move |p| {
-            let mut project = vec![];
-            project_indices.iter().for_each(|i| {
-                project.push(p[*i]);
-            });
-            project
-        },
-    );
+    // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
+    let instance = Mono::Relation(Relation::<Tuple>::new(&pred.to_string()));
 
-    let project_attrs: Attributes = project_attrs.into();
-    let join_key = make_key(&key_attrs, &project_attrs);
+    // Project only the expected attributes of the instance:
+    let project = Project::new(&Box::new(instance), move |p| {
+        let mut projected_tuple = vec![];
+        expr_indices.iter().for_each(|i| {
+            projected_tuple.push(p[*i]);
+        });
+        projected_tuple
+    });
 
-    Ok(SubExp {
-        attributes: project_attrs,
+    let expr_attrs: Attributes = expr_attrs.into();
+
+    // `join_key` transforms a tuple to its expected keys:
+    let join_key = expr_attrs.project(&key_attrs);
+
+    Ok(SubExpression {
+        attributes: expr_attrs,
         join_key: Box::new(join_key),
         expression: Mono::Project(project),
     })
 }
 
-fn make_join(
+/// Creates a join expression for the conjunction of `left` and `right`.
+/// `key_attrs` is the expected key attributes for joining the
+/// resulting subexpression with the subexpression at the upper level in the expression tree.
+/// `attrs` is the expected attributes of the resulting subexpression.
+fn and_expression(
     left: &Formula,
     right: &Formula,
     key_attrs: &Attributes,
     attrs: &Attributes,
-) -> Result<SubExp> {
-    enum JoinTuple {
-        Left(usize),
-        Right(usize),
-    }
+) -> Result<SubExpression> {
+    use either::Either;
 
-    let left_attrs = Attributes::from(
-        left.free_vars()
-            .iter()
-            .map(|v| (*v).clone())
-            .collect::<Vec<V>>(),
-    );
-    let right_attrs = Attributes::from(
-        right
-            .free_vars()
-            .iter()
-            .map(|v| (*v).clone())
-            .collect::<Vec<V>>(),
-    );
-    let common_vars = left_attrs.intersect(&right_attrs);
+    let left_attrs: Attributes = left
+        .free_vars()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>()
+        .into();
 
-    let left_exp = make_expression(left, &common_vars, &attrs.union(&right_attrs))?;
-    let right_exp = make_expression(right, &common_vars, &attrs.union(&left_exp.attributes))?;
+    let right_attrs: Attributes = right
+        .free_vars()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>()
+        .into();
 
-    let mut join_indices = Vec::new();
-    let mut join_attrs = Vec::new();
-    for v in &attrs.0 {
-        let mut left_iter = left_exp.attributes.0.iter();
-        let mut right_iter = right_exp.attributes.0.iter();
+    let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
 
+    let left_exp = expression(left, &common_vars, &attrs.union(&right_attrs))?;
+    let right_exp = expression(right, &common_vars, &attrs.union(&left_exp.attributes))?;
+
+    let mut expr_attrs = Vec::new(); // attributes of the resulting expression
+    let mut expr_indices = Vec::new(); // indices of those attributes
+
+    for v in attrs.iter() {
+        let mut left_iter = left_exp.attributes.iter();
+        let mut right_iter = right_exp.attributes.iter();
+
+        // Is an expected attribute in the left or the right expression?
         if let Some(p) = left_iter.position(|item| item == v) {
-            join_indices.push(JoinTuple::Left(p));
-            join_attrs.push(v.clone());
+            expr_indices.push(Either::Left(p));
+            expr_attrs.push(v.clone());
         } else if let Some(p) = right_iter.position(|item| item == v) {
-            join_indices.push(JoinTuple::Right(p));
-            join_attrs.push(v.clone());
+            expr_indices.push(Either::Right(p));
+            expr_attrs.push(v.clone());
         }
     }
 
-    let join_attrs: Attributes = join_attrs.into();
-    let join_key = make_key(&key_attrs, &join_attrs);
+    let expr_attrs: Attributes = expr_attrs.into();
+    let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
 
     let join = Join::new(
         &Box::new(left_exp.expression),
@@ -165,30 +198,35 @@ fn make_join(
         left_exp.join_key,
         right_exp.join_key,
         move |_, l, r| {
-            let mut project = vec![];
-            join_indices.iter().for_each(|i| match i {
-                JoinTuple::Left(i) => project.push(l[*i]),
-                JoinTuple::Right(i) => project.push(r[*i]),
+            let mut projected_tuple = Vec::new();
+            expr_indices.iter().for_each(|i| match i {
+                Either::Left(i) => projected_tuple.push(l[*i]),
+                Either::Right(i) => projected_tuple.push(r[*i]),
             });
-            project
+            projected_tuple
         },
     );
 
-    Ok(SubExp {
-        attributes: join_attrs,
+    Ok(SubExpression {
+        attributes: expr_attrs,
         join_key: Box::new(join_key),
         expression: Mono::Join(join),
     })
 }
 
-fn make_union(
+/// Creates a union expression for the disjunction of `left` and `right`.
+/// `key_attrs` is the expected key attributes for joining the
+/// resulting subexpression with the subexpression at the upper level in the expression tree.
+/// `attrs` is the expected attributes of the resulting subexpression.
+fn or_expression(
     left: &Formula,
     right: &Formula,
-    join_attrs: &Attributes,
+    key_attrs: &Attributes,
     attrs: &Attributes,
-) -> Result<SubExp> {
-    let left_exp = make_expression(left, join_attrs, attrs)?;
-    let right_exp = make_expression(right, join_attrs, attrs)?;
+) -> Result<SubExpression> {
+    // Disjuctions simply hope that left and right have the same attributes:
+    let left_exp = expression(left, key_attrs, attrs)?;
+    let right_exp = expression(right, key_attrs, attrs)?;
 
     assert_eq!(left_exp.attributes, right_exp.attributes);
 
@@ -196,28 +234,26 @@ fn make_union(
         &Box::new(left_exp.expression),
         &Box::new(right_exp.expression),
     );
-    Ok(SubExp {
+    Ok(SubExpression {
         attributes: left_exp.attributes,
         join_key: left_exp.join_key, // irrelevant
         expression: Mono::Union(union),
     })
 }
 
-#[allow(unused)]
-// Assumes the input is a range restricted relationalized formula.
-// FIXME: fix the recursion so it doesn't allow unexpected formula structure.
-pub(crate) fn make_expression(
+/// Helper for `make_expression`.
+fn expression(
     formula: &Formula,
     join_attr: &Attributes,
     final_attr: &Attributes,
-) -> Result<SubExp> {
+) -> Result<SubExpression> {
     match formula {
-        Formula::Bottom => Ok(SubExp {
+        Formula::Bottom => Ok(SubExpression {
             attributes: Vec::new().into(),
             join_key: Box::new(|t| t.clone()),
             expression: Mono::Empty(Empty::new()),
         }),
-        Formula::Top => Ok(SubExp {
+        Formula::Top => Ok(SubExpression {
             attributes: Vec::new().into(),
             join_key: Box::new(|t| t.clone()),
             expression: Mono::Singleton(Singleton(vec![].into())),
@@ -225,12 +261,19 @@ pub(crate) fn make_expression(
         Formula::Atom {
             predicate,
             terms: _,
-        } => make_relation(predicate, &formula.free_vars(), &join_attr, &final_attr),
-        Formula::And { left, right } => make_join(left, right, join_attr, final_attr),
-        Formula::Or { left, right } => make_union(left, right, join_attr, final_attr),
-        // Formula::Or { left, right } => todo!(),
+        } => {
+            let free_vars = formula.free_vars().into_iter().cloned().collect();
+            atomic_expression(predicate, &free_vars, &join_attr, &final_attr)
+        }
+        Formula::And { left, right } => and_expression(left, right, join_attr, final_attr),
+        Formula::Or { left, right } => or_expression(left, right, join_attr, final_attr),
         _ => bail!("expecting a relational formula"),
     }
+}
+
+/// Given a relationalized formula, returns a relational expression.
+pub(super) fn make_expression(formula: &Formula, attributes: &Attributes) -> Result<Mono<Tuple>> {
+    expression(formula, &vec![].into(), attributes).map(SubExpression::into_expression)
 }
 
 #[cfg(test)]
@@ -241,9 +284,9 @@ mod tests {
 
     fn setup_database() -> Result<Database> {
         let mut db = Database::new();
-        let p = relalg! { create relation "P":[Tup] in db }?;
-        let q = relalg! { create relation "Q":[Tup] in db }?;
-        let r = relalg! { create relation "R":[Tup] in db }?;
+        let p = relalg! { create relation "P":[Tuple] in db }?;
+        let q = relalg! { create relation "Q":[Tuple] in db }?;
+        let r = relalg! { create relation "R":[Tuple] in db }?;
 
         relalg! (insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]] in db)?;
         relalg! (insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]] in db)?;
@@ -257,7 +300,7 @@ mod tests {
         let db = setup_database()?;
         {
             let formula = formula!(P(x));
-            let result = make_expression(&formula, &vec![].into(), &vec![v!(x)].into())?;
+            let result = expression(&formula, &vec![].into(), &vec![v!(x)].into())?;
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
@@ -267,7 +310,7 @@ mod tests {
         }
         {
             let formula = formula!(P(x));
-            let result = make_expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
+            let result = expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
@@ -277,7 +320,7 @@ mod tests {
         }
         {
             let formula = formula!(Q(x, y));
-            let result = make_expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
+            let result = expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
                 Tuples::from(vec![
@@ -291,7 +334,7 @@ mod tests {
         }
         {
             let formula = formula!(Q(x, y));
-            let result = make_expression(
+            let result = expression(
                 &formula,
                 &vec![v!(x), v!(y)].into(),
                 &vec![v!(y), v!(x)].into(),
@@ -309,8 +352,7 @@ mod tests {
         }
         {
             let formula = formula!(Q(x, y));
-            let result =
-                make_expression(&formula, &vec![v!(x)].into(), &vec![v!(x), v!(x)].into())?;
+            let result = expression(&formula, &vec![v!(x)].into(), &vec![v!(x), v!(x)].into())?;
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
                 Tuples::from(vec![
@@ -332,8 +374,7 @@ mod tests {
         let db = setup_database()?;
         {
             let formula = formula!([P(x)] & [R(y, z)]);
-            let result =
-                make_expression(&formula, &vec![].into(), &vec![v!(x), v!(y), v!(z)].into())?;
+            let result = expression(&formula, &vec![].into(), &vec![v!(x), v!(y), v!(z)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
@@ -357,7 +398,7 @@ mod tests {
         }
         {
             let formula = formula!([P(x)] & [R(y, x)]);
-            let result = make_expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
+            let result = expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(Tuples { items: vec![] }, tuples);
@@ -365,8 +406,7 @@ mod tests {
         }
         {
             let formula = formula!([P(x)] & [R(x, y)]);
-            let result =
-                make_expression(&formula, &vec![v!(y)].into(), &vec![v!(x), v!(y)].into())?;
+            let result = expression(&formula, &vec![v!(y)].into(), &vec![v!(x), v!(y)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
@@ -377,7 +417,7 @@ mod tests {
         }
         {
             let formula = formula!([P(x)] & [Q(y, z)]);
-            let result = make_expression(
+            let result = expression(
                 &formula,
                 &vec![v!(x), v!(y)].into(),
                 &vec![v!(y), v!(x)].into(),
@@ -402,7 +442,7 @@ mod tests {
         }
         {
             let formula = formula!([P(x)] & [Q(y, z)]);
-            let result = make_expression(
+            let result = expression(
                 &formula,
                 &vec![v!(y), v!(x)].into(),
                 &vec![v!(x), v!(y)].into(),
@@ -434,7 +474,7 @@ mod tests {
         let db = setup_database()?;
         {
             let formula = formula!([Q(x, y)] | [R(y, x)]);
-            let result = make_expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
+            let result = expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
@@ -453,7 +493,7 @@ mod tests {
 
         {
             let formula = formula!([Q(x, y)] | [R(y, x)]);
-            let result = make_expression(&formula, &vec![].into(), &vec![v!(y)].into())?;
+            let result = expression(&formula, &vec![].into(), &vec![v!(y)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
@@ -478,7 +518,7 @@ mod tests {
         let db = setup_database()?;
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { P(x) });
-            let result = make_expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
+            let result = expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
@@ -489,7 +529,7 @@ mod tests {
         }
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] });
-            let result = make_expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
+            let result = expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(
@@ -500,7 +540,7 @@ mod tests {
         }
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] });
-            let result = make_expression(
+            let result = expression(
                 &formula,
                 &vec![v!(z)].into(),
                 &vec![v!(y), v!(x), v!(z)].into(),

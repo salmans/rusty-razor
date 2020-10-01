@@ -1,7 +1,7 @@
-/*! Implements conversion to Conjunctive Normal Form (CNF) for formula.*/
+/*! Implements conversion to Conjunctive Normal Form (CNF) for formulae.*/
 
 use super::SNF;
-use crate::syntax::{Formula::*, *};
+use crate::syntax::{symbol::Generator, Formula::*, *};
 
 /// Is a wrapper around [`Formula`] that represents a formula in Conjunctive Normal Form (CNF).
 ///

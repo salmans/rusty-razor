@@ -1,7 +1,7 @@
-/*! Implements conversion to Geometric Normal Form (GNF) for formula.*/
+/*! Implements conversion to Geometric Normal Form (GNF) for formulae.*/
 
 use super::{SkolemGenerator, CNF};
-use crate::syntax::{Formula::*, *};
+use crate::syntax::{symbol::Generator, Formula::*, *};
 use itertools::Itertools;
 use std::cmp::Ordering::Equal;
 
@@ -232,7 +232,7 @@ impl Theory {
     pub fn gnf(&self) -> Theory {
         use core::convert::TryFrom;
 
-        let mut generator = SkolemGenerator::new();
+        let mut generator = Generator::new().set_prefix("sk#");
         let formulae: Vec<GNF> = self
             .formulae()
             .iter()
