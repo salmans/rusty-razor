@@ -1,52 +1,23 @@
 /*! Implements the algorithm for converting a relational formula to a relational expression in `relalg`.*/
 
-use crate::chase::E;
+use super::{
+    attribute::{Attribute, AttributeList},
+    Tuple,
+};
 use anyhow::{bail, Result};
 use razor_fol::syntax::{Formula, Pred};
 use relalg::{expression::Mono, *};
-use std::ops::Deref;
-
-/// Is the type of tuples in database instances.
-pub(super) type Tuple = Vec<E>;
 
 /// Is the trait of objects that map a tuple to another.
 trait TupleMap: FnMut(&Tuple) -> Tuple {}
 impl<F: FnMut(&Tuple) -> Tuple> TupleMap for F {}
 
-/// In the context of a relational expression, a variable is refered to as an `Attribute`.
-/// In fact, every position on a relational formula is an attribute.
-/// However, because every position is occupied by a unique variable, every
-/// variable identifies an attribute.
-type Attribute = razor_fol::syntax::V;
-
-/// Represents the attributes of a relational expression.
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct Attributes(Vec<Attribute>);
-
-impl Attributes {
-    /// Returns the set union of the attributes in the receiver and those in `other`.
-    pub fn union(&self, other: &Attributes) -> Attributes {
-        self.iter()
-            .chain(other.iter().filter(|v| !self.contains(v)))
-            .cloned()
-            .collect::<Vec<_>>()
-            .into()
-    }
-
-    /// Returns the attributes that are present in both the receiver and `other`.
-    pub fn intersect(&self, other: &Attributes) -> Attributes {
-        self.iter()
-            .filter(|v| other.contains(v))
-            .cloned()
-            .collect::<Vec<_>>()
-            .into()
-    }
-
+impl AttributeList {
     /// Makes a `TupleMap` closure that given a `Tuple` over the attributes of the receiver,
     /// returns a `Tuple` projected by `attributes`.
-    fn project(&self, attributes: &Attributes) -> impl TupleMap {
+    fn project(&self, attributes: &AttributeList) -> impl TupleMap {
         let mut key_indices = Vec::new();
-        for v in &attributes.0 {
+        for v in attributes.attributes() {
             let mut iter = self.iter();
             key_indices.push(iter.position(|item| item == v).unwrap().clone());
         }
@@ -61,25 +32,11 @@ impl Attributes {
     }
 }
 
-impl Deref for Attributes {
-    type Target = Vec<Attribute>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<I: IntoIterator<Item = Attribute>> From<I> for Attributes {
-    fn from(attributes: I) -> Self {
-        Self(attributes.into_iter().collect())
-    }
-}
-
 /// Represents a relational expression of type `Mono<Tuple>` while the expression
 /// is being constructed.
 pub(super) struct SubExpression {
     /// Is the attributes associated to this expression.
-    attributes: Attributes,
+    attributes: AttributeList,
 
     /// Maps a tuple of `expression` to the keys that are used to join this subexpression with
     /// another subexpression at the upper level of the expression tree.
@@ -103,33 +60,48 @@ impl SubExpression {
 fn atomic_expression(
     pred: &Pred,
     vars: &Vec<razor_fol::syntax::V>,
-    key_attrs: &Attributes,
-    attrs: &Attributes,
+    key_attrs: &AttributeList,
+    attrs: &AttributeList,
 ) -> Result<SubExpression> {
+    use std::convert::TryFrom;
+
+    let vars = vars
+        .into_iter()
+        .map(Attribute::try_from)
+        .collect::<Result<Vec<_>>>()?;
     let mut expr_attrs = Vec::new(); // attributes of the resulting expression
     let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
 
-    for v in attrs.iter() {
+    for attr in attrs.iter() {
         let mut vars_iter = vars.iter();
-        if let Some(p) = vars_iter.position(|item| item == v) {
+        if let Some(p) = vars_iter.position(|item| item == attr) {
             expr_indices.push(p);
-            expr_attrs.push(v.clone());
+            expr_attrs.push(attr.clone());
         }
     }
 
     // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
     let instance = Mono::Relation(Relation::<Tuple>::new(&pred.to_string()));
 
-    // Project only the expected attributes of the instance:
-    let project = Project::new(&Box::new(instance), move |p| {
-        let mut projected_tuple = vec![];
-        expr_indices.iter().for_each(|i| {
-            projected_tuple.push(p[*i]);
-        });
-        projected_tuple
-    });
+    let is_projected =
+        attrs.len() != vars.len() || expr_indices.iter().zip(0..vars.len()).any(|(x, y)| *x != y);
 
-    let expr_attrs: Attributes = expr_attrs.into();
+    // optimize identity projection:
+    let expr = if is_projected {
+        // Project only the expected attributes of the instance:
+        let project = Project::new(&Box::new(instance), move |p| {
+            let mut projected_tuple = vec![];
+            expr_indices.iter().for_each(|i| {
+                projected_tuple.push(p[*i]);
+            });
+            projected_tuple
+        });
+        Mono::Project(project)
+    } else {
+        instance
+    };
+
+    let expr_attrs: AttributeList = expr_attrs.into();
 
     // `join_key` transforms a tuple to its expected keys:
     let join_key = expr_attrs.project(&key_attrs);
@@ -137,7 +109,7 @@ fn atomic_expression(
     Ok(SubExpression {
         attributes: expr_attrs,
         join_key: Box::new(join_key),
-        expression: Mono::Project(project),
+        expression: expr,
     })
 }
 
@@ -148,23 +120,23 @@ fn atomic_expression(
 fn and_expression(
     left: &Formula,
     right: &Formula,
-    key_attrs: &Attributes,
-    attrs: &Attributes,
+    key_attrs: &AttributeList,
+    attrs: &AttributeList,
 ) -> Result<SubExpression> {
     use either::Either;
+    use std::convert::TryFrom;
 
-    let left_attrs: Attributes = left
+    let left_attrs: AttributeList = left
         .free_vars()
         .into_iter()
-        .cloned()
-        .collect::<Vec<_>>()
+        .map(Attribute::try_from)
+        .collect::<Result<Vec<_>>>()?
         .into();
-
-    let right_attrs: Attributes = right
+    let right_attrs: AttributeList = right
         .free_vars()
         .into_iter()
-        .cloned()
-        .collect::<Vec<_>>()
+        .map(Attribute::try_from)
+        .collect::<Result<Vec<_>>>()?
         .into();
 
     let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
@@ -189,7 +161,7 @@ fn and_expression(
         }
     }
 
-    let expr_attrs: Attributes = expr_attrs.into();
+    let expr_attrs: AttributeList = expr_attrs.into();
     let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
 
     let join = Join::new(
@@ -221,8 +193,8 @@ fn and_expression(
 fn or_expression(
     left: &Formula,
     right: &Formula,
-    key_attrs: &Attributes,
-    attrs: &Attributes,
+    key_attrs: &AttributeList,
+    attrs: &AttributeList,
 ) -> Result<SubExpression> {
     // Disjuctions simply hope that left and right have the same attributes:
     let left_exp = expression(left, key_attrs, attrs)?;
@@ -244,8 +216,8 @@ fn or_expression(
 /// Helper for `make_expression`.
 fn expression(
     formula: &Formula,
-    join_attr: &Attributes,
-    final_attr: &Attributes,
+    join_attr: &AttributeList,
+    final_attr: &AttributeList,
 ) -> Result<SubExpression> {
     match formula {
         Formula::Bottom => Ok(SubExpression {
@@ -272,8 +244,11 @@ fn expression(
 }
 
 /// Given a relationalized formula, returns a relational expression.
-pub(super) fn make_expression(formula: &Formula, attributes: &Attributes) -> Result<Mono<Tuple>> {
-    expression(formula, &vec![].into(), attributes).map(SubExpression::into_expression)
+pub(super) fn make_expression(
+    formula: &Formula,
+    attributes: &AttributeList,
+) -> Result<Mono<Tuple>> {
+    expression(formula, &Vec::new().into(), attributes).map(SubExpression::into_expression)
 }
 
 #[cfg(test)]
@@ -302,26 +277,32 @@ mod tests {
             let formula = formula!(P(x));
             let result = expression(&formula, &vec![].into(), &vec![v!(x)].into())?;
             let tuples = db.evaluate(&result.expression)?;
+
+            assert!(matches!(result.expression, Mono::Relation(_)));
             assert_eq!(
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x)]), result.attributes);
         }
         {
             let formula = formula!(P(x));
             let result = expression(&formula, &vec![v!(x)].into(), &vec![v!(x)].into())?;
             let tuples = db.evaluate(&result.expression)?;
+
+            assert!(matches!(result.expression, Mono::Relation(_)));
             assert_eq!(
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x)]), result.attributes);
         }
         {
             let formula = formula!(Q(x, y));
             let result = expression(&formula, &vec![].into(), &vec![v!(x), v!(y)].into())?;
             let tuples = db.evaluate(&result.expression)?;
+
+            assert!(matches!(result.expression, Mono::Relation(_)));
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(20), E(200)],
@@ -330,7 +311,7 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x), v!(y)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x), v!(y)]), result.attributes);
         }
         {
             let formula = formula!(Q(x, y));
@@ -340,6 +321,8 @@ mod tests {
                 &vec![v!(y), v!(x)].into(),
             )?;
             let tuples = db.evaluate(&result.expression)?;
+
+            assert!(matches!(result.expression, Mono::Project(_)));
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(200), E(20)],
@@ -348,12 +331,14 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(y), v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(y), v!(x)]), result.attributes);
         }
         {
             let formula = formula!(Q(x, y));
             let result = expression(&formula, &vec![v!(x)].into(), &vec![v!(x), v!(x)].into())?;
             let tuples = db.evaluate(&result.expression)?;
+
+            assert!(matches!(result.expression, Mono::Project(_)));
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(20), E(20)],
@@ -362,7 +347,7 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x), v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x), v!(x)]), result.attributes);
         }
 
         // TODO maybe support Q(x, x)?
@@ -392,7 +377,7 @@ mod tests {
                 tuples
             );
             assert_eq!(
-                Attributes::from(vec![v!(x), v!(y), v!(z)]),
+                AttributeList::from(vec![v!(x), v!(y), v!(z)]),
                 result.attributes
             );
         }
@@ -402,7 +387,7 @@ mod tests {
 
             let tuples = db.evaluate(&result.expression)?;
             assert_eq!(Tuples { items: vec![] }, tuples);
-            assert_eq!(Attributes::from(vec![v!(x), v!(y)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x), v!(y)]), result.attributes);
         }
         {
             let formula = formula!([P(x)] & [R(x, y)]);
@@ -413,7 +398,7 @@ mod tests {
                 Tuples::from(vec![vec![E(2), E(20)], vec![E(3), E(30)],]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x), v!(y)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x), v!(y)]), result.attributes);
         }
         {
             let formula = formula!([P(x)] & [Q(y, z)]);
@@ -438,7 +423,7 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(y), v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(y), v!(x)]), result.attributes);
         }
         {
             let formula = formula!([P(x)] & [Q(y, z)]);
@@ -463,7 +448,7 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x), v!(y)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x), v!(y)]), result.attributes);
         }
 
         Ok(())
@@ -488,7 +473,7 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x), v!(y)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x), v!(y)]), result.attributes);
         }
 
         {
@@ -507,7 +492,7 @@ mod tests {
                 ]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(y)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(y)]), result.attributes);
         }
 
         Ok(())
@@ -525,7 +510,7 @@ mod tests {
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x)]), result.attributes);
         }
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] });
@@ -536,7 +521,7 @@ mod tests {
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
                 tuples
             );
-            assert_eq!(Attributes::from(vec![v!(x)]), result.attributes);
+            assert_eq!(AttributeList::from(vec![v!(x)]), result.attributes);
         }
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] });
@@ -562,7 +547,7 @@ mod tests {
                 tuples
             );
             assert_eq!(
-                Attributes::from(vec![v!(y), v!(x), v!(z)]),
+                AttributeList::from(vec![v!(y), v!(x), v!(z)]),
                 result.attributes
             );
         }

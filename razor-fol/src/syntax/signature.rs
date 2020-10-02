@@ -45,13 +45,13 @@ impl fmt::Display for PSig {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Sig {
     /// Is the constant symbols in a theory.
-    pub constants: HashSet<C>,
+    constants: HashSet<C>,
 
     /// Is the signature of functions in a theory.
-    pub functions: HashMap<F, FSig>,
+    functions: HashMap<F, FSig>,
 
     /// Is the signature of predicates in a theory.
-    pub predicates: HashMap<Pred, PSig>,
+    predicates: HashMap<Pred, PSig>,
 }
 
 impl Sig {
@@ -96,6 +96,21 @@ impl Sig {
             self.predicates.insert(predicate.symbol.clone(), predicate);
         }
         Ok(())
+    }
+
+    /// Returns the constants of this signature.
+    pub fn constants(&self) -> &HashSet<C> {
+        &self.constants
+    }
+
+    /// Returns the function of this signature.
+    pub fn functions(&self) -> &HashMap<F, FSig> {
+        &self.functions
+    }
+
+    /// Returns the predicates of this signature.
+    pub fn predicates(&self) -> &HashMap<Pred, PSig> {
+        &self.predicates
     }
 }
 

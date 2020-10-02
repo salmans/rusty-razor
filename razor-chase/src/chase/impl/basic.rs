@@ -8,7 +8,8 @@
 //! [Chase]: ../../index.html#the-chase
 //!
 use crate::chase::*;
-use itertools::{Either, Itertools};
+use either::Either;
+use itertools::Itertools;
 use razor_fol::syntax::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -89,13 +90,25 @@ impl fmt::Debug for WitnessTerm {
 
 impl From<C> for WitnessTerm {
     fn from(constant: C) -> Self {
-        WitnessTerm::Const { constant }
+        Self::Const { constant }
+    }
+}
+
+impl From<&C> for WitnessTerm {
+    fn from(constant: &C) -> Self {
+        Self::from(constant.clone())
     }
 }
 
 impl From<E> for WitnessTerm {
     fn from(element: E) -> Self {
         WitnessTerm::Elem { element }
+    }
+}
+
+impl From<&E> for WitnessTerm {
+    fn from(element: &E) -> Self {
+        Self::from(element.clone())
     }
 }
 

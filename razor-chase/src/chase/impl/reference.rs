@@ -16,7 +16,8 @@ use crate::chase::{
     r#impl::basic, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation,
     PreProcessorEx, Rel, StrategyTrait, WitnessTermTrait, E,
 };
-use itertools::{Either, Itertools};
+use either::Either;
+use itertools::Itertools;
 use razor_fol::syntax::{FApp, Term, Theory, C, F, V};
 use std::{
     cell::Cell,

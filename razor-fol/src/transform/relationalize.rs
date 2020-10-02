@@ -72,7 +72,7 @@ impl Relationalizer {
     ///
     /// **Note**:
     /// The resulting formula is semantically isomorphic to the input *only* in presence of equality and
-    /// function consistency axioms in the theory.
+    /// function integrity axioms in the theory.
     ///
     /// **Note**:
     /// In the resulting formula, the new (placeholder) variables are sorted topologically from left to write

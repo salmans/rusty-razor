@@ -128,7 +128,7 @@ pub mod strategy;
 use razor_fol::syntax::*;
 use std::fmt;
 
-use itertools::Either;
+use either::Either;
 use tracing;
 
 /// Is a symbol to represent elements of first-order models. An element is identified by an index.

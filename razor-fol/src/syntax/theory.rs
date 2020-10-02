@@ -93,9 +93,9 @@ mod tests {
                  Q(x)",
                 &theory.to_string()
             );
-            assert_eq!(1, theory.signature().constants.len());
-            assert_eq!(1, theory.signature().functions.len());
-            assert_eq!(2, theory.signature().predicates.len());
+            assert_eq!(1, theory.signature().constants().len());
+            assert_eq!(1, theory.signature().functions().len());
+            assert_eq!(2, theory.signature().predicates().len());
         }
         {
             let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
@@ -108,9 +108,9 @@ mod tests {
                  P(x)",
                 &theory.to_string()
             );
-            assert_eq!(1, theory.signature().constants.len());
-            assert_eq!(1, theory.signature().functions.len());
-            assert_eq!(1, theory.signature().predicates.len());
+            assert_eq!(1, theory.signature().constants().len());
+            assert_eq!(1, theory.signature().functions().len());
+            assert_eq!(1, theory.signature().predicates().len());
         }
         {
             let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();

@@ -23,7 +23,8 @@ use crate::chase::{
     },
     BounderTrait, EvaluateResult, EvaluatorTrait, Observation, Rel, StrategyTrait,
 };
-use itertools::{Either, Itertools};
+use either::Either;
+use itertools::Itertools;
 use razor_fol::syntax::V;
 use std::{collections::HashMap, iter};
 
