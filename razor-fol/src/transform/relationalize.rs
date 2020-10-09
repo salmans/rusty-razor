@@ -589,6 +589,11 @@ mod tests {
             range_restrict(&formula!([P(x)] | [Q(y)]), &vec![], rr)?.to_string()
         );
 
+        assert_eq!(
+            "(P(x) ∧ RR(y)) ∨ (Q(y) ∧ RR(x))",
+            range_restrict(&formula!([P(x)] | [Q(y)]), &vec![v!(x), v!(y)], rr)?.to_string()
+        );
+
         Ok(())
     }
 
