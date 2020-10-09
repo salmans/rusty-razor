@@ -20,7 +20,10 @@ pub struct Relationalizer {
     equality_generator: Generator,
 
     // Is the [`Generator`] instance used to create predicate symbols for functions.
-    predicate_generator: Generator,
+    function_predicate_generator: Generator,
+
+    // Is the [`Generator`] instance used to create predicate symbols for constants.
+    constant_predicate_generator: Generator,
 }
 
 impl Relationalizer {
@@ -35,7 +38,8 @@ impl Relationalizer {
             equality_symbol: "=".into(),
             flattening_generator: Generator::new().set_prefix("?"),
             equality_generator: Generator::new().set_prefix("~").set_delimiter(":"),
-            predicate_generator: Generator::new().set_prefix("$"),
+            function_predicate_generator: Generator::new().set_prefix("$"),
+            constant_predicate_generator: Generator::new().set_prefix("@"),
         }
     }
 
@@ -56,7 +60,7 @@ impl Relationalizer {
 
     /// Use `generator` to create function predicate names.
     pub fn set_predicate_generator(&mut self, generator: Generator) {
-        self.predicate_generator = generator;
+        self.function_predicate_generator = generator;
     }
 
     /// Applies the relationalization algorithm on `formula` and returns the relationalized formula
@@ -90,7 +94,7 @@ impl Relationalizer {
     /// let fmla = "P(f(x)) & Q('c)".parse::<Formula>().unwrap();
     /// let result = Relationalizer::new().relationalize(&fmla).unwrap();
     /// assert_eq!(
-    ///     r"($f(x, ?0) ∧ (P(~?0:0) ∧ =(?0, ~?0:0))) ∧ ($'c(?1) ∧ (Q(~?1:0) ∧ =(?1, ~?1:0)))",
+    ///     r"($f(x, ?0) ∧ (P(~?0:0) ∧ =(?0, ~?0:0))) ∧ (@c(?1) ∧ (Q(~?1:0) ∧ =(?1, ~?1:0)))",
     ///     result.to_string()
     /// );
     ///
@@ -158,7 +162,10 @@ impl Relationalizer {
             Term::Var { .. } => None,
             Term::Const { constant } => {
                 let var = V(self.flattening_generator.next().into());
-                let pred = Pred(self.predicate_generator.symbol(constant.to_string()));
+                let pred = Pred(
+                    self.constant_predicate_generator
+                        .symbol(constant.0.to_string()),
+                );
                 let fmla = pred.app(vec![var.clone().into()]);
                 Some((fmla, var))
             }
@@ -179,7 +186,10 @@ impl Relationalizer {
                 let var = V(self.flattening_generator.next());
                 new_terms.push(var.clone().into());
 
-                let pred = Pred(self.predicate_generator.symbol(function.to_string()));
+                let pred = Pred(
+                    self.function_predicate_generator
+                        .symbol(function.0.to_string()),
+                );
                 let fmla = pred.app(new_terms);
                 // Preserving the topological order among variables:
                 if !conjuncts.is_empty() {
@@ -352,23 +362,23 @@ mod tests {
             Relationalizer::new().flatten_formula(&formula!((x) = (y)))?.to_string(),
         }
         assert_eq! {
-            r"$'c(?0) ∧ =(x, ?0)",
+            r"@c(?0) ∧ =(x, ?0)",
             Relationalizer::new().flatten_formula(&formula!((x) = (@c)))?.to_string(),
         }
         assert_eq! {
-            r"($'c(?0) ∧ $'d(?1)) ∧ =(?0, ?1)",
+            r"(@c(?0) ∧ @d(?1)) ∧ =(?0, ?1)",
             Relationalizer::new().flatten_formula(&formula!((@c) = (@d)))?.to_string(),
         }
         assert_eq! {
-            r"$'c(?0) ∧ P(?0)",
+            r"@c(?0) ∧ P(?0)",
             Relationalizer::new().flatten_formula(&formula!(P(@c)))?.to_string(),
         };
         assert_eq! {
-            r"$'c(?0) ∧ P(x, ?0)",
+            r"@c(?0) ∧ P(x, ?0)",
             Relationalizer::new().flatten_formula(&formula!(P(x, @c)))?.to_string(),
         };
         assert_eq! {
-            r"($'c(?0) ∧ $'d(?1)) ∧ P(?0, ?1)",
+            r"(@c(?0) ∧ @d(?1)) ∧ P(?0, ?1)",
             Relationalizer::new().flatten_formula(&formula!(P(@c, @d)))?.to_string(),
         };
         assert_eq! {
@@ -388,7 +398,7 @@ mod tests {
             Relationalizer::new().flatten_formula(&formula!((P(x)) & (Q(y))))?.to_string(),
         };
         assert_eq! {
-            "($\'c(?0) ∧ P(?0)) ∧ ($\'d(?1) ∧ Q(?1))",
+            "(@c(?0) ∧ P(?0)) ∧ (@d(?1) ∧ Q(?1))",
             Relationalizer::new().flatten_formula(&formula!((P(@c)) & (Q(@d))))?.to_string(),
         };
         assert_eq! {
@@ -396,7 +406,7 @@ mod tests {
             Relationalizer::new().flatten_formula(&formula!((P(x)) | (Q(y))))?.to_string(),
         };
         assert_eq! {
-            "($\'c(?0) ∧ P(?0)) ∨ ($\'d(?1) ∧ Q(?1))",
+            "(@c(?0) ∧ P(?0)) ∨ (@d(?1) ∧ Q(?1))",
             Relationalizer::new().flatten_formula(&formula!((P(@c)) | (Q(@d))))?.to_string(),
         };
 

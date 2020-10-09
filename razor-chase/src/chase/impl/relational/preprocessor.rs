@@ -1,5 +1,6 @@
-use super::{constants::*, model::Model, sequent::Sequent};
+use super::{constants::*, memo::ViewMemo, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
+use itertools::Itertools;
 use razor_fol::{
     syntax::{symbol::Generator, Formula, Sig, Term, Theory, V},
     transform::relationalize,
@@ -12,7 +13,15 @@ use razor_fol::{
 /// [`Sequent`]: ../sequent/struct.Sequent.html
 /// [`Model`]: ../model/struct.Model.html
 /// [`PreProcessorEx`]: ../../../trait.PreProcessorEx.html
-pub struct PreProcessor;
+pub struct PreProcessor {
+    memoize: bool,
+}
+
+impl PreProcessor {
+    pub fn new(memoize: bool) -> Self {
+        Self { memoize }
+    }
+}
 
 impl PreProcessorEx for PreProcessor {
     type Sequent = Sequent;
@@ -27,25 +36,41 @@ impl PreProcessorEx for PreProcessor {
             .extend(integrity_axioms(theory.signature()))
             .expect("internal error: failed to add function integrity axioms");
 
-        (
-            theory
-                .formulae()
+        let mut model = Model::new(&theory.signature());
+
+        let relationalized = theory
+            .formulae()
+            .into_iter()
+            .map(|f| match f {
+                Formula::Implies { left, right } => {
+                    let left = relationalizer().relationalize(&left).expect(&format!(
+                        "internal error: failed to relationalize formula: {}",
+                        left
+                    ));
+                    let right = relationalizer().relationalize(&right).expect(&format!(
+                        "internal error: failed to relationalize formula: {}",
+                        right
+                    ));
+                    (left, right)
+                }
+                _ => panic!(format!("internal error: unexpected formula: {}", f)),
+            })
+            .collect_vec();
+
+        let sequents = if self.memoize {
+            let mut memo = ViewMemo::new(model.database_mut());
+            relationalized
                 .into_iter()
-                .map(|f| match f {
-                    Formula::Implies { left, right } => {
-                        let left = relationalizer()
-                            .relationalize(&left)
-                            .expect(&format!("failed to relationalize formula: {}", left));
-                        let right = relationalizer()
-                            .relationalize(&right)
-                            .expect(&format!("failed to relationalize formula: {}", right));
-                        Sequent::from(&Formula::implies(left, right))
-                    }
-                    _ => panic!(""),
-                })
-                .collect(),
-            Model::new(&theory.signature()),
-        )
+                .map(|(left, right)| Sequent::new(&Formula::implies(left, right), Some(&mut memo)))
+                .collect()
+        } else {
+            relationalized
+                .into_iter()
+                .map(|(left, right)| Sequent::new(&Formula::implies(left, right), None))
+                .collect()
+        };
+
+        (sequents, model)
     }
 }
 
@@ -79,8 +104,6 @@ fn equality_axioms() -> Vec<Formula> {
 // 1) 'c = x & 'c = y -> x = y
 // 2) (f(x1, ..., xn) = x) & (f(y1, ..., yn) = y) & x1 = y1 & ... & xn = yn -> x = y
 fn integrity_axioms(sig: &Sig) -> Vec<Formula> {
-    use itertools::Itertools;
-
     let mut result = Vec::new();
 
     for c in sig.constants() {

@@ -28,6 +28,9 @@ mod constants {
     /// The naming prefix of equational attributes and variables in relational formulae.
     pub(super) const EQUATIONAL_PREFIX: &str = "~";
 
+    /// The naming prefix of constant predicates created during relationalization
+    pub(super) const CONSTANT_PREDICATE_PREFIX: &str = "@";
+
     /// The naming prefix of functional predicates created during relationalization
     pub(super) const FUNCTIONAL_PREDICATE_PREFIX: &str = "$";
 
@@ -43,12 +46,12 @@ mod constants {
     // Create database instance names from symbols:
     #[inline]
     pub(super) fn constant_instance_name(c: &syntax::C) -> String {
-        format!("${}", c)
+        format!("@{}", c.0)
     }
 
     #[inline]
     pub(super) fn function_instance_name(f: &syntax::F) -> String {
-        format!("${}", f)
+        format!("${}", f.0)
     }
 
     #[inline]
@@ -148,106 +151,74 @@ impl Symbol {
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
-    // use razor_fol::{formula, v};
+    use super::*;
+    use crate::{
+        chase::{
+            bounder::DomainSize,
+            chase_all,
+            scheduler::FIFO,
+            strategy::{Bootstrap, Fair},
+            ModelTrait, PreProcessorEx, SchedulerTrait, StrategyTrait,
+        },
+        test_prelude::*,
+    };
+    use itertools::Itertools;
+    use razor_fol::syntax::Theory;
+    use std::{collections::HashSet, fs};
 
-    // #[test]
-    // fn test_new_sequent() {
-    //     let mut database = relalg::Database::new();
-    //     let p = database.add_relation::<Tup>("P").unwrap();
-    //     let q = database.add_relation::<Tup>("Q").unwrap();
-    //     database.insert(&p, vec![vec![E(1)], vec![E(2)]].into());
-    //     database.insert(&q, vec![vec![E(2)]].into());
+    fn run(theory: &Theory, pre_processor: &PreProcessor) -> Vec<Model> {
+        let (sequents, init_model) = pre_processor.pre_process(theory);
 
-    //     let sequent = Sequent::try_from(&formula!([P(x)] -> [Q(x)])).unwrap();
-    //     assert_eq!(1, sequent.branches.len());
-    //     assert_eq!(
-    //         Attributes::from(vec![v!(x)]),
-    //         sequent.branches[0].attributes
-    //     );
-    //     assert_eq!(Attributes::from(vec![]), sequent.branches[0].projected);
-    //     assert_eq!(
-    //         relalg::Tuples::from(vec![vec![E(1)]]),
-    //         database.evaluate(&sequent.branches[0].expression).unwrap()
-    //     );
-    // }
+        let evaluator = Evaluator;
+        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+        let mut scheduler = FIFO::new();
+        let bounder: Option<&DomainSize> = None;
+        scheduler.add(init_model, strategy);
+        chase_all(&mut scheduler, &evaluator, bounder)
+    }
 
-    // #[test]
-    // fn test_balance_sequent() {
-    //     let mut database = relalg::Database::new();
-    //     let p = database.add_relation::<Tup>("P").unwrap();
-    //     let q = database.add_relation::<Tup>("Q").unwrap();
-    //     let f = database.add_relation::<Tup>("$f").unwrap();
-    //     let domain = database.add_relation::<Tup>("$$domain").unwrap();
-    //     let eq = database.add_relation::<Tup>("=").unwrap();
+    pub fn print_model(model: Model) -> String {
+        let elements: Vec<String> = model
+            .domain()
+            .iter()
+            .sorted()
+            .iter()
+            .map(|e| {
+                let witnesses: Vec<String> =
+                    model.witness(e).iter().map(|w| w.to_string()).collect();
+                let witnesses = witnesses.into_iter().sorted();
+                format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
+            })
+            .collect();
+        let domain: Vec<String> = model.domain().iter().map(|e| e.to_string()).collect();
+        let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
+        format!(
+            "Domain: {{{}}}\nFacts: {}\n{}",
+            domain.into_iter().sorted().join(", "),
+            facts.into_iter().sorted().join(", "),
+            elements.join("\n")
+        )
+    }
 
-    //     database.insert(&p, vec![vec![E(1)]].into());
-    //     database.insert(&domain, vec![vec![E(1)], vec![E(2)], vec![E(3)]].into());
-    //     database.insert(
-    //         &eq,
-    //         vec![vec![E(1), E(1)], vec![E(2), E(2)], vec![E(3), E(3)]].into(),
-    //     );
+    #[test]
+    fn test_materialized() {
+        for item in fs::read_dir("../theories/core").unwrap() {
+            let path = item.unwrap().path().display().to_string();
+            let theory = read_theory_from_file(&path);
 
-    //     let model = Model {
-    //         id: 1,
-    //         element_index: 4,
-    //         domain: HashSet::new(),
-    //         database,
-    //     };
+            let simple_models = run(&theory, &PreProcessor::new(false));
+            let memoized_models = run(&theory, &PreProcessor::new(true));
 
-    //     let sequent = Sequent::try_from(&formula!([P(x)] -> [Q(f(f(x)))])).unwrap();
-    //     // let sequent = Sequent::try_from(&formula!([P(x)] -> [Q(f(x))])).unwrap();
-    //     let models = sequent.balance(&model).unwrap();
-
-    //     assert_eq!(
-    //         relalg::Tuples::from(vec![vec![E(4)]]),
-    //         models[0].database.evaluate(&q).unwrap()
-    //     );
-    //     assert_eq!(
-    //         relalg::Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)]]),
-    //         models[0].database.evaluate(&f).unwrap()
-    //     );
-    // }
-
-    // #[test]
-    // fn test_balance_sequent() {
-    //     let mut database = relalg::Database::new();
-    //     let p = database.add_relation::<Tup>("P").unwrap();
-    //     let q = database.add_relation::<Tup>("Q").unwrap();
-    //     let r = database.add_relation::<Tup>("R").unwrap();
-    //     let domain = database.add_relation::<Tup>("$$domain").unwrap();
-    //     let eq = database.add_relation::<Tup>("=").unwrap();
-
-    //     database.insert(&p, vec![vec![E(1)], vec![E(2)], vec![E(3)]].into());
-    //     database.insert(&q, vec![vec![E(2)]].into());
-    //     database.insert(&domain, vec![vec![E(1)], vec![E(2)], vec![E(3)]].into());
-    //     database.insert(
-    //         &eq,
-    //         vec![vec![E(1), E(1)], vec![E(2), E(2)], vec![E(3), E(3)]].into(),
-    //     );
-
-    //     let model = Model {
-    //         id: 1,
-    //         element_index: 0,
-    //         domain: HashSet::new(),
-    //         database,
-    //     };
-
-    //     let sequent = Sequent::try_from(&formula!([P(x)] -> [{[Q(x)] & [R(x)]} | {P(x)}])).unwrap();
-    //     let models = sequent.balance(&model).unwrap();
-
-    //     assert_eq!(
-    //         relalg::Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)]]),
-    //         models[0].database.evaluate(&q).unwrap()
-    //     );
-    //     assert_eq!(
-    //         relalg::Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)]]),
-    //         models[0].database.evaluate(&r).unwrap()
-    //     );
-
-    //     assert_eq!(
-    //         relalg::Tuples::from(vec![vec![E(2)]]),
-    //         models[1].database.evaluate(&q).unwrap()
-    //     );
-    // }
+            let simple_models: HashSet<String> =
+                simple_models.into_iter().map(|m| print_model(m)).collect();
+            let memoized_models: HashSet<String> = memoized_models
+                .into_iter()
+                .map(|m| print_model(m))
+                .collect();
+            if simple_models != memoized_models {
+                panic!(path);
+            }
+            assert_eq!(simple_models, memoized_models);
+        }
+    }
 }

@@ -25,7 +25,7 @@ pub struct Model {
     rewrites: HashMap<WitnessTerm, E>,
 
     /// Stores the information contained in this model.
-    database: relalg::Database,
+    pub database: relalg::Database,
 
     /// Maps each symbol to their corresponding relational expression.
     relations: HashMap<Symbol, rel_exp::Relation<Tuple>>,
@@ -91,6 +91,10 @@ impl Model {
                 symbol
             ))
         }
+    }
+
+    pub(super) fn database_mut(&mut self) -> &mut relalg::Database {
+        &mut self.database
     }
 }
 

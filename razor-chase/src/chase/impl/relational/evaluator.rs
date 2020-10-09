@@ -29,8 +29,8 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
         if next_sequent.is_none() {
             return Some(EvaluateResult::new());
         }
-
         let (sequent, tuples) = next_sequent.unwrap();
+
         if sequent.branches().is_empty() {
             return None; // failure
         }

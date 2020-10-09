@@ -208,7 +208,7 @@ fn process_solve(
     println!();
     println!();
 
-    let pre_processor = PreProcessor;
+    let pre_processor = PreProcessor::new(true);
     let (sequents, init_model) = pre_processor.pre_process(&theory);
 
     let evaluator = Evaluator;

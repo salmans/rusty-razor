@@ -2,6 +2,7 @@ use super::{
     attribute::{Attribute, AttributeList},
     constants::*,
     expression::make_expression,
+    memo::ViewMemo,
     Symbol, Tuple,
 };
 use crate::chase::SequentTrait;
@@ -60,7 +61,7 @@ pub struct Sequent {
     /// Is the relational expression corresponding to evaluating this sequent in the body.
     /// In the general case, this expression is the difference between the expression in the body
     /// and the expression in the head.
-    expression: rel_exp::Mono<Tuple>,
+    pub expression: rel_exp::Mono<Tuple>,
 
     /// The body of the implication from which the sequent was made.
     body_formula: Formula,
@@ -87,20 +88,8 @@ impl Sequent {
     pub(super) fn attributes(&self) -> &AttributeList {
         &self.attributes
     }
-}
 
-impl SequentTrait for Sequent {
-    fn body(&self) -> Formula {
-        self.body_formula.clone()
-    }
-
-    fn head(&self) -> Formula {
-        self.head_formula.clone()
-    }
-}
-
-impl From<&Formula> for Sequent {
-    fn from(formula: &Formula) -> Self {
+    pub(super) fn new(formula: &Formula, memo: Option<&mut ViewMemo>) -> Self {
         use itertools::Itertools;
 
         if let Formula::Implies { left, right } = formula {
@@ -143,11 +132,23 @@ impl From<&Formula> for Sequent {
                 branches
             };
 
-            let left_expression = make_expression(&rr_left, &left_attrs).expect(&format!(
+            let (left_expr, right_expr) = if let Some(memo) = memo {
+                (
+                    memo.make_expression(&rr_left, &left_attrs),
+                    memo.make_expression(&rr_right, &left_attrs),
+                )
+            } else {
+                (
+                    make_expression(&rr_left, &left_attrs),
+                    make_expression(&rr_right, &left_attrs),
+                )
+            };
+
+            let left_expression = left_expr.expect(&format!(
                 "internal error: failed to compute relational expression for formula: {}",
                 rr_left
             ));
-            let right_expression = make_expression(&rr_right, &left_attrs).expect(&format!(
+            let right_expression = right_expr.expect(&format!(
                 "internal error: failed to compute relational expression for formula: {}",
                 rr_right
             ));
@@ -176,6 +177,16 @@ impl From<&Formula> for Sequent {
     }
 }
 
+impl SequentTrait for Sequent {
+    fn body(&self) -> Formula {
+        self.body_formula.clone()
+    }
+
+    fn head(&self) -> Formula {
+        self.head_formula.clone()
+    }
+}
+
 fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>> {
     use std::convert::TryFrom;
 
@@ -199,14 +210,12 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>> {
                 Symbol::Domain
             } else if predicate.0 == EQUALITY {
                 Symbol::Equality
+            } else if predicate.0.starts_with(CONSTANT_PREDICATE_PREFIX) {
+                Symbol::Const(C(predicate.0[1..].to_string()))
             } else if predicate.0.starts_with(FUNCTIONAL_PREDICATE_PREFIX) {
-                if terms.len() == 1 {
-                    Symbol::Const(C(predicate.0[2..].to_string()))
-                } else {
-                    Symbol::Func {
-                        symbol: F(predicate.0[1..].to_string()),
-                        arity: (terms.len() - 1) as u8,
-                    }
+                Symbol::Func {
+                    symbol: F(predicate.0[1..].to_string()),
+                    arity: (terms.len() - 1) as u8,
                 }
             } else {
                 Symbol::Pred {
