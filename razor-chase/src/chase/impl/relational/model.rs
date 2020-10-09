@@ -80,8 +80,21 @@ impl Model {
         result
     }
 
-    pub(super) fn insert(&mut self, symbol: &Symbol, tuples: relalg::Tuples<Tuple>) -> Result<()> {
+    pub(super) fn insert(
+        &mut self,
+        symbol: &Symbol,
+        mut tuples: relalg::Tuples<Tuple>,
+    ) -> Result<()> {
         if let Some(relation) = self.relations.get(symbol) {
+            let to_add = Vec::new();
+            if let Symbol::Equality = symbol {
+                let mut to_add = Vec::new();
+                for t in tuples.iter() {
+                    to_add.push(vec![t[1], t[0]]);
+                }
+            };
+            tuples.extend(to_add);
+
             self.database
                 .insert(relation, tuples)
                 .map_err(|_| anyhow::anyhow!("internal error: failed to insert into database"))

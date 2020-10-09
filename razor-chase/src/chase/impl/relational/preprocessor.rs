@@ -94,8 +94,8 @@ fn equality_axioms() -> Vec<Formula> {
     use razor_fol::formula;
 
     vec![
-        formula!(['|'] -> [(x) = (x)]),
-        formula!([(x) = (y)] -> [(y) = (x)]),
+        // formula!(['|'] -> [(x) = (x)]), // not needed: added automatically for new elements
+        // formula!([(x) = (y)] -> [(y) = (x)]), // not needed
         formula!([{(x) = (y)} & {(y) = (z)}] -> [(x) = (z)]),
     ]
 }

@@ -8,7 +8,6 @@ use super::{
 };
 use anyhow::Result;
 use either::Either;
-use itertools::Itertools;
 use std::collections::HashMap;
 
 pub struct Evaluator;
@@ -103,11 +102,14 @@ fn balance_branch<B: BounderTrait>(
     model
         .insert(
             &Symbol::Domain,
-            existentials
-                .values()
-                .map(|x| vec![x.clone()])
-                .collect_vec()
-                .into(),
+            existentials.values().map(|x| vec![x.clone()]).into(),
+        )
+        .unwrap();
+
+    model
+        .insert(
+            &Symbol::Equality,
+            existentials.into_iter().map(|(_, x)| vec![x, x]).into(),
         )
         .unwrap();
 
