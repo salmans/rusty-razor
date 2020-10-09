@@ -49,11 +49,33 @@ impl Model {
 
     /// Creates a new element for the given `witness` and records that `witness`
     /// denotes the new element.
-    pub(super) fn new_element(&mut self, witness: WitnessTerm) -> E {
+    pub fn new_element(&mut self, witness: WitnessTerm) -> E {
         let element = E(self.element_index);
         self.element_index = self.element_index + 1;
         self.rewrites.insert(witness, element.clone());
         element
+    }
+
+    // assumes that the witness term is flat
+    pub(super) fn record(&mut self, witness: WitnessTerm) -> E {
+        match witness {
+            WitnessTerm::Elem { element } => element,
+            WitnessTerm::Const { .. } => {
+                if let Some(e) = self.rewrites.get(&witness) {
+                    (*e).clone()
+                } else {
+                    self.new_element(witness)
+                }
+            }
+            WitnessTerm::App { .. } => {
+                // The input term is assumed to be flat -- no recursive lookups:
+                if let Some(e) = self.rewrites.get(&witness) {
+                    (*e).clone()
+                } else {
+                    self.new_element(witness)
+                }
+            }
+        }
     }
 
     /// Evaluates a sequent in the model.

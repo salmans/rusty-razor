@@ -130,7 +130,7 @@ fn balance_atom<'t, B: BounderTrait>(
         if attr.is_existential() {
             if !existentials.contains_key(attr) {
                 let witness = atom.symbol().witness(&new_tuple)?;
-                let new_element = model.new_element(witness);
+                let new_element = model.record(witness);
                 existentials.insert(attr, new_element);
             }
             new_tuple.push(existentials.get(attr).unwrap().clone());
