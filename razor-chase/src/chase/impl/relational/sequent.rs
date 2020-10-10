@@ -7,11 +7,11 @@ use super::{
 };
 use crate::chase::SequentTrait;
 use anyhow::{bail, Result};
+use codd::expression as rel_exp;
 use razor_fol::{
     syntax::{Formula, Pred, Term, C, F, V},
     transform::relationalize,
 };
-use relalg::expression as rel_exp;
 
 /// Represents an atomic formula in the head of a `Sequent`.
 #[derive(Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]

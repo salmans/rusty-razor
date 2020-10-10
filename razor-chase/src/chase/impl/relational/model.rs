@@ -1,8 +1,8 @@
 use super::{constants::*, empty_named_tuple, sequent::Sequent, NamedTuple, Symbol, Tuple};
 use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
 use anyhow::Result;
+use codd::expression as rel_exp;
 use razor_fol::syntax::Sig;
-use relalg::expression as rel_exp;
 use std::{collections::HashMap, fmt};
 
 /// Implements an instance of [`ModelTrait`] with an underlying database.
@@ -25,7 +25,7 @@ pub struct Model {
     rewrites: HashMap<WitnessTerm, E>,
 
     /// Stores the information contained in this model.
-    pub database: relalg::Database,
+    pub database: codd::Database,
 
     /// Maps each symbol to their corresponding relational expression.
     relations: HashMap<Symbol, rel_exp::Relation<Tuple>>,
@@ -34,7 +34,7 @@ pub struct Model {
 impl Model {
     /// Creates a new model over the given `signature`.
     pub fn new(signature: &Sig) -> Self {
-        let mut database = relalg::Database::new();
+        let mut database = codd::Database::new();
         let relations = build_relations_info(signature, &mut database)
             .expect("internal error: failed to initialize model");
 
@@ -105,7 +105,7 @@ impl Model {
     pub(super) fn insert(
         &mut self,
         symbol: &Symbol,
-        mut tuples: relalg::Tuples<Tuple>,
+        mut tuples: codd::Tuples<Tuple>,
     ) -> Result<()> {
         if let Some(relation) = self.relations.get(symbol) {
             let to_add = Vec::new();
@@ -128,7 +128,7 @@ impl Model {
         }
     }
 
-    pub(super) fn database_mut(&mut self) -> &mut relalg::Database {
+    pub(super) fn database_mut(&mut self) -> &mut codd::Database {
         &mut self.database
     }
 }
@@ -238,7 +238,7 @@ impl fmt::Display for Model {
 // access their instances in the database.
 fn build_relations_info(
     sig: &Sig,
-    db: &mut relalg::Database,
+    db: &mut codd::Database,
 ) -> Result<HashMap<Symbol, rel_exp::Relation<Tuple>>> {
     let mut relations = HashMap::new();
     for c in sig.constants().iter() {

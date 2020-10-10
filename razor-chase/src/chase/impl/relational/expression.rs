@@ -1,13 +1,13 @@
-/*! Implements the algorithm for converting a relational formula to a relational expression in `relalg`.*/
+/*! Implements the algorithm for converting a relational formula to a relational expression in `codd`.*/
 
 use super::{
     attribute::{Attribute, AttributeList},
     Tuple,
 };
 use anyhow::{bail, Result};
+use codd::{expression::Mono, *};
 use either::Either;
 use razor_fol::syntax::{Formula, Pred};
-use relalg::{expression::Mono, *};
 
 /// Represents the recursive structure of a relation expression as it is constructed.
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -330,8 +330,8 @@ pub(super) fn make_expression(
 mod tests {
     use super::*;
     use crate::chase::E;
+    use codd::{relalg, Database, Tuples};
     use razor_fol::{formula, v};
-    use relalg::{relalg, Database, Tuples};
     use std::convert::TryFrom;
 
     macro_rules! atts {

@@ -4,17 +4,17 @@ use super::{
     Tuple,
 };
 use anyhow::{bail, Result};
+use codd::expression::*;
 use razor_fol::syntax::Formula;
-use relalg::expression::*;
 use std::collections::HashMap;
 
 pub(super) struct ViewMemo<'a> {
     views: HashMap<RawExpression, Mono<Tuple>>,
-    database: &'a mut relalg::Database,
+    database: &'a mut codd::Database,
 }
 
 impl<'a> ViewMemo<'a> {
-    pub fn new(database: &'a mut relalg::Database) -> Self {
+    pub fn new(database: &'a mut codd::Database) -> Self {
         Self {
             views: HashMap::new(),
             database,
