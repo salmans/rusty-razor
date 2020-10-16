@@ -158,8 +158,8 @@ impl Sequent {
                 _ => match &branches[0][..] {
                     [] => rel_exp::Mono::Empty(rel_exp::Empty::new()),
                     _ => rel_exp::Mono::Difference(rel_exp::Difference::new(
-                        &Box::new(left_expression),
-                        &Box::new(right_expression),
+                        left_expression.boxed(),
+                        right_expression.boxed(),
                     )),
                 },
             };

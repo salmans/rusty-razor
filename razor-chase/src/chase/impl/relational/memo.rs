@@ -40,13 +40,13 @@ impl<'a> ViewMemo<'a> {
             Formula::Bottom => Ok(SubExpression::new(
                 Vec::new().into(),
                 |t: &Tuple| t.clone(),
-                Mono::Empty(Empty::new()),
+                Mono::from(Empty::new()),
                 RawExpression::Empty,
             )),
             Formula::Top => Ok(SubExpression::new(
                 Vec::new().into(),
                 |t: &Tuple| t.clone(),
-                Mono::Singleton(Singleton(vec![].into())),
+                Mono::from(Singleton::new(vec![].into())),
                 RawExpression::Full,
             )),
             Formula::Atom {
@@ -59,11 +59,10 @@ impl<'a> ViewMemo<'a> {
                     match s.raw() {
                         RawExpression::Project { .. } => {
                             if !self.views.contains_key(s.raw()) {
-                                let expr = s.expression();
-                                let view =
-                                    self.database.store_view(&Box::new(expr.clone())).unwrap(); // FIXME
+                                let expr = s.expression().clone();
+                                let view = self.database.store_view(expr.boxed()).unwrap(); // FIXME
 
-                                s.set_expression(Mono::View(view));
+                                s.set_expression(Mono::from(view));
                             }
                             Ok(s)
                         }
@@ -78,9 +77,9 @@ impl<'a> ViewMemo<'a> {
                 let sub = and_expression(left, right, join_attr, final_attr); //
                 if let Ok(mut s) = sub {
                     if !self.views.contains_key(s.raw()) {
-                        let expr = s.expression();
-                        let view = self.database.store_view(&Box::new(expr.clone())).unwrap(); // FIXME
-                        s.set_expression(Mono::View(view));
+                        let expr = s.expression().clone();
+                        let view = self.database.store_view(expr.boxed()).unwrap(); // FIXME
+                        s.set_expression(Mono::from(view));
                     }
                     Ok(s)
                 } else {

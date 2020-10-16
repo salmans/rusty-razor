@@ -1,11 +1,10 @@
-/*! Implements the algorithm for converting a relational formula to a relational expression in `codd`.*/
-
+//*! Implements the algorithm for converting a relational formula to a relational expression in `codd`.*/
 use super::{
     attribute::{Attribute, AttributeList},
     Tuple,
 };
 use anyhow::{bail, Result};
-use codd::{expression::Mono, *};
+use codd::expression::{Empty, Expression, Mono, Relation, Singleton};
 use either::Either;
 use razor_fol::syntax::{Formula, Pred};
 
@@ -92,7 +91,7 @@ impl SubExpression {
         }
     }
 
-    /// Consumes the receiver and returns its `expression`.
+    /// Returns the receiver's `expression`.
     pub fn expression(&self) -> &Mono<Tuple> {
         &self.expression
     }
@@ -142,7 +141,7 @@ pub(super) fn atomic_expression(
         attrs.len() != vars.len() || expr_indices.iter().zip(0..vars.len()).any(|(x, y)| *x != y);
 
     // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
-    let instance = Mono::Relation(Relation::<Tuple>::new(&pred.to_string()));
+    let instance = Mono::from(Relation::<Tuple>::new(&pred.to_string()));
     let expr_attrs: AttributeList = expr_attrs.into();
 
     // `join_key` transforms a tuple to its expected keys:
@@ -160,14 +159,18 @@ pub(super) fn atomic_expression(
     // optimize identity projection:
     let expr = if is_projected {
         // Project only the expected attributes of the instance:
-        let project = Project::new(&Box::new(instance), move |p| {
-            let mut projected_tuple = vec![];
-            expr_indices.iter().for_each(|i| {
-                projected_tuple.push(p[*i]);
-            });
-            projected_tuple
-        });
-        Mono::Project(project)
+        let project = instance
+            .boxed()
+            .builder()
+            .project(move |p| {
+                let mut projected_tuple = vec![];
+                expr_indices.iter().for_each(|i| {
+                    projected_tuple.push(p[*i]);
+                });
+                projected_tuple
+            })
+            .build();
+        Mono::from(project)
     } else {
         instance
     };
@@ -202,15 +205,15 @@ pub(super) fn and_expression(
 
     let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
 
-    let left_exp = expression(left, &common_vars, &attrs.union(&right_attrs))?;
-    let right_exp = expression(right, &common_vars, &attrs.union(&left_exp.attributes))?;
+    let left_sub = expression(left, &common_vars, &attrs.union(&right_attrs))?;
+    let right_sub = expression(right, &common_vars, &attrs.union(&left_sub.attributes))?;
 
     let mut expr_attrs = Vec::new(); // attributes of the resulting expression
     let mut expr_indices = Vec::new(); // indices of those attributes
 
     for v in attrs.iter() {
-        let mut left_iter = left_exp.attributes.iter();
-        let mut right_iter = right_exp.attributes.iter();
+        let mut left_iter = left_sub.attributes.iter();
+        let mut right_iter = right_sub.attributes.iter();
 
         // Is an expected attribute in the left or the right expression?
         if let Some(p) = left_iter.position(|item| item == v) {
@@ -225,30 +228,35 @@ pub(super) fn and_expression(
     let expr_attrs: AttributeList = expr_attrs.into();
     let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
     let raw = RawExpression::Join {
-        left: left_exp.raw.boxed(),
-        right: right_exp.raw.boxed(),
+        left: left_sub.raw.boxed(),
+        right: right_sub.raw.boxed(),
         indices: expr_indices.iter().map(|ei| ei.map(|i| i as u8)).collect(),
     };
 
-    let join = Join::new(
-        &Box::new(left_exp.expression),
-        &Box::new(right_exp.expression),
-        left_exp.join_key,
-        right_exp.join_key,
-        move |_, l, r| {
+    let left_key = left_sub.join_key;
+    let left_exp = left_sub.expression.boxed();
+
+    let right_key = right_sub.join_key;
+    let right_exp = right_sub.expression.boxed();
+
+    let join = left_exp
+        .builder()
+        .with_key(left_key)
+        .join(right_exp.builder().with_key(right_key))
+        .on(move |_, l, r| {
             let mut projected_tuple = Vec::new();
             expr_indices.iter().for_each(|i| match i {
                 Either::Left(i) => projected_tuple.push(l[*i]),
                 Either::Right(i) => projected_tuple.push(r[*i]),
             });
             projected_tuple
-        },
-    );
+        })
+        .build();
 
     Ok(SubExpression::new(
         expr_attrs,
         join_key,
-        Mono::Join(join),
+        Mono::from(join),
         raw,
     ))
 }
@@ -269,10 +277,12 @@ pub(super) fn or_expression(
 
     assert_eq!(left_exp.attributes, right_exp.attributes);
 
-    let union = Union::new(
-        &Box::new(left_exp.expression),
-        &Box::new(right_exp.expression),
-    );
+    let union = left_exp
+        .expression
+        .boxed()
+        .builder()
+        .union(right_exp.expression.boxed())
+        .build();
     let raw = RawExpression::Union {
         left: left_exp.raw.boxed(),
         right: right_exp.raw.boxed(),
@@ -281,7 +291,7 @@ pub(super) fn or_expression(
     Ok(SubExpression::new(
         left_exp.attributes,
         left_exp.join_key, // irrelevant
-        Mono::Union(union),
+        Mono::from(union),
         raw,
     ))
 }
@@ -296,13 +306,13 @@ fn expression(
         Formula::Bottom => Ok(SubExpression::new(
             Vec::new().into(),
             |t: &Tuple| t.clone(),
-            Mono::Empty(Empty::new()),
+            Mono::from(Empty::new()),
             RawExpression::Empty,
         )),
         Formula::Top => Ok(SubExpression::new(
             Vec::new().into(),
             |t: &Tuple| t.clone(),
-            Mono::Singleton(Singleton(vec![].into())),
+            Mono::from(Singleton::new(vec![].into())),
             RawExpression::Full,
         )),
         Formula::Atom {
