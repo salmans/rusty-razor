@@ -276,13 +276,15 @@ fn process_solve(
 
 pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
     let mut f = fs::File::open(filename)
-        .map_err(|e| Error::new(e).context("could not find the input file"))?;
+        .map_err(|e| Error::new(e).context("failed to find the input file"))?;
 
     let mut contents = String::new();
     f.read_to_string(&mut contents)
-        .map_err(|e| Error::new(e).context("something went wrong reading the input file"))?;
+        .map_err(|e| Error::new(e).context("failed to read the input file"))?;
 
-    contents.parse()
+    contents
+        .parse()
+        .map_err(|e| Error::new(e).context("failed to parse the input theory"))
 }
 
 fn print_model(model: Model, color: bool, count: &mut i32) {

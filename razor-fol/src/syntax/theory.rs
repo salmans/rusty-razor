@@ -1,9 +1,8 @@
 /*! Defines first-order theories. */
 
-use anyhow::{Error, Result};
 use std::{convert::TryFrom, fmt};
 
-use super::{Formula, Sig};
+use super::{Error, Formula, Sig};
 
 /// is a first-order theory, containing a set of first-order formulae.
 pub struct Theory {
@@ -17,9 +16,8 @@ pub struct Theory {
 impl TryFrom<Vec<Formula>> for Theory {
     type Error = Error;
 
-    fn try_from(formulae: Vec<Formula>) -> Result<Self> {
-        let signature =
-            Sig::try_from(&formulae).map_err(|e| e.context("invalid theory signature"))?;
+    fn try_from(formulae: Vec<Formula>) -> Result<Self, Error> {
+        let signature = Sig::try_from(&formulae)?;
 
         Ok(Theory {
             signature,

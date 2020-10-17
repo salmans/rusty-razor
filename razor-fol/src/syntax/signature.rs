@@ -2,8 +2,7 @@
 
 ['Sig']: ./struct.Sig.html
 */
-use super::{Formula, Pred, Term, C, F};
-use anyhow::{bail, Error, Result};
+use super::{Error, Formula, Pred, Term, C, F};
 use core::convert::TryFrom;
 use std::{
     collections::{HashMap, HashSet},
@@ -15,7 +14,7 @@ use std::{
 pub const EQ_PRED_SYM: &'static str = "=";
 
 /// Contains the signature information for a function.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FSig {
     /// Is the function symbol.
     pub symbol: F,
@@ -26,12 +25,12 @@ pub struct FSig {
 
 impl fmt::Display for FSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "symbol: {}, arity: {}", self.symbol, self.arity)
+        write!(f, "predicate: {}, arity: {}", self.symbol, self.arity)
     }
 }
 
 /// Contains the signature information for a predicate.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PSig {
     /// Is the predicate symbol.
     pub symbol: Pred,
@@ -42,7 +41,7 @@ pub struct PSig {
 
 impl fmt::Display for PSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "symbol: {}, arity: {}", self.symbol, self.arity)
+        write!(f, "function: {}, arity: {}", self.symbol, self.arity)
     }
 }
 
@@ -74,13 +73,13 @@ impl Sig {
     }
 
     // adds the signature of a function.
-    fn add_function(&mut self, function: FSig) -> Result<()> {
+    fn add_function(&mut self, function: FSig) -> Result<(), Error> {
         if let Some(sig) = self.functions.get(&function.symbol) {
             if *sig != function {
-                bail!(format!(
-                    "incompatible function signature \"{}\" and \"{}\" ",
-                    sig, function
-                ));
+                return Err(Error::InconsistentFuncSig {
+                    this: sig.clone(),
+                    other: function,
+                });
             }
         } else {
             self.functions.insert(function.symbol.clone(), function);
@@ -89,13 +88,13 @@ impl Sig {
     }
 
     // adds the signature of a predicate.
-    fn add_predicate(&mut self, predicate: PSig) -> Result<()> {
+    fn add_predicate(&mut self, predicate: PSig) -> Result<(), Error> {
         if let Some(sig) = self.predicates.get(&predicate.symbol) {
             if *sig != predicate {
-                bail!(format!(
-                    "incompatible predicate signature \"{}\" and \"{}\" ",
-                    sig, predicate
-                ));
+                return Err(Error::InconsistentPredSig {
+                    this: sig.clone(),
+                    other: predicate,
+                });
             }
         } else {
             self.predicates.insert(predicate.symbol.clone(), predicate);
@@ -107,7 +106,7 @@ impl Sig {
 impl TryFrom<&Formula> for Sig {
     type Error = Error;
 
-    fn try_from(value: &Formula) -> Result<Self> {
+    fn try_from(value: &Formula) -> Result<Self, Error> {
         let mut sig = Sig::new();
         let (cs, fs, ps) = formula_signature(&value);
 
