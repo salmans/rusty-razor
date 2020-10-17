@@ -38,12 +38,11 @@
 //! [`FromStr`]: https://doc.rust-lang.org/stable/core/str/trait.FromStr.html
 //! [`str::parse`]: https://doc.rust-lang.org/stable/std/primitive.str.html#method.parse
 use super::syntax::{Formula::*, *};
-use anyhow::{Error, Result};
 use core::convert::TryFrom;
 use nom::{types::CompleteStr, *};
 use nom_locate::LocatedSpan;
-use std::fmt;
 use std::str::FromStr;
+use thiserror::Error;
 
 const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
 const UPPER: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -115,65 +114,30 @@ fn error_code_to_string(code: u32) -> &'static str {
     }
 }
 
-#[derive(Debug)]
-pub enum ParseError {
-    Missing {
-        line: u32,
-        column: u32,
-        code: u32,
-    },
+/// Is the type of errors returned by the parser.
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("missing `{}` at line {line:?}, column {column:?}", error_code_to_string(*.code))]
+    Missing { line: u32, column: u32, code: u32 },
+    #[error("expecting `{}` at line {line:?}, column {column:?}{}",
+            error_code_to_string(*.code),
+            .found.clone().map(|f| format!("; found \"{}\"", f)).unwrap_or("".into())
+    )]
     Expecting {
         line: u32,
         column: u32,
         code: u32,
         found: Option<String>,
     },
-    Failed {
-        line: u32,
-        column: u32,
+    #[error("failed to parse the input at line {line:?}, column {column:?}")]
+    Failed { line: u32, column: u32 },
+    #[error("{}", .source.to_string())]
+    Syntax {
+        #[from]
+        source: crate::syntax::Error,
     },
+    #[error("unknown error while parsing the input")]
     Unknown,
-}
-
-impl std::error::Error for ParseError {}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            ParseError::Missing { line, column, code } => write!(
-                f,
-                "missing '{}' at line {}, column {}",
-                error_code_to_string(*code),
-                line,
-                column
-            ),
-            ParseError::Expecting {
-                line,
-                column,
-                code,
-                found,
-            } => write!(
-                f,
-                "expecting '{}' on line {}, column {}",
-                error_code_to_string(*code),
-                line,
-                column
-            )
-            .and_then(|result| {
-                if let Some(found) = found {
-                    write!(f, "; found \"{}\"", found)
-                } else {
-                    Ok(result)
-                }
-            }),
-            ParseError::Failed { line, column } => write!(
-                f,
-                "failed to parse the input at line {}, column {}",
-                line, column
-            ),
-            ParseError::Unknown => write!(f, "an error occurred while parsing the input"),
-        }
-    }
 }
 
 type Span<'a> = LocatedSpan<CompleteStr<'a>>;
@@ -451,7 +415,7 @@ named!(p_formula<Span, Formula>,
     alt!(p_quantified | p_implication)
 );
 
-named!(pub theory<Span, Result<Theory>>,
+named!(pub theory<Span, Result<Theory, Error>>,
     map!(
         many_till!(
             map!(
@@ -469,12 +433,14 @@ named!(pub theory<Span, Result<Theory>>,
             let formulae: Vec<Formula> = fs.into_iter()
                 .filter_map(|f| f)
                 .collect();
-            Theory::try_from(formulae)
+            Theory::try_from(formulae).map_err(|e| Error::Syntax{
+                source: e
+            })
         }
     )
 );
 
-fn make_parser_error(error: &Err<Span, u32>) -> ParseError {
+fn make_parser_error(error: &Err<Span, u32>) -> Error {
     match error {
         Err::Error(Context::Code(pos, ErrorKind::Custom(code)))
         | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
@@ -485,30 +451,28 @@ fn make_parser_error(error: &Err<Span, u32>) -> ParseError {
             };
             let code = *code;
             match code {
-                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => ParseError::Missing {
+                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => Error::Missing {
                     line: pos.line,
                     column: pos.get_column() as u32,
                     code,
                 },
-                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => ParseError::Expecting {
+                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => Error::Expecting {
                     line: pos.line,
                     column: pos.get_column() as u32,
                     code,
                     found,
                 },
-                _ => ParseError::Failed {
+                _ => Error::Failed {
                     line: pos.line,
                     column: pos.get_column() as u32,
                 },
             }
         }
-        Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => {
-            ParseError::Failed {
-                line: pos.line,
-                column: pos.get_column() as u32,
-            }
-        }
-        _ => ParseError::Unknown,
+        Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => Error::Failed {
+            line: pos.line,
+            column: pos.get_column() as u32,
+        },
+        _ => Error::Unknown,
     }
 }
 
@@ -518,14 +482,14 @@ impl FromStr for Formula {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         p_formula(Span::new(CompleteStr(s)))
             .map(|r| r.1)
-            .map_err(|e| make_parser_error(&e).into())
+            .map_err(|e| make_parser_error(&e))
     }
 }
 
 impl FromStr for Theory {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         theory(Span::new(CompleteStr(s)))
             .map(|r| r.1)
             .map_err(|e| make_parser_error(&e))?
@@ -552,7 +516,7 @@ mod test_parser {
     }
 
     fn unsafe_success_to_string<R: ToString>(
-        parser: fn(Span) -> nom::IResult<Span, Result<R>, u32>,
+        parser: fn(Span) -> nom::IResult<Span, Result<R, Error>, u32>,
         parse_str: &str,
         expected: &str,
         remaining: &str,
@@ -1139,147 +1103,147 @@ mod test_parser {
         {
             let parsed: Result<Theory, Error> = "P(X)".parse();
             assert_eq!(
-                "expecting 'term' on line 1, column 3; found \"X)\"",
+                "expecting `term` at line 1, column 3; found \"X)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P('A)".parse();
             assert_eq!(
-                "expecting 'term' on line 1, column 3; found \"'A)\"",
+                "expecting `term` at line 1, column 3; found \"'A)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x)".parse();
             assert_eq!(
-                "missing ';' at line 1, column 5",
+                "missing `;` at line 1, column 5",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x".parse();
             assert_eq!(
-                "missing ')' at line 1, column 4",
+                "missing `)` at line 1, column 4",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "~P(x".parse();
             assert_eq!(
-                "missing ')' at line 1, column 5",
+                "missing `)` at line 1, column 5",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) and ".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 10",
+                "expecting `formula` at line 1, column 10",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) and X".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 10; found \"X\"",
+                "expecting `formula` at line 1, column 10; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) or".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 8",
+                "expecting `formula` at line 1, column 8",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) or X".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 9; found \"X\"",
+                "expecting `formula` at line 1, column 9; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) ->".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 8",
+                "expecting `formula` at line 1, column 8",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) -> X".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 9; found \"X\"",
+                "expecting `formula` at line 1, column 9; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) <=>".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 9",
+                "expecting `formula` at line 1, column 9",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "P(x) <=> X".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 10; found \"X\"",
+                "expecting `formula` at line 1, column 10; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "!x P(x".parse();
             assert_eq!(
-                "missing '.' at line 1, column 4",
+                "missing `.` at line 1, column 4",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "! P(x)".parse();
             assert_eq!(
-                "expecting 'variables' on line 1, column 3; found \"P(x)\"",
+                "expecting `variables` at line 1, column 3; found \"P(x)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "!x . ".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 6",
+                "expecting `formula` at line 1, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "!x . X".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 6; found \"X\"",
+                "expecting `formula` at line 1, column 6; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "?x P(x".parse();
             assert_eq!(
-                "missing '.' at line 1, column 4",
+                "missing `.` at line 1, column 4",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "? P(x)".parse();
             assert_eq!(
-                "expecting 'variables' on line 1, column 3; found \"P(x)\"",
+                "expecting `variables` at line 1, column 3; found \"P(x)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "?x . ".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 6",
+                "expecting `formula` at line 1, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "?x . X".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 6; found \"X\"",
+                "expecting `formula` at line 1, column 6; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
@@ -1293,14 +1257,14 @@ mod test_parser {
         {
             let parsed: Result<Theory, Error> = "(X)".parse();
             assert_eq!(
-                "expecting 'formula' on line 1, column 2; found \"X)\"",
+                "expecting `formula` at line 1, column 2; found \"X)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
             let parsed: Result<Theory, Error> = "(P(x)".parse();
             assert_eq!(
-                "missing ')' at line 1, column 6",
+                "missing `)` at line 1, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
@@ -1309,7 +1273,7 @@ mod test_parser {
             Q(x) <=> R(x);"
                 .parse();
             assert_eq!(
-                "missing ';' at line 2, column 1",
+                "missing `;` at line 2, column 1",
                 parsed.err().unwrap().to_string()
             );
         }
@@ -1319,7 +1283,7 @@ mod test_parser {
             S(x) => Q(x);"
                 .parse();
             assert_eq!(
-                "missing ';' at line 3, column 6",
+                "missing `;` at line 3, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
@@ -1329,7 +1293,16 @@ mod test_parser {
             S(x) and "
                 .parse();
             assert_eq!(
-                "expecting 'formula' on line 3, column 10",
+                "expecting `formula` at line 3, column 10",
+                parsed.err().unwrap().to_string()
+            );
+        }
+        {
+            let parsed: Result<Theory, Error> = "P(x);\n\
+            P(x,y);"
+                .parse();
+            assert_eq!(
+                "inconsistent predicate in theory signature `function: P, arity: 1` and `function: P, arity: 2`",
                 parsed.err().unwrap().to_string()
             );
         }
