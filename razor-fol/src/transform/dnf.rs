@@ -1,7 +1,7 @@
 /*! Implements conversion to Disjunctive Normal Form (DNF) for formulae.*/
 
 use super::SNF;
-use crate::syntax::{symbol::Generator, Formula::*, *};
+use crate::syntax::{Formula::*, *};
 
 /// Is a wrapper around [`Formula`] that represents a formula in Disjunctive Normal Form (DNF).
 ///

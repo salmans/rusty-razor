@@ -1,6 +1,6 @@
 /*! Implements conversion to Geometric Normal Form (GNF) for formulae.*/
 
-use super::{SkolemGenerator, CNF};
+use super::CNF;
 use crate::syntax::{symbol::Generator, Formula::*, *};
 use itertools::Itertools;
 use std::cmp::Ordering::Equal;

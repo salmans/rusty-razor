@@ -27,12 +27,11 @@ impl Theory {
 
     /// Extends this theory with additional formulae. It fails if the signature of the new formulae is
     /// inconsistent with the signature of this theory.
-    pub fn extend<T: IntoIterator<Item = Formula>>(&mut self, iter: T) -> Result<()> {
+    pub fn extend<T: IntoIterator<Item = Formula>>(&mut self, iter: T) -> Result<(), Error> {
         self.formulae.extend(iter);
 
         // recalculating the signature:
-        self.signature =
-            Sig::try_from(&self.formulae).map_err(|e| e.context("invalid theory signature"))?;
+        self.signature = Sig::try_from(&self.formulae)?;
         Ok(())
     }
 }

@@ -1,7 +1,7 @@
 /*! Implements a relationalization algorithm for formulae.*/
 
+use super::Error;
 use crate::syntax::{symbol::Generator, Formula, Pred, Term, V};
-use anyhow::{bail, Result};
 use std::collections::HashMap;
 
 /// Provides the relationalization algorithm through its [`relationalize`] method.
@@ -101,13 +101,13 @@ impl Relationalizer {
     /// let fmla = "~P(x)".parse::<Formula>().unwrap();
     /// assert!(Relationalizer::new().relationalize(&fmla).is_err());    
     /// ```
-    pub fn relationalize(&mut self, formula: &Formula) -> Result<Formula> {
+    pub fn relationalize(&mut self, formula: &Formula) -> Result<Formula, Error> {
         let formula = self.flatten_formula(formula)?;
         self.expand_equality(&formula, &mut HashMap::new())
     }
 
     // Applies top level flattening on the input formula.
-    fn flatten_formula(&mut self, formula: &Formula) -> Result<Formula> {
+    fn flatten_formula(&mut self, formula: &Formula) -> Result<Formula, Error> {
         match formula {
             Formula::Top | Formula::Bottom => Ok(formula.clone()),
             Formula::Atom { predicate, terms } => {
@@ -148,10 +148,9 @@ impl Relationalizer {
                 let right = self.flatten_formula(right)?;
                 Ok(left.or(right))
             }
-            _ => bail!(format!(
-                "cannot relationalize formula: {}",
-                formula.to_string()
-            )),
+            _ => Err(Error::RelationalizeFailure {
+                formula: formula.clone(),
+            }),
         }
     }
 
@@ -206,7 +205,11 @@ impl Relationalizer {
 
     // Replaces variables appearing in more than one position with fresh variables.
     // It asumes that the input is already flattened and does not contain complex terms.
-    fn expand_equality(&self, formula: &Formula, vars: &mut HashMap<V, i32>) -> Result<Formula> {
+    fn expand_equality(
+        &self,
+        formula: &Formula,
+        vars: &mut HashMap<V, i32>,
+    ) -> Result<Formula, Error> {
         match formula {
             Formula::Top | Formula::Bottom => Ok(formula.clone()),
             Formula::Atom { predicate, terms } => {
@@ -235,7 +238,7 @@ impl Relationalizer {
                                     0
                                 });
                         }
-                        _ => bail!("expacting only variable terms"),
+                        _ => return Err(Error::EqualityExpandNonVar { term: term.clone() }),
                     }
                 }
                 Ok(equations
@@ -252,10 +255,9 @@ impl Relationalizer {
                 let right = self.expand_equality(right, vars)?;
                 Ok(left.or(right))
             }
-            _ => bail!(format!(
-                "cannot expand equality of formula: {}",
-                formula.to_string()
-            )),
+            _ => Err(Error::EqualityExpandUnsupported {
+                formula: formula.clone(),
+            }),
         }
     }
 }
@@ -286,7 +288,7 @@ impl Relationalizer {
 /// let fmla = "~P(x)".parse::<Formula>().unwrap();
 /// assert!(range_restrict(&fmla, &vec![v!(x), v!(z)], "RR").is_err());
 /// ```
-pub fn range_restrict(formula: &Formula, range: &[V], symbol: &str) -> Result<Formula> {
+pub fn range_restrict(formula: &Formula, range: &[V], symbol: &str) -> Result<Formula, Error> {
     let formula = match formula {
         Formula::Bottom => formula.clone(),
         Formula::Top => {
@@ -311,7 +313,11 @@ pub fn range_restrict(formula: &Formula, range: &[V], symbol: &str) -> Result<Fo
             let right = range_restrict(right, range, symbol)?;
             left.or(right)
         }
-        _ => bail!(format!("cannot range restrict formula: {}", formula)),
+        _ => {
+            return Err(Error::RangeRestrictUnsupported {
+                formula: formula.clone(),
+            })
+        }
     };
     Ok(formula)
 }
@@ -340,7 +346,7 @@ mod tests {
     use crate::{formula, v};
 
     #[test]
-    fn test_relationalize_formula() -> Result<()> {
+    fn test_relationalize_formula() -> Result<(), Error> {
         assert_eq! {
             "⊤",
             Relationalizer::new().flatten_formula(&formula!('|'))?.to_string(),
@@ -430,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn test_expand_equality() -> Result<()> {
+    fn test_expand_equality() -> Result<(), Error> {
         assert_eq!(
             "⊤",
             Relationalizer::new()
@@ -542,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn test_range_restrict() -> Result<()> {
+    fn test_range_restrict() -> Result<(), Error> {
         let rr = "RR";
         assert_eq!(
             "⊤",
@@ -598,7 +604,7 @@ mod tests {
     }
 
     #[test]
-    fn test_relationalize() -> Result<()> {
+    fn test_relationalize() -> Result<(), Error> {
         assert_eq!(
             "$f(y, ?0) ∧ (P(x, ~?0:0) ∧ =(?0, ~?0:0))",
             Relationalizer::new()

@@ -65,7 +65,7 @@ impl PNF {
     ///
     /// assert_eq!("P(x, sk#0(x))", Formula::from(snf).to_string());
     /// ```
-    pub fn snf(&self) -> Formula {
+    pub fn snf(&self) -> SNF {
         self.snf_with(&mut Generator::new().set_prefix("sk#"))
     }
 
@@ -98,11 +98,10 @@ mod tests {
     use super::*;
     use crate::{assert_debug_string, formula};
 
-    #[test]
     fn snf(formula: &Formula) -> Formula {
         formula.pnf().snf().into()
     }
-    fn snf_with(formula: &Formula, generator: &mut SkolemGenerator) -> Formula {
+    fn snf_with(formula: &Formula, generator: &mut Generator) -> Formula {
         formula.pnf().snf_with(generator).into()
     }
 
