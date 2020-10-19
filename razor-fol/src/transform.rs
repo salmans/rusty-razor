@@ -24,10 +24,13 @@ pub enum Error {
     /// Is returned when an unsupported operation is performed on an expression.
     #[error("failed to relationalize formula: `{}`", .formula.to_string())]
     RelationalizeFailure { formula: super::syntax::Formula },
+
     #[error("failed on non-variable term: `{}`", .term.to_string())]
     EqualityExpandNonVar { term: super::syntax::Term },
+
     #[error("fialed to expand equality for formula: `{}`", .formula.to_string())]
     EqualityExpandUnsupported { formula: super::syntax::Formula },
+
     #[error("fialed to range restrict formula: `{}`", .formula.to_string())]
     RangeRestrictUnsupported { formula: super::syntax::Formula },
 }

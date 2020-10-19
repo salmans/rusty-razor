@@ -4,9 +4,8 @@ use super::{
     empty_named_tuple,
     model::Model,
     sequent::{Atom, Branch, Sequent},
-    NamedTuple, Symbol, Tuple,
+    Error, NamedTuple, Symbol, Tuple,
 };
-use anyhow::Result;
 use either::Either;
 use std::collections::HashMap;
 
@@ -76,7 +75,7 @@ fn balance_branch<B: BounderTrait>(
     branch: &Branch,
     model: &mut Model,
     bounder: Option<&B>,
-) -> Result<bool> {
+) -> Result<bool, Error> {
     let mut relation_tuples = HashMap::<&Atom, Vec<Tuple>>::new();
     let mut existentials = empty_named_tuple();
     let mut bounded = false;
@@ -123,7 +122,7 @@ fn balance_atom<'t, B: BounderTrait>(
     existentials: &mut NamedTuple<'t>,
     relation_tuples: &mut HashMap<&'t Atom, Vec<Tuple>>,
     bounder: Option<&B>,
-) -> Result<bool> {
+) -> Result<bool, Error> {
     let mut bounded = false;
     let mut new_tuple: Vec<E> = Vec::new();
     for attr in atom.attributes().iter() {

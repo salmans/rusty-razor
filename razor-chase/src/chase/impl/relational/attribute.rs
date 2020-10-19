@@ -1,5 +1,4 @@
-use super::constants::*;
-use anyhow::{bail, Error};
+use super::{constants::*, Error};
 use itertools::Itertools;
 use razor_fol::syntax;
 use std::convert::TryFrom;
@@ -92,7 +91,9 @@ impl FromStr for Attribute {
                     variant: Equational(Box::new(s[1..end].parse()?)),
                 })
             } else {
-                bail!("internal error: invalid attribute name")
+                Err(Error::BadAttributeName {
+                    name: s.to_string(),
+                })
             }
         } else {
             Ok(Self {

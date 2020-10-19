@@ -1,6 +1,5 @@
-use super::{constants::*, empty_named_tuple, sequent::Sequent, NamedTuple, Symbol, Tuple};
+use super::{constants::*, empty_named_tuple, sequent::Sequent, Error, NamedTuple, Symbol, Tuple};
 use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
-use anyhow::Result;
 use codd::expression as rel_exp;
 use razor_fol::syntax::Sig;
 use std::{collections::HashMap, fmt};
@@ -106,7 +105,7 @@ impl Model {
         &mut self,
         symbol: &Symbol,
         mut tuples: codd::Tuples<Tuple>,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         if let Some(relation) = self.relations.get(symbol) {
             let to_add = Vec::new();
             if let Symbol::Equality = symbol {
@@ -119,12 +118,14 @@ impl Model {
 
             self.database
                 .insert(relation, tuples)
-                .map_err(|_| anyhow::anyhow!("internal error: failed to insert into database"))
+                .map_err(|e| Error::InsertFailure {
+                    symbol: symbol.to_string(),
+                    source: e,
+                })
         } else {
-            anyhow::bail!(format!(
-                "internal error: missing relation for symbol: {:#?}",
-                symbol
-            ))
+            Err(Error::MissingSymbol {
+                symbol: symbol.to_string(),
+            })
         }
     }
 
@@ -239,17 +240,21 @@ impl fmt::Display for Model {
 fn build_relations_info(
     sig: &Sig,
     db: &mut codd::Database,
-) -> Result<HashMap<Symbol, rel_exp::Relation<Tuple>>> {
+) -> Result<HashMap<Symbol, rel_exp::Relation<Tuple>>, Error> {
     let mut relations = HashMap::new();
     for c in sig.constants().iter() {
         let name = constant_instance_name(c);
-        let relation = db.add_relation::<Tuple>(&name)?;
+        let relation = db
+            .add_relation::<Tuple>(&name)
+            .map_err(|e| Error::ModelInitFailure { source: e })?;
 
         relations.insert(Symbol::Const(c.clone()), relation);
     }
     for f in sig.functions().values() {
         let name = function_instance_name(&f.symbol);
-        let relation = db.add_relation::<Tuple>(&name)?;
+        let relation = db
+            .add_relation::<Tuple>(&name)
+            .map_err(|e| Error::ModelInitFailure { source: e })?;
 
         relations.insert(
             Symbol::Func {
@@ -265,7 +270,9 @@ fn build_relations_info(
             continue;
         }
         let name = predicate_instance_name(&p.symbol);
-        let relation = db.add_relation::<Tuple>(&name)?;
+        let relation = db
+            .add_relation::<Tuple>(&name)
+            .map_err(|e| Error::ModelInitFailure { source: e })?;
 
         relations.insert(
             Symbol::Pred {
@@ -275,9 +282,17 @@ fn build_relations_info(
             relation,
         );
     }
-    relations.insert(Symbol::Domain, db.add_relation::<Tuple>(DOMAIN)?);
+    relations.insert(
+        Symbol::Domain,
+        db.add_relation::<Tuple>(DOMAIN)
+            .map_err(|e| Error::ModelInitFailure { source: e })?,
+    );
     if !relations.contains_key(&Symbol::Equality) {
-        relations.insert(Symbol::Equality, db.add_relation::<Tuple>(EQUALITY)?);
+        relations.insert(
+            Symbol::Equality,
+            db.add_relation::<Tuple>(EQUALITY)
+                .map_err(|e| Error::ModelInitFailure { source: e })?,
+        );
     }
 
     Ok(relations)

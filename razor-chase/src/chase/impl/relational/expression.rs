@@ -1,9 +1,8 @@
 //*! Implements the algorithm for converting a relational formula to a relational expression in `codd`.*/
 use super::{
     attribute::{Attribute, AttributeList},
-    Tuple,
+    Error, Tuple,
 };
-use anyhow::{bail, Result};
 use codd::expression::{Empty, Expression, Mono, Relation, Singleton};
 use either::Either;
 use razor_fol::syntax::{Formula, Pred};
@@ -119,13 +118,13 @@ pub(super) fn atomic_expression(
     vars: &Vec<razor_fol::syntax::V>,
     key_attrs: &AttributeList,
     attrs: &AttributeList,
-) -> Result<SubExpression> {
+) -> Result<SubExpression, Error> {
     use std::convert::TryFrom;
 
     let vars = vars
         .into_iter()
         .map(Attribute::try_from)
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
     let mut expr_attrs = Vec::new(); // attributes of the resulting expression
     let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
 
@@ -187,20 +186,20 @@ pub(super) fn and_expression(
     right: &Formula,
     key_attrs: &AttributeList,
     attrs: &AttributeList,
-) -> Result<SubExpression> {
+) -> Result<SubExpression, Error> {
     use std::convert::TryFrom;
 
     let left_attrs: AttributeList = left
         .free_vars()
         .into_iter()
         .map(Attribute::try_from)
-        .collect::<Result<Vec<_>>>()?
+        .collect::<Result<Vec<_>, _>>()?
         .into();
     let right_attrs: AttributeList = right
         .free_vars()
         .into_iter()
         .map(Attribute::try_from)
-        .collect::<Result<Vec<_>>>()?
+        .collect::<Result<Vec<_>, _>>()?
         .into();
 
     let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
@@ -270,7 +269,7 @@ pub(super) fn or_expression(
     right: &Formula,
     key_attrs: &AttributeList,
     attrs: &AttributeList,
-) -> Result<SubExpression> {
+) -> Result<SubExpression, Error> {
     // Disjuctions simply hope that left and right have the same attributes:
     let left_exp = expression(left, key_attrs, attrs)?;
     let right_exp = expression(right, key_attrs, attrs)?;
@@ -301,7 +300,7 @@ fn expression(
     formula: &Formula,
     join_attr: &AttributeList,
     final_attr: &AttributeList,
-) -> Result<SubExpression> {
+) -> Result<SubExpression, Error> {
     match formula {
         Formula::Bottom => Ok(SubExpression::new(
             Vec::new().into(),
@@ -324,7 +323,9 @@ fn expression(
         }
         Formula::And { left, right } => and_expression(left, right, join_attr, final_attr),
         Formula::Or { left, right } => or_expression(left, right, join_attr, final_attr),
-        _ => bail!("expecting a relational formula"),
+        _ => Err(Error::BadRelationalFormula {
+            formula: formula.clone(),
+        }),
     }
 }
 
@@ -332,7 +333,7 @@ fn expression(
 pub(super) fn make_expression(
     formula: &Formula,
     attributes: &AttributeList,
-) -> Result<Mono<Tuple>> {
+) -> Result<Mono<Tuple>, Error> {
     expression(formula, &Vec::new().into(), attributes).map(SubExpression::into_expression)
 }
 
@@ -346,31 +347,31 @@ mod tests {
 
     macro_rules! atts {
         ($vs:expr) => {{
-            let vs: Result<Vec<_>> = $vs.iter().map(|v| Attribute::try_from(v)).collect();
+            let vs: Result<Vec<_>, _> = $vs.iter().map(|v| Attribute::try_from(v)).collect();
             AttributeList::from(vs.unwrap())
         }};
     }
 
-    fn setup_database() -> Result<Database> {
+    fn setup_database() -> Result<Database, Error> {
         let mut db = Database::new();
-        let p = relalg! { create relation "P":[Tuple] in db }?;
-        let q = relalg! { create relation "Q":[Tuple] in db }?;
-        let r = relalg! { create relation "R":[Tuple] in db }?;
+        let p = relalg! { create relation "P":[Tuple] in db }.unwrap();
+        let q = relalg! { create relation "Q":[Tuple] in db }.unwrap();
+        let r = relalg! { create relation "R":[Tuple] in db }.unwrap();
 
-        relalg! (insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]] in db)?;
-        relalg! (insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]] in db)?;
-        relalg! (insert into (r) values [vec![E(2), E(20)], vec![E(3), E(30)], vec![E(4), E(40)]] in db)?;
+        relalg! (insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]] in db).unwrap();
+        relalg! (insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]] in db).unwrap();
+        relalg! (insert into (r) values [vec![E(2), E(20)], vec![E(3), E(30)], vec![E(4), E(40)]] in db).unwrap();
 
         Ok(db)
     }
 
     #[test]
-    fn test_atom() -> Result<()> {
-        let db = setup_database()?;
+    fn test_atom() {
+        let db = setup_database().unwrap();
         {
             let formula = formula!(P(x));
-            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x)]))?;
-            let tuples = db.evaluate(&result.expression)?;
+            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x)])).unwrap();
+            let tuples = db.evaluate(&result.expression).unwrap();
 
             assert!(matches!(result.expression, Mono::Relation(_)));
             assert_eq!(
@@ -381,8 +382,8 @@ mod tests {
         }
         {
             let formula = formula!(P(x));
-            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))?;
-            let tuples = db.evaluate(&result.expression)?;
+            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)])).unwrap();
+            let tuples = db.evaluate(&result.expression).unwrap();
 
             assert!(matches!(result.expression, Mono::Relation(_)));
             assert_eq!(
@@ -393,8 +394,8 @@ mod tests {
         }
         {
             let formula = formula!(Q(x, y));
-            let result = expression(&formula, &vec![].into(), &atts!(vec![v!(x), v!(y)]))?;
-            let tuples = db.evaluate(&result.expression)?;
+            let result = expression(&formula, &vec![].into(), &atts!(vec![v!(x), v!(y)])).unwrap();
+            let tuples = db.evaluate(&result.expression).unwrap();
 
             assert!(matches!(result.expression, Mono::Relation(_)));
             assert_eq!(
@@ -413,8 +414,9 @@ mod tests {
                 &formula,
                 &atts!(vec![v!(x), v!(y)]),
                 &atts!(vec![v!(y), v!(x)]),
-            )?;
-            let tuples = db.evaluate(&result.expression)?;
+            )
+            .unwrap();
+            let tuples = db.evaluate(&result.expression).unwrap();
 
             assert!(matches!(result.expression, Mono::Project(_)));
             assert_eq!(
@@ -429,8 +431,9 @@ mod tests {
         }
         {
             let formula = formula!(Q(x, y));
-            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x), v!(x)]))?;
-            let tuples = db.evaluate(&result.expression)?;
+            let result =
+                expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x), v!(x)])).unwrap();
+            let tuples = db.evaluate(&result.expression).unwrap();
 
             assert!(matches!(result.expression, Mono::Project(_)));
             assert_eq!(
@@ -443,18 +446,17 @@ mod tests {
             );
             assert_eq!(atts!(vec![v!(x), v!(x)]), result.attributes);
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_and() -> Result<()> {
-        let db = setup_database()?;
+    fn test_and() -> Result<(), Error> {
+        let db = setup_database().unwrap();
         {
             let formula = formula!([P(x)] & [R(y, z)]);
-            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y), v!(z)]))?;
+            let result =
+                expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y), v!(z)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(1), E(2), E(20)],
@@ -473,17 +475,18 @@ mod tests {
         }
         {
             let formula = formula!([P(x)] & [R(y, x)]);
-            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))?;
+            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(Tuples::from(vec![]), tuples);
             assert_eq!(atts!(vec![v!(x), v!(y)]), result.attributes);
         }
         {
             let formula = formula!([P(x)] & [R(x, y)]);
-            let result = expression(&formula, &atts!(vec![v!(y)]), &atts!(vec![v!(x), v!(y)]))?;
+            let result =
+                expression(&formula, &atts!(vec![v!(y)]), &atts!(vec![v!(x), v!(y)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![vec![E(2), E(20)], vec![E(3), E(30)],]),
                 tuples
@@ -492,9 +495,10 @@ mod tests {
         }
         {
             let formula = formula!([P(x)] & [Q(y, z)]);
-            let result = expression(&formula, &atts!(vec![v!(x), v!(y)]), &atts!([v!(y), v!(x)]))?;
+            let result =
+                expression(&formula, &atts!(vec![v!(x), v!(y)]), &atts!([v!(y), v!(x)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(20), E(1)],
@@ -517,9 +521,10 @@ mod tests {
                 &formula,
                 &atts!(vec![v!(y), v!(x)]),
                 &atts!(vec![v!(x), v!(y)]),
-            )?;
+            )
+            .unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(1), E(20)],
@@ -541,13 +546,13 @@ mod tests {
     }
 
     #[test]
-    fn test_union() -> Result<()> {
-        let db = setup_database()?;
+    fn test_union() -> Result<(), Error> {
+        let db = setup_database().unwrap();
         {
             let formula = formula!([Q(x, y)] | [R(y, x)]);
-            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))?;
+            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(20), E(2)],
@@ -564,9 +569,9 @@ mod tests {
 
         {
             let formula = formula!([Q(x, y)] | [R(y, x)]);
-            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(y)]))?;
+            let result = expression(&formula, &atts!(vec![]), &atts!(vec![v!(y)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(2)],
@@ -585,13 +590,13 @@ mod tests {
     }
 
     #[test]
-    fn test_formula() -> Result<()> {
-        let db = setup_database()?;
+    fn test_formula() {
+        let db = setup_database().unwrap();
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { P(x) });
-            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))?;
+            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
                 tuples
@@ -600,9 +605,9 @@ mod tests {
         }
         {
             let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] });
-            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))?;
+            let result = expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)])).unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![vec![E(1)], vec![E(2)], vec![E(3)],]),
                 tuples
@@ -615,9 +620,10 @@ mod tests {
                 &formula,
                 &atts!(vec![v!(z)]),
                 &atts!(vec![v!(y), v!(x), v!(z)]),
-            )?;
+            )
+            .unwrap();
 
-            let tuples = db.evaluate(&result.expression)?;
+            let tuples = db.evaluate(&result.expression).unwrap();
             assert_eq!(
                 Tuples::from(vec![
                     vec![E(20), E(1), E(200)],
@@ -634,6 +640,5 @@ mod tests {
             );
             assert_eq!(atts!(vec![v!(y), v!(x), v!(z)]), result.attributes);
         }
-        Ok(())
     }
 }

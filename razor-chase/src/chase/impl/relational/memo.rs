@@ -1,9 +1,8 @@
 use super::{
     attribute::AttributeList,
     expression::{and_expression, atomic_expression, or_expression, RawExpression, SubExpression},
-    Tuple,
+    Error, Tuple,
 };
-use anyhow::{bail, Result};
 use codd::expression::*;
 use razor_fol::syntax::Formula;
 use std::collections::HashMap;
@@ -25,7 +24,7 @@ impl<'a> ViewMemo<'a> {
         &mut self,
         formula: &Formula,
         attributes: &AttributeList,
-    ) -> Result<Mono<Tuple>> {
+    ) -> Result<Mono<Tuple>, Error> {
         self.expression(formula, &Vec::new().into(), attributes)
             .map(SubExpression::into_expression)
     }
@@ -35,7 +34,7 @@ impl<'a> ViewMemo<'a> {
         formula: &Formula,
         join_attr: &AttributeList,
         final_attr: &AttributeList,
-    ) -> Result<SubExpression> {
+    ) -> Result<SubExpression, Error> {
         match formula {
             Formula::Bottom => Ok(SubExpression::new(
                 Vec::new().into(),
@@ -88,7 +87,9 @@ impl<'a> ViewMemo<'a> {
             }
 
             Formula::Or { left, right } => or_expression(left, right, join_attr, final_attr),
-            _ => bail!("expecting a relational formula"),
+            _ => Err(Error::BadRelationalFormula {
+                formula: formula.clone(),
+            }),
         }
     }
 }

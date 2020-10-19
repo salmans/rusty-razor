@@ -11,13 +11,13 @@ mod preprocessor;
 mod sequent;
 
 use crate::chase::{r#impl::basic::WitnessTerm, Observation, Rel, WitnessTermTrait, E};
-use anyhow::{bail, Result};
 pub use evaluator::Evaluator;
 pub use model::Model;
 pub use preprocessor::PreProcessor;
 use razor_fol::syntax;
 pub use sequent::Sequent;
 use std::collections::HashMap;
+use thiserror::Error;
 
 mod constants {
     use razor_fol::syntax;
@@ -92,7 +92,7 @@ enum Symbol {
 
 impl Symbol {
     /// Creates a witness term from symbol, given a list of arguments `E`.
-    fn witness(&self, args: &[E]) -> Result<WitnessTerm> {
+    fn witness(&self, args: &[E]) -> Result<WitnessTerm, Error> {
         match self {
             Symbol::Const(symbol) => {
                 assert!(args.len() == 0);
@@ -107,7 +107,9 @@ impl Symbol {
                     .app(args.iter().map(|e| e.clone().into()).collect());
                 Ok(witness)
             }
-            _ => bail!("cannot create witness term for symbol"),
+            _ => Err(Error::BadWitnessTerm {
+                symbol: self.to_string(),
+            }),
         }
     }
 
@@ -147,6 +149,52 @@ impl Symbol {
             Symbol::Domain => None, // the Domain instance is used only for book-keeping
         }
     }
+}
+
+impl std::fmt::Display for Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let display = match self {
+            Symbol::Const(c) => format!("constant {}", c.to_string()),
+            Symbol::Func { symbol, arity } => {
+                format!("function {}, arity {}", symbol.to_string(), arity)
+            }
+            Symbol::Pred { symbol, arity } => {
+                format!("predicate {}, arity {}", symbol.to_string(), arity)
+            }
+            Symbol::Equality => "equality (=)".into(),
+            Symbol::Domain => "domain".into(),
+        };
+        write!(f, "{}", display)
+    }
+}
+
+/// Is the type of errors arising from inconsistencies in the syntax of formulae.
+#[derive(Error, Debug)]
+pub enum Error {
+    /// Is returned when an unsupported operation is performed on an expression.
+    #[error("bad model initialization: missing symbol `{symbol:?}`")]
+    MissingSymbol { symbol: String },
+
+    #[error("failed to insert in symbol `{symbol:?}`")]
+    InsertFailure { symbol: String, source: codd::Error },
+
+    #[error("failed to initialize model")]
+    ModelInitFailure { source: codd::Error },
+
+    #[error("cannot create witness term for symbol `{symbol:?}`")]
+    BadWitnessTerm { symbol: String },
+
+    #[error("expecting flat term, found `{}`", .term.to_string())]
+    BadFlatTerm { term: razor_fol::syntax::Term },
+
+    #[error("expecting relational formula, found `{}`", .formula.to_string())]
+    BadRelationalFormula { formula: razor_fol::syntax::Formula },
+
+    #[error("cannot build sequent from formula `{}`", .formula.to_string())]
+    BadSequentFormula { formula: razor_fol::syntax::Formula },
+
+    #[error("cannot build sequent from formula `{name:?}`")]
+    BadAttributeName { name: String },
 }
 
 #[cfg(test)]

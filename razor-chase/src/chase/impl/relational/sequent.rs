@@ -3,10 +3,9 @@ use super::{
     constants::*,
     expression::make_expression,
     memo::ViewMemo,
-    Symbol, Tuple,
+    Error, Symbol, Tuple,
 };
 use crate::chase::SequentTrait;
-use anyhow::{bail, Result};
 use codd::expression as rel_exp;
 use razor_fol::{
     syntax::{Formula, Pred, Term, C, F, V},
@@ -187,7 +186,7 @@ impl SequentTrait for Sequent {
     }
 }
 
-fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>> {
+fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
     use std::convert::TryFrom;
 
     match formula {
@@ -202,7 +201,7 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>> {
                             .map(Attribute::into_canonical)
                             .expect("internal error: invalid variable name"),
                     ),
-                    _ => bail!("something went wrong: expacting a variable"),
+                    _ => return Err(Error::BadFlatTerm { term: term.clone() }),
                 }
             }
 
@@ -240,7 +239,9 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>> {
                 left.append(&mut right);
                 Ok(vec![left])
             } else {
-                bail!("something is wrong: expecting a geometric sequent in standard form.")
+                Err(Error::BadSequentFormula {
+                    formula: formula.clone(),
+                })
             }
         }
         Formula::Or { left, right } => {
@@ -249,7 +250,9 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>> {
             left.append(&mut right);
             Ok(left)
         }
-        _ => bail!("something is wrong: expecting a geometric sequent in standard form."),
+        _ => Err(Error::BadSequentFormula {
+            formula: formula.clone(),
+        }),
     }
 }
 
