@@ -1,9 +1,32 @@
 /*! Implements conversion to Geometric Normal Form (GNF) for formula.*/
 
-use super::SkolemGenerator;
+use super::{SkolemGenerator, CNF};
 use crate::syntax::{Formula::*, *};
 use itertools::Itertools;
 use std::cmp::Ordering::Equal;
+
+/// Is a wrapper around [`Formula`] that represents a formula in Geometric Normal Form (GNF).
+///
+/// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
+/// by Steve Vickers.
+///
+/// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
+/// [`Formula`]: ../syntax/enum.Formula.html
+#[derive(Clone, Debug)]
+pub struct GNF(Formula);
+
+impl GNF {
+    /// Returns a reference to the formula wrapped in the receiver NNF.
+    pub fn formula(&self) -> &Formula {
+        &self.0
+    }
+}
+
+impl From<GNF> for Formula {
+    fn from(gnf: GNF) -> Self {
+        gnf.0
+    }
+}
 
 // For any disjunct of the CNF, the negative literals form the body of the geometric form
 // and the positive literals form its head:
@@ -27,11 +50,11 @@ fn split_sides(disjunct: Formula) -> (Vec<Formula>, Vec<Formula>) {
 }
 
 // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
-fn to_implication(disjunct: Formula) -> Formula {
+fn to_implication(disjunct: Formula) -> GNF {
     let (body, head) = split_sides(disjunct);
     let body = body.into_iter().fold(Top, |x, y| x.and(y)).simplify();
     let head = head.into_iter().fold(Bottom, |x, y| x.or(y)).simplify();
-    body.implies(head)
+    GNF(body.implies(head))
 }
 
 // Split the CNF to a set of disjuncts.
@@ -47,49 +70,25 @@ fn get_disjuncts(cnf: Formula) -> Vec<Formula> {
     }
 }
 
-impl Formula {
-    /// Returns a list of formulae in [Geometric Normal Form][gnf] (GNF), equivalent to the
-    /// receiver.
-    ///
-    /// [gnf]: ../../chase/index.html#background
-    ///
-    /// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
-    /// by Steve Vickers.
-    ///
-    /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
+impl CNF {
+    /// Transforms the receiver CNF to a list of formulae in Geometric Normal Form (GNF).
     ///
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "P(x) & (Q(x) | R(x))".parse().unwrap();
-    /// let gnf_to_string: Vec<String> = formula.gnf().iter().map(|f| f.to_string()).collect();
+    /// let cnf = formula.pnf().snf().cnf();
+    /// let gnfs = cnf.gnf();
+    ///  
+    /// let gnf_to_string: Vec<String> = gnfs
+    ///     .into_iter()
+    ///     .map(|f| Formula::from(f).to_string())
+    ///     .collect();
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
-    pub fn gnf(&self) -> Vec<Formula> {
-        self.gnf_with(&mut SkolemGenerator::new())
-    }
-
-    /// Is similar to [`Formula::gnf`] but uses an existing [`SkolemGenerator`] to avoid collision
-    /// when generating Skolem function names (including Skolem constants).
-    ///
-    /// **Note**: The GNF transformation includes Skolemization.
-    ///
-    /// [`SkolemGenerator`]: ../transform/struct.SkolemGenerator.html
-    /// [`Formula::gnf`]: ./enum.Formula.html#method.gnf
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::Formula;
-    /// use razor_fol::transform::SkolemGenerator;
-    ///
-    /// let mut generator = SkolemGenerator::from("s%");
-    /// let formula: Formula = "P(y) -> exists x. P(x) & Q(y)".parse().unwrap();
-    /// let gnf_to_string: Vec<String> = formula.gnf().iter().map(|f| f.to_string()).collect();
-    /// assert_eq!(vec!["P(y) → P(sk#0(y))", "P(y) → Q(y)"], gnf_to_string);
-    /// ```
-    pub fn gnf_with(&self, generator: &mut SkolemGenerator) -> Vec<Formula> {
-        get_disjuncts(self.cnf_with(generator))
+    pub fn gnf(&self) -> Vec<GNF> {
+        get_disjuncts(self.clone().into())
             .into_iter()
             .map(to_implication)
             .collect()
@@ -97,7 +96,8 @@ impl Formula {
 }
 
 // a helper to merge sequents with syntactically identical bodies
-fn compress_geometric(formulae: Vec<Formula>) -> Vec<Formula> {
+fn compress_geometric(formulae: Vec<GNF>) -> Vec<Formula> {
+    let formulae: Vec<Formula> = formulae.into_iter().map(|gnf| gnf.into()).collect();
     formulae
         .into_iter()
         .sorted_by(|f1, f2| {
@@ -148,7 +148,9 @@ fn compress_geometric(formulae: Vec<Formula>) -> Vec<Formula> {
         .map(|f| {
             // convert the head to dnf and simplify it:
             match f {
-                Implies { left, right: r } => left.implies(simplify_dnf(r.dnf())),
+                Implies { left, right: r } => {
+                    left.implies(simplify_dnf(r.pnf().snf().dnf().into()))
+                }
                 _ => f,
             }
         })
@@ -231,10 +233,10 @@ impl Theory {
         use core::convert::TryFrom;
 
         let mut generator = SkolemGenerator::new();
-        let formulae: Vec<Formula> = self
+        let formulae: Vec<GNF> = self
             .formulae
             .iter()
-            .flat_map(|f| f.gnf_with(&mut generator))
+            .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
             .collect();
 
         // assuming that conversion to gnf won't change the signature
@@ -247,51 +249,62 @@ mod test_transform {
     use super::*;
     use crate::assert_debug_strings;
 
+    fn gnf(formula: &Formula) -> Vec<Formula> {
+        formula
+            .pnf()
+            .snf()
+            .cnf()
+            .gnf()
+            .into_iter()
+            .map(|gnf| gnf.into())
+            .collect()
+    }
+
     #[test]
     fn test_gnf() {
         {
             let formula: Formula = "true".parse().unwrap();
-            assert_debug_strings!("true -> true", formula.gnf());
+            assert_debug_strings!("true -> true", gnf(&formula));
         }
         {
             let formula: Formula = "false".parse().unwrap();
-            assert_debug_strings!("true -> false", formula.gnf());
+            assert_debug_strings!("true -> false", gnf(&formula));
         }
         {
             let formula: Formula = "P(x)".parse().unwrap();
-            assert_debug_strings!("true -> P(x)", formula.gnf());
+            assert_debug_strings!("true -> P(x)", gnf(&formula));
         }
         {
             let formula: Formula = "x = y".parse().unwrap();
-            assert_debug_strings!("true -> (x = y)", formula.gnf());
+            assert_debug_strings!("true -> (x = y)", gnf(&formula));
         }
         {
             let formula: Formula = "~P(x)".parse().unwrap();
-            assert_debug_strings!("P(x) -> false", formula.gnf());
+            assert_debug_strings!("P(x) -> false", gnf(&formula));
         }
         {
             let formula: Formula = "P(x) -> Q(x)".parse().unwrap();
-            assert_debug_strings!("P(x) -> Q(x)", formula.gnf());
+            assert_debug_strings!("P(x) -> Q(x)", gnf(&formula));
         }
         {
             let formula: Formula = "P(x) & Q(x)".parse().unwrap();
-            assert_debug_strings!("true -> P(x)\ntrue -> Q(x)", formula.gnf());
+            assert_debug_strings!("true -> P(x)\ntrue -> Q(x)", gnf(&formula));
         }
         {
             let formula: Formula = "P(x) | Q(x)".parse().unwrap();
-            assert_debug_strings!("true -> (P(x) | Q(x))", formula.gnf());
+            assert_debug_strings!("true -> (P(x) | Q(x))", gnf(&formula));
         }
         {
             let formula: Formula = "! x. P(x)".parse().unwrap();
-            assert_debug_strings!("true -> P(x)", formula.gnf());
+            assert_debug_strings!("true -> P(x)", gnf(&formula));
         }
         {
             let formula: Formula = "? x. P(x)".parse().unwrap();
-            assert_debug_strings!("true -> P('sk#0)", formula.gnf());
+            assert_debug_strings!("true -> P('sk#0)", gnf(&formula));
         }
         {
             let formula: Formula = "P(x) & Q(x) -> P(y) | Q(y)".parse().unwrap();
-            assert_debug_strings!("(P(x) & Q(x)) -> (P(y) | Q(y))", formula.gnf());
+            assert_debug_strings!("(P(x) & Q(x)) -> (P(y) | Q(y))", gnf(&formula));
         }
         {
             let formula: Formula = "P(x) | Q(x) -> P(y) & Q(y)".parse().unwrap();
@@ -300,7 +313,7 @@ mod test_transform {
         P(x) -> Q(y)\n\
         Q(x) -> P(y)\n\
         Q(x) -> Q(y)",
-                formula.gnf(),
+                gnf(&formula),
             );
         }
         {
@@ -311,12 +324,12 @@ mod test_transform {
         Q(x) -> P(y)\n\
         Q(x) -> Q(y)\n\
         (P(y) & Q(y)) -> (P(x) | Q(x))",
-                formula.gnf(),
+                gnf(&formula),
             );
         }
         {
             let formula: Formula = "!x. (P(x) -> ?y. Q(x,y))".parse().unwrap();
-            assert_debug_strings!("P(x) -> Q(x, sk#0(x))", formula.gnf());
+            assert_debug_strings!("P(x) -> Q(x, sk#0(x))", gnf(&formula));
         }
         {
             let formula: Formula = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))"
@@ -327,14 +340,14 @@ mod test_transform {
         P(x) -> (Q(sk#0(x)) | S(x, sk#1(x)))\n\
         P(x) -> (R(x, sk#0(x)) | P(sk#1(x)))\n\
         P(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))",
-                formula.gnf(),
+                gnf(&formula),
             );
         }
         {
             let formula: Formula = "!x, y. ((P(x) & Q(y)) -> (R(x, y) -> S(x, y)))"
                 .parse()
                 .unwrap();
-            assert_debug_strings!("((P(x) & Q(y)) & R(x, y)) -> S(x, y)", formula.gnf());
+            assert_debug_strings!("((P(x) & Q(y)) & R(x, y)) -> S(x, y)", gnf(&formula));
         }
         {
             let formula: Formula = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))"
@@ -351,24 +364,24 @@ mod test_transform {
         S(x, y) -> (S(x, y) | Q(y))\n\
         (S(x, y) & R(x, y)) -> P(x)\n\
         (S(x, y) & R(x, y)) -> Q(y)",
-                formula.gnf(),
+                gnf(&formula),
             );
         }
         {
             let formula: Formula = "? x. P(x) -> Q(x)".parse().unwrap();
-            assert_debug_strings!("P('sk#0) -> Q('sk#0)", formula.gnf());
+            assert_debug_strings!("P('sk#0) -> Q('sk#0)", gnf(&formula));
         }
         {
             let formula: Formula = "(? x. P(x)) -> Q(x)".parse().unwrap();
-            assert_debug_strings!("P(x`) -> Q(x)", formula.gnf());
+            assert_debug_strings!("P(x`) -> Q(x)", gnf(&formula));
         }
         {
             let formula: Formula = "? x. (P(x) -> Q(x))".parse().unwrap();
-            assert_debug_strings!("P('sk#0) -> Q('sk#0)", formula.gnf());
+            assert_debug_strings!("P('sk#0) -> Q('sk#0)", gnf(&formula));
         }
         {
             let formula: Formula = "false -> P(x)".parse().unwrap();
-            assert_debug_strings!("true -> true", formula.gnf());
+            assert_debug_strings!("true -> true", gnf(&formula));
         }
     }
 
