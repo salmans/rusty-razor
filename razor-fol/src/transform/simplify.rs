@@ -91,9 +91,9 @@ impl Formula {
                 let formula = formula.simplify();
                 let free_vars = formula.free_vars();
                 let vs: Vec<V> = free_vars
-                    .iter()
+                    .into_iter()
                     .filter(|v| variables.contains(v))
-                    .map(|v| (*v).clone())
+                    .cloned()
                     .collect();
                 if vs.is_empty() {
                     formula
@@ -105,9 +105,9 @@ impl Formula {
                 let formula = formula.simplify();
                 let free_vars = formula.free_vars();
                 let vs: Vec<V> = free_vars
-                    .iter()
+                    .into_iter()
                     .filter(|v| variables.contains(v))
-                    .map(|v| (*v).clone())
+                    .cloned()
                     .collect();
                 if vs.is_empty() {
                     formula

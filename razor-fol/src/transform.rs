@@ -8,5 +8,10 @@ mod simplify;
 mod snf;
 mod substitution;
 
-pub use snf::SkolemGenerator;
+pub use cnf::CNF;
+pub use dnf::DNF;
+pub use gnf::GNF;
+pub use nnf::NNF;
+pub use pnf::PNF;
+pub use snf::{SkolemGenerator, SNF};
 pub use substitution::{Substitution, TermBased, VariableRenaming};

@@ -1,8 +1,32 @@
 /*! Implements conversion to Skolem Normal Form (SNF) for formula.*/
 
-use super::TermBased;
+use super::{TermBased, PNF};
 use crate::syntax::{Formula::*, *};
 use std::collections::HashMap;
+
+/// Is a wrapper around [`Formula`] that represents a formula in Skolem Normal Form (SNF).
+///
+/// **Hint**: An SNF is a [PNF] with only universal quantifiers
+/// (see: <https://en.wikipedia.org/wiki/Skolem_normal_form>).
+///
+/// [PNF]: ./enum.Formula.html#method.pnf
+///
+/// [`Formula`]: ../syntax/enum.Formula.html
+#[derive(Clone, Debug)]
+pub struct SNF(Formula);
+
+impl SNF {
+    /// Returns a reference to the formula wrapped in the receiver SNF.
+    pub fn formula(&self) -> &Formula {
+        &self.0
+    }
+}
+
+impl From<SNF> for Formula {
+    fn from(snf: SNF) -> Self {
+        snf.0
+    }
+}
 
 /// Generates Skolem names in an incremental fashion in the context of any transformation that
 /// involves Skolemization.
@@ -69,22 +93,20 @@ fn helper(formula: Formula, mut skolem_vars: Vec<V>, generator: &mut SkolemGener
     }
 }
 
-impl Formula {
-    /// Returns a Skolem Normal Form (SNF) equivalent to the receiver.
-    ///
-    /// **Hint**: An SNF is a [PNF] with only universal quantifiers
-    /// (see: <https://en.wikipedia.org/wiki/Skolem_normal_form>).
-    ///
-    /// [PNF]: ./enum.Formula.html#method.pnf
+impl PNF {
+    /// Transforms the receiver PNF to a Skolem Normal Form (SNF).
     ///
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::Formula;
     ///
     /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
-    /// assert_eq!("P(x, sk#0(x))", formula.snf().to_string());
+    /// let pnf = formula.pnf();
+    /// let snf = pnf.snf();
+    ///
+    /// assert_eq!("P(x, sk#0(x))", Formula::from(snf).to_string());
     /// ```
-    pub fn snf(&self) -> Formula {
+    pub fn snf(&self) -> SNF {
         self.snf_with(&mut SkolemGenerator::new())
     }
 
@@ -102,12 +124,14 @@ impl Formula {
     ///
     /// let mut generator = SkolemGenerator::from("skolem");
     /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
-    /// assert_eq!("P(x, skolem0(x))", formula.snf_with(&mut generator).to_string());
+    /// let pnf = formula.pnf();
+    /// let snf = pnf.snf_with(&mut generator);
+    ///
+    /// assert_eq!("P(x, skolem0(x))", Formula::from(snf).to_string());
     /// ```
-    pub fn snf_with(&self, generator: &mut SkolemGenerator) -> Formula {
-        // Skolemization only makes sense for PNF formulae.
-        let free_vars: Vec<V> = self.free_vars().into_iter().map(|v| v.clone()).collect();
-        helper(self.pnf(), free_vars, generator)
+    pub fn snf_with(&self, generator: &mut SkolemGenerator) -> SNF {
+        let free_vars = self.formula().free_vars().into_iter().cloned().collect();
+        SNF(helper(self.clone().into(), free_vars, generator))
     }
 }
 
@@ -139,40 +163,47 @@ mod tests {
         }
     }
 
+    fn snf(formula: &Formula) -> Formula {
+        formula.pnf().snf().into()
+    }
+    fn snf_with(formula: &Formula, generator: &mut SkolemGenerator) -> Formula {
+        formula.pnf().snf_with(generator).into()
+    }
+
     #[test]
     fn test_snf() {
-        assert_debug_string!("P('sk#0)", formula!(? x. (P(x))).snf());
+        assert_debug_string!("P('sk#0)", snf(&formula!(? x. (P(x)))));
 
-        assert_debug_string!("! x. P(x, sk#0(x))", formula!(!x. (?y. (P(x, y)))).snf());
-        assert_debug_string!("P(x, sk#0(x))", formula!(?y. (P(x, y))).snf());
+        assert_debug_string!("! x. P(x, sk#0(x))", snf(&formula!(!x. (?y. (P(x, y))))));
+        assert_debug_string!("P(x, sk#0(x))", snf(&formula!(?y. (P(x, y)))));
         assert_debug_string!(
             "! x. P(x, f(g(sk#0(x)), h(sk#0(x))))",
-            formula!(!x. (? y. (P(x, f(g(y), h(y)))))).snf(),
+            snf(&formula!(!x. (? y. (P(x, f(g(y), h(y))))))),
         );
         assert_debug_string!(
             "('sk#0 = 'sk#1) & ('sk#1 = 'sk#2)",
-            formula!(? x, y, z. (((x) = (y)) & ((y) = (z)))).snf(),
+            snf(&formula!(? x, y, z. (((x) = (y)) & ((y) = (z))))),
         );
         assert_debug_string!(
             "! y. (Q('sk#0, y) | P(sk#1(y), y, sk#2(y)))",
-            formula!(? x. (! y. ((Q(x, y)) | (? x, z. (P(x, y, z)))))).snf(),
+            snf(&formula!(? x. (! y. ((Q(x, y)) | (? x, z. (P(x, y, z))))))),
         );
         assert_debug_string!(
             "! x. (! z. P(x, sk#0(x), z))",
-            formula!(! x. (? y.( ! z. (P(x, y, z))))).snf(),
+            snf(&formula!(! x. (? y.( ! z. (P(x, y, z)))))),
         );
         assert_debug_string!(
             "! x. (R(g(x)) | R(x, sk#0(x)))",
-            formula!(! x. ((R(g(x))) | (? y. (R(x, y))))).snf(),
+            snf(&formula!(! x. ((R(g(x))) | (? y. (R(x, y)))))),
         );
         assert_debug_string!(
             "! y. (! z. (! v. P('sk#0, y, z, sk#1(y, z), v, sk#2(y, z, v))))",
-            formula!(? x. (! y. (! z. (? u. (! v. (? w. (P(x, y, z, u, v, w)))))))).snf(),
+            snf(&formula!(? x. (! y. (! z. (? u. (! v. (? w. (P(x, y, z, u, v, w))))))))),
         );
         {
             let mut generator = SkolemGenerator::new();
-            assert_debug_string!("P('sk#0)", formula!(? x. (P(x))).snf_with(&mut generator));
-            assert_debug_string!("Q('sk#1)", formula!(? x. (Q(x))).snf_with(&mut generator));
+            assert_debug_string!("P('sk#0)", snf_with(&formula!(? x. (P(x))), &mut generator));
+            assert_debug_string!("Q('sk#1)", snf_with(&formula!(? x. (Q(x))), &mut generator));
         }
     }
 }
