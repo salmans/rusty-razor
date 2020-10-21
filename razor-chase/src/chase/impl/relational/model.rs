@@ -9,7 +9,6 @@ use std::{collections::HashMap, fmt};
 ///
 /// [`ModelTrait`]: ../../trait.ModelTrait.html
 /// [`WitnessTerm`]: ../basic/enum.WitnessTerm.html
-#[derive(Clone)]
 pub struct Model {
     /// Is a unique identifier for this model.
     id: u64,
@@ -107,15 +106,13 @@ impl Model {
         mut tuples: codd::Tuples<Tuple>,
     ) -> Result<(), Error> {
         if let Some(relation) = self.relations.get(symbol) {
-            let to_add = Vec::new();
             if let Symbol::Equality = symbol {
                 let mut to_add = Vec::new();
                 for t in tuples.iter() {
                     to_add.push(vec![t[1], t[0]]);
                 }
+                tuples.extend(to_add);
             };
-            tuples.extend(to_add);
-
             self.database
                 .insert(relation, tuples)
                 .map_err(|e| Error::InsertFailure {
@@ -203,6 +200,18 @@ impl ModelTrait for Model {
                         .cloned()
                 }
             }
+        }
+    }
+}
+
+impl Clone for Model {
+    fn clone(&self) -> Self {
+        Self {
+            id: rand::random(),
+            element_index: self.element_index,
+            rewrites: self.rewrites.clone(),
+            database: self.database.clone(),
+            relations: self.relations.clone(),
         }
     }
 }
