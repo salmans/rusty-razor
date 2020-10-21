@@ -33,29 +33,38 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             return None; // failure
         }
 
-        let mut models = Vec::new();
+        let mut models = vec![model.clone()];
+        let mut closed_models = Vec::new();
+        info!(event = crate::trace::EVALUATE, sequent = %sequent);
 
-        for branch in sequent.branches() {
-            let mut new_model = model.clone();
-            if balance_branch(&tuples, branch, &mut new_model, bounder).expect(&format!(
-                "internal error: failed to balance branch: {:#?}",
-                branch
-            )) {
-                models.push(Either::Right(new_model))
-            } else {
-                models.push(Either::Left(new_model))
-            }
+        use itertools::Itertools;
+        for tuple in tuples {
+            models = models
+                .into_iter()
+                .flat_map(|m| {
+                    let new_models = balance_tuple(&tuple, sequent.branches(), &m, bounder).expect(
+                        &format!("internal error: failed to balance tuple: {:#?}", tuple),
+                    );
+                    let (open, close): (Vec<_>, Vec<_>) =
+                        new_models.into_iter().partition(|m| m.is_left());
+                    closed_models.extend(close);
+                    open.into_iter().map(|m| m.left().unwrap()).collect_vec()
+                })
+                .collect();
         }
 
         // FIXME EvaluationResult looks dumb
         if !models.is_empty() {
-            return Some(EvaluateResult::from(models));
+            return Some(EvaluateResult::from(
+                models.into_iter().map(|m| Either::Left(m)).collect_vec(),
+            ));
         }
 
         Some(EvaluateResult::new())
     }
 }
 
+#[inline(always)]
 fn next_sequent<'s, S: StrategyTrait<Item = &'s Sequent>>(
     strategy: &mut S,
     model: &Model,
@@ -70,51 +79,59 @@ fn next_sequent<'s, S: StrategyTrait<Item = &'s Sequent>>(
     })
 }
 
-fn balance_branch<B: BounderTrait>(
-    tuples: &Vec<NamedTuple>,
-    branch: &Branch,
-    model: &mut Model,
+#[inline(always)]
+fn balance_tuple<B: BounderTrait>(
+    tuple: &NamedTuple,
+    branches: &[Branch],
+    parent: &Model,
     bounder: Option<&B>,
-) -> Result<bool, Error> {
-    let mut relation_tuples = HashMap::<&Atom, Vec<Tuple>>::new();
-    let mut existentials = empty_named_tuple();
-    let mut bounded = false;
+) -> Result<Vec<Either<Model, Model>>, Error> {
+    let mut models = Vec::new();
 
-    for tuple in tuples.iter() {
+    for branch in branches.iter() {
+        let mut model = parent.clone();
+        let mut relation_tuples = HashMap::<&Atom, Vec<Tuple>>::new();
+        let mut existentials = empty_named_tuple();
+        let mut bounded = false;
         for atom in branch {
             bounded = balance_atom(
-                model,
+                &mut model,
                 atom,
                 tuple,
                 &mut existentials,
                 &mut relation_tuples,
                 bounder,
-            )?;
+            )? || bounded;
+            model
+                .insert(atom.symbol(), relation_tuples.remove(atom).unwrap().into())
+                .unwrap();
+        }
+
+        model
+            .insert(
+                &Symbol::Domain,
+                existentials.values().map(|x| vec![x.clone()]).into(),
+            )
+            .unwrap();
+
+        model
+            .insert(
+                &Symbol::Equality,
+                existentials.into_iter().map(|(_, x)| vec![x, x]).into(),
+            )
+            .unwrap();
+
+        if bounded {
+            models.push(Either::Right(model))
+        } else {
+            models.push(Either::Left(model))
         }
     }
 
-    for atom in branch {
-        model
-            .insert(atom.symbol(), relation_tuples.remove(atom).unwrap().into())
-            .unwrap();
-    }
-    model
-        .insert(
-            &Symbol::Domain,
-            existentials.values().map(|x| vec![x.clone()]).into(),
-        )
-        .unwrap();
-
-    model
-        .insert(
-            &Symbol::Equality,
-            existentials.into_iter().map(|(_, x)| vec![x, x]).into(),
-        )
-        .unwrap();
-
-    Ok(bounded)
+    Ok(models)
 }
 
+#[inline(always)]
 fn balance_atom<'t, B: BounderTrait>(
     model: &mut Model,
     atom: &'t Atom,
