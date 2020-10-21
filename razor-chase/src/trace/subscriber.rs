@@ -138,12 +138,12 @@ struct EvaluateRecord {
 
 impl EvaluateRecord {
     fn try_from(value: Recorder) -> Result<Self, ()> {
-        if value.sequent.is_none() | value.mapping.is_none() {
+        if value.sequent.is_none() {
             Err(())
         } else {
             Ok(EvaluateRecord {
                 sequent: value.sequent.unwrap(),
-                mapping: value.mapping.unwrap(),
+                mapping: value.mapping.unwrap_or("".into()),
             })
         }
     }
