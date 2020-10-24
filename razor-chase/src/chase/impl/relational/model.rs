@@ -115,10 +115,7 @@ impl Model {
             };
             self.database
                 .insert(relation, tuples)
-                .map_err(|e| Error::InsertFailure {
-                    symbol: symbol.to_string(),
-                    source: e,
-                })
+                .map_err(|e| Error::from(e))
         } else {
             Err(Error::MissingSymbol {
                 symbol: symbol.to_string(),
@@ -253,17 +250,13 @@ fn build_relations_info(
     let mut relations = HashMap::new();
     for c in sig.constants().iter() {
         let name = constant_instance_name(c);
-        let relation = db
-            .add_relation::<Tuple>(&name)
-            .map_err(|e| Error::ModelInitFailure { source: e })?;
+        let relation = db.add_relation::<Tuple>(&name)?;
 
         relations.insert(Symbol::Const(c.clone()), relation);
     }
     for f in sig.functions().values() {
         let name = function_instance_name(&f.symbol);
-        let relation = db
-            .add_relation::<Tuple>(&name)
-            .map_err(|e| Error::ModelInitFailure { source: e })?;
+        let relation = db.add_relation::<Tuple>(&name)?;
 
         relations.insert(
             Symbol::Func {
@@ -279,9 +272,7 @@ fn build_relations_info(
             continue;
         }
         let name = predicate_instance_name(&p.symbol);
-        let relation = db
-            .add_relation::<Tuple>(&name)
-            .map_err(|e| Error::ModelInitFailure { source: e })?;
+        let relation = db.add_relation::<Tuple>(&name)?;
 
         relations.insert(
             Symbol::Pred {
@@ -291,17 +282,9 @@ fn build_relations_info(
             relation,
         );
     }
-    relations.insert(
-        Symbol::Domain,
-        db.add_relation::<Tuple>(DOMAIN)
-            .map_err(|e| Error::ModelInitFailure { source: e })?,
-    );
+    relations.insert(Symbol::Domain, db.add_relation::<Tuple>(DOMAIN)?);
     if !relations.contains_key(&Symbol::Equality) {
-        relations.insert(
-            Symbol::Equality,
-            db.add_relation::<Tuple>(EQUALITY)
-                .map_err(|e| Error::ModelInitFailure { source: e })?,
-        );
+        relations.insert(Symbol::Equality, db.add_relation::<Tuple>(EQUALITY)?);
     }
 
     Ok(relations)

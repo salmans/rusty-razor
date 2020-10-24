@@ -8,7 +8,7 @@ use either::Either;
 use razor_fol::syntax::{Formula, Pred};
 
 /// Represents the recursive structure of a relation expression as it is constructed.
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub(super) enum RawExpression {
     Full,
     Empty,
@@ -72,6 +72,7 @@ pub(super) struct SubExpression {
     /// Is the (sub)expression in the context of a larger expression.
     expression: Mono<Tuple>,
 
+    /// Returns a "raw" representation of the sub-expression, which can identify the sub-exprewssion.
     raw: RawExpression,
 }
 
@@ -99,6 +100,7 @@ impl SubExpression {
         self.expression = expression;
     }
 
+    /// Returns the receiver's `raw` expression.
     pub fn raw(&self) -> &RawExpression {
         &self.raw
     }
@@ -546,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn test_union() -> Result<(), Error> {
+    fn test_or() -> Result<(), Error> {
         let db = setup_database().unwrap();
         {
             let formula = formula!([Q(x, y)] | [R(y, x)]);

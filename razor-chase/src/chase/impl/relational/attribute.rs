@@ -36,13 +36,13 @@ pub(super) struct Attribute {
 
 impl Attribute {
     /// Returns `true` if the attribute is universal.
-    #[inline]
+    #[inline(always)]
     pub fn is_universal(&self) -> bool {
         matches!(self.variant, Universal)
     }
 
     /// Returns true if the attribute is existential.
-    #[inline]
+    #[inline(always)]
     pub fn is_existential(&self) -> bool {
         matches!(self.variant, Existential)
     }
@@ -51,6 +51,7 @@ impl Attribute {
     /// For `Universal` and `Existential` variants, the canonical form is the attribute
     /// itself. For equality attributes, the canonical form is a `Universal` or
     /// `Existential` attribute to which the attribute refers.
+    #[inline]
     pub fn into_canonical(self) -> Attribute {
         match self.variant {
             Universal | Existential => self,

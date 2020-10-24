@@ -54,13 +54,12 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
         }
 
         // FIXME EvaluationResult looks dumb
-        if !models.is_empty() {
-            return Some(EvaluateResult::from(
-                models.into_iter().map(|m| Either::Left(m)).collect_vec(),
-            ));
-        }
+        let mut result = EvaluateResult::from(closed_models);
+        models
+            .into_iter()
+            .for_each(|m| result.append(Either::Left(m)));
 
-        Some(EvaluateResult::new())
+        Some(result)
     }
 }
 
@@ -90,23 +89,31 @@ fn balance_tuple<B: BounderTrait>(
 
     for branch in branches.iter() {
         let mut model = parent.clone();
-        let mut relation_tuples = HashMap::<&Atom, Vec<Tuple>>::new();
+        let mut symbol_tuples = HashMap::<&Symbol, Vec<Tuple>>::new();
         let mut existentials = empty_named_tuple();
         let mut bounded = false;
         for atom in branch {
+            let mut new_tuple = Vec::<E>::new();
             bounded = balance_atom(
                 &mut model,
                 atom,
                 tuple,
                 &mut existentials,
-                &mut relation_tuples,
+                &mut new_tuple,
                 bounder,
             )? || bounded;
-            model
-                .insert(atom.symbol(), relation_tuples.remove(atom).unwrap().into())
-                .unwrap();
+            symbol_tuples
+                .entry(atom.symbol())
+                .or_insert(Vec::new())
+                .push(new_tuple);
         }
 
+        for atom in branch {
+            let symbol = atom.symbol();
+            symbol_tuples
+                .remove(symbol)
+                .map(|ts| model.insert(symbol, ts.into()).unwrap());
+        }
         model
             .insert(
                 &Symbol::Domain,
@@ -137,11 +144,10 @@ fn balance_atom<'t, B: BounderTrait>(
     atom: &'t Atom,
     tuple: &NamedTuple,
     existentials: &mut NamedTuple<'t>,
-    relation_tuples: &mut HashMap<&'t Atom, Vec<Tuple>>,
+    new_tuple: &mut Vec<E>,
     bounder: Option<&B>,
 ) -> Result<bool, Error> {
     let mut bounded = false;
-    let mut new_tuple: Vec<E> = Vec::new();
     for attr in atom.attributes().iter() {
         if attr.is_existential() {
             if !existentials.contains_key(attr) {
@@ -162,11 +168,6 @@ fn balance_atom<'t, B: BounderTrait>(
             }
         }
     }
-
-    relation_tuples
-        .entry(atom)
-        .or_insert(Vec::new())
-        .push(new_tuple);
 
     Ok(bounded)
 }

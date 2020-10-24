@@ -175,11 +175,11 @@ pub enum Error {
     #[error("bad model initialization: missing symbol `{symbol:?}`")]
     MissingSymbol { symbol: String },
 
-    #[error("failed to insert in symbol `{symbol:?}`")]
-    InsertFailure { symbol: String, source: codd::Error },
-
-    #[error("failed to initialize model")]
-    ModelInitFailure { source: codd::Error },
+    #[error("database error")]
+    DatabaseError {
+        #[from]
+        source: codd::Error,
+    },
 
     #[error("cannot create witness term for symbol `{symbol:?}`")]
     BadWitnessTerm { symbol: String },
@@ -246,6 +246,22 @@ mod tests {
             facts.into_iter().sorted().join(", "),
             elements.join("\n")
         )
+    }
+
+    #[test]
+    fn test() {
+        for item in fs::read_dir("../theories/core").unwrap() {
+            let path = item.unwrap().path().display().to_string();
+            if path.ends_with("thy42.raz") {
+                continue;
+            }
+
+            let theory = read_theory_from_file(&path);
+            let basic_models = solve_basic(&theory);
+
+            let test_models = run(&theory, &PreProcessor::new(true));
+            assert_eq!(basic_models.len(), test_models.len());
+        }
     }
 
     #[test]
