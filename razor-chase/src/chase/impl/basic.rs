@@ -1924,9 +1924,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: \n\
-        'e, 'sk#0, f[e#0, e#0], i[e#0] -> e#0",
+            "",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy42.raz"
             )))

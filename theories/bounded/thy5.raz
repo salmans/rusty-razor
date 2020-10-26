@@ -1,0 +1,6 @@
+// Group Axioms (also see bounded/thy1.raz)
+exists x . x = 'e;
+f(x, 'e) = x;
+f(x, y) = w1 and f(y, x) = w2 implies f(w1, z) = f(x, w2);
+i(x) = y implies f(x, y) = 'e;
+i(i(x)) = x;

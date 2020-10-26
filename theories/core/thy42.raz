@@ -1,6 +1,5 @@
-// Group Axioms (also see bounded/thy1.raz)
-exists x . x = 'e;
-f(x, 'e) = x;
-f(x, y) = w1 and f(y, x) = w2 implies f(w1, z) = f(x, w2);
-i(x) = y implies f(x, y) = 'e;
-i(i(x)) = x;
+// This theory ensures that integrity axioms for functions are respected.
+exists x, y, z . P(x, y) & f(x, y) = z;
+exists x, y, z . Q(x, y) & f(x, y) = z;
+P(x1, y1) & Q(x2, y2) -> x1 = x2 & y1 = y2;
+P(x1, y1) & Q(x2, y2) & f(x1, y1) = f(x2, y2) -> false;
