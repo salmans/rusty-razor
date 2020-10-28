@@ -181,6 +181,12 @@ pub enum Error {
         source: codd::Error,
     },
 
+    #[error("syntactic transformation error")]
+    TransformError {
+        #[from]
+        source: razor_fol::transform::Error,
+    },
+
     #[error("cannot create witness term for symbol `{symbol:?}`")]
     BadWitnessTerm { symbol: String },
 
@@ -193,7 +199,7 @@ pub enum Error {
     #[error("cannot build sequent from formula `{}`", .formula.to_string())]
     BadSequentFormula { formula: razor_fol::syntax::Formula },
 
-    #[error("cannot build sequent from formula `{name:?}`")]
+    #[error("invalid attribute name `{name:?}`")]
     BadAttributeName { name: String },
 }
 

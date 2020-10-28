@@ -1,10 +1,7 @@
-use super::{constants::*, memo::ViewMemo, model::Model, sequent::Sequent};
+use super::{memo::ViewMemo, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
-use razor_fol::{
-    syntax::{symbol::Generator, Formula, Sig, Term, Theory, V},
-    transform::relationalize,
-};
+use razor_fol::syntax::{Formula, Sig, Term, Theory, V};
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
 /// This is done by the standard conversion to geometric normal form followed by relationalization.
@@ -38,55 +35,23 @@ impl PreProcessorEx for PreProcessor {
 
         let mut model = Model::new(&theory.signature());
 
-        let relationalized = theory
-            .formulae()
-            .into_iter()
-            .map(|f| match f {
-                Formula::Implies { left, right } => {
-                    let left = relationalizer().relationalize(&left).expect(&format!(
-                        "internal error: failed to relationalize formula: {}",
-                        left
-                    ));
-                    let right = relationalizer().relationalize(&right).expect(&format!(
-                        "internal error: failed to relationalize formula: {}",
-                        right
-                    ));
-                    (left, right)
-                }
-                _ => panic!(format!("internal error: unexpected formula: {}", f)),
-            })
-            .collect_vec();
-
         let sequents = if self.memoize {
             let mut memo = ViewMemo::new(model.database_mut());
-            relationalized
+            theory
+                .formulae()
                 .into_iter()
-                .map(|(left, right)| Sequent::new(&Formula::implies(left, right), Some(&mut memo)))
+                .map(|fmla| Sequent::new(&fmla, Some(&mut memo)).unwrap())
                 .collect()
         } else {
-            relationalized
+            theory
+                .formulae()
                 .into_iter()
-                .map(|(left, right)| Sequent::new(&Formula::implies(left, right), None))
+                .map(|fmla| Sequent::new(&fmla, None).unwrap())
                 .collect()
         };
 
         (sequents, model)
     }
-}
-
-// Create consistent `Relationalizer` instances:
-fn relationalizer() -> relationalize::Relationalizer {
-    let mut result = relationalize::Relationalizer::new();
-    result.set_equality_symbol(EQUALITY);
-    result.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
-    result.set_equality_generator(
-        Generator::new()
-            .set_prefix(EQUATIONAL_PREFIX)
-            .set_delimiter(SEPERATOR),
-    );
-    result.set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
-
-    result
 }
 
 // Equality axioms:

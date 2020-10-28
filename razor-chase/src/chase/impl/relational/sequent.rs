@@ -8,7 +8,7 @@ use super::{
 use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use razor_fol::{
-    syntax::{Formula, Pred, Term, C, F, V},
+    syntax::{symbol::Generator, Formula, Pred, Term, C, F},
     transform::relationalize,
 };
 
@@ -88,91 +88,78 @@ impl Sequent {
         &self.attributes
     }
 
-    pub(super) fn new(formula: &Formula, memo: Option<&mut ViewMemo>) -> Self {
+    pub(super) fn new(formula: &Formula, memo: Option<&mut ViewMemo>) -> Result<Self, Error> {
         use itertools::Itertools;
 
-        if let Formula::Implies { left, right } = formula {
-            let right_universals: AttributeList = AttributeList::try_from_formula(right)
-                .expect(&format!(
-                    "internal error: failed to compute attributes for formula: {}",
-                    right
-                ))
-                .universals();
+        #[inline]
+        fn implies_parts(formula: &Formula) -> Result<(&Formula, &Formula), Error> {
+            if let Formula::Implies { left, right } = formula {
+                Ok((left, right))
+            } else {
+                Err(Error::BadSequentFormula {
+                    formula: formula.clone(),
+                })
+            }
+        }
 
-            let range: Vec<V> = (&right_universals).into();
+        let (left, right) = implies_parts(formula)?;
 
-            let rr_left = relationalize::range_restrict(left, &range, DOMAIN).expect(&format!(
-                "internal error: failed to apply range restriction on formula: {}",
-                left
-            ));
-            let rr_right = relationalize::range_restrict(right, &range, DOMAIN).expect(&format!(
-                "internal error: failed to apply range restriction on formula: {}",
-                right
-            ));
+        // relationalize and expand equalities of `left` and `right`:
+        let left_er = expand_equality(&relationalize(left)?)?;
+        let right_r = relationalize(right)?;
+        let branches = build_branches(right_r.formula())?; // relationalized right is enough for building branches
+        let right_er = expand_equality(&right_r)?;
 
-            let left_attrs = AttributeList::try_from_formula(&rr_left)
-                .expect(&format!(
-                    "internal error: failed to compute attributes for formula: {}",
-                    rr_left
-                ))
-                .intersect(&right_universals);
+        let right_attrs = AttributeList::try_from_formula(right_er.formula())?.universals();
+        let range = Vec::from(&right_attrs);
 
-            // Removing duplicate atoms is necessary for correctness:
-            let branches: Vec<Branch> = build_branches(&rr_right)
-                .expect("internal error: failed to process sequent")
+        // apply range restriction:
+        let left_rr = relationalize::range_restrict(&left_er, &range, DOMAIN)?;
+        let right_rr = relationalize::range_restrict(&right_er, &range, DOMAIN)?;
+
+        let left_attrs =
+            AttributeList::try_from_formula(left_rr.formula())?.intersect(&right_attrs);
+
+        let branches = if branches.iter().any(|branch| branch.is_empty()) {
+            vec![vec![]] // logically the right is true
+        } else {
+            // Remove duplicate atoms is necessary for correctness:
+            branches
                 .into_iter()
                 .map(|branch| branch.into_iter().unique().collect())
-                .collect();
+                .collect()
+        };
 
-            // Is it a sequent with `true` in the head:
-            let branches = if branches.iter().any(|branch| branch.is_empty()) {
-                vec![vec![]]
-            } else {
-                branches
-            };
-
-            let (left_expr, right_expr) = if let Some(memo) = memo {
-                (
-                    memo.make_expression(&rr_left, &left_attrs),
-                    memo.make_expression(&rr_right, &left_attrs),
-                )
-            } else {
-                (
-                    make_expression(&rr_left, &left_attrs),
-                    make_expression(&rr_right, &left_attrs),
-                )
-            };
-
-            let left_expression = left_expr.expect(&format!(
-                "internal error: failed to compute relational expression for formula: {}",
-                rr_left
-            ));
-            let right_expression = right_expr.expect(&format!(
-                "internal error: failed to compute relational expression for formula: {}",
-                rr_right
-            ));
-
-            let expression = match &branches[..] {
-                [] => left_expression,
-                _ => match &branches[0][..] {
-                    [] => rel_exp::Mono::Empty(rel_exp::Empty::new()),
-                    _ => rel_exp::Mono::Difference(rel_exp::Difference::new(
-                        left_expression.boxed(),
-                        right_expression.boxed(),
-                    )),
-                },
-            };
-
-            Self {
-                branches,
-                attributes: left_attrs,
-                expression,
-                body_formula: rr_left.clone(),
-                head_formula: rr_right.clone(),
-            }
+        let (left_expr, right_expr) = if let Some(memo) = memo {
+            (
+                memo.make_expression(left_rr.formula(), &left_attrs)?,
+                memo.make_expression(right_rr.formula(), &left_attrs)?,
+            )
         } else {
-            panic!("something is wrong: expecting a geometric sequent in standard form")
-        }
+            (
+                make_expression(left_rr.formula(), &left_attrs)?,
+                make_expression(right_rr.formula(), &left_attrs)?,
+            )
+        };
+
+        let expression = match &branches[..] {
+            [] => left_expr,
+            _ => match &branches[0][..] {
+                [] => rel_exp::Mono::Empty(rel_exp::Empty::new()),
+                _ => rel_exp::Mono::Difference(rel_exp::Difference::new(
+                    left_expr.boxed(),
+                    right_expr.boxed(),
+                )),
+            },
+        };
+
+        Ok(Self {
+            branches,
+            attributes: left_attrs,
+            expression,
+            body_formula: left.clone(),
+            head_formula: right.clone(),
+        })
     }
 }
 
@@ -186,6 +173,32 @@ impl SequentTrait for Sequent {
     }
 }
 
+// Create consistent `Relationalizer` instances:
+fn relationalize(formula: &Formula) -> Result<relationalize::Relational, Error> {
+    let mut relationalizer = relationalize::Relationalizer::new();
+    relationalizer.set_equality_symbol(EQUALITY);
+    relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
+    relationalizer
+        .set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
+
+    relationalizer.transform(formula).map_err(|e| e.into())
+}
+
+// Create consistent `EqualityExpander` instances:
+fn expand_equality(
+    formula: &relationalize::Relational,
+) -> Result<relationalize::Relational, Error> {
+    let mut equality_expander = relationalize::EqualityExpander::new();
+    equality_expander.set_equality_symbol(EQUALITY);
+    equality_expander.set_equality_generator(
+        Generator::new()
+            .set_prefix(EQUATIONAL_PREFIX)
+            .set_delimiter(SEPERATOR),
+    );
+
+    equality_expander.transform(formula).map_err(|e| e.into())
+}
+
 fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
     use std::convert::TryFrom;
 
@@ -196,11 +209,12 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
             let mut attributes = Vec::new();
             for term in terms {
                 match term {
-                    Term::Var { variable } => attributes.push(
-                        Attribute::try_from(variable)
-                            .map(Attribute::into_canonical)
-                            .expect("internal error: invalid variable name"),
-                    ),
+                    Term::Var { variable } => {
+                        // calling `into_canonical` is unnecessary when branches are built before
+                        // equality expansion because there are no equational attributes.
+                        // (the existing algorithm)
+                        attributes.push(Attribute::try_from(variable)?.into_canonical())
+                    }
                     _ => return Err(Error::BadFlatTerm { term: term.clone() }),
                 }
             }
