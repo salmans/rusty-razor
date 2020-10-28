@@ -15,6 +15,7 @@ pub use dnf::DNF;
 pub use gnf::GNF;
 pub use nnf::NNF;
 pub use pnf::PNF;
+pub use relationalize::Relational;
 pub use snf::SNF;
 pub use substitution::{Substitution, TermBased, VariableRenaming};
 

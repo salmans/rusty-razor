@@ -12,6 +12,7 @@ pub struct NNF(Formula);
 
 impl NNF {
     /// Returns a reference to the formula wrapped in the receiver NNF.
+    #[inline(always)]
     pub fn formula(&self) -> &Formula {
         &self.0
     }

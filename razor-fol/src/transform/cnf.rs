@@ -14,6 +14,7 @@ pub struct CNF(Formula);
 
 impl CNF {
     /// Returns a reference to the formula wrapped in the receiver CNF.
+    #[inline(always)]
     pub fn formula(&self) -> &Formula {
         &self.0
     }

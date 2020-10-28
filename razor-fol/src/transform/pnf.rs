@@ -14,6 +14,7 @@ pub struct PNF(Formula);
 
 impl PNF {
     /// Returns a reference to the formula wrapped in the receiver PNF.
+    #[inline(always)]
     pub fn formula(&self) -> &Formula {
         &self.0
     }

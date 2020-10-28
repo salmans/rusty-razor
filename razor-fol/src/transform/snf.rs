@@ -16,6 +16,7 @@ pub struct SNF(Formula);
 
 impl SNF {
     /// Returns a reference to the formula wrapped in the receiver SNF.
+    #[inline(always)]
     pub fn formula(&self) -> &Formula {
         &self.0
     }

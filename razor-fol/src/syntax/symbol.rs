@@ -255,6 +255,11 @@ impl Generator {
         self.counter += 1;
         result
     }
+
+    /// Resets the generator by setting its internal counter to 0.
+    pub fn reset(&mut self) {
+        self.counter = 0;
+    }
 }
 
 #[cfg(test)]
