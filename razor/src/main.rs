@@ -208,7 +208,7 @@ fn process_solve(
     println!();
     println!();
 
-    let pre_processor = PreProcessor::new(true);
+    let pre_processor = PreProcessor::new(false);
     let (sequents, init_model) = pre_processor.pre_process(&theory);
 
     let evaluator = Evaluator;
@@ -239,10 +239,10 @@ fn process_solve(
                 &mut scheduler,
                 &evaluator,
                 bounder.as_ref(),
-                |m| print_model(m, color, &mut complete_count),
+                |m| print_model(m.finalize(), color, &mut complete_count),
                 |m| {
                     if show_incomplete {
-                        print_model(m, color, &mut incomplete_count);
+                        print_model(m.finalize(), color, &mut incomplete_count);
                     }
                 },
             )
