@@ -374,6 +374,10 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
         &self,
         witness: &Self::TermType,
     ) -> Option<<Self::TermType as WitnessTermTrait>::ElementType>;
+
+    /// Is called when the chase is returning a model, asking the model to do any postprocessing
+    /// required.
+    fn finalize(self) -> Self;
 }
 
 /// Is the trait for types that represents a [geometric sequent][sequent] in the
@@ -624,7 +628,13 @@ where
 {
     let mut result: Vec<M> = Vec::new();
     while !scheduler.empty() {
-        chase_step(scheduler, evaluator, bounder, |m| result.push(m), |_| {});
+        chase_step(
+            scheduler,
+            evaluator,
+            bounder,
+            |m| result.push(m.finalize()),
+            |_| {},
+        );
     }
     result
 }

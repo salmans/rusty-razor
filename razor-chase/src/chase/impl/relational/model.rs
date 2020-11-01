@@ -1,4 +1,7 @@
-use super::{constants::*, empty_named_tuple, sequent::Sequent, Error, NamedTuple, Symbol, Tuple};
+use super::{
+    constants::*, empty_named_tuple, equation_rewrite::Rewrite, sequent::Sequent, Error,
+    NamedTuple, Symbol, Tuple,
+};
 use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
 use codd::expression as rel_exp;
 use razor_fol::syntax::Sig;
@@ -123,8 +126,102 @@ impl Model {
         }
     }
 
+    /// Returns a mutable reference to the underlying database of this model.
     pub(super) fn database_mut(&mut self) -> &mut codd::Database {
         &mut self.database
+    }
+
+    fn equation_rewrites(&self) -> Result<Rewrite<E>, Error> {
+        let mut rewrite = Rewrite::new();
+        let eq_relation = self
+            .relations
+            .get(&Symbol::Equality)
+            .ok_or(Error::MissingSymbol {
+                symbol: EQUALITY.into(),
+            })?;
+        let equations = self.database.evaluate(&eq_relation)?;
+        for eq in equations.iter() {
+            let l = eq.get(0).unwrap();
+            let r = eq.get(1).unwrap();
+            rewrite.add(l, r)
+        }
+
+        Ok(rewrite)
+    }
+
+    fn rewrite_model(&mut self, rewrite: &Rewrite<E>) {
+        let mut conversion_map = HashMap::new();
+        let mut count = 0;
+        for item in rewrite.canonicals() {
+            conversion_map.insert(item, E(count));
+            count += 1;
+        }
+
+        let domain = self.domain();
+        for element in domain.iter() {
+            let canonical = rewrite.canonical(element).unwrap();
+            if conversion_map.contains_key(element) {
+                continue;
+            }
+            let convert = conversion_map
+                .get(rewrite.canonical(canonical).unwrap())
+                .unwrap()
+                .clone();
+
+            conversion_map.insert(element, convert);
+        }
+
+        let mut rewrites = HashMap::new();
+        for (term, element) in &self.rewrites {
+            let new_term = match &term {
+                WitnessTerm::Elem { element } => WitnessTerm::Elem {
+                    element: conversion_map.get(element).unwrap().clone(),
+                },
+                WitnessTerm::Const { .. } => term.clone(),
+                WitnessTerm::App { function, terms } => WitnessTerm::App {
+                    function: function.clone(),
+                    terms: terms
+                        .iter()
+                        .map(|e| {
+                            let e = match e {
+                                WitnessTerm::Elem { element } => element,
+                                _ => unreachable!(),
+                            };
+                            WitnessTerm::Elem {
+                                element: conversion_map.get(e).unwrap().clone(),
+                            }
+                        })
+                        .collect(),
+                },
+            };
+
+            let new_element = conversion_map.get(&element).unwrap().clone();
+            rewrites.insert(new_term, new_element);
+        }
+
+        let mut database = codd::Database::new();
+        use itertools::Itertools;
+
+        for relation in self.relations.values() {
+            let new_relation = database.add_relation(relation.name()).unwrap();
+            let tuples = self.database.evaluate(relation).unwrap();
+            let new_tuples: codd::Tuples<_> = tuples
+                .into_tuples()
+                .into_iter()
+                .map(|tuple| {
+                    tuple
+                        .into_iter()
+                        .map(|e| conversion_map.get(&e).unwrap().clone())
+                        .collect_vec()
+                })
+                .collect_vec()
+                .into();
+
+            database.insert(&new_relation, new_tuples).unwrap();
+        }
+
+        self.rewrites = rewrites;
+        self.database = database;
     }
 }
 
@@ -198,6 +295,12 @@ impl ModelTrait for Model {
                 }
             }
         }
+    }
+
+    fn finalize(mut self) -> Self {
+        let rewrites = self.equation_rewrites().unwrap();
+        self.rewrite_model(&rewrites);
+        self
     }
 }
 

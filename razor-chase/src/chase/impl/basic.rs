@@ -452,6 +452,10 @@ impl ModelTrait for Model {
     fn element(&self, witness: &WitnessTerm) -> Option<E> {
         self.element_ref(witness).cloned()
     }
+
+    fn finalize(self) -> Self {
+        self
+    }
 }
 
 impl fmt::Display for Model {

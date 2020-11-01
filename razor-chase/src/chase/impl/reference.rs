@@ -409,6 +409,10 @@ impl ModelTrait for Model {
     fn element(&self, witness: &Self::TermType) -> Option<Element> {
         self.element_ref(witness).cloned()
     }
+
+    fn finalize(self) -> Self {
+        self
+    }
 }
 
 impl Clone for Model {
