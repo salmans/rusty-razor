@@ -32,7 +32,7 @@ impl<'a> ViewMemo<'a> {
     fn memoize(&mut self, sub_expr: &mut SubExpression) -> Result<(), codd::Error> {
         if !self.views.contains_key(sub_expr.raw()) {
             let expr = sub_expr.expression().clone();
-            let view = self.database.store_view(expr.boxed())?;
+            let view = self.database.store_view(expr)?;
             let entry = Mono::from(view);
             self.views.insert(sub_expr.raw().clone(), entry.clone());
             sub_expr.set_expression(entry);
@@ -92,7 +92,7 @@ mod tests {
         r#impl::relational::{attribute::Attribute, expression::make_expression},
         E,
     };
-    use codd::{relalg, Database};
+    use codd::{query, Database};
     use razor_fol::{formula, v};
     use std::convert::TryFrom;
 
@@ -131,13 +131,13 @@ mod tests {
 
     fn setup_database() -> Result<Database, Error> {
         let mut db = Database::new();
-        let p = relalg! { create relation "P":[Tuple] in db }.unwrap();
-        let q = relalg! { create relation "Q":[Tuple] in db }.unwrap();
-        let r = relalg! { create relation "R":[Tuple] in db }.unwrap();
+        let p = query! { db, create relation "P":<Tuple> }.unwrap();
+        let q = query! { db, create relation "Q":<Tuple> }.unwrap();
+        let r = query! { db, create relation "R":<Tuple> }.unwrap();
 
-        relalg! (insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]] in db).unwrap();
-        relalg! (insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]] in db).unwrap();
-        relalg! (insert into (r) values [vec![E(2), E(20)], vec![E(3), E(30)], vec![E(4), E(40)]] in db).unwrap();
+        query! (db, insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]] ).unwrap();
+        query! (db, insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]] ).unwrap();
+        query! (db, insert into (r) values [vec![E(2), E(20)], vec![E(3), E(30)], vec![E(4), E(40)]] ).unwrap();
 
         Ok(db)
     }

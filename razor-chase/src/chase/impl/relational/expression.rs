@@ -161,7 +161,6 @@ pub(super) fn atomic_expression(
     let expr = if is_projected {
         // Project only the expected attributes of the instance:
         let project = instance
-            .boxed()
             .builder()
             .project(move |p| {
                 let mut projected_tuple = vec![];
@@ -235,10 +234,10 @@ pub(super) fn and_expression(
     };
 
     let left_key = left_sub.join_key;
-    let left_exp = left_sub.expression.boxed();
+    let left_exp = left_sub.expression;
 
     let right_key = right_sub.join_key;
-    let right_exp = right_sub.expression.boxed();
+    let right_exp = right_sub.expression;
 
     let join = left_exp
         .builder()
@@ -280,9 +279,8 @@ pub(super) fn or_expression(
 
     let union = left_exp
         .expression
-        .boxed()
         .builder()
-        .union(right_exp.expression.boxed())
+        .union(right_exp.expression)
         .build();
     let raw = RawExpression::Union {
         left: left_exp.raw.boxed(),
@@ -343,7 +341,7 @@ pub(super) fn make_expression(
 mod tests {
     use super::*;
     use crate::chase::E;
-    use codd::{relalg, Database, Tuples};
+    use codd::{query, Database, Tuples};
     use razor_fol::{formula, v};
     use std::convert::TryFrom;
 
@@ -356,13 +354,13 @@ mod tests {
 
     fn setup_database() -> Result<Database, Error> {
         let mut db = Database::new();
-        let p = relalg! { create relation "P":[Tuple] in db }.unwrap();
-        let q = relalg! { create relation "Q":[Tuple] in db }.unwrap();
-        let r = relalg! { create relation "R":[Tuple] in db }.unwrap();
+        let p = query! { db, create relation "P":<Tuple> }.unwrap();
+        let q = query! { db, create relation "Q":<Tuple> }.unwrap();
+        let r = query! { db, create relation "R":<Tuple> }.unwrap();
 
-        relalg! (insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]] in db).unwrap();
-        relalg! (insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]] in db).unwrap();
-        relalg! (insert into (r) values [vec![E(2), E(20)], vec![E(3), E(30)], vec![E(4), E(40)]] in db).unwrap();
+        query! (db, insert into (p) values [vec![E(1)], vec![E(2)], vec![E(3)]]).unwrap();
+        query! (db, insert into (q) values [vec![E(20), E(200)], vec![E(30), E(300)], vec![E(40), E(400)]]).unwrap();
+        query! (db, insert into (r) values [vec![E(2), E(20)], vec![E(3), E(30)], vec![E(4), E(40)]]).unwrap();
 
         Ok(db)
     }
