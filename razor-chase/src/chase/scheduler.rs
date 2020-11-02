@@ -96,6 +96,17 @@ where
     }
 }
 
+impl<'s, S, M, Stg> Default for FIFO<'s, S, M, Stg>
+where
+    S: 's + SequentTrait,
+    M: ModelTrait,
+    Stg: StrategyTrait<Item = &'s S>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'s, S, M, Stg> SchedulerTrait<'s, S, M, Stg> for FIFO<'s, S, M, Stg>
 where
     S: 's + SequentTrait,
@@ -135,6 +146,17 @@ where
         LIFO {
             queue: VecDeque::new(),
         }
+    }
+}
+
+impl<'s, S, M, Stg> Default for LIFO<'s, S, M, Stg>
+where
+    S: 's + SequentTrait,
+    M: ModelTrait,
+    Stg: StrategyTrait<Item = &'s S>,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

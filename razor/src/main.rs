@@ -296,7 +296,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             print!("Domain: ");
         })
         .reset();
-    let domain = model.domain().iter().map(|e| e.to_string()).collect();
+    let domain = model.domain().iter().map(|e| e.to_string()).collect_vec();
     print_list(color, MODEL_DOMAIN_COLOR, &domain);
     println!("\n");
 
@@ -340,7 +340,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
         .reset();
 }
 
-fn print_list<T: std::fmt::Display>(color: bool, text_color: term::color::Color, list: &Vec<T>) {
+fn print_list<T: std::fmt::Display>(color: bool, text_color: term::color::Color, list: &[T]) {
     let mut term = Terminal::new(color);
     term.foreground(text_color)
         .attribute(term::Attr::Bold)

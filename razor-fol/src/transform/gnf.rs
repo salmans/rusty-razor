@@ -184,12 +184,12 @@ fn simplify_dnf(formula: Formula) -> Formula {
         }
     }
 
-    let disjuncts: Vec<Vec<Formula>> = disjunct_list(formula)
+    let disjuncts: Vec<Vec<_>> = disjunct_list(formula)
         .into_iter()
         .map(|d| conjunct_list(d).into_iter().unique().collect())
         .collect();
 
-    let disjuncts: Vec<Vec<Formula>> = disjuncts
+    let disjuncts: Vec<Vec<_>> = disjuncts
         .iter()
         .filter(|d| {
             !disjuncts.iter().any(|dd| {
@@ -197,7 +197,7 @@ fn simplify_dnf(formula: Formula) -> Formula {
                     && dd.iter().all(|cc| d.iter().any(|c| cc == c))
             })
         })
-        .map(|d| d.clone())
+        .cloned()
         .unique()
         .collect();
 

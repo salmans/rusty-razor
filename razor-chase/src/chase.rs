@@ -129,7 +129,6 @@ use razor_fol::syntax::*;
 use std::fmt;
 
 use either::Either;
-use tracing;
 
 /// Is a symbol to represent elements of first-order models. An element is identified by an index.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
@@ -528,6 +527,12 @@ impl<M: ModelTrait> EvaluateResult<M> {
             Either::Left(m) => self.append_open_model(m),
             Either::Right(m) => self.append_bounded_model(m),
         };
+    }
+}
+
+impl<M: ModelTrait> Default for EvaluateResult<M> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

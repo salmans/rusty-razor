@@ -96,7 +96,7 @@ impl Symbol {
     fn witness(&self, args: &[E]) -> Result<WitnessTerm, Error> {
         match self {
             Symbol::Const(symbol) => {
-                assert!(args.len() == 0);
+                assert!(args.is_empty());
 
                 Ok(WitnessTerm::from(symbol.clone()))
             }
@@ -122,13 +122,13 @@ impl Symbol {
 
                 Some(
                     Rel::from(symbol.clone())
-                        .app(args.iter().map(|e| WitnessTerm::from(e.clone())).collect()),
+                        .app(args.iter().map(|e| WitnessTerm::from(*e)).collect()),
                 )
             }
             Symbol::Equality => {
                 assert_eq!(args.len(), 2);
 
-                Some(WitnessTerm::from(args[0].clone()).equals(args[1].clone().into()))
+                Some(WitnessTerm::from(args[0]).equals(args[1].into()))
             }
             Symbol::Const(c) => {
                 assert_eq!(args.len(), 1);

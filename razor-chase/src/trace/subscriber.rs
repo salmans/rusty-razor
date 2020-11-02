@@ -39,18 +39,20 @@ impl subscriber::Subscriber for JsonLogger {
         if let Some(event_type) = &event_record.event {
             match event_type.as_ref() {
                 super::EXTEND | super::MODEL | super::FAIL | super::BOUND => {
-                    let _ = self.chase_step_record.lock().map(|mut rec| {
+                    let record = self.chase_step_record.lock().map(|mut rec| {
                         rec.set_model(ModelRecord::try_from(event_record).ok());
                         rec
                     });
+                    std::mem::drop(record);
                 }
                 super::EVALUATE => {
                     let mut evaluate_record = Recorder::new();
                     event.record(&mut evaluate_record);
-                    let _ = self.chase_step_record.lock().map(|mut rec| {
+                    let record = self.chase_step_record.lock().map(|mut rec| {
                         rec.set_evaluate(EvaluateRecord::try_from(event_record).ok());
                         rec
                     });
+                    std::mem::drop(record);
                 }
                 _ => (),
             }
@@ -64,12 +66,7 @@ impl subscriber::Subscriber for JsonLogger {
         self.log_file
             .lock()
             .unwrap()
-            .write_all(
-                serde_json::to_string_pretty(&*record)
-                    .unwrap()
-                    .to_string()
-                    .as_bytes(),
-            )
+            .write_all(serde_json::to_string_pretty(&*record).unwrap().as_bytes())
             .expect("unable to write data");
     }
 }
@@ -143,7 +140,7 @@ impl EvaluateRecord {
         } else {
             Ok(EvaluateRecord {
                 sequent: value.sequent.unwrap(),
-                mapping: value.mapping.unwrap_or("".into()),
+                mapping: value.mapping.unwrap_or_else(|| "".into()),
             })
         }
     }
@@ -183,9 +180,8 @@ impl field::Visit for Recorder {
     }
 
     fn record_str(&mut self, field: &field::Field, value: &str) {
-        match field.name().as_ref() {
-            super::EVENT_FILED => self.event = Some(value.to_owned()),
-            _ => (),
+        if let super::EVENT_FILED = field.name().as_ref() {
+            self.event = Some(value.to_owned())
         }
     }
 

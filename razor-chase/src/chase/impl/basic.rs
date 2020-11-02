@@ -108,7 +108,7 @@ impl From<E> for WitnessTerm {
 
 impl From<&E> for WitnessTerm {
     fn from(element: &E) -> Self {
-        Self::from(element.clone())
+        Self::from(*element)
     }
 }
 
@@ -177,7 +177,7 @@ impl Model {
     fn element_ref(&self, witness: &WitnessTerm) -> Option<&E> {
         match witness {
             WitnessTerm::Elem { element } => self.domain_ref().into_iter().find(|e| e.eq(&element)),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| e),
+            WitnessTerm::Const { .. } => self.rewrites.get(witness),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
@@ -187,12 +187,10 @@ impl Model {
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    self.rewrites
-                        .get(&WitnessTerm::App {
-                            function: (*function).clone(),
-                            terms,
-                        })
-                        .map(|e| e)
+                    self.rewrites.get(&WitnessTerm::App {
+                        function: (*function).clone(),
+                        terms,
+                    })
                 }
             }
         }
@@ -210,15 +208,15 @@ impl Model {
             result = next.unwrap()
         }
 
-        result.clone()
+        *result
     }
 
     /// Creates a new element for the given `witness` and records that `witness` denotes the new
     /// element.
     fn new_element(&mut self, witness: WitnessTerm) -> E {
         let element = E(self.element_index);
-        self.element_index = self.element_index + 1;
-        self.rewrites.insert(witness, element.clone());
+        self.element_index += 1;
+        self.rewrites.insert(witness, element);
         element
     }
 
@@ -231,28 +229,27 @@ impl Model {
         match witness {
             WitnessTerm::Elem { element } => {
                 let element = self.history(element);
-                if let Some(_) = self.domain().iter().find(|e| element.eq(e)) {
-                    element.clone()
+                if self.domain().iter().any(|e| element.eq(e)) {
+                    element
                 } else {
                     panic!("something is wrong: element does not exist in the model's domain")
                 }
             }
             WitnessTerm::Const { .. } => {
                 if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                    *e
                 } else {
                     self.new_element(witness.clone())
                 }
             }
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> =
-                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
                 let witness = WitnessTerm::App {
                     function: function.clone(),
                     terms,
                 };
                 if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                    *e
                 } else {
                     self.new_element(witness)
                 }
@@ -278,9 +275,7 @@ impl Model {
                 terms.iter().for_each(|t| {
                     if let WitnessTerm::Elem { element } = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem {
-                                element: from.clone(),
-                            });
+                            new_terms.push(WitnessTerm::Elem { element: *from });
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -296,7 +291,7 @@ impl Model {
                 k.clone()
             };
 
-            let value = if v == to { from.clone() } else { v.clone() };
+            let value = if v == to { *from } else { *v };
             new_rewrite.insert(key, value);
         });
         self.rewrites = new_rewrite;
@@ -350,8 +345,7 @@ impl Model {
     fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> =
-                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -394,7 +388,7 @@ impl Model {
                         relation: relation.clone(),
                         terms,
                     };
-                    self.facts.iter().find(|f| obs.eq(f)).is_some()
+                    self.facts.iter().any(|f| obs.eq(f))
                 }
             }
             Observation::Identity { left, right } => {
@@ -405,11 +399,17 @@ impl Model {
     }
 }
 
+impl Default for Model {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Clone for Model {
     fn clone(&self) -> Self {
         Self {
             id: rand::random(),
-            element_index: self.element_index.clone(),
+            element_index: self.element_index,
             rewrites: self.rewrites.clone(),
             facts: self.facts.clone(),
             // In the `basic` implementation, a model is cloned after being processed in a
@@ -627,8 +627,7 @@ impl From<&Formula> for Sequent {
     fn from(formula: &Formula) -> Self {
         match formula {
             Formula::Implies { left, right } => {
-                let free_vars: Vec<V> =
-                    formula.free_vars().into_iter().map(|v| v.clone()).collect();
+                let free_vars: Vec<V> = formula.free_vars().into_iter().cloned().collect();
                 let body_literals = Literal::build_body(left);
                 let head_literals = Literal::build_head(right);
                 let body = *left.clone();
@@ -729,14 +728,11 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             while {
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, E> = HashMap::new();
-                for i in 0..vars_size {
-                    assignment_map.insert(
-                        vars.get(i).unwrap(),
-                        (*domain.get(assignment[i]).unwrap()).clone(),
-                    );
+                for (i, item) in assignment.iter().enumerate().take(vars_size) {
+                    assignment_map.insert(vars.get(i).unwrap(), *(*domain.get(*item).unwrap()));
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
+                let assignment_func = |v: &V| *assignment_map.get(v).unwrap();
 
                 // lift the variable assignments to literals (used to create observations)
                 let observe_literal = make_observe_literal(assignment_func);
@@ -814,10 +810,8 @@ fn make_bounded_extend<'m, B: BounderTrait>(
                 if !model.is_observed(o) {
                     modified = true;
                 }
-            } else {
-                if !model.is_observed(o) {
-                    model.observe(o);
-                }
+            } else if !model.is_observed(o) {
+                model.observe(o);
             }
         });
         if modified {
@@ -836,7 +830,7 @@ fn make_observe_literal(
     move |lit: &Literal| match lit {
         Literal::Atm { predicate, terms } => {
             let terms = terms
-                .into_iter()
+                .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
@@ -857,13 +851,12 @@ fn make_observe_literal(
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
 fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
-    let len = vec.len();
-    for i in 0..len {
-        if vec[i] != last {
-            vec[i] += 1;
+    for item in vec.iter_mut() {
+        if *item != last {
+            *item += 1;
             return true;
         } else {
-            vec[i] = 0;
+            *item = 0;
         }
     }
     false

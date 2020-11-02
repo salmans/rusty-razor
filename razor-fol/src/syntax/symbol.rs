@@ -165,7 +165,7 @@ impl fmt::Debug for Pred {
 
 #[doc(hidden)]
 /// Predicate symbol to represent the signature of equality.
-pub const EQ_SYM: &'static str = "=";
+pub const EQ_SYM: &str = "=";
 
 /// Is used to generate symbols in the context of transformations that introduce new `String` symbols.
 #[derive(PartialEq, Clone, Debug)]
@@ -236,14 +236,14 @@ impl Generator {
     }
 
     /// Generates a new unindexed counted symbol.
-    pub fn next(&mut self) -> String {
+    pub fn generate_next(&mut self) -> String {
         let result = format!("{}{}{}", self.prefix, self.counter, self.suffix);
         self.counter += 1;
         result
     }
 
     /// Generates a new counted symbol indexed by `symbol`.        
-    pub fn next_with_symbol<S: Into<String>>(&mut self, symbol: S) -> String {
+    pub fn generate_next_with_symbol<S: Into<String>>(&mut self, symbol: S) -> String {
         let result = format!(
             "{}{}{}{}{}",
             self.prefix,
@@ -259,6 +259,12 @@ impl Generator {
     /// Resets the generator by setting its internal counter to 0.
     pub fn reset(&mut self) {
         self.counter = 0;
+    }
+}
+
+impl Default for Generator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -309,9 +315,9 @@ mod tests {
                 .set_delimiter(":");
 
             assert_eq!("$v!", g.symbol("v"));
-            assert_eq!("$0!", g.next());
-            assert_eq!("$v:1!", g.next_with_symbol("v"));
-            assert_eq!("$v:2!", g.next_with_symbol("v"));
+            assert_eq!("$0!", g.generate_next());
+            assert_eq!("$v:1!", g.generate_next_with_symbol("v"));
+            assert_eq!("$v:2!", g.generate_next_with_symbol("v"));
         }
     }
 }

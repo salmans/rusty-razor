@@ -199,7 +199,7 @@ impl Relationalizer {
     // Generates a new variable using the `flattening_generator` and keeps track of it in
     // `generated_variables`.
     fn generate_variable(&mut self) -> V {
-        let var = V(self.flattening_generator.next().into());
+        let var = V(self.flattening_generator.generate_next());
         self.generated_variables.push(var.clone());
         var
     }
@@ -337,6 +337,12 @@ impl Relationalizer {
     }
 }
 
+impl Default for Relationalizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Is used to expand implicit equations by replacing variables that appear in more than
 /// one position of a formula with freshly generated variables. The expansion algorithm
 /// is provided by the [`expand_equality`] method.
@@ -453,6 +459,12 @@ impl EqualityExpander {
             let result = remove_reflexive_equations(&t, &self.equality_symbol);
             Relational(result.unwrap_or(Formula::Top))
         })
+    }
+}
+
+impl Default for EqualityExpander {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -579,7 +591,7 @@ fn remove_reflexive_equations(formula: &Formula, eq_symbol: &str) -> Option<Form
                 Some(formula.clone())
             }
         }
-        Formula::Not { formula } => remove_reflexive_equations(formula, eq_symbol).map(|f| not(f)),
+        Formula::Not { formula } => remove_reflexive_equations(formula, eq_symbol).map(not),
         Formula::And { left, right } => combine_binary(
             remove_reflexive_equations(left, eq_symbol),
             remove_reflexive_equations(right, eq_symbol),

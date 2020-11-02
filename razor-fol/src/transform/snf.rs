@@ -39,10 +39,10 @@ fn helper(formula: Formula, mut skolem_vars: Vec<V>, generator: &mut Generator) 
 
             variables.iter().for_each(|v| {
                 if skolem_vars.is_empty() {
-                    map.insert(&v, C::from(&generator.next()).into());
+                    map.insert(&v, C::from(&generator.generate_next()).into());
                 } else {
                     let vars: Vec<Term> = skolem_vars.iter().map(|v| v.clone().into()).collect();
-                    map.insert(&v, F::from(&generator.next()).app(vars));
+                    map.insert(&v, F::from(&generator.generate_next()).app(vars));
                 }
             });
 

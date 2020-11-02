@@ -17,6 +17,7 @@ where
         }
     }
 
+    #[allow(clippy::or_fun_call)]
     pub fn add(&mut self, left: &T, right: &T) {
         if self.equals(left, right) == Some(true) {
             return;

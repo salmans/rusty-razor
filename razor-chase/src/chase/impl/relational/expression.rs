@@ -5,6 +5,7 @@ use super::{
 };
 use codd::expression::{Empty, Expression, Mono, Relation, Singleton};
 use either::Either;
+use itertools::Itertools;
 use razor_fol::syntax::{Formula, Pred};
 
 /// Represents the recursive structure of a relation expression as it is constructed.
@@ -45,17 +46,16 @@ impl AttributeList {
         let mut key_indices = Vec::new();
         for v in attributes.attributes() {
             let mut iter = self.iter();
-            key_indices.push(iter.position(|item| item == v).unwrap().clone());
+            key_indices.push(iter.position(|item| item == v).unwrap());
         }
 
-        let f = move |t: &Tuple| {
+        move |t: &Tuple| {
             let mut key = vec![];
             key_indices.iter().for_each(|i| {
                 key.push(t[*i]);
             });
             key
-        };
-        f
+        }
     }
 }
 
@@ -117,14 +117,14 @@ impl SubExpression {
 /// `attrs` is the expected attributes of the resulting subexpression.
 pub(super) fn atomic_expression(
     pred: &Pred,
-    vars: &Vec<razor_fol::syntax::V>,
+    vars: &[razor_fol::syntax::V],
     key_attrs: &AttributeList,
     attrs: &AttributeList,
 ) -> Result<SubExpression, Error> {
     use std::convert::TryFrom;
 
     let vars = vars
-        .into_iter()
+        .iter()
         .map(Attribute::try_from)
         .collect::<Result<Vec<_>, _>>()?;
     let mut expr_attrs = Vec::new(); // attributes of the resulting expression
@@ -311,14 +311,14 @@ fn expression(
         Formula::Top => Ok(SubExpression::new(
             Vec::new().into(),
             |t: &Tuple| t.clone(),
-            Mono::from(Singleton::new(vec![].into())),
+            Mono::from(Singleton::new(vec![])),
             RawExpression::Full,
         )),
         Formula::Atom {
             predicate,
             terms: _,
         } => {
-            let free_vars = formula.free_vars().into_iter().cloned().collect();
+            let free_vars = formula.free_vars().into_iter().cloned().collect_vec();
             atomic_expression(predicate, &free_vars, &join_attr, &final_attr)
         }
         Formula::And { left, right } => and_expression(left, right, join_attr, final_attr),

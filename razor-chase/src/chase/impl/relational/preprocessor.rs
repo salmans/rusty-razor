@@ -39,13 +39,13 @@ impl PreProcessorEx for PreProcessor {
             let mut memo = ViewMemo::new(model.database_mut());
             theory
                 .formulae()
-                .into_iter()
+                .iter()
                 .map(|fmla| Sequent::new(&fmla, Some(&mut memo)).unwrap())
                 .collect()
         } else {
             theory
                 .formulae()
-                .into_iter()
+                .iter()
                 .map(|fmla| Sequent::new(&fmla, None).unwrap())
                 .collect()
         };

@@ -142,7 +142,7 @@ impl AttributeList {
     /// Creates a new `AttributeList` from `formula`.
     pub fn universals(&self) -> AttributeList {
         self.attributes()
-            .into_iter()
+            .iter()
             .filter(|a| a.is_universal())
             .cloned()
             .into()

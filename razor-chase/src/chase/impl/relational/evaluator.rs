@@ -42,9 +42,10 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             models = models
                 .into_iter()
                 .flat_map(|m| {
-                    let new_models = balance_tuple(&tuple, sequent.branches(), &m, bounder).expect(
-                        &format!("internal error: failed to balance tuple: {:#?}", tuple),
-                    );
+                    let new_models = balance_tuple(&tuple, sequent.branches(), &m, bounder)
+                        .unwrap_or_else(|_| {
+                            panic!("internal error: failed to balance tuple: {:#?}", tuple)
+                        });
                     let (open, close): (Vec<_>, Vec<_>) =
                         new_models.into_iter().partition(|m| m.is_left());
                     closed_models.extend(close);
@@ -104,20 +105,20 @@ fn balance_tuple<B: BounderTrait>(
             )? || bounded;
             symbol_tuples
                 .entry(atom.symbol())
-                .or_insert(Vec::new())
+                .or_insert_with(Vec::new)
                 .push(new_tuple);
         }
 
         for atom in branch {
             let symbol = atom.symbol();
-            symbol_tuples
-                .remove(symbol)
-                .map(|ts| model.insert(symbol, ts.into()).unwrap());
+            if let Some(ts) = symbol_tuples.remove(symbol) {
+                model.insert(symbol, ts.into()).unwrap()
+            }
         }
         model
             .insert(
                 &Symbol::Domain,
-                existentials.values().map(|x| vec![x.clone()]).into(),
+                existentials.values().map(|x| vec![*x]).into(),
             )
             .unwrap();
 
@@ -155,9 +156,9 @@ fn balance_atom<'t, B: BounderTrait>(
                 let new_element = model.record(witness);
                 existentials.insert(attr, new_element);
             }
-            new_tuple.push(existentials.get(attr).unwrap().clone());
+            new_tuple.push(*existentials.get(attr).unwrap());
         } else {
-            new_tuple.push(tuple.get(attr).unwrap().clone());
+            new_tuple.push(*tuple.get(attr).unwrap());
         }
     }
 

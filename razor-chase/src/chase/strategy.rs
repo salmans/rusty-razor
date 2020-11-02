@@ -34,7 +34,7 @@ impl<'s, S: SequentTrait> Iterator for Linear<'s, S> {
 
     fn next(&mut self) -> Option<&'s S> {
         self.index += 1;
-        self.sequents.get(self.index - 1).map(|i| *i)
+        self.sequents.get(self.index - 1).copied()
     }
 }
 
@@ -83,11 +83,11 @@ impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
     type Item = &'s S;
 
     fn next(&mut self) -> Option<&'s S> {
-        if self.sequents.len() == 0 || (self.index == self.start && self.full_circle) {
+        if self.sequents.is_empty() || (self.index == self.start && self.full_circle) {
             return None;
         }
         self.full_circle = true;
-        let result = self.sequents.get(self.index).map(|s| *s);
+        let result = self.sequents.get(self.index).copied();
         self.index = (self.index + 1) % self.sequents.len();
         result
     }

@@ -52,8 +52,8 @@ impl Model {
     /// denotes the new element.
     pub fn new_element(&mut self, witness: WitnessTerm) -> E {
         let element = E(self.element_index);
-        self.element_index = self.element_index + 1;
-        self.rewrites.insert(witness, element.clone());
+        self.element_index += 1;
+        self.rewrites.insert(witness, element);
         element
     }
 
@@ -63,7 +63,7 @@ impl Model {
             WitnessTerm::Elem { element } => element,
             WitnessTerm::Const { .. } => {
                 if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                    *e
                 } else {
                     self.new_element(witness)
                 }
@@ -71,7 +71,7 @@ impl Model {
             WitnessTerm::App { .. } => {
                 // The input term is assumed to be flat -- no recursive lookups:
                 if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                    *e
                 } else {
                     self.new_element(witness)
                 }
@@ -86,10 +86,7 @@ impl Model {
         let tuples = self
             .database
             .evaluate(sequent.expression())
-            .expect(&format!(
-                "internal error: failed to evaluate sequent: {}",
-                sequent
-            ));
+            .unwrap_or_else(|_| panic!("internal error: failed to evaluate sequent: {}", sequent));
 
         for tuple in tuples.into_tuples().into_iter() {
             let mut elements = empty_named_tuple();
@@ -116,9 +113,7 @@ impl Model {
                 }
                 tuples.extend(to_add);
             };
-            self.database
-                .insert(relation, tuples)
-                .map_err(|e| Error::from(e))
+            self.database.insert(relation, tuples).map_err(Error::from)
         } else {
             Err(Error::MissingSymbol {
                 symbol: symbol.to_string(),
@@ -151,10 +146,8 @@ impl Model {
 
     fn rewrite_model(&mut self, rewrite: &Rewrite<E>) {
         let mut conversion_map = HashMap::new();
-        let mut count = 0;
-        for item in rewrite.canonicals() {
-            conversion_map.insert(item, E(count));
-            count += 1;
+        for (count, item) in rewrite.canonicals().into_iter().enumerate() {
+            conversion_map.insert(item, E(count as i32));
         }
 
         let domain = self.domain();
@@ -163,10 +156,9 @@ impl Model {
             if conversion_map.contains_key(element) {
                 continue;
             }
-            let convert = conversion_map
+            let convert = *conversion_map
                 .get(rewrite.canonical(canonical).unwrap())
-                .unwrap()
-                .clone();
+                .unwrap();
 
             conversion_map.insert(element, convert);
         }
@@ -175,7 +167,7 @@ impl Model {
         for (term, element) in &self.rewrites {
             let new_term = match &term {
                 WitnessTerm::Elem { element } => WitnessTerm::Elem {
-                    element: conversion_map.get(element).unwrap().clone(),
+                    element: *conversion_map.get(element).unwrap(),
                 },
                 WitnessTerm::Const { .. } => term.clone(),
                 WitnessTerm::App { function, terms } => WitnessTerm::App {
@@ -188,14 +180,14 @@ impl Model {
                                 _ => unreachable!(),
                             };
                             WitnessTerm::Elem {
-                                element: conversion_map.get(e).unwrap().clone(),
+                                element: *conversion_map.get(e).unwrap(),
                             }
                         })
                         .collect(),
                 },
             };
 
-            let new_element = conversion_map.get(&element).unwrap().clone();
+            let new_element = *conversion_map.get(&element).unwrap();
             rewrites.insert(new_term, new_element);
         }
 
@@ -211,7 +203,7 @@ impl Model {
                 .map(|tuple| {
                     tuple
                         .into_iter()
-                        .map(|e| conversion_map.get(&e).unwrap().clone())
+                        .map(|e| *conversion_map.get(&e).unwrap())
                         .collect_vec()
                 })
                 .collect_vec()
@@ -237,7 +229,7 @@ impl ModelTrait for Model {
             .evaluate(self.relations.get(&Symbol::Domain).unwrap())
             .expect("internal error: failed to read domain elements")
             .iter()
-            .map(|e| e[0].clone())
+            .map(|e| e[0])
             .collect()
     }
 
@@ -386,9 +378,9 @@ fn build_relations_info(
         );
     }
     relations.insert(Symbol::Domain, db.add_relation::<Tuple>(DOMAIN)?);
-    if !relations.contains_key(&Symbol::Equality) {
-        relations.insert(Symbol::Equality, db.add_relation::<Tuple>(EQUALITY)?);
-    }
+    relations
+        .entry(Symbol::Equality)
+        .or_insert(db.add_relation::<Tuple>(EQUALITY)?);
 
     Ok(relations)
 }

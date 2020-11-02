@@ -30,11 +30,11 @@ impl From<PNF> for Formula {
 // no collision variables.
 fn rename(variable: &V, no_collision_variables: &[&V]) -> V {
     let mut name = variable.0.clone();
-    let names: Vec<&String> = no_collision_variables.into_iter().map(|v| &v.0).collect();
+    let names: Vec<_> = no_collision_variables.iter().map(|v| &v.0).collect();
     while names.contains(&&name) {
         name.push_str("`")
     }
-    return V::from(&name);
+    V::from(&name)
 }
 
 // helper for transforming formulae with binary operands

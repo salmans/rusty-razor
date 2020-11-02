@@ -60,13 +60,14 @@ impl From<E> for Element {
     }
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
 impl Hash for Element {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get().hash(state)
     }
 }
 
-// `Element` derefs to its underlying `E`
+// `element` derefs to its underlying `E`
 impl Deref for Element {
     type Target = Rc<Cell<E>>;
 
@@ -278,7 +279,7 @@ impl Model {
     /// model and records that `witness` denotes the new element.
     fn new_element(&mut self, witness: WitnessTerm) -> Element {
         let element = Element::from(E(self.element_index));
-        self.element_index = self.element_index + 1;
+        self.element_index += 1;
         self.domain.insert(element.clone());
         self.rewrites.insert(witness, element.clone());
         element
@@ -303,8 +304,7 @@ impl Model {
                 }
             }
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> =
-                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
                 let witness = WitnessTerm::App {
                     function: function.clone(),
                     terms,
@@ -322,8 +322,7 @@ impl Model {
     pub fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> =
-                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -362,7 +361,7 @@ impl Model {
                         relation: relation.clone(),
                         terms,
                     };
-                    self.facts.iter().find(|f| obs.eq(f)).is_some()
+                    self.facts.iter().any(|f| obs.eq(f))
                 }
             }
             Observation::Identity { left, right } => {
@@ -370,6 +369,12 @@ impl Model {
                 left.is_some() && left == self.element(right)
             }
         }
+    }
+}
+
+impl Default for Model {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -561,11 +566,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             while {
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, Element> = HashMap::new();
-                for i in 0..vars_size {
-                    assignment_map.insert(
-                        vars.get(i).unwrap(),
-                        (*domain.get(assignment[i]).unwrap()).clone(),
-                    );
+                for (i, item) in assignment.iter().enumerate().take(vars_size) {
+                    assignment_map
+                        .insert(vars.get(i).unwrap(), (*domain.get(*item).unwrap()).clone());
                 }
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
@@ -648,10 +651,8 @@ fn make_bounded_extend<'m, B: BounderTrait>(
                 if !model.is_observed(o) {
                     modified = true;
                 }
-            } else {
-                if !model.is_observed(o) {
-                    model.observe(o);
-                }
+            } else if !model.is_observed(o) {
+                model.observe(o);
             }
         });
         if modified {
@@ -670,7 +671,7 @@ fn make_observe_literal(
     move |lit: &Literal| match lit {
         basic::Literal::Atm { predicate, terms } => {
             let terms = terms
-                .into_iter()
+                .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
@@ -691,13 +692,12 @@ fn make_observe_literal(
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
 fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
-    let len = vec.len();
-    for i in 0..len {
-        if vec[i] != last {
-            vec[i] += 1;
+    for item in vec.iter_mut() {
+        if *item != last {
+            *item += 1;
             return true;
         } else {
-            vec[i] = 0;
+            *item = 0;
         }
     }
     false

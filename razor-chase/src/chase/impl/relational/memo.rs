@@ -4,6 +4,7 @@ use super::{
     Error, Tuple,
 };
 use codd::expression::*;
+use itertools::Itertools;
 use razor_fol::syntax::Formula;
 use std::collections::HashMap;
 
@@ -56,11 +57,11 @@ impl<'a> ViewMemo<'a> {
             Formula::Top => Ok(SubExpression::new(
                 Vec::new().into(),
                 |t: &Tuple| t.clone(),
-                Mono::from(Singleton::new(vec![].into())),
+                Mono::from(Singleton::new(vec![])),
                 RawExpression::Full,
             )),
             Formula::Atom { predicate, .. } => {
-                let free_vars = formula.free_vars().into_iter().cloned().collect();
+                let free_vars = formula.free_vars().into_iter().cloned().collect_vec();
                 let mut sub = atomic_expression(predicate, &free_vars, &join_attr, &final_attr)?;
                 if matches!(sub.raw(), RawExpression::Project {..}) {
                     self.memoize(&mut sub)?;
