@@ -232,7 +232,7 @@ impl Model {
                 if self.domain().iter().any(|e| element.eq(e)) {
                     element
                 } else {
-                    panic!("something is wrong: element does not exist in the model's domain")
+                    unreachable!("missing element `{}`", element)
                 }
             }
             WitnessTerm::Const { .. } => {
@@ -524,7 +524,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
+            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
         }
     }
 
@@ -558,7 +558,7 @@ impl Literal {
                     left.append(&mut right);
                     vec![left]
                 } else {
-                    panic!("Something is wrong: expecting a geometric sequent in standard form.")
+                    unreachable!("expecting standard geometric sequent, found `{}`", formula)
                 }
             }
             Formula::Or { left, right } => {
@@ -567,7 +567,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
+            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
         }
     }
 }
@@ -640,7 +640,7 @@ impl From<&Formula> for Sequent {
                     head_literals,
                 }
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
+            _ => panic!("expecting standard geometric sequent, found `{}`", formula),
         }
     }
 }

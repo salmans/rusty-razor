@@ -42,10 +42,8 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             models = models
                 .into_iter()
                 .flat_map(|m| {
-                    let new_models = balance_tuple(&tuple, sequent.branches(), &m, bounder)
-                        .unwrap_or_else(|_| {
-                            panic!("internal error: failed to balance tuple: {:#?}", tuple)
-                        });
+                    let new_models =
+                        balance_tuple(&tuple, sequent.branches(), &m, bounder).unwrap();
                     let (open, close): (Vec<_>, Vec<_>) =
                         new_models.into_iter().partition(|m| m.is_left());
                     closed_models.extend(close);

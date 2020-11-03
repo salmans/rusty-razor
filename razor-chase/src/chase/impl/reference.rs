@@ -439,7 +439,7 @@ impl Clone for Model {
                                 element: map_element(element),
                             }
                         } else {
-                            panic!("something is wrong: expecting an element")
+                            unreachable!("expecting an element, found `{}`", t)
                         }
                     })
                     .collect();
@@ -456,7 +456,7 @@ impl Clone for Model {
                     terms: terms.iter().map(|t| map_term(t)).collect(),
                 }
             } else {
-                panic!("something is wrong: expecting a fact")
+                unreachable!("expecting a fact, found `{}`", o)
             }
         };
         let rewrites: HashMap<WitnessTerm, Element> = HashMap::from_iter(

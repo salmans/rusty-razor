@@ -83,11 +83,7 @@ impl Model {
     pub(super) fn evaluate<'a>(&self, sequent: &'a Sequent) -> Vec<NamedTuple<'a>> {
         let mut result = Vec::new();
 
-        let tuples = self
-            .database
-            .evaluate(sequent.expression())
-            .unwrap_or_else(|_| panic!("internal error: failed to evaluate sequent: {}", sequent));
-
+        let tuples = self.database.evaluate(sequent.expression()).unwrap();
         for tuple in tuples.into_tuples().into_iter() {
             let mut elements = empty_named_tuple();
             for (i, attr) in sequent.attributes().iter().enumerate() {
