@@ -523,8 +523,15 @@ impl PreProcessorEx for PreProcessor {
     type Model = Model;
 
     fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+        use std::convert::TryInto;
+
         (
-            theory.gnf().formulae().iter().map(|f| f.into()).collect(),
+            theory
+                .gnf()
+                .formulae()
+                .iter()
+                .map(|f| f.try_into().unwrap())
+                .collect(),
             Model::new(),
         )
     }
@@ -784,11 +791,13 @@ mod test_reference {
     }
 
     fn run_test(theory: &Theory) -> Vec<Model> {
+        use std::convert::TryInto;
+
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
             .formulae()
             .iter()
-            .map(|f| f.into())
+            .map(|f| f.try_into().unwrap())
             .collect();
 
         let evaluator = Evaluator;

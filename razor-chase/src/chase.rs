@@ -375,7 +375,7 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
     ) -> Option<<Self::TermType as WitnessTermTrait>::ElementType>;
 
     /// Is called when the chase is returning a model, asking the model to do any postprocessing
-    /// required.
+    /// needed.
     fn finalize(self) -> Self;
 }
 
@@ -590,6 +590,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 ///     scheduler::FIFO,
 ///     bounder::DomainSize,
 /// };
+/// use std::convert::TryInto;
 ///
 /// // parse the theory:
 /// let theory: Theory = r#"
@@ -604,7 +605,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// let sequents: Vec<basic::Sequent> = geometric_theory
 ///     .formulae()
 ///     .iter()
-///     .map(|f| f.into())
+///     .map(|f| f.try_into().unwrap())
 ///     .collect();
 ///
 /// let evaluator = basic::Evaluator {};
@@ -663,6 +664,7 @@ where
 ///     scheduler::FIFO,
 ///     bounder::DomainSize,
 /// };
+/// use std::convert::TryInto;
 ///
 /// // parse the theory:
 /// let theory: Theory = r#"
@@ -677,7 +679,7 @@ where
 /// let sequents: Vec<basic::Sequent> = geometric_theory
 ///     .formulae()
 ///     .iter()
-///     .map(|f| f.into())
+///     .map(|f| f.try_into().unwrap())
 ///     .collect();
 ///
 /// let evaluator = basic::Evaluator {};

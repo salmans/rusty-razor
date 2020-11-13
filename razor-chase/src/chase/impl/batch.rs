@@ -62,7 +62,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             while {
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, Element> = HashMap::new();
-                for (i, item) in assignment.iter().enumerate().take(vars_size) {
+                for (i, item) in assignment.iter().enumerate() {
                     assignment_map
                         .insert(vars.get(i).unwrap(), (*domain.get(*item).unwrap()).clone());
                 }
@@ -277,11 +277,13 @@ mod test_batch {
     }
 
     fn run_test(theory: &Theory) -> Vec<Model> {
+        use std::convert::TryInto;
+
         let geometric_theory = theory.gnf();
         let sequents: Vec<Sequent> = geometric_theory
             .formulae()
             .iter()
-            .map(|f| f.into())
+            .map(|f| f.try_into().unwrap())
             .collect();
 
         let evaluator = Evaluator;
