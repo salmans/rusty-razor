@@ -189,13 +189,13 @@ pub struct Model {
     element_index: i32,
 
     /// Is the domain of this model, storing all elements of the model.
-    pub domain: HashSet<Element>,
+    pub domain: Vec<Element>,
 
     /// Maps *flat* witness terms to elements of this model.
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
-    rewrites: HashMap<WitnessTerm, Element>,
+    rewrites: Vec<(WitnessTerm, Element)>,
 
     /// Contains a list of relational facts that are true in this model.
     facts: HashSet<Observation<WitnessTerm>>,
@@ -224,8 +224,8 @@ impl Model {
         Self {
             id: rand::random(),
             element_index: 0,
-            domain: HashSet::new(),
-            rewrites: HashMap::new(),
+            domain: Vec::new(),
+            rewrites: Vec::new(),
             facts: HashSet::new(),
             equality_history: HashMap::new(),
         }
@@ -236,11 +236,24 @@ impl Model {
         self.domain.iter().unique().collect()
     }
 
+    /// Looks up `element` in the `domain` of the receiver model.
+    fn lookup_element(&self, element: &Element) -> Option<&Element> {
+        self.domain.iter().find(|e| e == &element)
+    }
+
+    /// Looks up `witness` in the `rewrites` of the receiver model.
+    fn lookup_witness(&self, witness: &WitnessTerm) -> Option<&Element> {
+        self.rewrites
+            .iter()
+            .find(|&x| &x.0 == witness)
+            .map(|x| &x.1)
+    }
+
     /// Returns a reference to an element witnessed by the given witness term.
     fn element_ref(&self, witness: &WitnessTerm) -> Option<&Element> {
         match witness {
-            WitnessTerm::Elem { element } => self.domain.iter().find(|e| e == &element),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness),
+            WitnessTerm::Elem { element } => self.lookup_element(&element),
+            WitnessTerm::Const { .. } => self.lookup_witness(witness),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&Element>> =
                     terms.iter().map(|t| self.element_ref(t)).collect();
@@ -251,10 +264,11 @@ impl Model {
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    self.rewrites.get(&WitnessTerm::App {
+                    let term = WitnessTerm::App {
                         function: (*function).clone(),
                         terms,
-                    })
+                    };
+                    self.lookup_witness(&term)
                 }
             }
         }
@@ -280,8 +294,8 @@ impl Model {
     fn new_element(&mut self, witness: WitnessTerm) -> Element {
         let element = Element::from(E(self.element_index));
         self.element_index += 1;
-        self.domain.insert(element.clone());
-        self.rewrites.insert(witness, element.clone());
+        self.domain.push(element.clone());
+        self.rewrites.push((witness, element.clone()));
         element
     }
 
@@ -294,10 +308,10 @@ impl Model {
         match witness {
             WitnessTerm::Elem { element } => {
                 let element = self.history(element);
-                self.domain.iter().find(|e| element.eq(e)).unwrap().clone()
+                self.lookup_element(&element).unwrap().clone()
             }
             WitnessTerm::Const { .. } => {
-                if let Some(e) = self.rewrites.get(&witness) {
+                if let Some(e) = self.lookup_witness(witness) {
                     e.clone()
                 } else {
                     self.new_element(witness.clone())
@@ -309,8 +323,8 @@ impl Model {
                     function: function.clone(),
                     terms,
                 };
-                if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                if let Some(e) = self.lookup_witness(&witness) {
+                    e.clone()
                 } else {
                     self.new_element(witness)
                 }
@@ -422,9 +436,8 @@ impl ModelTrait for Model {
 
 impl Clone for Model {
     fn clone(&self) -> Self {
-        let domain: HashSet<Element> =
-            HashSet::from_iter(self.domain.iter().map(|e| e.deep_clone()));
-        let map_element = |e: &Element| domain.get(e).unwrap().clone();
+        let domain: Vec<Element> = self.domain.iter().map(|e| e.deep_clone()).collect();
+        let map_element = |e: &Element| domain.iter().find(|&x| x == e).unwrap().clone();
         let map_term = |w: &WitnessTerm| match w {
             WitnessTerm::Elem { element } => WitnessTerm::Elem {
                 element: map_element(element),
@@ -459,11 +472,12 @@ impl Clone for Model {
                 unreachable!("expecting a fact, found `{}`", o)
             }
         };
-        let rewrites: HashMap<WitnessTerm, Element> = HashMap::from_iter(
-            self.rewrites
-                .iter()
-                .map(|(k, v)| (map_term(k), map_element(v))),
-        );
+        let rewrites: Vec<(WitnessTerm, Element)> = self
+            .rewrites
+            .iter()
+            .map(|(k, v)| (map_term(k), map_element(v)))
+            .collect();
+
         let facts: HashSet<Observation<WitnessTerm>> =
             HashSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
         Model {
