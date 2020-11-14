@@ -91,6 +91,7 @@ impl Sequent {
 
     pub(super) fn new(formula: &Formula, memo: Option<&mut ViewMemo>) -> Result<Self, Error> {
         use itertools::Itertools;
+        use std::convert::TryFrom;
 
         #[inline]
         fn implies_parts(formula: &Formula) -> Result<(&Formula, &Formula), Error> {
@@ -111,15 +112,14 @@ impl Sequent {
         let branches = build_branches(right_r.formula())?; // relationalized right is enough for building branches
         let right_er = expand_equality(&right_r)?;
 
-        let right_attrs = AttributeList::try_from_formula(right_er.formula())?.universals();
+        let right_attrs = AttributeList::try_from(right_er.formula())?.universals();
         let range = Vec::from(&right_attrs);
 
         // apply range restriction:
         let left_rr = relationalize::range_restrict(&left_er, &range, DOMAIN)?;
         let right_rr = relationalize::range_restrict(&right_er, &range, DOMAIN)?;
 
-        let left_attrs =
-            AttributeList::try_from_formula(left_rr.formula())?.intersect(&right_attrs);
+        let left_attrs = AttributeList::try_from(left_rr.formula())?.intersect(&right_attrs);
 
         let branches = if branches.iter().any(|branch| branch.is_empty()) {
             vec![vec![]] // logically the right is true
@@ -235,7 +235,10 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
                 }
             };
 
-            Ok(vec![vec![Atom::new(&symbol, attributes.into())]])
+            Ok(vec![vec![Atom::new(
+                &symbol,
+                AttributeList::new(attributes),
+            )]])
         }
         Formula::And { left, right } => {
             let mut left = build_branches(left)?;

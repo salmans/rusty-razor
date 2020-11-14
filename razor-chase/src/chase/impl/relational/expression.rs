@@ -143,7 +143,7 @@ pub(super) fn atomic_expression(
 
     // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
     let instance = Mono::from(Relation::<Tuple>::new(&pred.to_string()));
-    let expr_attrs: AttributeList = expr_attrs.into();
+    let expr_attrs = AttributeList::new(expr_attrs);
 
     // `join_key` transforms a tuple to its expected keys:
     let key = expr_attrs.project(&key_attrs);
@@ -190,18 +190,19 @@ pub(super) fn and_expression(
 ) -> Result<SubExpression, Error> {
     use std::convert::TryFrom;
 
-    let left_attrs: AttributeList = left
-        .free_vars()
-        .into_iter()
-        .map(Attribute::try_from)
-        .collect::<Result<Vec<_>, _>>()?
-        .into();
-    let right_attrs: AttributeList = right
-        .free_vars()
-        .into_iter()
-        .map(Attribute::try_from)
-        .collect::<Result<Vec<_>, _>>()?
-        .into();
+    let left_attrs = AttributeList::new(
+        left.free_vars()
+            .into_iter()
+            .map(Attribute::try_from)
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    let right_attrs = AttributeList::new(
+        right
+            .free_vars()
+            .into_iter()
+            .map(Attribute::try_from)
+            .collect::<Result<Vec<_>, _>>()?,
+    );
 
     let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
 
@@ -225,7 +226,7 @@ pub(super) fn and_expression(
         }
     }
 
-    let expr_attrs: AttributeList = expr_attrs.into();
+    let expr_attrs = AttributeList::new(expr_attrs);
     let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
     let raw = RawExpression::Join {
         left: left_sub.raw.boxed(),
@@ -303,13 +304,13 @@ fn expression(
 ) -> Result<SubExpression, Error> {
     match formula {
         Formula::Bottom => Ok(SubExpression::new(
-            Vec::new().into(),
+            AttributeList::new(Vec::new()),
             |t: &Tuple| t.clone(),
             Mono::from(Empty::new()),
             RawExpression::Empty,
         )),
         Formula::Top => Ok(SubExpression::new(
-            Vec::new().into(),
+            AttributeList::new(Vec::new()),
             |t: &Tuple| t.clone(),
             Mono::from(Singleton::new(vec![])),
             RawExpression::Full,
@@ -334,7 +335,7 @@ pub(super) fn make_expression(
     formula: &Formula,
     attributes: &AttributeList,
 ) -> Result<Mono<Tuple>, Error> {
-    expression(formula, &Vec::new().into(), attributes).map(SubExpression::into_expression)
+    expression(formula, &AttributeList::new(vec![]), attributes).map(SubExpression::into_expression)
 }
 
 #[cfg(test)]
@@ -348,7 +349,7 @@ mod tests {
     macro_rules! atts {
         ($vs:expr) => {{
             let vs: Result<Vec<_>, _> = $vs.iter().map(|v| Attribute::try_from(v)).collect();
-            AttributeList::from(vs.unwrap())
+            AttributeList::new(vs.unwrap())
         }};
     }
 
@@ -394,7 +395,12 @@ mod tests {
         }
         {
             let formula = formula!(Q(x, y));
-            let result = expression(&formula, &vec![].into(), &atts!(vec![v!(x), v!(y)])).unwrap();
+            let result = expression(
+                &formula,
+                &AttributeList::new(vec![]),
+                &atts!(vec![v!(x), v!(y)]),
+            )
+            .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
             assert!(matches!(result.expression, Mono::Relation(_)));

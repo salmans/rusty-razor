@@ -93,42 +93,38 @@ impl FromStr for Attribute {
 pub(super) struct AttributeList(Vec<Attribute>);
 
 impl AttributeList {
+    pub fn new<I: IntoIterator<Item = Attribute>>(attributes: I) -> Self {
+        Self(attributes.into_iter().map(Into::into).collect())
+    }
+
     /// Returns the set union of the attributes in the receiver and those in `other`.
     pub fn union(&self, other: &[Attribute]) -> AttributeList {
-        self.iter()
-            .chain(other.iter().filter(|v| !self.contains(v)))
-            .cloned()
-            .collect_vec()
-            .into()
+        Self::new(
+            self.iter()
+                .chain(other.iter().filter(|v| !self.contains(v)))
+                .cloned()
+                .collect_vec(),
+        )
     }
 
     /// Returns the attributes that are present in both the receiver and `other`.
     pub fn intersect(&self, other: &[Attribute]) -> AttributeList {
-        self.iter()
-            .filter(|v| other.contains(v))
-            .cloned()
-            .collect_vec()
-            .into()
-    }
-
-    /// Creates a new `AttributeList` from `formula`.
-    pub fn try_from_formula(formula: &syntax::Formula) -> Result<Self, Error> {
-        let attributes = formula
-            .free_vars()
-            .into_iter()
-            .map(Attribute::try_from)
-            .collect::<Result<Vec<_>, Error>>();
-
-        attributes.map(Self)
+        Self::new(
+            self.iter()
+                .filter(|v| other.contains(v))
+                .cloned()
+                .collect_vec(),
+        )
     }
 
     /// Creates a new `AttributeList` from `formula`.
     pub fn universals(&self) -> AttributeList {
-        self.attributes()
-            .iter()
-            .filter(|a| a.is_universal())
-            .cloned()
-            .into()
+        Self::new(
+            self.attributes()
+                .iter()
+                .filter(|a| a.is_universal())
+                .cloned(),
+        )
     }
 
     /// Returns the list of attributes.
@@ -145,9 +141,17 @@ impl Deref for AttributeList {
     }
 }
 
-impl<I: IntoIterator<Item = Attribute>> From<I> for AttributeList {
-    fn from(attributes: I) -> Self {
-        Self(attributes.into_iter().map(Into::into).collect())
+impl TryFrom<&syntax::Formula> for AttributeList {
+    type Error = Error;
+
+    fn try_from(value: &syntax::Formula) -> Result<Self, Self::Error> {
+        let attributes = value
+            .free_vars()
+            .into_iter()
+            .map(Attribute::try_from)
+            .collect::<Result<Vec<_>, Error>>();
+
+        attributes.map(Self)
     }
 }
 

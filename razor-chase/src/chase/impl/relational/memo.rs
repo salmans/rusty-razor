@@ -26,7 +26,7 @@ impl<'a> ViewMemo<'a> {
         formula: &Formula,
         attributes: &AttributeList,
     ) -> Result<Mono<Tuple>, Error> {
-        self.expression(formula, &Vec::new().into(), attributes)
+        self.expression(formula, &AttributeList::new(vec![]), attributes)
             .map(SubExpression::into_expression)
     }
 
@@ -49,13 +49,13 @@ impl<'a> ViewMemo<'a> {
     ) -> Result<SubExpression, Error> {
         match formula {
             Formula::Bottom => Ok(SubExpression::new(
-                Vec::new().into(),
+                AttributeList::new(vec![]),
                 |t: &Tuple| t.clone(),
                 Mono::from(Empty::new()),
                 RawExpression::Empty,
             )),
             Formula::Top => Ok(SubExpression::new(
-                Vec::new().into(),
+                AttributeList::new(vec![]),
                 |t: &Tuple| t.clone(),
                 Mono::from(Singleton::new(vec![])),
                 RawExpression::Full,
@@ -100,7 +100,7 @@ mod tests {
     macro_rules! atts {
         ($vs:expr) => {{
             let vs: Result<Vec<_>, _> = $vs.iter().map(|v| Attribute::try_from(v)).collect();
-            AttributeList::from(vs.unwrap())
+            AttributeList::new(vs.unwrap())
         }};
     }
 
