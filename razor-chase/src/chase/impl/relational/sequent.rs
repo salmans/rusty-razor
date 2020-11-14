@@ -211,7 +211,7 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
                         // calling `into_canonical` is unnecessary when branches are built before
                         // equality expansion because there are no equational attributes.
                         // (the existing algorithm)
-                        attributes.push(Attribute::try_from(variable)?.into_canonical())
+                        attributes.push(Attribute::try_from(variable)?)
                     }
                     _ => return Err(Error::BadFlatTerm { term: term.clone() }),
                 }

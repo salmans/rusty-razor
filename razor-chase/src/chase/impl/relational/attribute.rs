@@ -16,7 +16,7 @@ pub(super) enum Variant {
     Existential,
 
     /// Equational attribute, introduced by expanding equations.
-    Equational(Box<Attribute>),
+    Equational,
 }
 
 /// In the context of a relational expression, a variable is refered to as an `Attribute`.
@@ -46,18 +46,6 @@ impl Attribute {
     pub fn is_existential(&self) -> bool {
         matches!(self.variant, Existential)
     }
-
-    /// Consumes the receiver attribute and returns its canonical form.
-    /// For `Universal` and `Existential` variants, the canonical form is the attribute
-    /// itself. For equality attributes, the canonical form is a `Universal` or
-    /// `Existential` attribute to which the attribute refers.
-    #[inline]
-    pub fn into_canonical(self) -> Attribute {
-        match self.variant {
-            Universal | Existential => self,
-            Equational(attr) => attr.into_canonical(),
-        }
-    }
 }
 
 impl TryFrom<&syntax::V> for Attribute {
@@ -79,28 +67,23 @@ impl FromStr for Attribute {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with(EXISTENTIAL_PREFIX) {
-            Ok(Self {
-                name: s.into(),
-                variant: Existential,
-            })
+        let variant = if s.starts_with(EXISTENTIAL_PREFIX) {
+            Some(Existential)
         } else if s.starts_with(EQUATIONAL_PREFIX) {
-            if let Some(end) = s.find(SEPERATOR) {
-                let name = s.into();
-                Ok(Self {
-                    name,
-                    variant: Equational(Box::new(s[1..end].parse()?)),
-                })
+            if s.find(SEPERATOR).is_some() {
+                Some(Equational)
             } else {
-                Err(Error::BadAttributeName {
-                    name: s.to_string(),
-                })
+                None
             }
         } else {
-            Ok(Self {
-                name: s.into(),
-                variant: Universal,
-            })
+            Some(Universal)
+        };
+
+        let name = s.into();
+        if let Some(variant) = variant {
+            Ok(Self { name, variant })
+        } else {
+            Err(Error::BadAttributeName { name })
         }
     }
 }
