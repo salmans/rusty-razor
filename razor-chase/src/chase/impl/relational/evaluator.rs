@@ -4,7 +4,8 @@ use super::{
     empty_named_tuple,
     model::Model,
     sequent::{Atom, Branch, Sequent},
-    Error, NamedTuple, Symbol, Tuple,
+    symbol::Symbol,
+    Error, NamedTuple, Tuple,
 };
 use either::Either;
 use std::collections::HashMap;

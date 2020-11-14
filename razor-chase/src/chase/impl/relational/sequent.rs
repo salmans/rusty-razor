@@ -3,7 +3,8 @@ use super::{
     constants::*,
     expression::make_expression,
     memo::ViewMemo,
-    Error, Symbol, Tuple,
+    symbol::Symbol,
+    Error, Tuple,
 };
 use crate::chase::SequentTrait;
 use codd::expression as rel_exp;

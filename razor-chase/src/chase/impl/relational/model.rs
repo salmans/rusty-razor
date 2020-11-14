@@ -1,6 +1,6 @@
 use super::{
-    constants::*, empty_named_tuple, equation_rewrite::Rewrite, sequent::Sequent, Error,
-    NamedTuple, Symbol, Tuple,
+    constants::*, empty_named_tuple, equation_rewrite::Rewrite, sequent::Sequent, symbol::Symbol,
+    Error, NamedTuple, Tuple,
 };
 use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
 use codd::expression as rel_exp;
