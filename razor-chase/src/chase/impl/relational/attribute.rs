@@ -117,7 +117,7 @@ impl AttributeList {
         )
     }
 
-    /// Creates a new `AttributeList` from `formula`.
+    /// Returns a new `AttributeList` containing the universal attributes in the receiver.
     pub fn universals(&self) -> AttributeList {
         Self::new(
             self.attributes()
@@ -127,7 +127,7 @@ impl AttributeList {
         )
     }
 
-    /// Returns the list of attributes.
+    /// Returns the list of attributes wrapped inside the receiver.
     pub fn attributes(&self) -> &[Attribute] {
         &self.0
     }

@@ -1,4 +1,4 @@
-use crate::chase::{BounderTrait, EvaluateResult, EvaluatorTrait, StrategyTrait, E};
+use crate::chase::{BounderTrait, EvaluateResult, EvaluatorTrait, StrategyTrait};
 
 use super::{
     empty_named_tuple,
@@ -31,7 +31,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
         let (sequent, tuples) = next_sequent.unwrap();
 
         if sequent.branches().is_empty() {
-            return None; // failure
+            return None; // chase step fails
         }
 
         let mut models = vec![model.clone()];
@@ -53,7 +53,6 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                 .collect();
         }
 
-        // FIXME EvaluationResult looks dumb
         let mut result = EvaluateResult::from(closed_models);
         models
             .into_iter()
@@ -93,15 +92,11 @@ fn balance_tuple<B: BounderTrait>(
         let mut existentials = empty_named_tuple();
         let mut bounded = false;
         for atom in branch {
-            let mut new_tuple = Vec::<E>::new();
-            bounded = balance_atom(
-                &mut model,
-                atom,
-                tuple,
-                &mut existentials,
-                &mut new_tuple,
-                bounder,
-            )? || bounded;
+            let new_tuple = {
+                let (t, b) = balance_atom(&mut model, atom, tuple, &mut existentials, bounder)?;
+                bounded |= b;
+                t
+            };
             symbol_tuples
                 .entry(atom.symbol())
                 .or_insert_with(Vec::new)
@@ -144,18 +139,21 @@ fn balance_atom<'t, B: BounderTrait>(
     atom: &'t Atom,
     tuple: &NamedTuple,
     existentials: &mut NamedTuple<'t>,
-    new_tuple: &mut Vec<E>,
     bounder: Option<&B>,
-) -> Result<bool, Error> {
+) -> Result<(Tuple, bool), Error> {
+    let mut new_tuple = Vec::new();
     let mut bounded = false;
     for attr in atom.attributes().iter() {
         if attr.is_existential() {
-            if !existentials.contains_key(attr) {
+            let element = if let Some(element) = existentials.get(attr) {
+                *element
+            } else {
                 let witness = atom.symbol().witness(&new_tuple)?;
-                let new_element = model.record(witness);
-                existentials.insert(attr, new_element);
-            }
-            new_tuple.push(*existentials.get(attr).unwrap());
+                let element = model.record(witness);
+                existentials.insert(attr, element);
+                element
+            };
+            new_tuple.push(element);
         } else {
             new_tuple.push(*tuple.get(attr).unwrap());
         }
@@ -169,5 +167,5 @@ fn balance_atom<'t, B: BounderTrait>(
         }
     }
 
-    Ok(bounded)
+    Ok((new_tuple, bounded))
 }

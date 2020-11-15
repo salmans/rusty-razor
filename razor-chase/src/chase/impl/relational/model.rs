@@ -1,6 +1,6 @@
 use super::{
-    constants::*, empty_named_tuple, equation_rewrite::Rewrite, sequent::Sequent, symbol::Symbol,
-    Error, NamedTuple, Tuple,
+    constants::*, empty_named_tuple, rewrite::Rewrite, sequent::Sequent, symbol::Symbol, Error,
+    NamedTuple, Tuple,
 };
 use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
 use codd::expression as rel_exp;
@@ -134,7 +134,7 @@ impl Model {
         for eq in equations.iter() {
             let l = eq.get(0).unwrap();
             let r = eq.get(1).unwrap();
-            rewrite.add(l, r)
+            rewrite.rewrite(l, r)
         }
 
         Ok(rewrite)
@@ -142,18 +142,18 @@ impl Model {
 
     fn rewrite_model(&mut self, rewrite: &Rewrite<E>) {
         let mut conversion_map = HashMap::new();
-        for (count, item) in rewrite.canonicals().into_iter().enumerate() {
+        for (count, item) in rewrite.normal_forms().into_iter().enumerate() {
             conversion_map.insert(item, E(count as i32));
         }
 
         let domain = self.domain();
         for element in domain.iter() {
-            let canonical = rewrite.canonical(element).unwrap();
+            let canonical = rewrite.normalize(element).unwrap();
             if conversion_map.contains_key(element) {
                 continue;
             }
             let convert = *conversion_map
-                .get(rewrite.canonical(canonical).unwrap())
+                .get(rewrite.normalize(canonical).unwrap())
                 .unwrap();
 
             conversion_map.insert(element, convert);
@@ -183,7 +183,7 @@ impl Model {
                 },
             };
 
-            let new_element = *conversion_map.get(&element).unwrap();
+            let new_element = *conversion_map.get(element).unwrap();
             rewrites.insert(new_term, new_element);
         }
 

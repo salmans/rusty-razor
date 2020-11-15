@@ -4,12 +4,12 @@
 //!
 mod attribute;
 mod constants;
-mod equation_rewrite;
 mod evaluator;
 mod expression;
 mod memo;
 mod model;
 mod preprocessor;
+mod rewrite;
 mod sequent;
 mod symbol;
 

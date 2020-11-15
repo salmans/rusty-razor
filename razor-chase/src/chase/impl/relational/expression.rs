@@ -8,6 +8,19 @@ use either::Either;
 use itertools::Itertools;
 use razor_fol::syntax::{Formula, Pred};
 
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub(super) struct RawJoin {
+    left: RawExpression,
+    right: RawExpression,
+    indices: Vec<Either<u8, u8>>,
+}
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub(super) struct RawUnion {
+    left: RawExpression,
+    right: RawExpression,
+}
+
 /// Represents the recursive structure of a relation expression as it is constructed.
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub(super) enum RawExpression {
@@ -18,18 +31,23 @@ pub(super) enum RawExpression {
         expression: Box<RawExpression>,
         indices: Vec<u8>,
     },
-    Join {
-        left: Box<RawExpression>,
-        right: Box<RawExpression>,
-        indices: Vec<Either<u8, u8>>,
-    },
-    Union {
-        left: Box<RawExpression>,
-        right: Box<RawExpression>,
-    },
+    Join(Box<RawJoin>),
+    Union(Box<RawUnion>),
 }
 
 impl RawExpression {
+    fn join(left: RawExpression, right: RawExpression, indices: Vec<Either<u8, u8>>) -> Self {
+        Self::Join(Box::new(RawJoin {
+            left,
+            right,
+            indices,
+        }))
+    }
+
+    fn union(left: RawExpression, right: RawExpression) -> Self {
+        Self::Union(Box::new(RawUnion { left, right }))
+    }
+
     fn boxed(self) -> Box<Self> {
         Box::new(self)
     }
@@ -228,11 +246,11 @@ pub(super) fn and_expression(
 
     let expr_attrs = AttributeList::new(expr_attrs);
     let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
-    let raw = RawExpression::Join {
-        left: left_sub.raw.boxed(),
-        right: right_sub.raw.boxed(),
-        indices: expr_indices.iter().map(|ei| ei.map(|i| i as u8)).collect(),
-    };
+    let raw = RawExpression::join(
+        left_sub.raw,
+        right_sub.raw,
+        expr_indices.iter().map(|ei| ei.map(|i| i as u8)).collect(),
+    );
 
     let left_key = left_sub.join_key;
     let left_exp = left_sub.expression;
@@ -283,10 +301,7 @@ pub(super) fn or_expression(
         .builder()
         .union(right_exp.expression)
         .build();
-    let raw = RawExpression::Union {
-        left: left_exp.raw.boxed(),
-        right: right_exp.raw.boxed(),
-    };
+    let raw = RawExpression::union(left_exp.raw, right_exp.raw);
 
     Ok(SubExpression::new(
         left_exp.attributes,
