@@ -6,7 +6,6 @@ mod attribute;
 mod constants;
 mod evaluator;
 mod expression;
-mod memo;
 mod model;
 mod preprocessor;
 mod rewrite;

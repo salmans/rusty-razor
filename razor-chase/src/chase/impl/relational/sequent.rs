@@ -1,17 +1,18 @@
 use super::{
     attribute::{Attribute, AttributeList},
     constants::*,
-    expression::make_expression,
-    memo::ViewMemo,
+    expression::Convertor,
     symbol::Symbol,
     Error, Tuple,
 };
 use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
+use itertools::Itertools;
 use razor_fol::{
     syntax::{symbol::Generator, Formula, Pred, Term, C, F},
     transform::relationalize,
 };
+use std::convert::TryFrom;
 
 /// Represents an atomic formula in the head of a `Sequent`.
 #[derive(Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -89,10 +90,7 @@ impl Sequent {
         &self.attributes
     }
 
-    pub(super) fn new(formula: &Formula, memo: Option<&mut ViewMemo>) -> Result<Self, Error> {
-        use itertools::Itertools;
-        use std::convert::TryFrom;
-
+    pub(super) fn new(formula: &Formula, convertor: &mut Convertor) -> Result<Self, Error> {
         #[inline]
         fn implies_parts(formula: &Formula) -> Result<(&Formula, &Formula), Error> {
             if let Formula::Implies { left, right } = formula {
@@ -131,23 +129,14 @@ impl Sequent {
                 .collect()
         };
 
-        let (left_expr, right_expr) = if let Some(memo) = memo {
-            (
-                memo.make_expression(left_rr.formula(), &left_attrs)?,
-                memo.make_expression(right_rr.formula(), &left_attrs)?,
-            )
-        } else {
-            (
-                make_expression(left_rr.formula(), &left_attrs)?,
-                make_expression(right_rr.formula(), &left_attrs)?,
-            )
-        };
+        let left_expr = convertor.convert(left_rr.formula(), &left_attrs)?;
+        let right_expr = convertor.convert(right_rr.formula(), &left_attrs)?;
 
         let expression = match &branches[..] {
-            [] => left_expr,
+            [] => left_expr, // Bottom
             _ => match &branches[0][..] {
-                [] => rel_exp::Mono::from(rel_exp::Empty::new()),
-                _ => rel_exp::Mono::from(rel_exp::Difference::new(left_expr, right_expr)),
+                [] => rel_exp::Mono::from(rel_exp::Empty::new()), // Top
+                _ => rel_exp::Mono::from(rel_exp::Difference::new(left_expr, right_expr)), // Other
             },
         };
 
@@ -171,35 +160,32 @@ impl SequentTrait for Sequent {
     }
 }
 
-// Create consistent `Relationalizer` instances:
+// Relationalizes `formula` if possible; otherwise, returns an error.
 fn relationalize(formula: &Formula) -> Result<relationalize::Relational, Error> {
-    let mut relationalizer = relationalize::Relationalizer::new();
+    let mut relationalizer = relationalize::Relationalizer::default();
     relationalizer.set_equality_symbol(EQUALITY);
     relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
     relationalizer
         .set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
-
     relationalizer.transform(formula).map_err(|e| e.into())
 }
 
-// Create consistent `EqualityExpander` instances:
+// Makes the implicit equalities in `formula` explicit by creating new equations for
+// variables that appear in more than one position.
 fn expand_equality(
     formula: &relationalize::Relational,
 ) -> Result<relationalize::Relational, Error> {
-    let mut equality_expander = relationalize::EqualityExpander::new();
+    let mut equality_expander = relationalize::EqualityExpander::default();
     equality_expander.set_equality_symbol(EQUALITY);
     equality_expander.set_equality_generator(
         Generator::new()
             .set_prefix(EQUATIONAL_PREFIX)
             .set_delimiter(SEPERATOR),
     );
-
     equality_expander.transform(formula).map_err(|e| e.into())
 }
 
 fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
-    use std::convert::TryFrom;
-
     match formula {
         Formula::Top => Ok(vec![vec![]]),
         Formula::Bottom => Ok(vec![]),

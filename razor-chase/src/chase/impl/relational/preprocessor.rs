@@ -1,4 +1,4 @@
-use super::{memo::ViewMemo, model::Model, sequent::Sequent};
+use super::{expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
 use razor_fol::syntax::{Formula, Sig, Term, Theory, V};
@@ -28,27 +28,23 @@ impl PreProcessorEx for PreProcessor {
         let mut theory = theory.gnf();
         theory
             .extend(equality_axioms())
-            .expect("internal error: failed to add equality axioms");
+            .expect("failed to add equality axioms");
         theory
             .extend(integrity_axioms(theory.signature()))
-            .expect("internal error: failed to add function integrity axioms");
+            .expect("failed to add function integrity axioms");
 
         let mut model = Model::new(&theory.signature());
-
-        let sequents = if self.memoize {
-            let mut memo = ViewMemo::new(model.database_mut());
-            theory
-                .formulae()
-                .iter()
-                .map(|fmla| Sequent::new(&fmla, Some(&mut memo)).unwrap())
-                .collect()
+        let mut convertor = if self.memoize {
+            Convertor::memoizing(model.database_mut())
         } else {
-            theory
-                .formulae()
-                .iter()
-                .map(|fmla| Sequent::new(&fmla, None).unwrap())
-                .collect()
+            Convertor::new()
         };
+
+        let sequents = theory
+            .formulae()
+            .iter()
+            .map(|fmla| Sequent::new(&fmla, &mut convertor).unwrap())
+            .collect();
 
         (sequents, model)
     }
@@ -70,7 +66,6 @@ fn equality_axioms() -> Vec<Formula> {
 // 2) (f(x1, ..., xn) = x) & (f(y1, ..., yn) = y) & x1 = y1 & ... & xn = yn -> x = y
 fn integrity_axioms(sig: &Sig) -> Vec<Formula> {
     let mut result = Vec::new();
-
     for c in sig.constants() {
         let x = Term::from(V("x".to_string()));
         let y = Term::from(V("y".to_string()));

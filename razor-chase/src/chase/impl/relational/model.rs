@@ -4,6 +4,7 @@ use super::{
 };
 use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
 use codd::expression as rel_exp;
+use itertools::Itertools;
 use razor_fol::syntax::Sig;
 use std::{collections::HashMap, fmt};
 
@@ -21,12 +22,12 @@ pub struct Model {
 
     /// Maps *flat* witness terms to elements of this model.
     ///
-    /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
-    /// consisting of functions applications.
+    /// **Hint**: Flat (witness) terms are terms that do not contain any complex sub-terms
+    /// that consist of functions applications.
     rewrites: HashMap<WitnessTerm, E>,
 
     /// Stores the information contained in this model.
-    pub database: codd::Database,
+    database: codd::Database,
 
     /// Maps each symbol to their corresponding relational expression.
     relations: HashMap<Symbol, rel_exp::Relation<Tuple>>,
@@ -36,9 +37,7 @@ impl Model {
     /// Creates a new model over the given `signature`.
     pub fn new(signature: &Sig) -> Self {
         let mut database = codd::Database::new();
-        let relations = build_relations_info(signature, &mut database)
-            .expect("internal error: failed to initialize model");
-
+        let relations = relations_map(signature, &mut database).unwrap();
         Self {
             id: rand::random(),
             element_index: 0,
@@ -50,7 +49,7 @@ impl Model {
 
     /// Creates a new element for the given `witness` and records that `witness`
     /// denotes the new element.
-    pub fn new_element(&mut self, witness: WitnessTerm) -> E {
+    fn new_element(&mut self, witness: WitnessTerm) -> E {
         let element = E(self.element_index);
         self.element_index += 1;
         self.rewrites.insert(witness, element);
@@ -61,39 +60,28 @@ impl Model {
     pub(super) fn record(&mut self, witness: WitnessTerm) -> E {
         match witness {
             WitnessTerm::Elem { element } => element,
-            WitnessTerm::Const { .. } => {
-                if let Some(e) = self.rewrites.get(&witness) {
-                    *e
-                } else {
-                    self.new_element(witness)
-                }
-            }
-            WitnessTerm::App { .. } => {
-                // The input term is assumed to be flat -- no recursive lookups:
-                if let Some(e) = self.rewrites.get(&witness) {
-                    *e
-                } else {
-                    self.new_element(witness)
-                }
-            }
+            _ => self
+                .rewrites
+                .get(&witness)
+                .copied()
+                .unwrap_or_else(|| self.new_element(witness)),
         }
     }
 
     /// Evaluates a sequent in the model.
     pub(super) fn evaluate<'a>(&self, sequent: &'a Sequent) -> Vec<NamedTuple<'a>> {
-        let mut result = Vec::new();
-
         let tuples = self.database.evaluate(sequent.expression()).unwrap();
-        for tuple in tuples.into_tuples().into_iter() {
-            let mut elements = empty_named_tuple();
-            for (i, attr) in sequent.attributes().iter().enumerate() {
-                elements.insert(attr, tuple[i]);
-            }
-
-            result.push(elements);
-        }
-
-        result
+        tuples
+            .into_tuples()
+            .into_iter()
+            .map(|tuple| {
+                let mut elements = empty_named_tuple();
+                for (i, attr) in sequent.attributes().iter().enumerate() {
+                    elements.insert(attr, tuple[i]);
+                }
+                elements
+            })
+            .collect()
     }
 
     pub(super) fn insert(
@@ -103,10 +91,7 @@ impl Model {
     ) -> Result<(), Error> {
         if let Some(relation) = self.relations.get(symbol) {
             if let Symbol::Equality = symbol {
-                let mut to_add = Vec::new();
-                for t in tuples.iter() {
-                    to_add.push(vec![t[1], t[0]]);
-                }
+                let to_add = tuples.iter().map(|t| vec![t[1], t[0]]).collect_vec();
                 tuples.extend(to_add);
             };
             self.database.insert(relation, tuples).map_err(Error::from)
@@ -132,11 +117,8 @@ impl Model {
             })?;
         let equations = self.database.evaluate(&eq_relation)?;
         for eq in equations.iter() {
-            let l = eq.get(0).unwrap();
-            let r = eq.get(1).unwrap();
-            rewrite.rewrite(l, r)
+            rewrite.rewrite(&eq[0], &eq[1])
         }
-
         Ok(rewrite)
     }
 
@@ -188,8 +170,6 @@ impl Model {
         }
 
         let mut database = codd::Database::new();
-        use itertools::Itertools;
-
         for relation in self.relations.values() {
             let new_relation = database.add_relation(relation.name()).unwrap();
             let tuples = self.database.evaluate(relation).unwrap();
@@ -223,7 +203,7 @@ impl ModelTrait for Model {
     fn domain(&self) -> Vec<E> {
         self.database
             .evaluate(self.relations.get(&Symbol::Domain).unwrap())
-            .expect("internal error: failed to read domain elements")
+            .unwrap()
             .iter()
             .map(|e| e[0])
             .collect()
@@ -233,10 +213,8 @@ impl ModelTrait for Model {
         let mut result = Vec::new();
         for (symbol, relation) in &self.relations {
             match symbol {
-                Symbol::Const { .. }
-                | Symbol::Func { .. }
-                | Symbol::Pred { .. }
-                | Symbol::Equality => {
+                Symbol::Domain => {}
+                _ => {
                     let observations = Vec::new();
                     let tuples = self.database.evaluate(relation).unwrap();
 
@@ -245,7 +223,6 @@ impl ModelTrait for Model {
                     }
                     result.extend(observations);
                 }
-                Symbol::Domain => {}
             }
         }
 
@@ -306,8 +283,6 @@ impl Clone for Model {
 
 impl fmt::Display for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        use itertools::Itertools;
-
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
         let elements: Vec<String> = self
             .domain()
@@ -334,7 +309,7 @@ impl fmt::Display for Model {
 
 // Creates a dictionary of signatures and their corresponding relations to
 // access their instances in the database.
-fn build_relations_info(
+fn relations_map(
     sig: &Sig,
     db: &mut codd::Database,
 ) -> Result<HashMap<Symbol, rel_exp::Relation<Tuple>>, Error> {
@@ -342,13 +317,11 @@ fn build_relations_info(
     for c in sig.constants().iter() {
         let name = constant_instance_name(c);
         let relation = db.add_relation::<Tuple>(&name)?;
-
         relations.insert(Symbol::Const(c.clone()), relation);
     }
     for f in sig.functions().values() {
         let name = function_instance_name(&f.symbol);
         let relation = db.add_relation::<Tuple>(&name)?;
-
         relations.insert(
             Symbol::Func {
                 symbol: f.symbol.clone(),
@@ -359,12 +332,10 @@ fn build_relations_info(
     }
     for p in sig.predicates().values() {
         if p.symbol.0 == EQUALITY {
-            // Equality is a special case (below)
-            continue;
+            continue; // Equality is a special case (below)
         }
         let name = predicate_instance_name(&p.symbol);
         let relation = db.add_relation::<Tuple>(&name)?;
-
         relations.insert(
             Symbol::Pred {
                 symbol: p.symbol.clone(),

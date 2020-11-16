@@ -61,20 +61,6 @@ macro_rules! term_as_var {
 }
 
 impl Relationalizer {
-    /// Creates a new `Relationalizer` instance with default generators and symbols:
-    ///   * The equality symbol is `=`.
-    ///   * Variables introduced by flattening are prefixed with `?`.
-    ///   * Function predicates are prefixed with `$`.
-    pub fn new() -> Self {
-        Self {
-            equality_symbol: "=".into(),
-            flattening_generator: Generator::new().set_prefix("?"),
-            function_predicate_generator: Generator::new().set_prefix("$"),
-            constant_predicate_generator: Generator::new().set_prefix("@"),
-            generated_variables: Vec::new(),
-        }
-    }
-
     /// Use `symbol` for equality predicates.
     pub fn set_equality_symbol<S: Into<String>>(&mut self, symbol: S) {
         self.equality_symbol = symbol.into();
@@ -90,15 +76,15 @@ impl Relationalizer {
         self.function_predicate_generator = generator;
     }
 
-    /// Consumes the `Relationalizer`, applies the relationalization algorithm on `formula` and
-    /// returns the relationalized formula if it succeeds.
+    /// Applies the relationalization algorithm on `formula` and returns the relationalized
+    /// formula if it succeeds.
     /// The underlying algorithm assumes that the input is negation and quantifier-free;
     /// that is, `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. Relationalization consists of
     /// applying the following rewrites on the input formula:
-    ///   * A constant `'c` is replaced by a predicate `C(x)`.
-    ///   * A complex term `f(x_1, ..., x_n)` is replaced by a fresh variable `v` and an atomic
+    ///   * A constant `'c` rewrites to a predicate `C(x)`.
+    ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
     /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
-    ///   * An equation `v = y` is replaced with an atomic formula `=(x, y)`.
+    ///   * An equation `v = y` rewrites to an atomic formula `=(x, y)`.
     ///
     /// **Note**:
     /// The resulting formula is semantically isomorphic to the input *only* in presence of equality and
@@ -108,8 +94,8 @@ impl Relationalizer {
     /// In the resulting formula, the new (placeholder) variables are sorted topologically from left to write
     /// where the ordering relation is the dependency between the new variables.
     /// A varialbe `v` depends on a variable `y` if for a new function predicate, namely `F`,
-    /// `F(..., y,..., v)` is a conjunct in the formula (that is, the result of the function replaced by `F`
-    /// depends on `y`).
+    /// `F(..., y,..., v)` is a conjunct in the formula (that is, the result of the
+    /// function replaced by `F`, applied to its arguments, depends on `y`).
     ///
     ///
     /// **Example**:
@@ -118,24 +104,23 @@ impl Relationalizer {
     /// use razor_fol::transform::relationalize::Relationalizer;
     ///
     /// let fmla = "P(f(x)) & Q('c)".parse::<Formula>().unwrap();
-    /// let transformed = Relationalizer::new().transform(&fmla).unwrap();
+    /// let transformed = Relationalizer::default().transform(&fmla).unwrap();
     /// assert_eq!(
     ///     r"($f(x, ?0) ∧ P(?0)) ∧ (@c(?1) ∧ Q(?1))",
     ///     transformed.formula().to_string()
     /// );
     ///
     /// let fmla = "~P(x)".parse::<Formula>().unwrap();
-    /// assert!(Relationalizer::new().transform(&fmla).is_err());    
+    /// assert!(Relationalizer::default().transform(&fmla).is_err()); // cannot relationalize
     /// ```
     pub fn transform(&mut self, formula: &Formula) -> Result<Relational, Error> {
-        let transformed = self.flatten_formula(formula);
-
-        let result = transformed.map(|t| {
+        let flattened = self.flatten_formula(formula);
+        let result = flattened.map(|t| {
             let simplified = self.simplify_equations(&t);
             let result = remove_reflexive_equations(&simplified, &self.equality_symbol);
             Relational(result.unwrap_or(Formula::Top))
         });
-        self.reset();
+        self.reset(); // prepare for next call to `transform`
 
         result
     }
@@ -157,14 +142,14 @@ impl Relationalizer {
                 let new_terms = terms
                     .iter()
                     .map(|t| {
-                        if let Some((fmla, var)) = self.flatten_term(t) {
-                            conjuncts.push(fmla);
-                            var.into()
-                        } else {
-                            t.clone()
-                        }
+                        self.flatten_term(t)
+                            .map(|(fmla, var)| {
+                                conjuncts.push(fmla);
+                                var.into()
+                            })
+                            .unwrap_or_else(|| t.clone())
                     })
-                    .collect::<Vec<Term>>();
+                    .collect::<Vec<_>>();
 
                 let fmla = predicate.clone().app(new_terms);
                 // Preserving the topological order among variables:
@@ -223,12 +208,12 @@ impl Relationalizer {
                 let mut new_terms = terms
                     .iter()
                     .map(|t| {
-                        if let Some((fmla, var)) = self.flatten_term(t) {
-                            conjuncts.push(fmla);
-                            var.into()
-                        } else {
-                            t.clone()
-                        }
+                        self.flatten_term(t)
+                            .map(|(fmla, var)| {
+                                conjuncts.push(fmla);
+                                var.into()
+                            })
+                            .unwrap_or_else(|| t.clone())
                     })
                     .collect::<Vec<Term>>();
 
@@ -261,11 +246,7 @@ impl Relationalizer {
 
         use super::substitution::TermBased;
         let sub = |v: &V| {
-            let variable = if map.contains_key(v) {
-                (*map.get(v).unwrap()).clone()
-            } else {
-                v.clone()
-            };
+            let variable = map.get(v).map(|&t| t.clone()).unwrap_or_else(|| v.clone());
             Term::Var { variable }
         };
         formula.substitute(&sub)
@@ -338,8 +319,18 @@ impl Relationalizer {
 }
 
 impl Default for Relationalizer {
+    /// Creates a new `Relationalizer` instance with default generators and symbols:
+    ///   * The equality symbol is `=`.
+    ///   * Variables introduced by flattening are prefixed with `?`.
+    ///   * Function predicates are prefixed with `$`.    
     fn default() -> Self {
-        Self::new()
+        Self {
+            equality_symbol: "=".into(),
+            flattening_generator: Generator::new().set_prefix("?"),
+            function_predicate_generator: Generator::new().set_prefix("$"),
+            constant_predicate_generator: Generator::new().set_prefix("@"),
+            generated_variables: Vec::new(),
+        }
     }
 }
 
@@ -358,17 +349,6 @@ pub struct EqualityExpander {
 }
 
 impl EqualityExpander {
-    /// Creates a new `EqualityExpander` instance with default generators and symbols:
-    /// * The equality symbol is `=`.
-    /// * Variables appearing in more than one position are distinguished with `~` as the
-    /// prefix, followed by `:` and a unique index.
-    pub fn new() -> Self {
-        Self {
-            equality_symbol: "=".into(),
-            equality_generator: Generator::new().set_prefix("~").set_delimiter(":"),
-        }
-    }
-
     /// Use `symbol` for equality predicates.
     pub fn set_equality_symbol<S: Into<String>>(&mut self, symbol: S) {
         self.equality_symbol = symbol.into();
@@ -443,15 +423,15 @@ impl EqualityExpander {
     /// use razor_fol::transform::relationalize::{Relationalizer, EqualityExpander};
     ///
     /// let fmla = "P(f(x)) & Q('c)".parse::<Formula>().unwrap();
-    /// let relational = Relationalizer::new().transform(&fmla).unwrap();
-    /// let transformed = EqualityExpander::new().transform(&relational).unwrap();
+    /// let relational = Relationalizer::default().transform(&fmla).unwrap();
+    /// let transformed = EqualityExpander::default().transform(&relational).unwrap();
     /// assert_eq!(
     ///     r"($f(x, ?0) ∧ (P(~?0:0) ∧ =(?0, ~?0:0))) ∧ (@c(?1) ∧ (Q(~?1:0) ∧ =(?1, ~?1:0)))",
     ///     transformed.formula().to_string()
     /// );
     ///
     /// let fmla = "~P(x)".parse::<Formula>().unwrap();
-    /// assert!(Relationalizer::new().transform(&fmla).is_err());
+    /// assert!(Relationalizer::default().transform(&fmla).is_err());
     /// ```
     pub fn transform(&self, formula: &Relational) -> Result<Relational, Error> {
         let transformed = self.helper(formula.formula(), &mut HashMap::new());
@@ -463,8 +443,15 @@ impl EqualityExpander {
 }
 
 impl Default for EqualityExpander {
+    /// Creates a new `EqualityExpander` instance with default generators and symbols:
+    /// * The equality symbol is `=`.
+    /// * Variables appearing in more than one position are distinguished with `~` as the
+    /// prefix, followed by `:` and a unique index.
     fn default() -> Self {
-        Self::new()
+        Self {
+            equality_symbol: "=".into(),
+            equality_generator: Generator::new().set_prefix("~").set_delimiter(":"),
+        }
     }
 }
 
@@ -485,7 +472,7 @@ impl Default for EqualityExpander {
 /// use razor_fol::transform::relationalize::{Relationalizer, range_restrict};
 ///
 /// let fmla = "P(x) & Q(y)".parse::<Formula>().unwrap();
-/// let relational = Relationalizer::new().transform(&fmla).unwrap();
+/// let relational = Relationalizer::default().transform(&fmla).unwrap();
 /// let transformed = range_restrict(&relational, &vec![v!(x), v!(z)], "RR").unwrap();
 /// assert_eq!(
 ///     r"(P(x) ∧ Q(y)) ∧ RR(z)",
@@ -505,22 +492,14 @@ pub fn range_restrict(
 fn rr_helper(formula: &Formula, range: &[V], symbol: &str) -> Result<Formula, Error> {
     let formula = match formula {
         Formula::Bottom => formula.clone(),
-        Formula::Top => {
-            if let Some(conjunct) = rr_conjunct(range, symbol) {
-                conjunct
-            } else {
-                formula.clone()
-            }
-        }
+        Formula::Top => rr_conjunct(range, symbol).unwrap_or_else(|| formula.clone()),
         Formula::Atom { .. } | Formula::And { .. } => {
             let free = formula.free_vars();
             let mut range = Vec::from(range);
             range.retain(|x| !free.contains(&x));
-            if let Some(conjunct) = rr_conjunct(&range, symbol) {
-                formula.clone().and(conjunct)
-            } else {
-                formula.clone()
-            }
+            rr_conjunct(&range, symbol)
+                .map(|c| formula.clone().and(c))
+                .unwrap_or_else(|| formula.clone())
         }
         Formula::Or { left, right } => {
             let left = rr_helper(left, range, symbol)?;
@@ -631,86 +610,86 @@ mod tests {
     fn test_relationalize_formula() -> Result<(), Error> {
         assert_eq! {
             "⊤",
-            Relationalizer::new().flatten_formula(&formula!('|'))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!('|'))?.to_string(),
         };
         assert_eq! {
             "⟘",
-            Relationalizer::new().flatten_formula(&formula!(_|_))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(_|_))?.to_string(),
         };
         assert_eq! {
             "P()",
-            Relationalizer::new().flatten_formula(&formula!(P()))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P()))?.to_string(),
         };
         assert_eq! {
             "P(x, y)",
-            Relationalizer::new().flatten_formula(&formula!(P(x, y)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(x, y)))?.to_string(),
         };
         assert_eq! {
             "=(x, y)",
-            Relationalizer::new().flatten_formula(&formula!((x) = (y)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((x) = (y)))?.to_string(),
         }
         assert_eq! {
             r"@c(?0) ∧ =(x, ?0)",
-            Relationalizer::new().flatten_formula(&formula!((x) = (@c)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((x) = (@c)))?.to_string(),
         }
         assert_eq! {
             r"(@c(?0) ∧ @d(?1)) ∧ =(?0, ?1)",
-            Relationalizer::new().flatten_formula(&formula!((@c) = (@d)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((@c) = (@d)))?.to_string(),
         }
         assert_eq! {
             r"@c(?0) ∧ P(?0)",
-            Relationalizer::new().flatten_formula(&formula!(P(@c)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(@c)))?.to_string(),
         };
         assert_eq! {
             r"@c(?0) ∧ P(x, ?0)",
-            Relationalizer::new().flatten_formula(&formula!(P(x, @c)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(x, @c)))?.to_string(),
         };
         assert_eq! {
             r"(@c(?0) ∧ @d(?1)) ∧ P(?0, ?1)",
-            Relationalizer::new().flatten_formula(&formula!(P(@c, @d)))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(@c, @d)))?.to_string(),
         };
         assert_eq! {
             r"$f(x, ?0) ∧ P(?0)",
-            Relationalizer::new().flatten_formula(&formula!(P(f(x))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(f(x))))?.to_string(),
         };
         assert_eq! {
             "($g(x, ?0) ∧ $f(?0, ?1)) ∧ P(?1)",
-            Relationalizer::new().flatten_formula(&formula!(P(f(g(x)))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(f(g(x)))))?.to_string(),
         };
         assert_eq! {
             "(($g(x, ?0) ∧ $f(?0, ?1)) ∧ $f(y, ?2)) ∧ P(?1, ?2)",
-            Relationalizer::new().flatten_formula(&formula!(P(f(g(x)), f(y))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!(P(f(g(x)), f(y))))?.to_string(),
         };
         assert_eq! {
             "P(x) ∧ Q(y)",
-            Relationalizer::new().flatten_formula(&formula!((P(x)) & (Q(y))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((P(x)) & (Q(y))))?.to_string(),
         };
         assert_eq! {
             "(@c(?0) ∧ P(?0)) ∧ (@d(?1) ∧ Q(?1))",
-            Relationalizer::new().flatten_formula(&formula!((P(@c)) & (Q(@d))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((P(@c)) & (Q(@d))))?.to_string(),
         };
         assert_eq! {
             "P(x) ∨ Q(y)",
-            Relationalizer::new().flatten_formula(&formula!((P(x)) | (Q(y))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((P(x)) | (Q(y))))?.to_string(),
         };
         assert_eq! {
             "(@c(?0) ∧ P(?0)) ∨ (@d(?1) ∧ Q(?1))",
-            Relationalizer::new().flatten_formula(&formula!((P(@c)) | (Q(@d))))?.to_string(),
+            Relationalizer::default().flatten_formula(&formula!((P(@c)) | (Q(@d))))?.to_string(),
         };
 
-        assert!(Relationalizer::new()
+        assert!(Relationalizer::default()
             .flatten_formula(&formula!(~[P()]))
             .is_err());
-        assert!(Relationalizer::new()
+        assert!(Relationalizer::default()
             .flatten_formula(&formula!([P()] -> [Q()]))
             .is_err());
-        assert!(Relationalizer::new()
+        assert!(Relationalizer::default()
             .flatten_formula(&formula!([P()] <=> [Q()]))
             .is_err());
-        assert!(Relationalizer::new()
+        assert!(Relationalizer::default()
             .flatten_formula(&formula!(?x.[P(x)]))
             .is_err());
-        assert!(Relationalizer::new()
+        assert!(Relationalizer::default()
             .flatten_formula(&formula!(!x.[P(x)]))
             .is_err());
 
@@ -720,7 +699,7 @@ mod tests {
     #[test]
     fn test_expand_equality() -> Result<(), Error> {
         fn expand_equality(formula: &Formula) -> Result<Formula, Error> {
-            EqualityExpander::new().helper(formula, &mut HashMap::new())
+            EqualityExpander::default().helper(formula, &mut HashMap::new())
         }
 
         assert_eq!("⊤", expand_equality(&formula!('|'))?.to_string(),);
@@ -826,35 +805,35 @@ mod tests {
     fn test_relationalize() -> Result<(), Error> {
         assert_eq!(
             "$f(x, y)",
-            Relationalizer::new()
+            Relationalizer::default()
                 .transform(&formula!([f(x)] = [y]))?
                 .formula()
                 .to_string()
         );
         assert_eq!(
             "$f(x, ?1) ∧ $g(y, ?1)",
-            Relationalizer::new()
+            Relationalizer::default()
                 .transform(&formula!([f(x)] = [g(y)]))?
                 .formula()
                 .to_string()
         );
         assert_eq!(
             "($f(x, ?1) ∧ $g(y, ?1)) ∨ $f(x, y)",
-            Relationalizer::new()
+            Relationalizer::default()
                 .transform(&formula!({ [f(x)] = [g(y)] } | { [f(x)] = [y] }))?
                 .formula()
                 .to_string()
         );
         assert_eq!(
             "$f(y, ?0) ∧ P(x, ?0)",
-            Relationalizer::new()
+            Relationalizer::default()
                 .transform(&formula!(P(x, f(y))))?
                 .formula()
                 .to_string()
         );
         assert_eq!(
             "$f(x, ?0) ∧ P(x, ?0)",
-            Relationalizer::new()
+            Relationalizer::default()
                 .transform(&formula!(P(x, f(x))))?
                 .formula()
                 .to_string()

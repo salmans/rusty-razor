@@ -163,7 +163,6 @@ impl fmt::Debug for Pred {
     }
 }
 
-#[doc(hidden)]
 /// Predicate symbol to represent the signature of equality.
 pub const EQ_SYM: &str = "=";
 

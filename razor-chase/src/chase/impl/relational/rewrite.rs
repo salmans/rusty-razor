@@ -22,21 +22,19 @@ where
     }
 
     /// Adds a new equation as a rewrite rule from `left` to `right`.
-    #[allow(clippy::or_fun_call)]
     pub fn rewrite(&mut self, left: &T, right: &T) {
         if self.equals(left, right) == Some(true) {
             return;
         }
-
         let left = self
             .rules
             .entry(left.clone())
-            .or_insert(right.clone())
+            .or_insert_with(|| right.clone())
             .clone();
         let right = self
             .rules
             .entry(right.clone())
-            .or_insert(right.clone())
+            .or_insert_with(|| right.clone())
             .clone();
 
         for v in self.rules.values_mut() {

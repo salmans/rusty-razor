@@ -1,4 +1,4 @@
-/*! Defines{ constants: (), functions: (), predicates: ()}constants: (), functions: (), predicates: ()}irst-order theories. */
+/*! Defines first-order theories. */
 
 use std::{convert::TryFrom, fmt};
 
