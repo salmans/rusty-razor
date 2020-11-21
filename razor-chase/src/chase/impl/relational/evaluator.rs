@@ -7,7 +7,6 @@ use super::{
     symbol::Symbol,
     Error, NamedTuple, Tuple,
 };
-use either::Either;
 use std::collections::HashMap;
 
 pub struct Evaluator;
@@ -34,31 +33,24 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             return None; // chase step fails
         }
 
-        let mut models = vec![model.clone()];
-        let mut closed_models = Vec::new();
-        info!(event = crate::trace::EVALUATE, sequent = %sequent);
+        let mut open = vec![model.clone()];
+        let mut bounded = Vec::new();
 
-        use itertools::Itertools;
         for tuple in tuples {
-            models = models
+            open = open
                 .into_iter()
                 .flat_map(|m| {
-                    let new_models =
-                        balance_tuple(&tuple, sequent.branches(), &m, bounder).unwrap();
-                    let (open, close): (Vec<_>, Vec<_>) =
-                        new_models.into_iter().partition(|m| m.is_left());
-                    closed_models.extend(close);
-                    open.into_iter().map(|m| m.left().unwrap()).collect_vec()
+                    info!(event = crate::trace::EVALUATE, sequent = %sequent, mapping = ?tuple);
+                    let (os, bs) = balance_tuple(&tuple, sequent.branches(), &m, bounder)
+                        .unwrap()
+                        .into_models();
+                    bounded.extend(bs);
+                    os
                 })
                 .collect();
         }
 
-        let mut result = EvaluateResult::from(closed_models);
-        models
-            .into_iter()
-            .for_each(|m| result.append(Either::Left(m)));
-
-        Some(result)
+        Some(EvaluateResult::from((open, bounded)))
     }
 }
 
@@ -83,8 +75,8 @@ fn balance_tuple<B: BounderTrait>(
     branches: &[Branch],
     parent: &Model,
     bounder: Option<&B>,
-) -> Result<Vec<Either<Model, Model>>, Error> {
-    let mut models = Vec::new();
+) -> Result<EvaluateResult<Model>, Error> {
+    let mut result = EvaluateResult::new();
 
     for branch in branches.iter() {
         let mut model = parent.clone();
@@ -124,13 +116,13 @@ fn balance_tuple<B: BounderTrait>(
             .unwrap();
 
         if bounded {
-            models.push(Either::Right(model))
+            result.append_bounded_model(model);
         } else {
-            models.push(Either::Left(model))
+            result.append_open_model(model);
         }
     }
 
-    Ok(models)
+    Ok(result)
 }
 
 #[inline(always)]

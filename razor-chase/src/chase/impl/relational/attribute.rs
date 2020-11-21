@@ -41,7 +41,7 @@ impl Attribute {
         matches!(self.variant, Universal)
     }
 
-    /// Returns true if the attribute is existential.
+    /// Returns `true` if the attribute is existential.
     #[inline(always)]
     pub fn is_existential(&self) -> bool {
         matches!(self.variant, Existential)

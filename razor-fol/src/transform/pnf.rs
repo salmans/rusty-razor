@@ -32,7 +32,7 @@ fn rename(variable: &V, no_collision_variables: &[&V]) -> V {
     let mut name = variable.0.clone();
     let names: Vec<_> = no_collision_variables.iter().map(|v| &v.0).collect();
     while names.contains(&&name) {
-        name.push_str("`")
+        name.push('`')
     }
     V::from(&name)
 }
