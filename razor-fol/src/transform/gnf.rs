@@ -1,7 +1,7 @@
-/*! Implements conversion to Geometric Normal Form (GNF) for formula.*/
+/*! Implements conversion to Geometric Normal Form (GNF) for formulae.*/
 
-use super::{SkolemGenerator, CNF};
-use crate::syntax::{Formula::*, *};
+use super::CNF;
+use crate::syntax::{symbol::Generator, Formula::*, *};
 use itertools::Itertools;
 use std::cmp::Ordering::Equal;
 
@@ -17,6 +17,7 @@ pub struct GNF(Formula);
 
 impl GNF {
     /// Returns a reference to the formula wrapped in the receiver NNF.
+    #[inline(always)]
     pub fn formula(&self) -> &Formula {
         &self.0
     }
@@ -183,12 +184,12 @@ fn simplify_dnf(formula: Formula) -> Formula {
         }
     }
 
-    let disjuncts: Vec<Vec<Formula>> = disjunct_list(formula)
+    let disjuncts: Vec<Vec<_>> = disjunct_list(formula)
         .into_iter()
         .map(|d| conjunct_list(d).into_iter().unique().collect())
         .collect();
 
-    let disjuncts: Vec<Vec<Formula>> = disjuncts
+    let disjuncts: Vec<Vec<_>> = disjuncts
         .iter()
         .filter(|d| {
             !disjuncts.iter().any(|dd| {
@@ -196,7 +197,7 @@ fn simplify_dnf(formula: Formula) -> Formula {
                     && dd.iter().all(|cc| d.iter().any(|c| cc == c))
             })
         })
-        .map(|d| d.clone())
+        .cloned()
         .unique()
         .collect();
 
@@ -232,9 +233,9 @@ impl Theory {
     pub fn gnf(&self) -> Theory {
         use core::convert::TryFrom;
 
-        let mut generator = SkolemGenerator::new();
+        let mut generator = Generator::new().set_prefix("sk#");
         let formulae: Vec<GNF> = self
-            .formulae
+            .formulae()
             .iter()
             .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
             .collect();
@@ -390,22 +391,25 @@ mod test_transform {
         // mostly testing if compression of heads works properly:
         {
             let theory: Theory = "P('a); P('b);".parse().unwrap();
-            assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae);
+            assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae());
         }
         {
             let theory: Theory = "P('a); P(x);".parse().unwrap();
-            assert_debug_strings!("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae);
+            assert_debug_strings!("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae());
         }
         {
             let theory: Theory = "P('a); P(x); P('b);".parse().unwrap();
             assert_debug_strings!(
                 "true -> P(x)\ntrue -> (P(\'a) & P(\'b))",
-                theory.gnf().formulae,
+                theory.gnf().formulae(),
             );
         }
         {
             let theory: Theory = "(T() and V()) or (U() and V());".parse().unwrap();
-            assert_debug_strings!("true -> ((T() & V()) | (U() & V()))", theory.gnf().formulae);
+            assert_debug_strings!(
+                "true -> ((T() & V()) | (U() & V()))",
+                theory.gnf().formulae()
+            );
         }
     }
 }

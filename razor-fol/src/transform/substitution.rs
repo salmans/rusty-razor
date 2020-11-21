@@ -30,7 +30,7 @@ where
 /// [`Term`]: ../syntax/enum.Term.html
 impl Substitution for HashMap<&V, Term> {
     fn apply(&self, v: &V) -> Term {
-        self.get(v).map(|t| t.clone()).unwrap_or(v.clone().into())
+        self.get(v).cloned().unwrap_or_else(|| v.clone().into())
     }
 }
 
@@ -65,9 +65,7 @@ where
 /// [`Term`]: ../syntax/enum.Term.html
 impl VariableRenaming for HashMap<&V, V> {
     fn apply(&self, v: &V) -> V {
-        self.get(v)
-            .map(|var| var.clone())
-            .unwrap_or(v.clone().into())
+        self.get(v).cloned().unwrap_or_else(|| v.clone())
     }
 }
 

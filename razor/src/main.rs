@@ -10,8 +10,7 @@ use razor_chase::{
     chase::{
         bounder::DomainSize,
         chase_step,
-        r#impl::batch::{Evaluator, Model, Sequent},
-        r#impl::reference::PreProcessor,
+        r#impl::relational::{Evaluator, Model, PreProcessor, Sequent},
         scheduler::Dispatch,
         strategy::{Bootstrap, Fair},
         ModelTrait, Observation, PreProcessorEx, SchedulerTrait, StrategyTrait,
@@ -204,12 +203,12 @@ fn process_solve(
         })
         .reset();
 
-    theory.formulae.iter().for_each(|f| println!("  {}", f));
+    theory.formulae().iter().for_each(|f| println!("  {}", f));
 
     println!();
     println!();
 
-    let pre_processor = PreProcessor;
+    let pre_processor = PreProcessor::new(false);
     let (sequents, init_model) = pre_processor.pre_process(&theory);
 
     let evaluator = Evaluator;
@@ -240,10 +239,10 @@ fn process_solve(
                 &mut scheduler,
                 &evaluator,
                 bounder.as_ref(),
-                |m| print_model(m, color, &mut complete_count),
+                |m| print_model(m.finalize(), color, &mut complete_count),
                 |m| {
                     if show_incomplete {
-                        print_model(m, color, &mut incomplete_count);
+                        print_model(m.finalize(), color, &mut incomplete_count);
                     }
                 },
             )
@@ -297,7 +296,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             print!("Domain: ");
         })
         .reset();
-    let domain = model.domain().iter().map(|e| e.get().to_string()).collect();
+    let domain = model.domain().iter().map(|e| e.to_string()).collect_vec();
     print_list(color, MODEL_DOMAIN_COLOR, &domain);
     println!("\n");
 
@@ -309,11 +308,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
         .map(|e| {
             let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
             let witnesses = witnesses.into_iter().sorted();
-            format!(
-                "{} -> {}",
-                witnesses.into_iter().sorted().join(", "),
-                e.get()
-            )
+            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
         })
         .collect();
 
@@ -345,7 +340,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
         .reset();
 }
 
-fn print_list<T: std::fmt::Display>(color: bool, text_color: term::color::Color, list: &Vec<T>) {
+fn print_list<T: std::fmt::Display>(color: bool, text_color: term::color::Color, list: &[T]) {
     let mut term = Terminal::new(color);
     term.foreground(text_color)
         .attribute(term::Attr::Bold)

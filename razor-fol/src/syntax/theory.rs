@@ -5,12 +5,35 @@ use std::{convert::TryFrom, fmt};
 use super::{Error, Formula, Sig};
 
 /// is a first-order theory, containing a set of first-order formulae.
+#[derive(Clone)]
 pub struct Theory {
     /// is the signature of the theory, containing constants, function symbols, and predicates.
-    pub signature: Sig,
+    signature: Sig,
 
     /// is the list of first-order formulae in this theory.
-    pub formulae: Vec<Formula>,
+    formulae: Vec<Formula>,
+}
+
+impl Theory {
+    /// Returns a reference to the signature of this theory.
+    pub fn signature(&self) -> &Sig {
+        &self.signature
+    }
+
+    /// Returns the formulae of this theory.
+    pub fn formulae(&self) -> &[Formula] {
+        &self.formulae
+    }
+
+    /// Extends this theory with additional formulae. It fails if the signature of the new formulae is
+    /// inconsistent with the signature of this theory.
+    pub fn extend<T: IntoIterator<Item = Formula>>(&mut self, iter: T) -> Result<(), Error> {
+        self.formulae.extend(iter);
+
+        // recalculating the signature:
+        self.signature = Sig::try_from(&self.formulae)?;
+        Ok(())
+    }
 }
 
 impl TryFrom<Vec<Formula>> for Theory {
@@ -39,7 +62,7 @@ mod tests {
     use crate::formula;
 
     #[test]
-    fn test_formula_to_string() {
+    fn theory_to_string() {
         let formulae = vec![
             formula!(!x. ((x) = (x))),
             formula!(!x, y. (((x) = (y)) -> ((y) = (x)))),
@@ -54,5 +77,45 @@ mod tests {
         let theory = Theory::try_from(formulae).unwrap();
         assert_eq!(expected, &theory.to_string());
         assert_eq!(&expected_sig, &theory.signature);
+    }
+
+    #[test]
+    fn theory_extend() {
+        {
+            let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
+            let formulae = vec![formula!(Q(x))];
+
+            assert!(theory.extend(formulae).is_ok());
+
+            assert_eq!(
+                "P(f(\'c))\n\
+                 Q(x)",
+                &theory.to_string()
+            );
+            assert_eq!(1, theory.signature().constants().len());
+            assert_eq!(1, theory.signature().functions().len());
+            assert_eq!(2, theory.signature().predicates().len());
+        }
+        {
+            let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
+            let formulae = vec![formula!(P(x))];
+
+            assert!(theory.extend(formulae).is_ok());
+
+            assert_eq!(
+                "P(f(\'c))\n\
+                 P(x)",
+                &theory.to_string()
+            );
+            assert_eq!(1, theory.signature().constants().len());
+            assert_eq!(1, theory.signature().functions().len());
+            assert_eq!(1, theory.signature().predicates().len());
+        }
+        {
+            let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
+            let formulae = vec![formula!(P(x, y))];
+
+            assert!(theory.extend(formulae).is_err());
+        }
     }
 }

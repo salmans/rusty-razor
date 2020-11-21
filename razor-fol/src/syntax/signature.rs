@@ -2,16 +2,12 @@
 
 ['Sig']: ./struct.Sig.html
 */
-use super::{Error, Formula, Pred, Term, C, F};
+use super::{Error, Formula, Pred, Term, C, EQ_SYM, F};
 use core::convert::TryFrom;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
 };
-
-#[doc(hidden)]
-/// Predicate symbol to represent the signature of equality.
-pub const EQ_PRED_SYM: &'static str = "=";
 
 /// Contains the signature information for a function.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -46,16 +42,16 @@ impl fmt::Display for PSig {
 }
 
 /// Is the signature of a first-order theory.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Sig {
     /// Is the constant symbols in a theory.
-    pub constants: HashSet<C>,
+    constants: HashSet<C>,
 
     /// Is the signature of functions in a theory.
-    pub functions: HashMap<F, FSig>,
+    functions: HashMap<F, FSig>,
 
     /// Is the signature of predicates in a theory.
-    pub predicates: HashMap<Pred, PSig>,
+    predicates: HashMap<Pred, PSig>,
 }
 
 impl Sig {
@@ -100,6 +96,21 @@ impl Sig {
             self.predicates.insert(predicate.symbol.clone(), predicate);
         }
         Ok(())
+    }
+
+    /// Returns the constants of this signature.
+    pub fn constants(&self) -> &HashSet<C> {
+        &self.constants
+    }
+
+    /// Returns the function of this signature.
+    pub fn functions(&self) -> &HashMap<F, FSig> {
+        &self.functions
+    }
+
+    /// Returns the predicates of this signature.
+    pub fn predicates(&self) -> &HashMap<Pred, PSig> {
+        &self.predicates
     }
 }
 
@@ -209,7 +220,7 @@ fn formula_signature(formula: &Formula) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
                 cs,
                 fs,
                 vec![PSig {
-                    symbol: Pred(EQ_PRED_SYM.to_string()),
+                    symbol: Pred(EQ_SYM.to_string()),
                     arity: 2,
                 }],
             )
@@ -270,7 +281,7 @@ mod tests {
         {
             let mut sig = Sig::new();
             sig.add_predicate(PSig {
-                symbol: Pred(EQ_PRED_SYM.to_string()),
+                symbol: Pred(EQ_SYM.to_string()),
                 arity: 2,
             })
             .unwrap();

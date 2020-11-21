@@ -1,4 +1,4 @@
-/*! Implements conversion to Disjunctive Normal Form (DNF) for formula.*/
+/*! Implements conversion to Disjunctive Normal Form (DNF) for formulae.*/
 
 use super::SNF;
 use crate::syntax::{Formula::*, *};
@@ -14,6 +14,7 @@ pub struct DNF(Formula);
 
 impl DNF {
     /// Returns a reference to the formula wrapped in the receiver DNF.
+    #[inline(always)]
     pub fn formula(&self) -> &Formula {
         &self.0
     }

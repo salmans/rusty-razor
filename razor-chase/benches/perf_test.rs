@@ -1,142 +1,99 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Bencher, Criterion};
+use itertools::Itertools;
 use razor_chase::chase::{
     bounder::DomainSize,
-    chase_all, r#impl,
+    chase_all,
+    r#impl::*,
     scheduler::FIFO,
-    strategy::{Bootstrap, Fair, Linear},
-    SchedulerTrait, StrategyTrait,
+    strategy::{Bootstrap, Fair},
+    PreProcessorEx, SchedulerTrait, StrategyTrait,
 };
 use razor_fol::syntax::Theory;
 use std::{fs, io::Read};
 
-fn basic_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("../theories/core")
-        .unwrap()
-        .map(|item| {
-            read_theory_from_file(item.unwrap().path().display().to_string().as_str()).gnf()
-        })
-        .collect();
-    c.bench_function("basic", |b| b.iter(|| time_basic(theories)));
+macro_rules! read_theory {
+    ($file_name: expr) => {{
+        let mut f = fs::File::open($file_name).expect("file not found");
+        let mut contents = String::new();
+        f.read_to_string(&mut contents)
+            .expect("something went wrong reading the file");
+
+        contents.parse::<Theory>().unwrap()
+    }};
 }
 
-fn bootstrap_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("../theories/core")
-        .unwrap()
-        .map(|item| {
-            read_theory_from_file(item.unwrap().path().display().to_string().as_str()).gnf()
-        })
-        .collect();
-    c.bench_function("bootstrap", |b| b.iter(|| time_bootstrap(theories)));
+macro_rules! run_unbounded {
+    (
+        $name: literal,
+        pre_processor = $prep: expr,
+        evaluator = $eval: path,
+        sequent = $seq: path,
+        model = $model: path,
+        $crit: ident
+    ) => {{
+        fn solve(theory: &Theory) -> Vec<$model> {
+            let (sequents, init_model) = $prep.pre_process(theory);
+            let evaluator = $eval;
+            let selector: Bootstrap<$seq, Fair<$seq>> = Bootstrap::new(sequents.iter());
+            let mut strategy = FIFO::new();
+            let bounder: Option<&DomainSize> = None;
+            strategy.add(init_model, selector);
+            chase_all(&mut strategy, &evaluator, bounder)
+        }
+
+        fn run_bench(b: &mut Bencher) {
+            let theories = &fs::read_dir("../theories/core")
+                .unwrap()
+                .map(|item| read_theory!(item.unwrap().path().display().to_string()).gnf())
+                .collect_vec();
+
+            b.iter(|| {
+                for theory in theories {
+                    solve(&theory);
+                }
+            })
+        }
+        $crit.bench_function(stringify!($name), run_bench);
+    }};
 }
 
-fn reference_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("../theories/core")
-        .unwrap()
-        .map(|item| {
-            read_theory_from_file(item.unwrap().path().display().to_string().as_str()).gnf()
-        })
-        .collect();
-    c.bench_function("reference", |b| b.iter(|| time_reference(theories)));
+fn bench_batch(c: &mut Criterion) {
+    run_unbounded!(
+        "batch",
+        pre_processor = reference::PreProcessor,
+        evaluator = batch::Evaluator,
+        sequent = reference::Sequent,
+        model = reference::Model,
+        c
+    );
 }
 
-fn batch_benchmark(c: &mut Criterion) {
-    let theories = &fs::read_dir("../theories/core")
-        .unwrap()
-        .map(|item| {
-            read_theory_from_file(item.unwrap().path().display().to_string().as_str()).gnf()
-        })
-        .collect();
-    c.bench_function("batch", |b| b.iter(|| time_batch(theories)));
+fn bench_relational(c: &mut Criterion) {
+    run_unbounded!(
+        "relational",
+        pre_processor = relational::PreProcessor::new(false),
+        evaluator = relational::Evaluator,
+        sequent = relational::Sequent,
+        model = relational::Model,
+        c
+    );
 }
 
-fn time_basic(theories: &Vec<Theory>) {
-    for theory in theories {
-        solve_basic(&theory);
-    }
-}
-
-fn solve_basic(theory: &Theory) -> Vec<r#impl::basic::Model> {
-    let sequents: Vec<r#impl::basic::Sequent> = theory.formulae.iter().map(|f| f.into()).collect();
-
-    let evaluator = r#impl::basic::Evaluator {};
-    let selector = Linear::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
-    let bounder: Option<&DomainSize> = None;
-    strategy.add(r#impl::basic::Model::new(), selector);
-    chase_all(&mut strategy, &evaluator, bounder)
-}
-
-fn time_bootstrap(theories: &Vec<Theory>) {
-    for theory in theories {
-        solve_bootstrap(&theory);
-    }
-}
-
-fn solve_bootstrap(theory: &Theory) -> Vec<r#impl::basic::Model> {
-    let sequents: Vec<r#impl::basic::Sequent> = theory.formulae.iter().map(|f| f.into()).collect();
-
-    let evaluator = r#impl::basic::Evaluator {};
-    let selector: Bootstrap<r#impl::basic::Sequent, Fair<r#impl::basic::Sequent>> =
-        Bootstrap::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
-    let bounder: Option<&DomainSize> = None;
-    strategy.add(r#impl::basic::Model::new(), selector);
-    chase_all(&mut strategy, &evaluator, bounder)
-}
-
-fn time_reference(theories: &Vec<Theory>) {
-    for theory in theories {
-        solve_reference(&theory);
-    }
-}
-
-fn solve_reference(theory: &Theory) -> Vec<r#impl::reference::Model> {
-    let sequents: Vec<r#impl::reference::Sequent> =
-        theory.formulae.iter().map(|f| f.into()).collect();
-
-    let evaluator = r#impl::reference::Evaluator {};
-    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> =
-        Bootstrap::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
-    let bounder: Option<&DomainSize> = None;
-    strategy.add(r#impl::reference::Model::new(), selector);
-    chase_all(&mut strategy, &evaluator, bounder)
-}
-
-fn time_batch(theories: &Vec<Theory>) {
-    for theory in theories {
-        solve_batch(&theory);
-    }
-}
-
-fn solve_batch(theory: &Theory) -> Vec<r#impl::reference::Model> {
-    let sequents: Vec<r#impl::reference::Sequent> =
-        theory.formulae.iter().map(|f| f.into()).collect();
-
-    let evaluator = r#impl::batch::Evaluator {};
-    let selector: Bootstrap<r#impl::reference::Sequent, Fair<r#impl::reference::Sequent>> =
-        Bootstrap::new(sequents.iter().collect());
-    let mut strategy = FIFO::new();
-    let bounder: Option<&DomainSize> = None;
-    strategy.add(r#impl::reference::Model::new(), selector);
-    chase_all(&mut strategy, &evaluator, bounder)
-}
-
-pub fn read_theory_from_file(filename: &str) -> Theory {
-    let mut f = fs::File::open(filename).expect("file not found");
-
-    let mut contents = String::new();
-    f.read_to_string(&mut contents)
-        .expect("something went wrong reading the file");
-
-    contents.parse().unwrap()
+fn bench_relational_memoized(c: &mut Criterion) {
+    run_unbounded!(
+        "relational_memoized",
+        pre_processor = relational::PreProcessor::new(true),
+        evaluator = relational::Evaluator,
+        sequent = relational::Sequent,
+        model = relational::Model,
+        c
+    );
 }
 
 criterion_group!(
     benches,
-    basic_benchmark,
-    bootstrap_benchmark,
-    reference_benchmark,
-    batch_benchmark
+    bench_batch,
+    bench_relational,
+    bench_relational_memoized
 );
 criterion_main!(benches);

@@ -121,7 +121,7 @@ pub enum Error {
     Missing { line: u32, column: u32, code: u32 },
     #[error("expecting `{}` at line {line:?}, column {column:?}{}",
             error_code_to_string(*.code),
-            .found.clone().map(|f| format!("; found \"{}\"", f)).unwrap_or("".into())
+            .found.clone().map(|f| format!("; found \"{}\"", f)).unwrap_or_else(|| "".into())
     )]
     Expecting {
         line: u32,
@@ -199,8 +199,8 @@ named!(p_lower_ident<Span, String>,
     map!(pair!(one_of!(LOWER), opt!(is_a!(ALPHA_NUMERIC))),
         |(first, rest): (char, Option<Span>)| {
             let mut first = first.to_string();
-            if rest.is_some() {
-                first.push_str(rest.unwrap().fragment.0);
+            if let Some(rest) = rest {
+                first.push_str(rest.fragment.0);
             }
             first
         }
@@ -211,8 +211,8 @@ named!(p_upper_ident<Span, String>,
     map!(pair!(one_of!(UPPER), opt!(is_a!(ALPHA_NUMERIC))),
         |(first, rest): (char, Option<Span>)| {
             let mut first = first.to_string();
-            if rest.is_some() {
-                first.push_str(rest.unwrap().fragment.0);
+            if let Some(rest) = rest {
+                first.push_str(rest.fragment.0);
             }
             first
         }

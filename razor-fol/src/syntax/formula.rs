@@ -208,8 +208,8 @@ impl fmt::Display for Formula {
             }
         }
         match self {
-            Self::Top => write!(f, "{}", "⊤"),
-            Self::Bottom => write!(f, "{}", "⟘"),
+            Self::Top => write!(f, "⊤"),
+            Self::Bottom => write!(f, "⟘"),
             Self::Atom { predicate, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", predicate.to_string(), ts.join(", "))
@@ -259,8 +259,8 @@ impl fmt::Debug for Formula {
         }
 
         match self {
-            Self::Top => write!(f, "{}", "true"),
-            Self::Bottom => write!(f, "{}", "false"),
+            Self::Top => write!(f, "true"),
+            Self::Bottom => write!(f, "false"),
             Self::Atom { predicate, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", predicate.to_string(), ts.join(", "))

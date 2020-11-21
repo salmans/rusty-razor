@@ -23,7 +23,8 @@ use crate::chase::{
     },
     BounderTrait, EvaluateResult, EvaluatorTrait, Observation, Rel, StrategyTrait,
 };
-use itertools::{Either, Itertools};
+use either::Either;
+use itertools::Itertools;
 use razor_fol::syntax::V;
 use std::{collections::HashMap, iter};
 
@@ -61,11 +62,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             while {
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, Element> = HashMap::new();
-                for i in 0..vars_size {
-                    assignment_map.insert(
-                        vars.get(i).unwrap(),
-                        (*domain.get(assignment[i]).unwrap()).clone(),
-                    );
+                for (i, item) in assignment.iter().enumerate() {
+                    assignment_map
+                        .insert(vars.get(i).unwrap(), (*domain.get(*item).unwrap()).clone());
                 }
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
@@ -124,7 +123,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             } {}
         }
 
-        return Some(result);
+        Some(result)
     }
 }
 
@@ -156,10 +155,8 @@ fn make_bounded_extend<'m, B: BounderTrait>(
                 if !model.is_observed(o) {
                     modified = true;
                 }
-            } else {
-                if !model.is_observed(o) {
-                    model.observe(o);
-                }
+            } else if !model.is_observed(o) {
+                model.observe(o);
             }
         });
         if modified {
@@ -178,7 +175,7 @@ fn make_observe_literal(
     move |lit: &Literal| match lit {
         basic::Literal::Atm { predicate, terms } => {
             let terms = terms
-                .into_iter()
+                .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
@@ -199,13 +196,12 @@ fn make_observe_literal(
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
 fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
-    let len = vec.len();
-    for i in 0..len {
-        if vec[i] != last {
-            vec[i] += 1;
+    for item in vec.iter_mut() {
+        if *item != last {
+            *item += 1;
             return true;
         } else {
-            vec[i] = 0;
+            *item = 0;
         }
     }
     false
@@ -281,8 +277,14 @@ mod test_batch {
     }
 
     fn run_test(theory: &Theory) -> Vec<Model> {
+        use std::convert::TryInto;
+
         let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory.formulae.iter().map(|f| f.into()).collect();
+        let sequents: Vec<Sequent> = geometric_theory
+            .formulae()
+            .iter()
+            .map(|f| f.try_into().unwrap())
+            .collect();
 
         let evaluator = Evaluator;
         let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());

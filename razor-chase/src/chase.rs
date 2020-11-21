@@ -128,8 +128,7 @@ pub mod strategy;
 use razor_fol::syntax::*;
 use std::fmt;
 
-use itertools::Either;
-use tracing;
+use either::Either;
 
 /// Is a symbol to represent elements of first-order models. An element is identified by an index.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
@@ -374,6 +373,10 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
         &self,
         witness: &Self::TermType,
     ) -> Option<<Self::TermType as WitnessTermTrait>::ElementType>;
+
+    /// Is called when the chase is returning a model, asking the model to do any postprocessing
+    /// needed.
+    fn finalize(self) -> Self;
 }
 
 /// Is the trait for types that represents a [geometric sequent][sequent] in the
@@ -497,16 +500,6 @@ impl<M: ModelTrait> EvaluateResult<M> {
         self.open_models.is_empty() && self.bounded_models.is_empty()
     }
 
-    /// Clears the list of `open_models` in the receiver.
-    pub fn clear_open_models(&mut self) {
-        self.open_models.clear();
-    }
-
-    /// Clears the list of `bounded_models` in the receiver.
-    pub fn clear_bounded_models(&mut self) {
-        self.bounded_models.clear();
-    }
-
     /// Appends `model` to the list of `open_models` of the receiver.
     pub fn append_open_model(&mut self, model: M) {
         self.open_models.push(model);
@@ -525,12 +518,32 @@ impl<M: ModelTrait> EvaluateResult<M> {
             Either::Right(m) => self.append_bounded_model(m),
         };
     }
+
+    /// Consumes the receiver and returns a tuple of its open and bounded models.
+    pub fn into_models(self) -> (Vec<M>, Vec<M>) {
+        (self.open_models, self.bounded_models)
+    }
+}
+
+impl<M: ModelTrait> Default for EvaluateResult<M> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<M: ModelTrait> From<Vec<Either<M, M>>> for EvaluateResult<M> {
     fn from(models: Vec<Either<M, M>>) -> Self {
         let mut result = EvaluateResult::new();
         models.into_iter().for_each(|m| result.append(m));
+        result
+    }
+}
+
+impl<M: ModelTrait> From<(Vec<M>, Vec<M>)> for EvaluateResult<M> {
+    fn from(models: (Vec<M>, Vec<M>)) -> Self {
+        let mut result = EvaluateResult::new();
+        result.open_models = models.0;
+        result.bounded_models = models.1;
         result
     }
 }
@@ -581,6 +594,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 ///     scheduler::FIFO,
 ///     bounder::DomainSize,
 /// };
+/// use std::convert::TryInto;
 ///
 /// // parse the theory:
 /// let theory: Theory = r#"
@@ -593,9 +607,9 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 ///
 /// // create sequents for the geometric theory:
 /// let sequents: Vec<basic::Sequent> = geometric_theory
-///     .formulae
+///     .formulae()
 ///     .iter()
-///     .map(|f| f.into())
+///     .map(|f| f.try_into().unwrap())
 ///     .collect();
 ///
 /// let evaluator = basic::Evaluator {};
@@ -624,7 +638,13 @@ where
 {
     let mut result: Vec<M> = Vec::new();
     while !scheduler.empty() {
-        chase_step(scheduler, evaluator, bounder, |m| result.push(m), |_| {});
+        chase_step(
+            scheduler,
+            evaluator,
+            bounder,
+            |m| result.push(m.finalize()),
+            |_| {},
+        );
     }
     result
 }
@@ -648,6 +668,7 @@ where
 ///     scheduler::FIFO,
 ///     bounder::DomainSize,
 /// };
+/// use std::convert::TryInto;
 ///
 /// // parse the theory:
 /// let theory: Theory = r#"
@@ -660,9 +681,9 @@ where
 ///
 /// // create sequents for the geometric theory:
 /// let sequents: Vec<basic::Sequent> = geometric_theory
-///     .formulae
+///     .formulae()
 ///     .iter()
-///     .map(|f| f.into())
+///     .map(|f| f.try_into().unwrap())
 ///     .collect();
 ///
 /// let evaluator = basic::Evaluator {};
@@ -707,11 +728,12 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
         super::trace::CHASE_STEP,
         id = base_id
     );
-    let models = evaluator.evaluate(&base_model, &mut strategy, bounder);
+    let result = evaluator.evaluate(&base_model, &mut strategy, bounder);
 
-    if let Some(models) = models {
-        if !models.empty() {
-            models.open_models.into_iter().for_each(|m| {
+    if let Some(result) = result {
+        if !result.empty() {
+            let (open, bounded) = result.into_models();
+            open.into_iter().for_each(|m| {
                 let _enter = span.enter();
                 info!(
                     event = super::trace::EXTEND,
@@ -721,7 +743,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
                 );
                 scheduler.add(m, strategy.clone());
             });
-            models.bounded_models.into_iter().for_each(|m| {
+            bounded.into_iter().for_each(|m| {
                 let _enter = span.enter();
                 info!(
                     event = super::trace::BOUND,

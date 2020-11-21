@@ -8,12 +8,23 @@
 //! [Chase]: ../../index.html#the-chase
 //!
 use crate::chase::*;
-use itertools::{Either, Itertools};
+use either::Either;
+use itertools::Itertools;
 use razor_fol::syntax::*;
 use std::{
     collections::{HashMap, HashSet},
+    convert::TryFrom,
     fmt, iter,
 };
+use thiserror::Error;
+
+/// Is the type of errors arising from inconsistencies in the syntax of formulae.
+#[derive(Error, Debug)]
+pub enum Error {
+    /// Is returned when a sequent cannot be constructed from a formula.
+    #[error("cannot build sequent from formula `{}`", .formula.to_string())]
+    BadSequentFormula { formula: razor_fol::syntax::Formula },
+}
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
 /// [`E`].
@@ -89,13 +100,25 @@ impl fmt::Debug for WitnessTerm {
 
 impl From<C> for WitnessTerm {
     fn from(constant: C) -> Self {
-        WitnessTerm::Const { constant }
+        Self::Const { constant }
+    }
+}
+
+impl From<&C> for WitnessTerm {
+    fn from(constant: &C) -> Self {
+        Self::from(constant.clone())
     }
 }
 
 impl From<E> for WitnessTerm {
     fn from(element: E) -> Self {
         WitnessTerm::Elem { element }
+    }
+}
+
+impl From<&E> for WitnessTerm {
+    fn from(element: &E) -> Self {
+        Self::from(*element)
     }
 }
 
@@ -164,7 +187,7 @@ impl Model {
     fn element_ref(&self, witness: &WitnessTerm) -> Option<&E> {
         match witness {
             WitnessTerm::Elem { element } => self.domain_ref().into_iter().find(|e| e.eq(&element)),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness).map(|e| e),
+            WitnessTerm::Const { .. } => self.rewrites.get(witness),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
@@ -174,12 +197,10 @@ impl Model {
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    self.rewrites
-                        .get(&WitnessTerm::App {
-                            function: (*function).clone(),
-                            terms,
-                        })
-                        .map(|e| e)
+                    self.rewrites.get(&WitnessTerm::App {
+                        function: (*function).clone(),
+                        terms,
+                    })
                 }
             }
         }
@@ -197,15 +218,15 @@ impl Model {
             result = next.unwrap()
         }
 
-        result.clone()
+        *result
     }
 
     /// Creates a new element for the given `witness` and records that `witness` denotes the new
     /// element.
     fn new_element(&mut self, witness: WitnessTerm) -> E {
         let element = E(self.element_index);
-        self.element_index = self.element_index + 1;
-        self.rewrites.insert(witness, element.clone());
+        self.element_index += 1;
+        self.rewrites.insert(witness, element);
         element
     }
 
@@ -218,28 +239,27 @@ impl Model {
         match witness {
             WitnessTerm::Elem { element } => {
                 let element = self.history(element);
-                if let Some(_) = self.domain().iter().find(|e| element.eq(e)) {
-                    element.clone()
+                if self.domain().iter().any(|e| element.eq(e)) {
+                    element
                 } else {
-                    panic!("something is wrong: element does not exist in the model's domain")
+                    unreachable!("missing element `{}`", element)
                 }
             }
             WitnessTerm::Const { .. } => {
                 if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                    *e
                 } else {
                     self.new_element(witness.clone())
                 }
             }
             WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> =
-                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
                 let witness = WitnessTerm::App {
                     function: function.clone(),
                     terms,
                 };
                 if let Some(e) = self.rewrites.get(&witness) {
-                    (*e).clone()
+                    *e
                 } else {
                     self.new_element(witness)
                 }
@@ -265,9 +285,7 @@ impl Model {
                 terms.iter().for_each(|t| {
                     if let WitnessTerm::Elem { element } = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem {
-                                element: from.clone(),
-                            });
+                            new_terms.push(WitnessTerm::Elem { element: *from });
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -283,7 +301,7 @@ impl Model {
                 k.clone()
             };
 
-            let value = if v == to { from.clone() } else { v.clone() };
+            let value = if v == to { *from } else { *v };
             new_rewrite.insert(key, value);
         });
         self.rewrites = new_rewrite;
@@ -337,8 +355,7 @@ impl Model {
     fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> =
-                    terms.into_iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -381,7 +398,7 @@ impl Model {
                         relation: relation.clone(),
                         terms,
                     };
-                    self.facts.iter().find(|f| obs.eq(f)).is_some()
+                    self.facts.iter().any(|f| obs.eq(f))
                 }
             }
             Observation::Identity { left, right } => {
@@ -392,11 +409,17 @@ impl Model {
     }
 }
 
+impl Default for Model {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Clone for Model {
     fn clone(&self) -> Self {
         Self {
             id: rand::random(),
-            element_index: self.element_index.clone(),
+            element_index: self.element_index,
             rewrites: self.rewrites.clone(),
             facts: self.facts.clone(),
             // In the `basic` implementation, a model is cloned after being processed in a
@@ -438,6 +461,10 @@ impl ModelTrait for Model {
 
     fn element(&self, witness: &WitnessTerm) -> Option<E> {
         self.element_ref(witness).cloned()
+    }
+
+    fn finalize(self) -> Self {
+        self
     }
 }
 
@@ -507,7 +534,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
+            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
         }
     }
 
@@ -541,7 +568,7 @@ impl Literal {
                     left.append(&mut right);
                     vec![left]
                 } else {
-                    panic!("Something is wrong: expecting a geometric sequent in standard form.")
+                    unreachable!("expecting standard geometric sequent, found `{}`", formula)
                 }
             }
             Formula::Or { left, right } => {
@@ -550,7 +577,7 @@ impl Literal {
                 left.append(&mut right);
                 left
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
+            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
         }
     }
 }
@@ -606,25 +633,28 @@ pub struct Sequent {
     pub head_literals: Vec<Vec<Literal>>,
 }
 
-impl From<&Formula> for Sequent {
-    fn from(formula: &Formula) -> Self {
+impl TryFrom<&Formula> for Sequent {
+    type Error = Error;
+
+    fn try_from(formula: &Formula) -> Result<Self, Self::Error> {
         match formula {
             Formula::Implies { left, right } => {
-                let free_vars: Vec<V> =
-                    formula.free_vars().into_iter().map(|v| v.clone()).collect();
+                let free_vars: Vec<V> = formula.free_vars().into_iter().cloned().collect();
                 let body_literals = Literal::build_body(left);
                 let head_literals = Literal::build_head(right);
                 let body = *left.clone();
                 let head = *right.clone();
-                Sequent {
+                Ok(Sequent {
                     free_vars,
                     body,
                     head,
                     body_literals,
                     head_literals,
-                }
+                })
             }
-            _ => panic!("Something is wrong: expecting a geometric sequent in standard form."),
+            _ => Err(Error::BadSequentFormula {
+                formula: formula.clone(),
+            }),
         }
     }
 }
@@ -667,8 +697,15 @@ impl PreProcessorEx for PreProcessor {
     type Model = Model;
 
     fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+        use std::convert::TryInto;
+
         (
-            theory.gnf().formulae.iter().map(|f| f.into()).collect(),
+            theory
+                .gnf()
+                .formulae()
+                .iter()
+                .map(|f| f.try_into().unwrap())
+                .collect(),
             Model::new(),
         )
     }
@@ -712,14 +749,11 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             while {
                 // construct a map from variables to elements
                 let mut assignment_map: HashMap<&V, E> = HashMap::new();
-                for i in 0..vars_size {
-                    assignment_map.insert(
-                        vars.get(i).unwrap(),
-                        (*domain.get(assignment[i]).unwrap()).clone(),
-                    );
+                for (i, item) in assignment.iter().enumerate().take(vars_size) {
+                    assignment_map.insert(vars.get(i).unwrap(), *(*domain.get(*item).unwrap()));
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
+                let assignment_func = |v: &V| *assignment_map.get(v).unwrap();
 
                 // lift the variable assignments to literals (used to create observations)
                 let observe_literal = make_observe_literal(assignment_func);
@@ -797,10 +831,8 @@ fn make_bounded_extend<'m, B: BounderTrait>(
                 if !model.is_observed(o) {
                     modified = true;
                 }
-            } else {
-                if !model.is_observed(o) {
-                    model.observe(o);
-                }
+            } else if !model.is_observed(o) {
+                model.observe(o);
             }
         });
         if modified {
@@ -819,7 +851,7 @@ fn make_observe_literal(
     move |lit: &Literal| match lit {
         Literal::Atm { predicate, terms } => {
             let terms = terms
-                .into_iter()
+                .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
@@ -840,13 +872,12 @@ fn make_observe_literal(
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
 fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
-    let len = vec.len();
-    for i in 0..len {
-        if vec[i] != last {
-            vec[i] += 1;
+    for item in vec.iter_mut() {
+        if *item != last {
+            *item += 1;
             return true;
         } else {
-            vec[i] = 0;
+            *item = 0;
         }
     }
     false
@@ -1095,113 +1126,117 @@ mod test_basic {
     fn test_build_sequent() {
         assert_debug_string(
             "[] -> [[]]",
-            Sequent::from(&"true -> true".parse().unwrap()),
+            Sequent::try_from(&"true -> true".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[] -> [[]]",
-            Sequent::from(&"true -> true & true".parse().unwrap()),
+            Sequent::try_from(&"true -> true & true".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[] -> [[], []]",
-            Sequent::from(&"true -> true | true".parse().unwrap()),
-        );
-        assert_debug_string("[] -> []", Sequent::from(&"true -> false".parse().unwrap()));
-        assert_debug_string(
-            "[] -> []",
-            Sequent::from(&"true -> false & true".parse().unwrap()),
+            Sequent::try_from(&"true -> true | true".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[] -> []",
-            Sequent::from(&"true -> true & false".parse().unwrap()),
+            Sequent::try_from(&"true -> false".parse().unwrap()).unwrap(),
+        );
+        assert_debug_string(
+            "[] -> []",
+            Sequent::try_from(&"true -> false & true".parse().unwrap()).unwrap(),
+        );
+        assert_debug_string(
+            "[] -> []",
+            Sequent::try_from(&"true -> true & false".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[] -> [[]]",
-            Sequent::from(&"true -> true | false".parse().unwrap()),
+            Sequent::try_from(&"true -> true | false".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[] -> [[]]",
-            Sequent::from(&"true -> false | true".parse().unwrap()),
+            Sequent::try_from(&"true -> false | true".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[P(x)] -> [[Q(x)]]",
-            Sequent::from(&"P(x) -> Q(x)".parse().unwrap()),
+            Sequent::try_from(&"P(x) -> Q(x)".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[P(x), Q(x)] -> [[Q(y)]]",
-            Sequent::from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()),
+            Sequent::try_from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
-            Sequent::from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()),
+            Sequent::try_from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()).unwrap(),
         );
         assert_debug_string(
             "[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-            Sequent::from(
+            Sequent::try_from(
                 &"true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
                     .parse()
                     .unwrap(),
-            ),
+            )
+            .unwrap(),
         );
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_1() {
-        Sequent::from(&"true".parse().unwrap());
+        Sequent::try_from(&"true".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_2() {
-        Sequent::from(&"false".parse().unwrap());
+        Sequent::try_from(&"false".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_3() {
-        Sequent::from(&"false -> true".parse().unwrap());
+        Sequent::try_from(&"false -> true".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_4() {
-        Sequent::from(&"(P(x) | Q(x)) -> R(x)".parse().unwrap());
+        Sequent::try_from(&"(P(x) | Q(x)) -> R(x)".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_5() {
-        Sequent::from(&"P(x) -> R(x) & (Q(z) | R(z))".parse().unwrap());
+        Sequent::try_from(&"P(x) -> R(x) & (Q(z) | R(z))".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_6() {
-        Sequent::from(&"P(x) -> ?x. Q(x)".parse().unwrap());
+        Sequent::try_from(&"P(x) -> ?x. Q(x)".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_7() {
-        Sequent::from(&"?x.Q(x) -> P(x)".parse().unwrap());
+        Sequent::try_from(&"?x.Q(x) -> P(x)".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_8() {
-        Sequent::from(&"true -> ~false".parse().unwrap());
+        Sequent::try_from(&"true -> ~false".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_9() {
-        Sequent::from(&"true -> ~true".parse().unwrap());
+        Sequent::try_from(&"true -> ~true".parse().unwrap()).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_build_invalid_sequent_10() {
-        Sequent::from(&"~P(x) -> ~Q(x)".parse().unwrap());
+        Sequent::try_from(&"~P(x) -> ~Q(x)".parse().unwrap()).unwrap();
     }
 
     #[test]
@@ -1911,9 +1946,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: \n\
-        'e, 'sk#0, f[e#0, e#0], i[e#0] -> e#0",
+            "",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy42.raz"
             )))
