@@ -1,21 +1,22 @@
 /*! Implementas a basic syntactic simplification for formula. */
 
-use crate::syntax::{Formula::*, *};
+use crate::syntax::{FOF::*, *};
 
-impl Formula {
-    /// Applies a number of syntactic transformations to simplify the receiver formula.
+impl FOF {
+    /// Applies a number of syntactic transformations to simplify the receiver
+    /// first-order formula.
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::Formula;
+    /// # use razor_fol::syntax::FOF;
     ///
-    /// let formula: Formula = "not (not P())".parse().unwrap();
+    /// let formula: FOF = "not (not P())".parse().unwrap();
     /// assert_eq!("P()", formula.simplify().to_string());
     ///
-    /// let formula: Formula = "forall x. (P() and true) | (Q(x) or false)".parse().unwrap();
+    /// let formula: FOF = "forall x. (P() and true) | (Q(x) or false)".parse().unwrap();
     /// assert_eq!("∀ x. (P() ∨ Q(x))", formula.simplify().to_string());
     /// ```
-    pub fn simplify(&self) -> Formula {
+    pub fn simplify(&self) -> FOF {
         match self {
             Top | Bottom | Atom { .. } | Equals { .. } => self.clone(),
             Not { formula } => {
@@ -127,230 +128,230 @@ mod tests {
     #[test]
     fn test_simplify() {
         {
-            let formula: Formula = "~true".parse().unwrap();
+            let formula: FOF = "~true".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "~false".parse().unwrap();
+            let formula: FOF = "~false".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "~P(x)".parse().unwrap();
+            let formula: FOF = "~P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true & true".parse().unwrap();
+            let formula: FOF = "true & true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false & false".parse().unwrap();
+            let formula: FOF = "false & false".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "false & true".parse().unwrap();
+            let formula: FOF = "false & true".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "true & false".parse().unwrap();
+            let formula: FOF = "true & false".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) & true".parse().unwrap();
+            let formula: FOF = "P(x) & true".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "false & P(x)".parse().unwrap();
+            let formula: FOF = "false & P(x)".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) & false".parse().unwrap();
+            let formula: FOF = "P(x) & false".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "true & P(x)".parse().unwrap();
+            let formula: FOF = "true & P(x)".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) & Q(x)".parse().unwrap();
+            let formula: FOF = "P(x) & Q(x)".parse().unwrap();
             assert_debug_string!("P(x) & Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true | true".parse().unwrap();
+            let formula: FOF = "true | true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false | false".parse().unwrap();
+            let formula: FOF = "false | false".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "false | true".parse().unwrap();
+            let formula: FOF = "false | true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "true | false".parse().unwrap();
+            let formula: FOF = "true | false".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) | true".parse().unwrap();
+            let formula: FOF = "P(x) | true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false | P(x)".parse().unwrap();
+            let formula: FOF = "false | P(x)".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) | false".parse().unwrap();
+            let formula: FOF = "P(x) | false".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true | P(x)".parse().unwrap();
+            let formula: FOF = "true | P(x)".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) | Q(x)".parse().unwrap();
+            let formula: FOF = "P(x) | Q(x)".parse().unwrap();
             assert_debug_string!("P(x) | Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true -> true".parse().unwrap();
+            let formula: FOF = "true -> true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false -> false".parse().unwrap();
+            let formula: FOF = "false -> false".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false -> true".parse().unwrap();
+            let formula: FOF = "false -> true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "true -> false".parse().unwrap();
+            let formula: FOF = "true -> false".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) -> true".parse().unwrap();
+            let formula: FOF = "P(x) -> true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false -> P(x)".parse().unwrap();
+            let formula: FOF = "false -> P(x)".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) -> false".parse().unwrap();
+            let formula: FOF = "P(x) -> false".parse().unwrap();
             assert_debug_string!("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true -> P(x)".parse().unwrap();
+            let formula: FOF = "true -> P(x)".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) -> Q(x)".parse().unwrap();
+            let formula: FOF = "P(x) -> Q(x)".parse().unwrap();
             assert_debug_string!("P(x) -> Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true <=> true".parse().unwrap();
+            let formula: FOF = "true <=> true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false <=> false".parse().unwrap();
+            let formula: FOF = "false <=> false".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false <=> true".parse().unwrap();
+            let formula: FOF = "false <=> true".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "true <=> false".parse().unwrap();
+            let formula: FOF = "true <=> false".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) <=> true".parse().unwrap();
+            let formula: FOF = "P(x) <=> true".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "false <=> P(x)".parse().unwrap();
+            let formula: FOF = "false <=> P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) <=> false".parse().unwrap();
+            let formula: FOF = "P(x) <=> false".parse().unwrap();
             assert_debug_string!("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "true <=> P(x)".parse().unwrap();
+            let formula: FOF = "true <=> P(x)".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "P(x) <=> Q(x)".parse().unwrap();
+            let formula: FOF = "P(x) <=> Q(x)".parse().unwrap();
             assert_debug_string!("P(x) <=> Q(x)", formula.simplify());
         }
         {
-            let formula: Formula = "?x, y. P(y, z)".parse().unwrap();
+            let formula: FOF = "?x, y. P(y, z)".parse().unwrap();
             assert_debug_string!("? y. P(y, z)", formula.simplify());
         }
         {
-            let formula: Formula = "?x. P(x)".parse().unwrap();
+            let formula: FOF = "?x. P(x)".parse().unwrap();
             assert_debug_string!("? x. P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "?x. P(y)".parse().unwrap();
+            let formula: FOF = "?x. P(y)".parse().unwrap();
             assert_debug_string!("P(y)", formula.simplify());
         }
         {
-            let formula: Formula = "!x, y. P(y, z)".parse().unwrap();
+            let formula: FOF = "!x, y. P(y, z)".parse().unwrap();
             assert_debug_string!("! y. P(y, z)", formula.simplify());
         }
         {
-            let formula: Formula = "!x. P(x)".parse().unwrap();
+            let formula: FOF = "!x. P(x)".parse().unwrap();
             assert_debug_string!("! x. P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "!x. P(y)".parse().unwrap();
+            let formula: FOF = "!x. P(y)".parse().unwrap();
             assert_debug_string!("P(y)", formula.simplify());
         }
         // random formulae
         {
-            let formula: Formula = "~~P(x)".parse().unwrap();
+            let formula: FOF = "~~P(x)".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "~~~P(x)".parse().unwrap();
+            let formula: FOF = "~~~P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "~(true -> false)".parse().unwrap();
+            let formula: FOF = "~(true -> false)".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "false | (P(x) & true)".parse().unwrap();
+            let formula: FOF = "false | (P(x) & true)".parse().unwrap();
             assert_debug_string!("P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "?x. P(x) | true".parse().unwrap();
+            let formula: FOF = "?x. P(x) | true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "?y. (P(x) -> false) & (false -> Q(x))".parse().unwrap();
+            let formula: FOF = "?y. (P(x) -> false) & (false -> Q(x))".parse().unwrap();
             assert_debug_string!("~P(x)", formula.simplify());
         }
         {
-            let formula: Formula = "!x. ?y. P(x, y) | true".parse().unwrap();
+            let formula: FOF = "!x. ?y. P(x, y) | true".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "(((x = y -> false) -> false) -> false) -> false"
+            let formula: FOF = "(((x = y -> false) -> false) -> false) -> false"
                 .parse()
                 .unwrap();
             assert_debug_string!("x = y", formula.simplify());
         }
         {
-            let formula: Formula = "!x, y, z. ?z. P(x) | w = x".parse().unwrap();
+            let formula: FOF = "!x, y, z. ?z. P(x) | w = x".parse().unwrap();
             assert_debug_string!("! x. (P(x) | (w = x))", formula.simplify());
         }
         {
-            let formula: Formula = "(P(x) | false) | (P(x) | true)".parse().unwrap();
+            let formula: FOF = "(P(x) | false) | (P(x) | true)".parse().unwrap();
             assert_debug_string!("true", formula.simplify());
         }
         {
-            let formula: Formula = "(P(x) & false) & (P(x) & true)".parse().unwrap();
+            let formula: FOF = "(P(x) & false) & (P(x) & true)".parse().unwrap();
             assert_debug_string!("false", formula.simplify());
         }
     }

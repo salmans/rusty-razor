@@ -359,10 +359,10 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
 /// [bg]: self#background
 pub trait SequentTrait: Clone {
     /// Returns the *body* (premise) of the sequent as a formula.
-    fn body(&self) -> Formula;
+    fn body(&self) -> FOF;
 
     /// Returns the *head* (consequence) of the sequent as a formula.
-    fn head(&self) -> Formula;
+    fn head(&self) -> FOF;
 }
 
 /// Is the trait of objects that convert an initial theory to sequents and provide the initial

@@ -1,6 +1,6 @@
 /*! Provides an interface and the implementation for term substitution and variable renaming.*/
 
-use crate::syntax::{Formula::*, Term::*, *};
+use crate::syntax::{Term::*, FOF::*, *};
 use std::collections::HashMap;
 
 /// Is the trait of types that map variables to terms.
@@ -174,7 +174,7 @@ impl TermBased for Term {
     }
 }
 
-impl TermBased for Formula {
+impl TermBased for FOF {
     #[inline]
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
@@ -191,8 +191,8 @@ impl TermBased for Formula {
         }
     }
 
-    /// **Note**: Applies a [`VariableRenaming`] on the **free** variables of the formula, keeping
-    /// the bound variables unchanged.
+    /// **Note**: Applies a [`VariableRenaming`] on the **free** variables of the
+    /// first-order formula, keeping the bound variables unchanged.
     ///
     /// [`VariableRenaming`]: crate::transform::VariableRenaming
     fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
@@ -200,8 +200,8 @@ impl TermBased for Formula {
         self.transform(&|t: &Term| t.rename_vars(renaming))
     }
 
-    /// **Note**: Applies a [`Substitution`] on the **free** variables of the formula, keeping the
-    /// bound variables unchanged.
+    /// **Note**: Applies a [`Substitution`] on the **free** variables of the first-order
+    /// formula, keeping the bound variables unchanged.
     ///
     /// [`Substitution`]: crate::transform::Substitution
     fn substitute(&self, substitution: &impl Substitution) -> Self {
@@ -212,7 +212,7 @@ impl TermBased for Formula {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{formula, term, v};
+    use crate::{fof, term, v};
 
     #[test]
     fn test_substitution_map() {
@@ -454,8 +454,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!((z) = (z)),
-            formula!((x) = (y)).rename_vars(&|v: &V| {
+            fof!((z) = (z)),
+            fof!((x) = (y)).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -466,8 +466,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(P(x)),
-            formula!(P(x)).rename_vars(&|v: &V| {
+            fof!(P(x)),
+            fof!(P(x)).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(x)
                 } else {
@@ -476,8 +476,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(P(y)),
-            formula!(P(x)).rename_vars(&|v: &V| {
+            fof!(P(y)),
+            fof!(P(x)).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -486,20 +486,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(P(y, z, y)),
-            formula!(P(x, y, x)).rename_vars(&|v: &V| {
-                if *v == v!(x) {
-                    v!(y)
-                } else if *v == v!(y) {
-                    v!(z)
-                } else {
-                    v.clone()
-                }
-            })
-        );
-        assert_eq!(
-            formula!(~(P(y, z, y))),
-            formula!(~(P(x, y, x))).rename_vars(&|v: &V| {
+            fof!(P(y, z, y)),
+            fof!(P(x, y, x)).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(y) {
@@ -510,8 +498,20 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!((P(z)) & (Q(z))),
-            formula!((P(x)) & (Q(y))).rename_vars(&|v: &V| {
+            fof!(~(P(y, z, y))),
+            fof!(~(P(x, y, x))).rename_vars(&|v: &V| {
+                if *v == v!(x) {
+                    v!(y)
+                } else if *v == v!(y) {
+                    v!(z)
+                } else {
+                    v.clone()
+                }
+            })
+        );
+        assert_eq!(
+            fof!((P(z)) & (Q(z))),
+            fof!((P(x)) & (Q(y))).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -522,8 +522,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!((P(z)) | (Q(z))),
-            formula!((P(x)) | (Q(y))).rename_vars(&|v: &V| {
+            fof!((P(z)) | (Q(z))),
+            fof!((P(x)) | (Q(y))).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -534,8 +534,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!((P(z)) -> (Q(z))),
-            formula!((P(x)) -> (Q(y))).rename_vars(&|v: &V| {
+            fof!((P(z)) -> (Q(z))),
+            fof!((P(x)) -> (Q(y))).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -546,8 +546,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!((P(z)) <=> (Q(z))),
-            formula!((P(x)) <=> (Q(y))).rename_vars(&|v: &V| {
+            fof!((P(z)) <=> (Q(z))),
+            fof!((P(x)) <=> (Q(y))).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -558,8 +558,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(? x, y. (P(y, y, y))),
-            formula!(? x, y. (P(x, y, z))).rename_vars(&|v: &V| {
+            fof!(? x, y. (P(y, y, y))),
+            fof!(? x, y. (P(x, y, z))).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(z) {
@@ -570,8 +570,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(! x, y. (P(y, y, y))),
-            formula!(! x, y. (P(x, y, z))).rename_vars(&|v: &V| {
+            fof!(! x, y. (P(y, y, y))),
+            fof!(! x, y. (P(x, y, z))).rename_vars(&|v: &V| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(z) {
@@ -582,8 +582,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(? x. ((!y. ((P(y)) | ((Q(z)) & (R(z))))) & (~((z) = (z))))),
-            formula!(? x. ((!y. ((P(x)) | ((Q(y)) & (R(z))))) & (~((y) = (y))))).rename_vars(
+            fof!(? x. ((!y. ((P(y)) | ((Q(z)) & (R(z))))) & (~((z) = (z))))),
+            fof!(? x. ((!y. ((P(x)) | ((Q(y)) & (R(z))))) & (~((y) = (y))))).rename_vars(
                 &|v: &V| {
                     if *v == v!(x) {
                         v!(y)
@@ -620,8 +620,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({ f(g(z)) } = { g(f(z)) }),
-            formula!((x) = (y)).substitute(&|v: &V| {
+            fof!({ f(g(z)) } = { g(f(z)) }),
+            fof!((x) = (y)).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f(g(z)))
                 } else if *v == v!(y) {
@@ -632,8 +632,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(P(h(y))),
-            formula!(P(x)).substitute(&|v: &V| {
+            fof!(P(h(y))),
+            fof!(P(x)).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(h(y))
                 } else {
@@ -642,8 +642,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(P(g(g(x)))),
-            formula!(P(x)).substitute(&|v: &V| {
+            fof!(P(g(g(x)))),
+            fof!(P(x)).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(g(g(x)))
                 } else {
@@ -652,8 +652,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(P(y, f(z), y)),
-            formula!(P(x, y, x)).substitute(&|v: &V| {
+            fof!(P(y, f(z), y)),
+            fof!(P(x, y, x)).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(y)
                 } else if *v == v!(y) {
@@ -664,8 +664,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(~{P(h(), z, h())}),
-            formula!(~{P(x, y, x)}).substitute(&|v: &V| {
+            fof!(~{P(h(), z, h())}),
+            fof!(~{P(x, y, x)}).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(h())
                 } else if *v == v!(y) {
@@ -676,8 +676,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({ P(f(g())) } & { Q(h(z)) }),
-            formula!({ P(x) } & { Q(y) }).substitute(&|v: &V| {
+            fof!({ P(f(g())) } & { Q(h(z)) }),
+            fof!({ P(x) } & { Q(y) }).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f(g()))
                 } else if *v == v!(y) {
@@ -688,8 +688,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({ P(f(g())) } | { Q(h(z)) }),
-            formula!({ P(x) } | { Q(y) }).substitute(&|v: &V| {
+            fof!({ P(f(g())) } | { Q(h(z)) }),
+            fof!({ P(x) } | { Q(y) }).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f(g()))
                 } else if *v == v!(y) {
@@ -700,8 +700,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({ P(f()) } -> { Q(g()) }),
-            formula!({ P(x) } -> { Q(y) }).substitute(&|v: &V| {
+            fof!({ P(f()) } -> { Q(g()) }),
+            fof!({ P(x) } -> { Q(y) }).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f())
                 } else if *v == v!(y) {
@@ -712,8 +712,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({P(@a)} -> {Q(@b)}),
-            formula!({P(x)} -> {Q(y)}).substitute(&|v: &V| {
+            fof!({P(@a)} -> {Q(@b)}),
+            fof!({P(x)} -> {Q(y)}).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(@a)
                 } else if *v == v!(y) {
@@ -724,8 +724,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({P(f())} <=> {Q(g())}),
-            formula!({P(x)} <=> {Q(y)}).substitute(&|v: &V| {
+            fof!({P(f())} <=> {Q(g())}),
+            fof!({P(x)} <=> {Q(y)}).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f())
                 } else if *v == v!(y) {
@@ -736,8 +736,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!({P(@a)} <=> {Q(@b)}),
-            formula!({P(x)} <=> {Q(y)}).substitute(&|v: &V| {
+            fof!({P(@a)} <=> {Q(@b)}),
+            fof!({P(x)} <=> {Q(y)}).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(@a)
                 } else if *v == v!(y) {
@@ -748,8 +748,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(? x, y. (P(f(g(y)), y, y))),
-            formula!(? x, y. (P(x, y, z))).substitute(&|v: &V| {
+            fof!(? x, y. (P(f(g(y)), y, y))),
+            fof!(? x, y. (P(x, y, z))).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f(g(y)))
                 } else if *v == v!(z) {
@@ -760,8 +760,8 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(!x, y. (P(f(g(y)), y, y))),
-            formula!(!x, y. (P(x, y, z))).substitute(&|v: &V| {
+            fof!(!x, y. (P(f(g(y)), y, y))),
+            fof!(!x, y. (P(x, y, z))).substitute(&|v: &V| {
                 if *v == v!(x) {
                     term!(f(g(y)))
                 } else if *v == v!(z) {
@@ -772,14 +772,14 @@ mod tests {
             })
         );
         assert_eq!(
-            formula!(
+            fof!(
                 ? x. (
                     (!y. (
                         (P(y)) | ((Q(z)) & (R(z))))
                     ) & (~((z) = (z)))
                 )
             ),
-            formula!(
+            fof!(
                 ? x. (
                     (!y. (
                         (P(x)) | ((Q(y)) & (R(z))))

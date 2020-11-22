@@ -1,15 +1,15 @@
 //! Implements a parser for first-order formulae and theories in Razor's syntax.
 //!
 //! The module provides a parser for first-order formulae by implementing [`FromStr`] for
-//! [`Formula`] and [`Theory`]. The parser is often used implicitly through [`parse`] method.
+//! [`FOF`] and [`Theory`]. The parser is often used implicitly through [`parse`] method.
 //!
 //! **Example**:
-//! The following example parses a string into a [`Formula`]:
+//! The following example parses a string into a [`FOF`]:
 //! ```rust
-//! use razor_fol::syntax::Formula;
+//! use razor_fol::syntax::FOF;
 //!
-//! // parse a string into `Formula`:
-//! let formula: Formula = "exists x. P(x) & Q(x)".parse().unwrap();
+//! // parse a string into `FOF`:
+//! let formula: FOF = "exists x. P(x) & Q(x)".parse().unwrap();
 //!
 //! assert_eq!("∃ x. (P(x) ∧ Q(x))", formula.to_string());
 //! ```
@@ -33,11 +33,11 @@
 //! ∃ x, y, z. ((Eq(x, y) ∧ Eq(y, z)) → Eq(x, z))", theory.to_string());
 //! ```
 //!
-//! [`Formula`]: crate::syntax::Formula
+//! [`FOF`]: crate::syntax::FOF
 //! [`Theory`]: crate::syntax::Theory
 //! [`FromStr`]: std::str::FromStr
 //! [`parse`]: ::std::str#parse
-use super::syntax::{Formula::*, *};
+use super::syntax::{FOF::*, *};
 use core::convert::TryFrom;
 use nom::{types::CompleteStr, *};
 use nom_locate::LocatedSpan;
@@ -288,7 +288,7 @@ named!(p_term<Span, Term>,
     )
 );
 
-named!(p_equals<Span, Formula>,
+named!(p_equals<Span, FOF>,
     do_parse!(left: p_term >>
         tag!(EQUALS) >>
         right: add_return_error!(ErrorKind::Custom(ERR_TERM), p_term) >>
@@ -302,7 +302,7 @@ named!(p_pred<Span, Pred>,
     )
 );
 
-named!(p_atom<Span, Formula>,
+named!(p_atom<Span, FOF>,
     alt!(
         value!(Top, alt!(tag!(TRUE) |  tag!(TOP) | tag!(CHAR_TOP))) |
         value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM) | tag!(CHAR_BOTTOM))) |
@@ -319,7 +319,7 @@ named!(p_atom<Span, Formula>,
     )
 );
 
-named!(p_not<Span, Formula>,
+named!(p_not<Span, FOF>,
     alt!(
         preceded!(
             sp!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
@@ -329,7 +329,7 @@ named!(p_not<Span, Formula>,
     )
 );
 
-named!(p_and<Span, Formula>,
+named!(p_and<Span, FOF>,
     do_parse!(
         first: p_not >>
         second: fold_many0!(
@@ -338,13 +338,13 @@ named!(p_and<Span, Formula>,
                 return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_and | p_quantified))
             ),
             first,
-            |acc: Formula, f| acc.and(f)
+            |acc: FOF, f| acc.and(f)
         ) >>
         (second)
     )
 );
 
-named!(p_or<Span, Formula>,
+named!(p_or<Span, FOF>,
     do_parse!(
         first: p_and >>
         second: fold_many0!(
@@ -353,13 +353,13 @@ named!(p_or<Span, Formula>,
                 return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_or | p_quantified))
             ),
             first,
-            |acc: Formula, f| acc.or(f)
+            |acc: FOF, f| acc.or(f)
         ) >>
         (second)
     )
 );
 
-named!(p_implication<Span, Formula>,
+named!(p_implication<Span, FOF>,
     map!(
         pair!(
             p_or,
@@ -390,7 +390,7 @@ named!(p_implication<Span, Formula>,
     )
 );
 
-named!(p_quantified<Span, Formula>,
+named!(p_quantified<Span, FOF>,
     do_parse!(
         q: sp!(
             alt!(
@@ -411,7 +411,7 @@ named!(p_quantified<Span, Formula>,
     )
 );
 
-named!(p_formula<Span, Formula>,
+named!(p_formula<Span, FOF>,
     alt!(p_quantified | p_implication)
 );
 
@@ -430,7 +430,7 @@ named!(pub theory<Span, Result<Theory, Error>>,
             value!((), sp!(eof!()))
         ),
         |(fs, _)| {
-            let formulae: Vec<Formula> = fs.into_iter()
+            let formulae: Vec<FOF> = fs.into_iter()
                 .filter_map(|f| f)
                 .collect();
             Theory::try_from(formulae).map_err(|e| Error::Syntax{
@@ -476,7 +476,7 @@ fn make_parser_error(error: &Err<Span, u32>) -> Error {
     }
 }
 
-impl FromStr for Formula {
+impl FromStr for FOF {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

@@ -23,7 +23,7 @@ use thiserror::Error;
 pub enum Error {
     /// Is returned when a sequent cannot be constructed from a formula.
     #[error("cannot build sequent from formula `{}`", .formula.to_string())]
-    BadSequentFormula { formula: razor_fol::syntax::Formula },
+    BadSequentFormula { formula: razor_fol::syntax::FOF },
 }
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
@@ -496,12 +496,12 @@ pub enum Literal {
     /// Represents an atomic literal, corresponding to an atomic [`Formula`] of variant [`Atom`].
     ///
     /// [`Formula`]: razor_fol::syntax::Formula
-    /// [`Atom`]: razor_fol::syntax::Formula::Atom
+    /// [`Atom`]: razor_fol::syntax::FOF::Atom
     Atm { predicate: Pred, terms: Vec<Term> },
 
     /// Represents a equality literal, corresponding to an atomic [`Formula`] of variant [`Equals`].
     ///
-    /// [`Equals`]: razor_fol::syntax::Formula::Equals
+    /// [`Equals`]: razor_fol::syntax::FOF::Equals
     Eql { left: Term, right: Term },
 }
 
@@ -509,18 +509,18 @@ impl Literal {
     /// Builds the body of a [`Sequent`] from a [`Formula`].
     ///
     /// [`Formula`]: razor_fol::syntax::Formula
-    fn build_body(formula: &Formula) -> Vec<Literal> {
+    fn build_body(formula: &FOF) -> Vec<Literal> {
         match formula {
-            Formula::Top => vec![],
-            Formula::Atom { predicate, terms } => vec![Literal::Atm {
+            FOF::Top => vec![],
+            FOF::Atom { predicate, terms } => vec![Literal::Atm {
                 predicate: predicate.clone(),
                 terms: terms.to_vec(),
             }],
-            Formula::Equals { left, right } => vec![Literal::Eql {
+            FOF::Equals { left, right } => vec![Literal::Eql {
                 left: left.clone(),
                 right: right.clone(),
             }],
-            Formula::And { left, right } => {
+            FOF::And { left, right } => {
                 let mut left = Literal::build_body(left);
                 let mut right = Literal::build_body(right);
                 left.append(&mut right);
@@ -533,19 +533,19 @@ impl Literal {
     /// Builds the head of a [`Sequent`] from a [`Formula`].
     ///
     /// [`Formula`]: razor_fol::syntax::Formula
-    fn build_head(formula: &Formula) -> Vec<Vec<Literal>> {
+    fn build_head(formula: &FOF) -> Vec<Vec<Literal>> {
         match formula {
-            Formula::Top => vec![vec![]],
-            Formula::Bottom => vec![],
-            Formula::Atom { predicate, terms } => vec![vec![Literal::Atm {
+            FOF::Top => vec![vec![]],
+            FOF::Bottom => vec![],
+            FOF::Atom { predicate, terms } => vec![vec![Literal::Atm {
                 predicate: predicate.clone(),
                 terms: terms.to_vec(),
             }]],
-            Formula::Equals { left, right } => vec![vec![Literal::Eql {
+            FOF::Equals { left, right } => vec![vec![Literal::Eql {
                 left: left.clone(),
                 right: right.clone(),
             }]],
-            Formula::And { left, right } => {
+            FOF::And { left, right } => {
                 let mut left = Literal::build_head(left);
                 let mut right = Literal::build_head(right);
                 if left.is_empty() {
@@ -561,7 +561,7 @@ impl Literal {
                     unreachable!("expecting standard geometric sequent, found `{}`", formula)
                 }
             }
-            Formula::Or { left, right } => {
+            FOF::Or { left, right } => {
                 let mut left = Literal::build_head(left);
                 let mut right = Literal::build_head(right);
                 left.append(&mut right);
@@ -594,12 +594,12 @@ pub struct Sequent {
     /// Is the [`Formula`] from which the body of the sequent is built.
     ///
     /// [`Formula`]: razor_fol::syntax::Formula
-    body: Formula,
+    body: FOF,
 
     /// Is the [`Formula`] from which the head of the sequent is built.
     ///
     /// [`Formula`]: razor_fol::syntax::Formula
-    head: Formula,
+    head: FOF,
 
     /// Represents the body of the sequent as a list of [`Literal`]s. The literals in
     /// `body_literals` are assumed to be conjoined.
@@ -617,12 +617,12 @@ pub struct Sequent {
     pub head_literals: Vec<Vec<Literal>>,
 }
 
-impl TryFrom<&Formula> for Sequent {
+impl TryFrom<&FOF> for Sequent {
     type Error = Error;
 
-    fn try_from(formula: &Formula) -> Result<Self, Self::Error> {
+    fn try_from(formula: &FOF) -> Result<Self, Self::Error> {
         match formula {
-            Formula::Implies { left, right } => {
+            FOF::Implies { left, right } => {
                 let free_vars: Vec<V> = formula.free_vars().into_iter().cloned().collect();
                 let body_literals = Literal::build_body(left);
                 let head_literals = Literal::build_head(right);
@@ -659,11 +659,11 @@ impl fmt::Display for Sequent {
 }
 
 impl SequentTrait for Sequent {
-    fn body(&self) -> Formula {
+    fn body(&self) -> FOF {
         self.body.clone()
     }
 
-    fn head(&self) -> Formula {
+    fn head(&self) -> FOF {
         self.head.clone()
     }
 }

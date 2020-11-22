@@ -19,19 +19,19 @@ pub use relationalize::Relational;
 pub use snf::SNF;
 pub use substitution::{Substitution, TermBased, VariableRenaming};
 
-/// Is the type of errors arising from inconsistencies in the syntax of formulae.
+/// Is the type of errors returned by syntactic transformations.
 #[derive(Error, Debug)]
 pub enum Error {
     /// Is returned when an unsupported operation is performed on an expression.
     #[error("failed to relationalize formula: `{}`", .formula.to_string())]
-    RelationalizeFailure { formula: super::syntax::Formula },
+    RelationalizeFailure { formula: super::syntax::FOF },
 
     #[error("failed on non-variable term: `{}`", .term.to_string())]
     EqualityExpandNonVar { term: super::syntax::Term },
 
     #[error("fialed to expand equality for formula: `{}`", .formula.to_string())]
-    EqualityExpandUnsupported { formula: super::syntax::Formula },
+    EqualityExpandUnsupported { formula: super::syntax::FOF },
 
     #[error("fialed to range restrict formula: `{}`", .formula.to_string())]
-    RangeRestrictUnsupported { formula: super::syntax::Formula },
+    RangeRestrictUnsupported { formula: super::syntax::FOF },
 }

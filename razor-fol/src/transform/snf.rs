@@ -1,33 +1,33 @@
 /*! Implements conversion to Skolem Normal Form (SNF) for formulae.*/
 use super::{TermBased, PNF};
-use crate::syntax::{symbol::Generator, Formula::*, *};
+use crate::syntax::{symbol::Generator, FOF::*, *};
 use std::collections::HashMap;
 
-/// Is a wrapper around [`Formula`] that represents a formula in Skolem Normal Form (SNF).
+/// Is a wrapper around [`FOF`] that represents a formula in Skolem Normal Form (SNF).
 ///
 /// **Hint**: An SNF is a [PNF] with only universal quantifiers
 /// (see: <https://en.wikipedia.org/wiki/Skolem_normal_form>).
 ///
 /// [PNF]: crate::transform::PNF
-/// [`Formula`]: crate::syntax::Formula
+/// [`FOF`]: crate::syntax::FOF
 #[derive(Clone, Debug)]
-pub struct SNF(Formula);
+pub struct SNF(FOF);
 
 impl SNF {
-    /// Returns a reference to the formula wrapped in the receiver SNF.
+    /// Returns a reference to the first-order formula wrapped in the receiver SNF.
     #[inline(always)]
-    pub fn formula(&self) -> &Formula {
+    pub fn formula(&self) -> &FOF {
         &self.0
     }
 }
 
-impl From<SNF> for Formula {
+impl From<SNF> for FOF {
     fn from(snf: SNF) -> Self {
         snf.0
     }
 }
 
-fn helper(formula: Formula, mut skolem_vars: Vec<V>, generator: &mut Generator) -> Formula {
+fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> FOF {
     match formula {
         Forall { variables, formula } => {
             skolem_vars.append(&mut variables.clone());
@@ -57,13 +57,13 @@ impl PNF {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::Formula;
+    /// # use razor_fol::syntax::FOF;
     ///
-    /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
+    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
     /// let pnf = formula.pnf();
     /// let snf = pnf.snf();
     ///
-    /// assert_eq!("P(x, sk#0(x))", Formula::from(snf).to_string());
+    /// assert_eq!("P(x, sk#0(x))", FOF::from(snf).to_string());
     /// ```
     pub fn snf(&self) -> SNF {
         self.snf_with(&mut Generator::new().set_prefix("sk#"))
@@ -78,14 +78,14 @@ impl PNF {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{Formula, symbol::Generator};
+    /// # use razor_fol::syntax::{FOF, symbol::Generator};
     ///
     /// let mut generator = Generator::new().set_prefix("skolem");
-    /// let formula: Formula = "∃ y. P(x, y)".parse().unwrap();
+    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
     /// let pnf = formula.pnf();
     /// let snf = pnf.snf_with(&mut generator);
     ///
-    /// assert_eq!("P(x, skolem0(x))", Formula::from(snf).to_string());
+    /// assert_eq!("P(x, skolem0(x))", FOF::from(snf).to_string());
     /// ```
     pub fn snf_with(&self, generator: &mut Generator) -> SNF {
         let free_vars = self.formula().free_vars().into_iter().cloned().collect();
@@ -96,49 +96,49 @@ impl PNF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{assert_debug_string, formula};
+    use crate::{assert_debug_string, fof};
 
-    fn snf(formula: &Formula) -> Formula {
+    fn snf(formula: &FOF) -> FOF {
         formula.pnf().snf().into()
     }
-    fn snf_with(formula: &Formula, generator: &mut Generator) -> Formula {
+    fn snf_with(formula: &FOF, generator: &mut Generator) -> FOF {
         formula.pnf().snf_with(generator).into()
     }
 
     #[test]
     fn test_snf() {
-        assert_debug_string!("P('sk#0)", snf(&formula!(? x. (P(x)))));
+        assert_debug_string!("P('sk#0)", snf(&fof!(? x. (P(x)))));
 
-        assert_debug_string!("! x. P(x, sk#0(x))", snf(&formula!(!x. (?y. (P(x, y))))));
-        assert_debug_string!("P(x, sk#0(x))", snf(&formula!(?y. (P(x, y)))));
+        assert_debug_string!("! x. P(x, sk#0(x))", snf(&fof!(!x. (?y. (P(x, y))))));
+        assert_debug_string!("P(x, sk#0(x))", snf(&fof!(?y. (P(x, y)))));
         assert_debug_string!(
             "! x. P(x, f(g(sk#0(x)), h(sk#0(x))))",
-            snf(&formula!(!x. (? y. (P(x, f(g(y), h(y))))))),
+            snf(&fof!(!x. (? y. (P(x, f(g(y), h(y))))))),
         );
         assert_debug_string!(
             "('sk#0 = 'sk#1) & ('sk#1 = 'sk#2)",
-            snf(&formula!(? x, y, z. (((x) = (y)) & ((y) = (z))))),
+            snf(&fof!(? x, y, z. (((x) = (y)) & ((y) = (z))))),
         );
         assert_debug_string!(
             "! y. (Q('sk#0, y) | P(sk#1(y), y, sk#2(y)))",
-            snf(&formula!(? x. (! y. ((Q(x, y)) | (? x, z. (P(x, y, z))))))),
+            snf(&fof!(? x. (! y. ((Q(x, y)) | (? x, z. (P(x, y, z))))))),
         );
         assert_debug_string!(
             "! x. (! z. P(x, sk#0(x), z))",
-            snf(&formula!(! x. (? y.( ! z. (P(x, y, z)))))),
+            snf(&fof!(! x. (? y.( ! z. (P(x, y, z)))))),
         );
         assert_debug_string!(
             "! x. (R(g(x)) | R(x, sk#0(x)))",
-            snf(&formula!(! x. ((R(g(x))) | (? y. (R(x, y)))))),
+            snf(&fof!(! x. ((R(g(x))) | (? y. (R(x, y)))))),
         );
         assert_debug_string!(
             "! y. (! z. (! v. P('sk#0, y, z, sk#1(y, z), v, sk#2(y, z, v))))",
-            snf(&formula!(? x. (! y. (! z. (? u. (! v. (? w. (P(x, y, z, u, v, w))))))))),
+            snf(&fof!(? x. (! y. (! z. (? u. (! v. (? w. (P(x, y, z, u, v, w))))))))),
         );
         {
             let mut generator = Generator::new().set_prefix("sk#");
-            assert_debug_string!("P('sk#0)", snf_with(&formula!(? x. (P(x))), &mut generator));
-            assert_debug_string!("Q('sk#1)", snf_with(&formula!(? x. (Q(x))), &mut generator));
+            assert_debug_string!("P('sk#0)", snf_with(&fof!(? x. (P(x))), &mut generator));
+            assert_debug_string!("Q('sk#1)", snf_with(&fof!(? x. (Q(x))), &mut generator));
         }
     }
 }

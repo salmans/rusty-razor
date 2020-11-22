@@ -1,6 +1,6 @@
 /*! Defines the syntax for first-order terms. */
 
-use super::{FApp, Formula, C, F, V};
+use super::{FApp, C, F, FOF, V};
 use std::fmt;
 
 /// Represents a first-order term and consists of variables, constants and function applications.
@@ -72,10 +72,10 @@ impl Term {
 
     /// Returns an [equation] (formula) between the receiver and `term`.
     ///
-    /// [equation]: crate::syntax::Formula::Equals
+    /// [equation]: crate::syntax::FOF::Equals
     ///
-    pub fn equals(self, term: Term) -> Formula {
-        Formula::Equals {
+    pub fn equals(self, term: Term) -> FOF {
+        FOF::Equals {
             left: self,
             right: term,
         }

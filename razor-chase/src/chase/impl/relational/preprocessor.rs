@@ -1,7 +1,7 @@
 use super::{expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
-use razor_fol::syntax::{Formula, Sig, Term, Theory, V};
+use razor_fol::syntax::{Sig, Term, Theory, FOF, V};
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
 /// This is done by the standard conversion to geometric normal form followed by relationalization.
@@ -51,20 +51,20 @@ impl PreProcessorEx for PreProcessor {
 }
 
 // Equality axioms:
-fn equality_axioms() -> Vec<Formula> {
-    use razor_fol::formula;
+fn equality_axioms() -> Vec<FOF> {
+    use razor_fol::fof;
 
     vec![
         // formula!(['|'] -> [(x) = (x)]), // not needed: added automatically for new elements
         // formula!([(x) = (y)] -> [(y) = (x)]), // not needed
-        formula!([{(x) = (y)} & {(y) = (z)}] -> [(x) = (z)]),
+        fof!([{(x) = (y)} & {(y) = (z)}] -> [(x) = (z)]),
     ]
 }
 
 // Function integrity axioms in the form of:
 // 1) 'c = x & 'c = y -> x = y
 // 2) (f(x1, ..., xn) = x) & (f(y1, ..., yn) = y) & x1 = y1 & ... & xn = yn -> x = y
-fn integrity_axioms(sig: &Sig) -> Vec<Formula> {
+fn integrity_axioms(sig: &Sig) -> Vec<FOF> {
     let mut result = Vec::new();
     for c in sig.constants() {
         let x = Term::from(V("x".to_string()));

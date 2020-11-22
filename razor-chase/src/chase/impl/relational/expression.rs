@@ -6,7 +6,7 @@ use super::{
 use codd::expression::{Empty, Expression, Mono, Relation, Singleton};
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{Formula, Pred};
+use razor_fol::syntax::{Formula, Pred, FOF};
 use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -153,7 +153,7 @@ impl<'d> Convertor<'d> {
     /// relational expression attributes.
     pub fn convert(
         &mut self,
-        formula: &Formula,
+        formula: &FOF,
         attributes: &AttributeList,
     ) -> Result<Mono<Tuple>, Error> {
         self.expression(formula, &AttributeList::new(vec![]), attributes)
@@ -242,8 +242,8 @@ impl<'d> Convertor<'d> {
     /// `attrs` is the expected attributes of the resulting subexpression.
     fn and_expression(
         &mut self,
-        left: &Formula,
-        right: &Formula,
+        left: &FOF,
+        right: &FOF,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
@@ -319,8 +319,8 @@ impl<'d> Convertor<'d> {
     /// `attrs` is the expected attributes of the resulting subexpression.
     fn or_expression(
         &mut self,
-        left: &Formula,
-        right: &Formula,
+        left: &FOF,
+        right: &FOF,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
@@ -348,24 +348,24 @@ impl<'d> Convertor<'d> {
     // A helper for `convert`.
     fn expression(
         &mut self,
-        formula: &Formula,
+        formula: &FOF,
         join_attr: &AttributeList,
         final_attr: &AttributeList,
     ) -> Result<SubExpression, Error> {
         match formula {
-            Formula::Bottom => Ok(SubExpression::new(
+            FOF::Bottom => Ok(SubExpression::new(
                 AttributeList::new(vec![]),
                 |t: &Tuple| t.clone(),
                 Mono::from(Empty::new()),
                 RawExpression::Empty,
             )),
-            Formula::Top => Ok(SubExpression::new(
+            FOF::Top => Ok(SubExpression::new(
                 AttributeList::new(vec![]),
                 |t: &Tuple| t.clone(),
                 Mono::from(Singleton::new(vec![])),
                 RawExpression::Full,
             )),
-            Formula::Atom { predicate, .. } => {
+            FOF::Atom { predicate, .. } => {
                 let free_vars = formula.free_vars().into_iter().cloned().collect_vec();
                 let mut sub =
                     self.atomic_expression(predicate, &free_vars, &join_attr, &final_attr)?;
@@ -374,13 +374,13 @@ impl<'d> Convertor<'d> {
                 }
                 Ok(sub)
             }
-            Formula::And { left, right } => {
+            FOF::And { left, right } => {
                 let mut sub = self.and_expression(left, right, join_attr, final_attr)?;
                 self.memoize(&mut sub)?;
                 Ok(sub)
             }
 
-            Formula::Or { left, right } => {
+            FOF::Or { left, right } => {
                 let mut sub = self.or_expression(left, right, join_attr, final_attr)?;
                 self.memoize(&mut sub)?;
                 Ok(sub)
@@ -403,7 +403,7 @@ mod tests {
     use super::*;
     use crate::chase::E;
     use codd::{query, Database, Tuples};
-    use razor_fol::{formula, v};
+    use razor_fol::{fof, v};
     use std::convert::TryFrom;
 
     macro_rules! atts {
@@ -457,7 +457,7 @@ mod tests {
     fn test_atom() {
         let db = setup_database().unwrap();
         {
-            let formula = formula!(P(x));
+            let formula = fof!(P(x));
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x)]))
@@ -472,7 +472,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x)]), result.attributes);
         }
         {
-            let formula = formula!(P(x));
+            let formula = fof!(P(x));
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
@@ -487,7 +487,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x)]), result.attributes);
         }
         {
-            let formula = formula!(Q(x, y));
+            let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(
@@ -510,7 +510,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y)]), result.attributes);
         }
         {
-            let formula = formula!(Q(x, y));
+            let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(
@@ -533,7 +533,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(y), v!(x)]), result.attributes);
         }
         {
-            let formula = formula!(Q(x, y));
+            let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x), v!(x)]))
@@ -555,17 +555,17 @@ mod tests {
 
     #[test]
     fn test_atom_memoized() {
-        test_memo!(formula!(P(x)), atts!(vec![v!(x)]), false);
-        test_memo!(formula!(Q(x, y)), atts!(vec![v!(x), v!(y)]), false);
-        test_memo!(formula!(Q(x, y)), atts!(vec![v!(y), v!(x)]), true);
-        test_memo!(formula!(Q(x, y)), atts!(vec![v!(x), v!(x)]), true);
+        test_memo!(fof!(P(x)), atts!(vec![v!(x)]), false);
+        test_memo!(fof!(Q(x, y)), atts!(vec![v!(x), v!(y)]), false);
+        test_memo!(fof!(Q(x, y)), atts!(vec![v!(y), v!(x)]), true);
+        test_memo!(fof!(Q(x, y)), atts!(vec![v!(x), v!(x)]), true);
     }
 
     #[test]
     fn test_and() -> Result<(), Error> {
         let db = setup_database().unwrap();
         {
-            let formula = formula!([P(x)] & [R(y, z)]);
+            let formula = fof!([P(x)] & [R(y, z)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y), v!(z)]))
@@ -589,7 +589,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y), v!(z)]), result.attributes);
         }
         {
-            let formula = formula!([P(x)] & [R(y, x)]);
+            let formula = fof!([P(x)] & [R(y, x)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
@@ -600,7 +600,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y)]), result.attributes);
         }
         {
-            let formula = formula!([P(x)] & [R(x, y)]);
+            let formula = fof!([P(x)] & [R(x, y)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![v!(y)]), &atts!(vec![v!(x), v!(y)]))
@@ -614,7 +614,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y)]), result.attributes);
         }
         {
-            let formula = formula!([P(x)] & [Q(y, z)]);
+            let formula = fof!([P(x)] & [Q(y, z)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![v!(x), v!(y)]), &atts!([v!(y), v!(x)]))
@@ -638,7 +638,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(y), v!(x)]), result.attributes);
         }
         {
-            let formula = formula!([P(x)] & [Q(y, z)]);
+            let formula = fof!([P(x)] & [Q(y, z)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(
@@ -672,37 +672,21 @@ mod tests {
     #[test]
     fn test_and_memoized() {
         test_memo!(
-            formula!([P(x)] & [R(y, z)]),
+            fof!([P(x)] & [R(y, z)]),
             atts!(vec![v!(x), v!(y), v!(z)]),
             true
         );
-        test_memo!(
-            formula!([P(x)] & [R(y, x)]),
-            atts!(vec![v!(x), v!(y)]),
-            true
-        );
-        test_memo!(
-            formula!([P(x)] & [R(x, y)]),
-            atts!(vec![v!(x), v!(y)]),
-            true
-        );
-        test_memo!(
-            formula!([P(x)] & [Q(y, z)]),
-            atts!(vec![v!(y), v!(x)]),
-            true
-        );
-        test_memo!(
-            formula!([P(x)] & [Q(y, z)]),
-            atts!(vec![v!(x), v!(y)]),
-            true
-        );
+        test_memo!(fof!([P(x)] & [R(y, x)]), atts!(vec![v!(x), v!(y)]), true);
+        test_memo!(fof!([P(x)] & [R(x, y)]), atts!(vec![v!(x), v!(y)]), true);
+        test_memo!(fof!([P(x)] & [Q(y, z)]), atts!(vec![v!(y), v!(x)]), true);
+        test_memo!(fof!([P(x)] & [Q(y, z)]), atts!(vec![v!(x), v!(y)]), true);
     }
 
     #[test]
     fn test_or() -> Result<(), Error> {
         let db = setup_database().unwrap();
         {
-            let formula = formula!([Q(x, y)] | [R(y, x)]);
+            let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
@@ -724,7 +708,7 @@ mod tests {
         }
 
         {
-            let formula = formula!([Q(x, y)] | [R(y, x)]);
+            let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![]), &atts!(vec![v!(y)]))
@@ -750,19 +734,15 @@ mod tests {
 
     #[test]
     fn test_or_memoized() {
-        test_memo!(
-            formula!([Q(x, y)] | [R(y, x)]),
-            atts!(vec![v!(x), v!(y)]),
-            true
-        );
-        test_memo!(formula!([Q(x, y)] | [R(y, x)]), atts!(vec![v!(y)]), true);
+        test_memo!(fof!([Q(x, y)] | [R(y, x)]), atts!(vec![v!(x), v!(y)]), true);
+        test_memo!(fof!([Q(x, y)] | [R(y, x)]), atts!(vec![v!(y)]), true);
     }
 
     #[test]
     fn test_formula() {
         let db = setup_database().unwrap();
         {
-            let formula = formula!({ [P(x)] & [P(x)] } & { P(x) });
+            let formula = fof!({ [P(x)] & [P(x)] } & { P(x) });
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
@@ -776,7 +756,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x)]), result.attributes);
         }
         {
-            let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] });
+            let formula = fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] });
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
@@ -790,7 +770,7 @@ mod tests {
             assert_eq!(atts!(vec![v!(x)]), result.attributes);
         }
         {
-            let formula = formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] });
+            let formula = fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] });
             let mut convertor = Convertor::new();
             let result = convertor
                 .expression(
@@ -822,17 +802,17 @@ mod tests {
     #[test]
     fn test_formula_memoized() {
         test_memo!(
-            formula!({ [P(x)] & [P(x)] } & { P(x) }),
+            fof!({ [P(x)] & [P(x)] } & { P(x) }),
             atts!(vec![v!(x)]),
             true
         );
         test_memo!(
-            formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }),
+            fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }),
             atts!(vec![v!(x)]),
             true
         );
         test_memo!(
-            formula!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }),
+            fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }),
             atts!(vec![v!(y), v!(x), v!(z)]),
             true
         );

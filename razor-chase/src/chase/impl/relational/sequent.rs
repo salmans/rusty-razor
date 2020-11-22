@@ -9,7 +9,7 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{symbol::Generator, Formula, Pred, Term, C, F},
+    syntax::{symbol::Generator, Pred, Term, C, F, FOF},
     transform::relationalize,
 };
 use std::convert::TryFrom;
@@ -65,10 +65,10 @@ pub struct Sequent {
     pub expression: rel_exp::Mono<Tuple>,
 
     /// The body of the implication from which the sequent was made.
-    body_formula: Formula,
+    body_formula: FOF,
 
     /// The head of the implication from which the sequent was made.
-    head_formula: Formula,
+    head_formula: FOF,
 }
 
 impl Sequent {
@@ -90,10 +90,10 @@ impl Sequent {
         &self.attributes
     }
 
-    pub(super) fn new(formula: &Formula, convertor: &mut Convertor) -> Result<Self, Error> {
+    pub(super) fn new(formula: &FOF, convertor: &mut Convertor) -> Result<Self, Error> {
         #[inline]
-        fn implies_parts(formula: &Formula) -> Result<(&Formula, &Formula), Error> {
-            if let Formula::Implies { left, right } = formula {
+        fn implies_parts(formula: &FOF) -> Result<(&FOF, &FOF), Error> {
+            if let FOF::Implies { left, right } = formula {
                 Ok((left, right))
             } else {
                 Err(Error::BadSequentFormula {
@@ -151,17 +151,17 @@ impl Sequent {
 }
 
 impl SequentTrait for Sequent {
-    fn body(&self) -> Formula {
+    fn body(&self) -> FOF {
         self.body_formula.clone()
     }
 
-    fn head(&self) -> Formula {
+    fn head(&self) -> FOF {
         self.head_formula.clone()
     }
 }
 
 // Relationalizes `formula` if possible; otherwise, returns an error.
-fn relationalize(formula: &Formula) -> Result<relationalize::Relational, Error> {
+fn relationalize(formula: &FOF) -> Result<relationalize::Relational, Error> {
     let mut relationalizer = relationalize::Relationalizer::default();
     relationalizer.set_equality_symbol(EQUALITY);
     relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
@@ -185,11 +185,11 @@ fn expand_equality(
     equality_expander.transform(formula).map_err(|e| e.into())
 }
 
-fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
+fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
     match formula {
-        Formula::Top => Ok(vec![vec![]]),
-        Formula::Bottom => Ok(vec![]),
-        Formula::Atom { predicate, terms } => {
+        FOF::Top => Ok(vec![vec![]]),
+        FOF::Bottom => Ok(vec![]),
+        FOF::Atom { predicate, terms } => {
             let mut attributes = Vec::new();
             for term in terms {
                 match term {
@@ -226,7 +226,7 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
                 AttributeList::new(attributes),
             )]])
         }
-        Formula::And { left, right } => {
+        FOF::And { left, right } => {
             let mut left = build_branches(left)?;
             let mut right = build_branches(right)?;
 
@@ -245,7 +245,7 @@ fn build_branches(formula: &Formula) -> Result<Vec<Vec<Atom>>, Error> {
                 })
             }
         }
-        Formula::Or { left, right } => {
+        FOF::Or { left, right } => {
             let mut left = build_branches(left)?;
             let mut right = build_branches(right)?;
             left.append(&mut right);

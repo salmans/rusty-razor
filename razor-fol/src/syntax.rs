@@ -1,5 +1,4 @@
 /*! Defines an abstract syntax tree (AST) for first-order terms and formulae with equality. */
-
 mod formula;
 mod macros;
 mod signature;
@@ -7,7 +6,7 @@ pub mod symbol;
 mod term;
 mod theory;
 
-pub use formula::{exists, forall, not, Formula};
+pub use formula::{exists, forall, not, Formula, FOF};
 pub use signature::Sig;
 pub use symbol::{FApp, Pred, C, EQ_SYM, F, V};
 pub use term::Term;

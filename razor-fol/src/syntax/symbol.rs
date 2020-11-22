@@ -6,7 +6,7 @@
 ['Pred']: crate::syntax::Pred
 */
 
-use super::{Formula, Term};
+use super::{Term, FOF};
 use std::fmt;
 
 /// Represents an uninterpreted function symbol with a given name.
@@ -131,8 +131,8 @@ impl Pred {
     /// on the arity of predicate symbols. The user is expected to assume the arity of the predicate.
     ///
     /// [`Pred`]: crate::syntax::Pred
-    pub fn app(self, terms: Vec<Term>) -> Formula {
-        Formula::Atom {
+    pub fn app(self, terms: Vec<Term>) -> FOF {
+        FOF::Atom {
             predicate: self,
             terms,
         }

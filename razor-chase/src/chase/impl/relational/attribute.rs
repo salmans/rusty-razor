@@ -141,10 +141,11 @@ impl Deref for AttributeList {
     }
 }
 
-impl TryFrom<&syntax::Formula> for AttributeList {
+impl TryFrom<&syntax::FOF> for AttributeList {
     type Error = Error;
 
-    fn try_from(value: &syntax::Formula) -> Result<Self, Self::Error> {
+    fn try_from(value: &syntax::FOF) -> Result<Self, Self::Error> {
+        use syntax::Formula;
         let attributes = value
             .free_vars()
             .into_iter()

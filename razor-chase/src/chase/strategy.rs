@@ -4,7 +4,7 @@
 //!
 //! [`StrategyTrait`]: crate::chase::StrategyTrait
 use crate::chase::{SequentTrait, StrategyTrait};
-use razor_fol::syntax::Formula;
+use razor_fol::syntax::{Formula, FOF};
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
@@ -128,7 +128,7 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait
     fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
         let (initial_sequents, rest) = sequents
             .into_iter()
-            .partition(|s| s.body() == Formula::Top && s.head().free_vars().is_empty());
+            .partition(|s| s.body() == FOF::Top && s.head().free_vars().is_empty());
         Bootstrap {
             initial_sequents,
             strategy: Stg::new(rest),
