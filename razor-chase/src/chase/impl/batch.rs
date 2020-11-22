@@ -7,14 +7,14 @@
 //! evaluating to the elements of the [`Model`]. [`chase::impl::batch::Evaluator`] is the only
 //! different component between [`chase::impl::reference`] and [`chase::impl::batch`].
 //!
-//! [`chase::impl::reference`]: ../reference/index.html
-//! [`Sequent`]: ../basic/struct.Sequent.html
-//! [chase-step]: ../../index.html#chase-step
-//! [`chase::impl::reference::Evaluator`]: ../reference/struct.Evaluator.html
-//! [`Model`]: ../reference/struct.Model.html
-//! [`chase::impl::batch::Evaluator`]: ./struct.Evaluator.html
-//! [`chase::impl::reference`]: ../reference/index.html
-//! [`chase::impl::batch`]: ./index.html
+//! [`chase::impl::reference`]: crate::chase::impl::reference
+//! [`Sequent`]: crate::chase::impl::basic::Sequent
+//! [chase-step]: crate::chase#chase-step
+//! [`chase::impl::reference::Evaluator`]: crate::chase::impl::reference::Evaluator
+//! [`Model`]: crate::chase::impl::reference::Model
+//! [`chase::impl::batch::Evaluator`]: crate::chase::impl::batch::Evaluator
+//! [`chase::impl::reference`]: crate::chase::impl::reference
+//! [`chase::impl::batch`]: crate::chase::impl::batch
 
 use crate::chase::{
     r#impl::{

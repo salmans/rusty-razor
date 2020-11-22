@@ -2,18 +2,18 @@
 //!
 //! The strategies are instances of [`StrategyTrait`].
 //!
-//! [`StrategyTrait`]: ../trait.StrategyTrait.html
+//! [`StrategyTrait`]: crate::chase::StrategyTrait
 use crate::chase::{SequentTrait, StrategyTrait};
 use razor_fol::syntax::Formula;
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
 ///
-/// [sequent]: ../trait.SequentTrait.html
+/// [sequent]: crate::chase::SequentTrait
 pub struct Linear<'s, S: SequentTrait> {
     /// Is the list of all [sequents] in this strategy.
     ///
-    /// [sequents]: ../trait.SequentTrait.html
+    /// [sequents]: crate::chase::SequentTrait
     sequents: Vec<&'s S>,
 
     /// Is an internal index, keeping track of the next sequent to return.
@@ -50,11 +50,11 @@ impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
 /// Avoids starving [sequents] by doing a round robin. The internal state of the
 /// strategy is preserved when cloned; thus, the cloned strategy preserves fairness.
 ///
-/// [sequents]: ../trait.SequentTrait.html
+/// [sequents]: crate::chase::SequentTrait
 pub struct Fair<'s, S: SequentTrait> {
     /// Is the list of all [sequents] in this strategy.
     ///
-    /// [sequents]: ../trait.StrategyTrait.html
+    /// [sequents]: crate::chase::StrategyTrait
     sequents: Vec<&'s S>,
 
     /// Is an internal index, keeping track of the next sequent to return.
@@ -107,18 +107,18 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
 /// Behaves like the [strategy] that it wraps but chooses the initial [sequents] (sequents with
 /// empty body) only once at the beginning.
 ///
-/// [strategy]: ../trait.StrategyTrait.html
-/// [sequents]: ../trait.SequentTrait.html
+/// [strategy]: crate::chase::StrategyTrait
+/// [sequents]: crate::chase::SequentTrait
 #[derive(Clone)]
 pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
     /// Keeps track of the initial [sequents] (sequents with empty body) internally.
     ///
-    /// [sequents]: ../trait.SequentTrait.html
+    /// [sequents]: crate::chase::SequentTrait
     initial_sequents: Vec<&'s S>,
 
     /// Is the underlying [strategy] wrapped inside this instance.
     ///
-    /// [strategy]: ../trait.StrategyTrait.html
+    /// [strategy]: crate::chase::StrategyTrait
     strategy: Stg,
 }
 

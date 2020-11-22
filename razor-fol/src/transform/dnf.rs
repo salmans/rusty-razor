@@ -8,7 +8,7 @@ use crate::syntax::{Formula::*, *};
 /// **Hint**: A DNF is a formula that is a disjunction of zero or more conjuncts. A conjunct
 /// is a conjunction of atomic formulae (including equations).
 ///
-/// [`Formula`]: ../syntax/enum.Formula.html
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct DNF(Formula);
 

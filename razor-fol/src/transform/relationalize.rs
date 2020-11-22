@@ -10,8 +10,7 @@ use std::collections::HashMap;
 /// no function symbol nor constants. [`Relationalizer`] transforms suitable formulae
 /// to a relational form.
 ///
-/// [`Formula`]: ../syntax/enum.Formula.html
-/// [`Relationalizer`]: ./struct.Relationalizer.html
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct Relational(Formula);
 
@@ -29,9 +28,9 @@ impl From<Relational> for Formula {
     }
 }
 
-/// Provides the relationalization algorithm through its [`relationalize`] method.
+/// Provides the relationalization algorithm through the [`transform`] method.
 ///
-/// [`relationalize`]: ./struct.Relationalizer.html#method.relationalize
+/// [`transform`]: Relationalizer::transform()
 pub struct Relationalizer {
     // Is the symbol used to convert equality to a predicate.
     equality_symbol: String,
@@ -336,9 +335,9 @@ impl Default for Relationalizer {
 
 /// Is used to expand implicit equations by replacing variables that appear in more than
 /// one position of a formula with freshly generated variables. The expansion algorithm
-/// is provided by the [`expand_equality`] method.
+/// is provided by the [`transform`] method.
 ///
-/// [`expand_eqaulity`]: ./struct.EqualityExpander.html#method.expand_equality
+/// [`transform`]: EqualityExpander::transform()
 pub struct EqualityExpander {
     // Is the symbol used to convert equality to a predicate.
     equality_symbol: String,

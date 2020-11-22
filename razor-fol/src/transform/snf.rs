@@ -8,9 +8,8 @@ use std::collections::HashMap;
 /// **Hint**: An SNF is a [PNF] with only universal quantifiers
 /// (see: <https://en.wikipedia.org/wiki/Skolem_normal_form>).
 ///
-/// [PNF]: ./enum.Formula.html#method.pnf
-///
-/// [`Formula`]: ../syntax/enum.Formula.html
+/// [PNF]: crate::transform::PNF
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct SNF(Formula);
 
@@ -70,12 +69,12 @@ impl PNF {
         self.snf_with(&mut Generator::new().set_prefix("sk#"))
     }
 
-    /// Is similar to [`Formula::snf`] but uses an existing [`Generator`] to avoid collision
+    /// Is similar to [`PNF::snf`] but uses an existing [`Generator`] to avoid collision
     /// when generating Skolem function names (including Skolem constants).
     ///
     ///
-    /// [`Formula::snf`]: ./enum.Formula.html#method.snf
-    /// [`Generator`]: ../syntax/symbol/struct.Generator.html
+    /// [`PNF::snf`]: crate::transform::PNF::snf()
+    /// [`Generator`]: crate::syntax::symbol::Generator
     ///
     /// **Example**:
     /// ```rust

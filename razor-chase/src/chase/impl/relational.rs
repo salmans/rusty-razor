@@ -1,6 +1,6 @@
 //! Implements [the chase] based on relational algebra.
 //!
-//! [the chase]: ../../index.html#the-chase
+//! [the chase]: crate::chase#the-chase
 //!
 mod attribute;
 mod constants;

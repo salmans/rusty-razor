@@ -8,7 +8,7 @@ Check out Razor's [documentation](https://salmans.github.io/rusty-razor/intro.ht
 
 ## Build
 
-rusty-razor is written in Rust, so you will need [Rust](https://www.rust-lang.org) 1.37.0 or newer to compile it.
+rusty-razor is written in Rust, so you will need [Rust](https://www.rust-lang.org) 1.48.0 or newer to compile it.
 To build rusty-razor:
 
 ```

@@ -7,9 +7,9 @@ use razor_fol::syntax::{Formula, Sig, Term, Theory, V};
 /// This is done by the standard conversion to geometric normal form followed by relationalization.
 /// The empty [`Model`] instance is created by adding all signature symbols to its underlying database.
 ///
-/// [`Sequent`]: ../sequent/struct.Sequent.html
-/// [`Model`]: ../model/struct.Model.html
-/// [`PreProcessorEx`]: ../../../trait.PreProcessorEx.html
+/// [`Sequent`]: crate::chase::impl::relational::Sequent
+/// [`Model`]: crate::chase::impl::relational::Model
+/// [`PreProcessorEx`]: crate::chase::PreProcessorEx
 pub struct PreProcessor {
     memoize: bool,
 }

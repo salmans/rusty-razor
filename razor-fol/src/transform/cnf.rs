@@ -8,7 +8,7 @@ use crate::syntax::{Formula::*, *};
 /// **Hint**: A CNF is a formula that is a conjunction of zero or more clauses. A clause is a
 /// disjunction of atomic formulae (including equations).
 ///
-/// [`Formula`]: ../syntax/enum.Formula.html
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct CNF(Formula);
 

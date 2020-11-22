@@ -2,7 +2,7 @@
 
 /// Creates a [variable] from a given identifier.
 ///
-/// [variable]: syntax/struct.V.html
+/// [variable]: crate::syntax::V
 /// **Example**:
 /// ```rust
 /// # use razor_fol::syntax::V;
@@ -21,7 +21,7 @@ macro_rules! v {
 
 /// Creates a [function symbol] from a given identifier.
 ///
-/// [function symbol]: syntax/struct.F.html
+/// [function symbol]: crate::syntax::F
 /// **Example**:
 /// ```rust
 /// # use razor_fol::syntax::F;
@@ -40,7 +40,7 @@ macro_rules! f {
 
 /// Creates a [constant] from a given identifier.
 ///
-/// [constant]: syntax/struct.C.html
+/// [constant]: crate::syntax::C
 /// **Example**:
 /// ```rust
 /// # use razor_fol::syntax::C;
@@ -59,7 +59,7 @@ macro_rules! c {
 
 /// Creates a [predicate symbol] from a given identifier.
 ///
-/// [predicate symbol]: syntax/struct.Pred.html
+/// [predicate symbol]: crate::syntax::Pred
 /// **Example**:
 /// ```rust
 /// # use razor_fol::syntax::Pred;
@@ -78,7 +78,7 @@ macro_rules! pred {
 
 /// Parses the input tokens into a [term].
 ///
-/// [term]: syntax/enum.Term.html
+/// [term]: crate::syntax::Term
 /// **Example**:
 /// ```rust
 /// # use razor_fol::{syntax::Term, f, v, c};
@@ -127,8 +127,8 @@ macro_rules! term {
 /// Parses the input tokens into a list of [terms].
 /// This macro is primarily used by [`formula!`] to parse term tuples.
 ///
-/// [terms]: syntax/enum.Term.html
-/// [`formula!`]: ./macro.formula.html
+/// [terms]: crate::syntax::Term
+/// [`formula!`]: crate::formula!
 /// **Example**:
 /// ```rust
 /// # use razor_fol::term;
@@ -181,7 +181,7 @@ macro_rules! terms {
 /// 2. Unlike the textual form where constants are preceded by `'`, in the macro input,
 /// constants are preceded by `@`.
 ///
-/// [formula]: syntax/enum.Formula.html
+/// [formula]: crate::syntax::Formula
 /// [compact]: https://salmans.github.io/rusty-razor/syntax/variations.html
 /// **Example**:
 /// ```rust

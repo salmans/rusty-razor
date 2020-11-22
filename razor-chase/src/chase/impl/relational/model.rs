@@ -11,8 +11,8 @@ use std::{collections::HashMap, fmt};
 /// Implements an instance of [`ModelTrait`] with an underlying database.
 /// It uses [`WitnessTerm`] from the basic implementation to represent observations.
 ///
-/// [`ModelTrait`]: ../../trait.ModelTrait.html
-/// [`WitnessTerm`]: ../basic/enum.WitnessTerm.html
+/// [`ModelTrait`]: crate::chase::ModelTrait
+/// [`WitnessTerm`]: crate::chase::impl::basic::WitnessTerm
 pub struct Model {
     /// Is a unique identifier for this model.
     id: u64,

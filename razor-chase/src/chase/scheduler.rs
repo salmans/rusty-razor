@@ -2,7 +2,7 @@
 //!
 //! The schedulers are instances of [`SchedulerTrait`].
 //!
-//! [`SchedulerTrait`]: ../trait.SchedulerTrait.html
+//! [`SchedulerTrait`]: crate::chase::SchedulerTrait
 use crate::chase::{ModelTrait, SchedulerTrait, SequentTrait, StrategyTrait};
 use std::collections::VecDeque;
 
@@ -10,13 +10,9 @@ use std::collections::VecDeque;
 /// contain different implementations where a choice among schedulers is desirable.
 pub enum Dispatch<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item = &'s S>> {
     /// Wraps a [`FIFO`] scheduler, implementing a first-in-first-out algorithm.
-    ///
-    /// [`FIFO`]: ./struct.FIFO.html
     FIFO { scheduler: FIFO<'s, S, M, Stg> },
 
     /// Wraps a [`LIFO`] scheduler, implementing a last-in-first-out algorithm.
-    ///
-    /// [`LIFO`]: ./struct.LIFO.html
     LIFO { scheduler: LIFO<'s, S, M, Stg> },
 }
 
@@ -27,8 +23,6 @@ where
     Stg: StrategyTrait<Item = &'s S>,
 {
     /// Returns a [`FIFO`], wrapped in a `Dispatch` scheduler.
-    ///
-    /// [`FIFO`]: ./struct.FIFO.html
     pub fn new_fifo() -> Self {
         Self::FIFO {
             scheduler: FIFO::new(),
@@ -36,8 +30,6 @@ where
     }
 
     /// Returns a [`LIFO`], wrapped in a `Dispatch` scheduler.
-    ///
-    /// [`LIFO`]: ./struct.LIFO.html
     pub fn new_lifo() -> Self {
         Self::LIFO {
             scheduler: LIFO::new(),
@@ -78,8 +70,8 @@ pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item
     /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
     /// first-in-first-out fashion.
     ///
-    /// [model]: ../trait.ModelTrait.html
-    /// [strategy]: ../trait.StrategyTrait.html
+    /// [model]: crate::chase::ModelTrait
+    /// [strategy]: crate::chase::StrategyTrait
     queue: VecDeque<(M, Stg)>,
 }
 
@@ -131,8 +123,8 @@ pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item
     /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
     /// last-in-first-out fashion.
     ///
-    /// [model]: ../trait.ModelTrait.html
-    /// [strategy]: ../trait.StrategyTrait.html
+    /// [model]: crate::chase::ModelTrait
+    /// [strategy]: crate::chase::StrategyTrait
     queue: VecDeque<(M, Stg)>,
 }
 

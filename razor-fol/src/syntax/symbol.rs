@@ -1,9 +1,9 @@
 /*! Defines the symbols of ['V'], ['C'], ['F'] and ['Pred'] for making terms and formulae.
 
-['V']: ./struct.V.html
-['C']: ./struct.C.html
-['F']: ./struct.F.html
-['Pred']: ./struct.Pred.html
+['V']: crate::syntax::V
+['C']: crate::syntax::C
+['F']: crate::syntax::F
+['Pred']: crate::syntax::Pred
 */
 
 use super::{Formula, Term};
@@ -20,7 +20,7 @@ impl F {
     /// **Note**: the definition of [`F`] does not impose any restrictions on the
     /// arity of function symbols. The user is expected to assume the arity of the function.
     ///
-    /// [`F`]: ./struct.F.html
+    /// [`F`]: crate::syntax::F
     pub fn app<T: FApp>(self, args: Vec<T>) -> T {
         T::apply(self, args)
     }
@@ -53,7 +53,7 @@ impl fmt::Debug for F {
 
 /// Is the trait for types that can be passed to a function of type [`F`] as arguments.
 ///
-/// [`F`]: ./struct.F.html
+/// [`F`]: crate::syntax::F
 ///
 pub trait FApp: Sized {
     /// Builds a composite term by applying `function` on `args` as arguments.
@@ -130,7 +130,7 @@ impl Pred {
     /// **Note**: the definition of [`Pred`] does not impose any restrictions
     /// on the arity of predicate symbols. The user is expected to assume the arity of the predicate.
     ///
-    /// [`Pred`]: ./struct.Pred.html
+    /// [`Pred`]: crate::syntax::Pred
     pub fn app(self, terms: Vec<Term>) -> Formula {
         Formula::Atom {
             predicate: self,
