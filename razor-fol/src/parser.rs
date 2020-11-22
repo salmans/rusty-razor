@@ -1,7 +1,7 @@
 //! Implements a parser for first-order formulae and theories in Razor's syntax.
 //!
 //! The module provides a parser for first-order formulae by implementing [`FromStr`] for
-//! [`Formula`] and [`Theory`]. The parser is often used implicitly through [`str::parse`] method.
+//! [`Formula`] and [`Theory`]. The parser is often used implicitly through [`parse`] method.
 //!
 //! **Example**:
 //! The following example parses a string into a [`Formula`]:
@@ -33,10 +33,10 @@
 //! ∃ x, y, z. ((Eq(x, y) ∧ Eq(y, z)) → Eq(x, z))", theory.to_string());
 //! ```
 //!
-//! [`Formula`]: ../syntax/enum.formula.html
-//! [`Theory`]: ../syntax/struct.theory.html
-//! [`FromStr`]: https://doc.rust-lang.org/stable/core/str/trait.FromStr.html
-//! [`str::parse`]: https://doc.rust-lang.org/stable/std/primitive.str.html#method.parse
+//! [`Formula`]: crate::syntax::Formula
+//! [`Theory`]: crate::syntax::Theory
+//! [`FromStr`]: std::str::FromStr
+//! [`parse`]: ::std::str#parse
 use super::syntax::{Formula::*, *};
 use core::convert::TryFrom;
 use nom::{types::CompleteStr, *};

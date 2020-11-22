@@ -6,7 +6,7 @@ use crate::syntax::{Formula::*, *};
 /// **Hint**: An NNF is a formula where negation is only applied to its atomic (including
 /// equations) sub-formulae.
 ///
-/// [`Formula`]: ../syntax/enum.Formula.html
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct NNF(Formula);
 

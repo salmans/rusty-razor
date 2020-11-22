@@ -11,7 +11,7 @@ use std::cmp::Ordering::Equal;
 /// by Steve Vickers.
 ///
 /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
-/// [`Formula`]: ../syntax/enum.Formula.html
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct GNF(Formula);
 
@@ -210,9 +210,7 @@ fn simplify_dnf(formula: Formula) -> Formula {
 
 impl Theory {
     /// Transforms the given theory to a *geometric theory*, where all formulae are in
-    /// [Geometric Normal Form][gnf] (GNF).
-    ///
-    /// [gnf]: ../../chase/index.html#background
+    /// Geometric Normal Form (GNF).
     ///
     /// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
     /// by Steve Vickers.

@@ -8,7 +8,7 @@ use crate::syntax::{Formula::*, *};
 /// **Hint**: A PNF is a formula with all quantifiers (existential and universal) and bound
 /// variables at the front, followed by a quantifier-free part.
 ///
-/// [`Formula`]: ../syntax/enum.Formula.html
+/// [`Formula`]: crate::syntax::Formula
 #[derive(Clone, Debug)]
 pub struct PNF(Formula);
 

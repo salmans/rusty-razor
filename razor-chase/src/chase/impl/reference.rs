@@ -4,14 +4,11 @@
 //! `chase::impl::reference` is an implementation of the [Chase] that uses references to [`E`]
 //! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a faster
 //! equational reasoning where the information content of a model does not need to be rewritten
-//! ([as in `basic`][basic]) when the model is augmented by an [`Identity`].
+//! when the model is augmented by an [`Identity`].
 //!
-//! [Chase]: ../../index.html#the-chase
-//! [`E`]: ../../struct.E.html
-//! [`Element`]: ./struct.Element.html
-//! [`Model`]: ./struct.Model.html
-//! [`Identity`]: ../../enum.Observation.html#variant.Identity
-//! [basic]: ../basic/struct.Model.html#method.reduce_rewrites
+//! [Chase]: crate::chase#the-chase
+//! [`E`]: crate::chase::E
+//! [`Identity`]: crate::chase::Observation::Identity
 use crate::chase::{
     r#impl::basic, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation,
     PreProcessorEx, Rel, StrategyTrait, WitnessTermTrait, E,
@@ -33,10 +30,8 @@ use std::{
 /// Wraps a reference to [`E`] as the underlying [`ElementType`] of [`WitnessTerm`], used in the
 /// implementation of [`Model`].
 ///
-/// [`E`]: ../../struct.E.html
-/// [`ElementType`]: ../../trait.WitnessTermTrait.html#associatedtype.ElementType
-/// [`WitnessTerm`]: ./enum.WitnessTerm.html
-/// [`Model`]: ./struct.Model.html
+/// [`E`]: crate::chase::E
+/// [`ElementType`]: crate::chase::WitnessTermTrait::ElementType
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Element(Rc<Cell<E>>);
 
@@ -47,8 +42,7 @@ impl Element {
     /// **Note**: `deep_copy` is used when cloning a [`Model`] since identifying two elements in the
     /// cloned model should not affect the original model and vise versa.
     ///
-    /// [`E`]: ../../struct.E.html
-    /// [`Model`]: ./struct.Model.html
+    /// [`E`]: crate::chase::E
     fn deep_clone(&self) -> Self {
         Element::from(self.get())
     }
@@ -85,26 +79,22 @@ impl fmt::Debug for Element {
 /// Implements [`WitnessTermTrait`], with [`Element`] as the [`ElementType`] and serves as witness
 /// terms for [`Model`].
 ///
-/// [`WitnessTermTrait`]: ../../trait.WitnessTermTrait.html
-/// [`Element`]: ./struct.Element.html
-/// [`ElementType`]: ../../trait.WitnessTermTrait.html#associatedtype.ElementType
-/// [`Model`]: ./struct.Model.html
+/// [`WitnessTermTrait`]: crate::chase::WitnessTermTrait
+/// [`ElementType`]: crate::chase::WitnessTermTrait::ElementType
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
     /// Wraps an instance of [`Element`], witnessing itself.
-    ///
-    /// [`Element`]: ./struct.Element.html
     Elem { element: Element },
 
     /// Wraps an instance of [`C`] as a witness term.
     ///
-    /// [`C`]: ../../../formula/syntax/struct.C.html
+    /// [`C`]: razor_fol::syntax::C
     Const { constant: C },
 
     /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
     /// witness terms.
     ///
-    /// [`F`]: ../../../formula/syntax/struct.F.html
+    /// [`F`]: razor_fol::syntax::F
     App {
         function: F,
         terms: Vec<WitnessTerm>,
@@ -114,9 +104,6 @@ pub enum WitnessTerm {
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    ///
-    /// [`WitnessTerm`]: ./enum.WitnessTerm.html
-    /// [`Model`]: ./struct.Model.html
     pub fn witness(term: &Term, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
         match term {
             Term::Const { constant } => WitnessTerm::Const {
@@ -177,10 +164,8 @@ impl FApp for WitnessTerm {
 /// Is an instance of [`ModelTrait`] with terms of type [`WitnessTerm`], using references to [`E`]
 /// wrapped in objects of type [`Element`] for efficient equational reasoning.
 ///
-/// [`ModelTrait`]: ../../trait.ModelTrait.html
-/// [`WitnessTerm`]: ./enum.WitnessTerm.html
-/// [`E`]: ../../struct.E.html
-/// [`Element`]: ./struct.Element.html
+/// [`ModelTrait`]: crate::chase::ModelTrait
+/// [`E`]: crate::chase::E
 pub struct Model {
     /// Is a unique identifier for this model.
     id: u64,
@@ -213,8 +198,8 @@ pub struct Model {
     /// the time a model is being augmented in a [chase-step]. `equality_history` in a model becomes
     /// outdated after the [chase-step] ends.
     ///
-    /// [observations]: ../../enum.Observation.html
-    /// [chase-step]: ../../index.html#chase-step
+    /// [observations]: crate::chase::Observation
+    /// [chase-step]: crate::chase#chase-step
     equality_history: HashMap<Element, Element>,
 }
 
@@ -529,7 +514,7 @@ impl fmt::Display for Model {
 
 /// Is the [preprocessor] instance for this implementation.
 ///
-/// [preprocessor]: ../../trait.PreProcessorEx.html
+/// [preprocessor]: crate::chase::PreProcessorEx
 pub struct PreProcessor;
 
 impl PreProcessorEx for PreProcessor {
@@ -553,9 +538,7 @@ impl PreProcessorEx for PreProcessor {
 
 /// Evaluates a [`Sequent`] in a [`Model`] within a [chase-step].
 ///
-/// [`Sequent`]: ./struct.Sequent.html
-/// [`Model`]: ./struct.Model.html
-/// [chase-step]: ../../index.html#chase-step
+/// [chase-step]: crate::chase#chase-step
 pub struct Evaluator;
 
 impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
@@ -728,18 +711,18 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 ///
 /// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
 ///
-/// [`basic::Sequent`]: ../basic/struct.Sequent.html
-/// [`chase::impl::reference`]: ./index.html
-/// [`chase::impl::basic`]: ../basic/index.html
+/// [`basic::Sequent`]: crate::chase::impl::basic::Sequent
+/// [`chase::impl::reference`]: crate::chase::impl::reference
+/// [`chase::impl::basic`]: crate::chase::impl::basic
 pub type Sequent = basic::Sequent;
 
 /// Is a type synonym for [`basic::Literal`].
 ///
 /// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
 ///
-/// [`basic::Literal`]: ../basic/struct.Literal.html
-/// [`chase::impl::reference`]: ./index.html
-/// [`chase::impl::basic`]: ../basic/index.html
+/// [`basic::Literal`]: crate::chase::impl::basic::Literal
+/// [`chase::impl::reference`]: crate::chase::impl::reference
+/// [`chase::impl::basic`]: crate::chase::impl::basic
 pub type Literal = basic::Literal;
 
 #[cfg(test)]

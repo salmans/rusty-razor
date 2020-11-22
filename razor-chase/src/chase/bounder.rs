@@ -2,17 +2,17 @@
 //!
 //! The bounders are instances of [`BounderTrait`].
 //!
-//! [`BounderTrait`]: ../trait.BounderTrait.html
+//! [`BounderTrait`]: crate::chase::BounderTrait
 use crate::chase::{BounderTrait, ModelTrait, Observation, WitnessTermTrait};
 
 /// Bounds the size of a [model] by the number of elements in its [domain].
 ///
-/// [model]: ../trait.ModelTrait.html
-/// [domain]: ../trait.ModelTrait.html#tymethod.domain
+/// [model]: crate::chase::ModelTrait
+/// [domain]: crate::chase::ModelTrait::domain()
 pub struct DomainSize {
     /// Is the maximum size of the [domain] of elements for models accepted by this bounder.
     ///
-    /// [domain]: ../trait.ModelTrait.html#tymethod.domain
+    /// [domain]: crate::chase::ModelTrait::domain()
     max_domain_size: usize,
 }
 

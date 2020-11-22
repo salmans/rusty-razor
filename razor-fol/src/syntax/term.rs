@@ -8,12 +8,12 @@ use std::fmt;
 pub enum Term {
     /// Is a variable term, wrapping a [variable symbol].
     ///
-    /// [variable symbol]: ./struct.V.html
+    /// [variable symbol]: crate::syntax::V
     Var { variable: V },
 
     /// Is a constant term, wrapping a [constant symbol].
     ///
-    /// [constant symbol]: ./struct.C.html
+    /// [constant symbol]: crate::syntax::C
     Const { constant: C },
 
     /// Is a composite term, made by applying a `function` on a list of `terms`.
@@ -72,7 +72,7 @@ impl Term {
 
     /// Returns an [equation] (formula) between the receiver and `term`.
     ///
-    /// [equation]: ./enum.Formula.html#variant.Equals
+    /// [equation]: crate::syntax::Formula::Equals
     ///
     pub fn equals(self, term: Term) -> Formula {
         Formula::Equals {

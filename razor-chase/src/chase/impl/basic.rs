@@ -5,7 +5,7 @@
 //!
 //! **Note**: The performance of `chase::impl::basic` is not a concern.
 //!
-//! [Chase]: ../../index.html#the-chase
+//! [Chase]: crate::chase#the-chase
 //!
 use crate::chase::*;
 use either::Either;
@@ -29,33 +29,30 @@ pub enum Error {
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
 /// [`E`].
 ///
-/// [`WitnessTermTrait`]: ../../trait.WitnessTermTrait.html
-/// [`E`]: ../../struct.E.html
+/// [`WitnessTermTrait`]: crate::chase::WitnessTermTrait
+/// [`E`]: crate::chase::E
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
     /// Wraps an instance of [`E`], witnessing itself.
     ///
-    /// [`E`]: ../../struct.E.html
+    /// [`E`]: crate::chase::E
     Elem { element: E },
 
     /// Wraps an instance of [`C`] as a witness term.
     ///
-    /// [`C`]: ../../../formula/syntax/struct.C.html
+    /// [`C`]: razor_fol::syntax::C
     Const { constant: C },
 
     /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
     /// witness terms.
     ///
-    /// [`F`]: ../../../formula/syntax/struct.F.html
+    /// [`F`]: razor_fol::syntax::F
     App { function: F, terms: Vec<Self> },
 }
 
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    ///
-    /// [`WitnessTerm`]: ./enum.WitnessTerm.html
-    /// [`Model`]: ./struct.Model.html
     fn witness(term: &Term, assign: &impl Fn(&V) -> E) -> Self {
         match term {
             Term::Const { constant } => Self::Const {
@@ -130,8 +127,7 @@ impl FApp for WitnessTerm {
 
 /// Is a basic instance of [`ModelTrait`] with terms of type [`WitnessTerm`].
 ///
-/// [`ModelTrait`]: ../../trait.ModelTrait.html
-/// [`WitnessTerm`]: ./enum.WitnessTerm.html
+/// [`ModelTrait`]: crate::chase::ModelTrait
 pub struct Model {
     /// Is a unique identifier for this model.
     id: u64,
@@ -161,8 +157,8 @@ pub struct Model {
     /// the time a model is being augmented in a [chase-step]. `equality_history` in a model becomes
     /// outdated after the [chase-step] ends.
     ///
-    /// [observations]: ../../enum.Observation.html
-    /// [chase-step]: ../../index.html#chase-step
+    /// [observations]: crate::chase::Observation
+    /// [chase-step]: crate::chase#chase-step
     equality_history: HashMap<E, E>,
 }
 
@@ -274,8 +270,8 @@ impl Model {
     /// side of the identity (i.e., the element denoted by one [witness term]) with the other
     /// one.
     ///
-    /// [`Observation`]: ../../enum.Observation.html
-    /// [witness term]: ../../trait.WitnessTermTrait.html
+    /// [`Observation`]: crate::chase::Observation
+    /// [witness term]: crate::chase::WitnessTermTrait
     fn reduce_rewrites(&mut self, from: &E, to: &E) {
         let mut new_rewrite: HashMap<WitnessTerm, E> = HashMap::new();
         self.rewrites.iter().for_each(|(k, v)| {
@@ -314,8 +310,8 @@ impl Model {
     /// side of the identity (i.e., the element corresponding to its [witness term]) with the other
     /// one.
     ///
-    /// [`Observation`]: ../../enum.Observation.html
-    /// [witness term]: ../../trait.WitnessTermTrait.html
+    /// [`Observation`]: crate::chase::Observation
+    /// [witness term]: crate::chase::WitnessTermTrait
     fn reduce_facts(&mut self, from: &E, to: &E) {
         self.facts = self
             .facts
@@ -495,28 +491,24 @@ impl fmt::Display for Model {
 }
 
 /// Represents atomic formulae in [`Sequent`].
-///
-/// [`Sequent`]: ./struct.Sequent.html
 #[derive(Clone)]
 pub enum Literal {
     /// Represents an atomic literal, corresponding to an atomic [`Formula`] of variant [`Atom`].
     ///
-    /// [`Formula`]: ../../../formula/syntax/enum.Formula.html
-    /// [`Atom`]: ../../../formula/syntax/enum.Formula.html#variant.Atom
+    /// [`Formula`]: razor_fol::syntax::Formula
+    /// [`Atom`]: razor_fol::syntax::Formula::Atom
     Atm { predicate: Pred, terms: Vec<Term> },
 
     /// Represents a equality literal, corresponding to an atomic [`Formula`] of variant [`Equals`].
     ///
-    /// [`Equals`]: ../../../formula/syntax/enum.Formula.html#variant.Equals
+    /// [`Equals`]: razor_fol::syntax::Formula::Equals
     Eql { left: Term, right: Term },
 }
 
 impl Literal {
-    /// Builds the [body] of a [`Sequent`] from a [`Formula`].
+    /// Builds the body of a [`Sequent`] from a [`Formula`].
     ///
-    /// [`Sequent`]: ./struct.Sequent.html
-    /// [body]: ./struct.Sequent.html#structfield.body_literals
-    /// [`Formula`]: ../../../formula/syntax/enum.Formula.html
+    /// [`Formula`]: razor_fol::syntax::Formula
     fn build_body(formula: &Formula) -> Vec<Literal> {
         match formula {
             Formula::Top => vec![],
@@ -538,11 +530,9 @@ impl Literal {
         }
     }
 
-    /// Builds the [head] of a [`Sequent`] from a [`Formula`].
+    /// Builds the head of a [`Sequent`] from a [`Formula`].
     ///
-    /// [`Sequent`]: ./struct.Sequent.html
-    /// [head]: ./struct.Sequent.html#structfield.head_literals
-    /// [`Formula`]: ../../../formula/syntax/enum.Formula.html
+    /// [`Formula`]: razor_fol::syntax::Formula
     fn build_head(formula: &Formula) -> Vec<Vec<Literal>> {
         match formula {
             Formula::Top => vec![vec![]],
@@ -596,8 +586,6 @@ impl<'t> fmt::Display for Literal {
 
 /// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
 /// head.
-///
-/// [`Literal`]: ./enum.Literal.html
 #[derive(Clone)]
 pub struct Sequent {
     /// Is the list of free variables in the sequent and is used for memoization.
@@ -605,20 +593,18 @@ pub struct Sequent {
 
     /// Is the [`Formula`] from which the body of the sequent is built.
     ///
-    /// [`Formula`]: ../../../formula/syntax/enum.Formula.html
+    /// [`Formula`]: razor_fol::syntax::Formula
     body: Formula,
 
     /// Is the [`Formula`] from which the head of the sequent is built.
     ///
-    /// [`Formula`]: ../../../formula/syntax/enum.Formula.html
+    /// [`Formula`]: razor_fol::syntax::Formula
     head: Formula,
 
     /// Represents the body of the sequent as a list of [`Literal`]s. The literals in
     /// `body_literals` are assumed to be conjoined.
     ///
-    /// [`Literal`]: ./enum.Literal.html
-    ///
-    /// **Note**: See [here](../../index.html#background) for more information about the structure
+    /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
     pub body_literals: Vec<Literal>,
 
@@ -626,9 +612,7 @@ pub struct Sequent {
     /// each sublist of `head_literals` are assumed to be conjoined where the sublists are
     /// disjointed with each other.
     ///
-    /// [`Literal`]: ./enum.Literal.html
-    ///
-    /// **Note**: See [here](../../index.html#background) for more information about the structure
+    /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
     pub head_literals: Vec<Vec<Literal>>,
 }
@@ -687,9 +671,7 @@ impl SequentTrait for Sequent {
 /// A simple instance of [`PreProcessorEx`] that converts the input theory to a vector of [`Sequent`] following
 /// the standard conversion to geometric normal form. Also provides the empty [`Model`];
 ///
-/// [`Sequent`]: ./struct.Sequent.html
-/// [`Model`]: ./struct.Model.html
-/// [`PreProcessorEx`]: ../../trait.PreProcessorEx.html
+/// [`PreProcessorEx`]: crate::chase::PreProcessorEx
 pub struct PreProcessor;
 
 impl PreProcessorEx for PreProcessor {
@@ -714,10 +696,8 @@ impl PreProcessorEx for PreProcessor {
 /// Is a reference implementation of [`EvaluatorTrait`] for evaluating a basic [`Sequent`] in a basic [`Model`]
 /// within a [chase-step].
 ///
-/// [`EvaluatorTrait`]: ../../trait.EvaluatorTrait.html
-/// [`Sequent`]: ./struct.Sequent.html
-/// [`Model`]: ./struct.Model.html
-/// [chase-step]: ../../index.html#chase-step
+/// [`EvaluatorTrait`]: crate::chase::EvaluatorTrait
+/// [chase-step]: crate::chase#chase-step
 pub struct Evaluator;
 
 impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>

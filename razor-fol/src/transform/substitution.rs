@@ -7,14 +7,14 @@ use std::collections::HashMap;
 pub trait Substitution {
     /// Maps `v` to a [`Term`].
     ///
-    /// [`Term`]: ../syntax/enum.Term.html
+    /// [`Term`]: crate::syntax::Term
     fn apply(&self, v: &V) -> Term;
 }
 
 /// Any function from [`V`] to [`Term`] is a substitution.
 ///
-/// [`V`]: ../syntax/struct.V.html
-/// [`Term`]: ../syntax/enum.Term.html
+/// [`V`]: crate::syntax::V
+/// [`Term`]: crate::syntax::Term
 impl<F> Substitution for F
 where
     F: Fn(&V) -> Term,
@@ -26,8 +26,8 @@ where
 
 /// Any map from [`V`] to [`Term`] is a substitution.
 ///
-/// [`V`]: ../syntax/struct.V.html
-/// [`Term`]: ../syntax/enum.Term.html
+/// [`V`]: crate::syntax::V
+/// [`Term`]: crate::syntax::Term
 impl Substitution for HashMap<&V, Term> {
     fn apply(&self, v: &V) -> Term {
         self.get(v).cloned().unwrap_or_else(|| v.clone().into())
@@ -38,18 +38,18 @@ impl Substitution for HashMap<&V, Term> {
 ///
 /// **Note**: A variable renaming may be regarded as a special case of [`Substitution`].
 ///
-/// [`Substitution`]: ../transform/trait.Substitution.html
+/// [`Substitution`]: crate::transform::Substitution
 pub trait VariableRenaming {
     /// Maps `v` to another [`V`].
     ///
-    /// [`V`]: ../syntax/struct.V.html
+    /// [`V`]: crate::syntax::V
     fn apply(&self, v: &V) -> V;
 }
 
 /// Any function from [`V`] to [`Term`] is a variable renaming.
 ///
-/// [`V`]: ../syntax/struct.V.html
-/// [`Term`]: ../syntax/enum.Term.html
+/// [`V`]: crate::syntax::V
+/// [`Term`]: crate::syntax::Term
 impl<F> VariableRenaming for F
 where
     F: Fn(&V) -> V,
@@ -61,8 +61,8 @@ where
 
 /// Any map from [`V`] to [`Term`] is a variable renaming.
 ///
-/// [`V`]: ../syntax/struct.V.html
-/// [`Term`]: ../syntax/enum.Term.html
+/// [`V`]: crate::syntax::V
+/// [`Term`]: crate::syntax::Term
 impl VariableRenaming for HashMap<&V, V> {
     fn apply(&self, v: &V) -> V {
         self.get(v).cloned().unwrap_or_else(|| v.clone())
@@ -71,16 +71,16 @@ impl VariableRenaming for HashMap<&V, V> {
 
 /// Is the trait of objects constructed atop [`Term`]s.
 ///
-/// [`Term`]: ../syntax/enum.Term.html
+/// [`Term`]: crate::syntax::Term
 pub trait TermBased {
     /// Applies a transformation function `f` on the [`Term`]s of the receiver.
     ///
-    /// [`Term`]: ../syntax/enum.Term.html
+    /// [`Term`]: crate::syntax::Term
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self;
 
     /// Applies a [`VariableRenaming`] on the variable sub-terms of the receiver.
     ///
-    /// [`VariableRenaming`]: ../transform/trait.VariableRenaming.html
+    /// [`VariableRenaming`]: crate::transform::VariableRenaming
     /// **Example**:
     /// ```rust
     /// # use razor_fol::{syntax::{V, C, F, Term}, term};
@@ -114,7 +114,7 @@ pub trait TermBased {
 
     /// Applies a [`Substitution`] on the variable sub-terms of the receiver.
     ///
-    /// [`Substitution`]: ../transform/trait.Substitution.html
+    /// [`Substitution`]: crate::transform::Substitution
     /// **Example**:
     /// ```rust
     /// # use razor_fol::{syntax::{V, C, F, Term}, term};
@@ -194,7 +194,7 @@ impl TermBased for Formula {
     /// **Note**: Applies a [`VariableRenaming`] on the **free** variables of the formula, keeping
     /// the bound variables unchanged.
     ///
-    /// [`VariableRenaming`]: ../transform/trait.VariableRenaming.html
+    /// [`VariableRenaming`]: crate::transform::VariableRenaming
     fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
         // this does not rename bound variables of the formula
         self.transform(&|t: &Term| t.rename_vars(renaming))
@@ -203,7 +203,7 @@ impl TermBased for Formula {
     /// **Note**: Applies a [`Substitution`] on the **free** variables of the formula, keeping the
     /// bound variables unchanged.
     ///
-    /// [`Substitution`]: ../transform/trait.Substitution.html
+    /// [`Substitution`]: crate::transform::Substitution
     fn substitute(&self, substitution: &impl Substitution) -> Self {
         self.transform(&|t: &Term| t.substitute(substitution))
     }

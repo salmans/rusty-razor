@@ -1,6 +1,6 @@
 /*! Defines a ['Sig'] to represent the signature of first-order theories.
 
-['Sig']: ./struct.Sig.html
+['Sig']: crate::syntax::Sig
 */
 use super::{Error, Formula, Pred, Term, C, EQ_SYM, F};
 use core::convert::TryFrom;
