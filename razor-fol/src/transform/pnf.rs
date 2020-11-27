@@ -71,81 +71,89 @@ fn pnf(formula: &FOF) -> FOF {
     match formula {
         Top | Bottom | Atom { .. } | Equals { .. } => formula.clone(),
         // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
-        Not { formula: fmla } => match pnf(fmla) {
-            Forall { variables, formula } => exists(variables, pnf(&not(*formula))),
-            Exists { variables, formula } => forall(variables, pnf(&not(*formula))),
+        Not(this) => match pnf(this.formula()) {
+            Forall(forall) => exists(
+                forall.variables().to_vec(),
+                pnf(&not(forall.formula().clone())),
+            ),
+            Exists(exists) => forall(
+                exists.variables().to_vec(),
+                pnf(&not(exists.formula().clone())),
+            ),
             f => not(f),
         },
         // e.g. (Q x. F(x)) & G(y) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
-        And { left, right } => {
-            let left = pnf(left);
-            let right = pnf(right);
+        And(this) => {
+            let left = pnf(this.left());
+            let right = pnf(this.right());
 
-            if let Forall { variables, formula } = left {
-                let (vars, fmla) = binary_helper(&variables, &formula, &right);
+            if let Forall(f) = left {
+                let (vars, fmla) = binary_helper(&f.variables(), f.formula(), &right);
                 pnf(&forall(vars, fmla.and(right)))
-            } else if let Exists { variables, formula } = left {
-                let (vars, fmla) = binary_helper(&variables, &formula, &right);
+            } else if let Exists(e) = left {
+                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &right);
                 pnf(&exists(vars, fmla.and(right)))
-            } else if let Forall { variables, formula } = right {
-                let (vars, fmla) = binary_helper(&variables, &formula, &left);
+            } else if let Forall(f) = right {
+                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &left);
                 pnf(&forall(vars, left.and(fmla)))
-            } else if let Exists { variables, formula } = right {
-                let (vars, fmla) = binary_helper(&variables, &formula, &left);
+            } else if let Exists(e) = right {
+                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &left);
                 pnf(&exists(vars, left.and(fmla)))
             } else {
                 left.and(right)
             }
         }
         // e.g. (Q x. F(x)) | G(y) => Q x'. F(x') | G(y) or F(x) | (Q y. G(y)) => Q y'. F(x) | G(y')
-        Or { left, right } => {
-            let left = pnf(left);
-            let right = pnf(right);
+        Or(this) => {
+            let left = pnf(this.left());
+            let right = pnf(this.right());
 
-            if let Forall { variables, formula } = left {
-                let (vars, fmla) = binary_helper(&variables, &formula, &right);
+            if let Forall(f) = left {
+                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &right);
                 pnf(&forall(vars, fmla.or(right)))
-            } else if let Exists { variables, formula } = left {
-                let (vars, fmla) = binary_helper(&variables, &formula, &right);
+            } else if let Exists(e) = left {
+                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &right);
                 pnf(&exists(vars, fmla.or(right)))
-            } else if let Forall { variables, formula } = right {
-                let (vars, fmla) = binary_helper(&variables, &formula, &left);
+            } else if let Forall(f) = right {
+                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &left);
                 pnf(&forall(vars, left.or(fmla)))
-            } else if let Exists { variables, formula } = right {
-                let (vars, fmla) = binary_helper(&variables, &formula, &left);
+            } else if let Exists(e) = right {
+                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &left);
                 pnf(&exists(vars, left.or(fmla)))
             } else {
                 left.or(right)
             }
         }
         // e.g. (Q x. F(x)) -> G(y) => Q' x'. F(x') -> G(y) or F(x) -> (Q y. G(y)) => Q' y'. F(x) -> G(y')
-        Implies { left, right } => {
-            let left = pnf(left);
-            let right = pnf(right);
+        Implies(this) => {
+            let left = pnf(this.premise());
+            let right = pnf(this.consequence());
 
-            if let Forall { variables, formula } = left {
-                let (vars, fmla) = binary_helper(&variables, &formula, &right);
+            if let Forall(f) = left {
+                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &right);
                 pnf(&exists(vars, fmla.implies(right)))
-            } else if let Exists { variables, formula } = left {
-                let (vars, fmla) = binary_helper(&variables, &formula, &right);
+            } else if let Exists(e) = left {
+                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &right);
                 pnf(&forall(vars, fmla.implies(right)))
-            } else if let Forall { variables, formula } = right {
-                let (vars, fmla) = binary_helper(&variables, &formula, &left);
+            } else if let Forall(f) = right {
+                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &left);
                 pnf(&forall(vars, left.implies(fmla)))
-            } else if let Exists { variables, formula } = right {
-                let (vars, fmla) = binary_helper(&variables, &formula, &left);
+            } else if let Exists(e) = right {
+                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &left);
                 pnf(&exists(vars, left.implies(fmla)))
             } else {
                 left.implies(right)
             }
         }
-        Iff { left, right } => {
-            let left_to_right = left.clone().implies(*right.clone());
-            let right_to_left = right.clone().implies(*left.clone());
+        Iff(this) => {
+            let left = this.left();
+            let right = this.right();
+            let left_to_right = left.clone().implies(right.clone());
+            let right_to_left = right.clone().implies(left.clone());
             pnf(&left_to_right.and(right_to_left))
         }
-        Exists { variables, formula } => exists(variables.clone(), pnf(&formula)),
-        Forall { variables, formula } => forall(variables.clone(), pnf(&formula)),
+        Exists(this) => exists(this.variables().to_vec(), pnf(this.formula())),
+        Forall(this) => forall(this.variables().to_vec(), pnf(this.formula())),
     }
 }
 

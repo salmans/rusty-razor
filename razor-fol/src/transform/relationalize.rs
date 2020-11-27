@@ -135,9 +135,10 @@ impl Relationalizer {
     fn flatten_formula(&mut self, formula: &FOF) -> Result<FOF, Error> {
         match formula {
             FOF::Top | FOF::Bottom => Ok(formula.clone()),
-            FOF::Atom { predicate, terms } => {
+            FOF::Atom(this) => {
                 let mut conjuncts = vec![];
-                let new_terms = terms
+                let new_terms = this
+                    .terms()
                     .iter()
                     .map(|t| {
                         self.flatten_term(t)
@@ -149,7 +150,7 @@ impl Relationalizer {
                     })
                     .collect::<Vec<_>>();
 
-                let fmla = predicate.clone().app(new_terms);
+                let fmla = this.predicate().clone().app(new_terms);
                 // Preserving the topological order among variables:
                 if !conjuncts.is_empty() {
                     let mut iter = conjuncts.into_iter();
@@ -160,17 +161,18 @@ impl Relationalizer {
                     Ok(fmla)
                 }
             }
-            FOF::Equals { left, right } => self.flatten_formula(
-                &Pred(self.equality_symbol.clone()).app(vec![left.clone(), right.clone()]),
+            FOF::Equals(this) => self.flatten_formula(
+                &Pred(self.equality_symbol.clone())
+                    .app(vec![this.left().clone(), this.right().clone()]),
             ),
-            FOF::And { left, right } => {
-                let left = self.flatten_formula(left)?;
-                let right = self.flatten_formula(right)?;
+            FOF::And(this) => {
+                let left = self.flatten_formula(this.left())?;
+                let right = self.flatten_formula(this.right())?;
                 Ok(left.and(right))
             }
-            FOF::Or { left, right } => {
-                let left = self.flatten_formula(left)?;
-                let right = self.flatten_formula(right)?;
+            FOF::Or(this) => {
+                let left = self.flatten_formula(this.left())?;
+                let right = self.flatten_formula(this.right())?;
                 Ok(left.or(right))
             }
             _ => Err(Error::RelationalizeFailure {
@@ -254,8 +256,9 @@ impl Relationalizer {
     // to equations with an existential variable on one side.
     fn equation_rewrites<'a>(&self, formula: &'a FOF, map: &mut HashMap<&'a V, &'a V>) {
         match formula {
-            FOF::Atom { predicate, terms } => {
-                if predicate.0 == self.equality_symbol {
+            FOF::Atom(this) => {
+                let terms = this.terms();
+                if this.predicate().0 == self.equality_symbol {
                     assert_eq!(2, terms.len());
                     let left = terms.get(0).unwrap();
                     let right = terms.get(1).unwrap();
@@ -286,30 +289,30 @@ impl Relationalizer {
                     }
                 }
             }
-            FOF::Not { formula } => {
-                self.equation_rewrites(formula, map);
+            FOF::Not(this) => {
+                self.equation_rewrites(this.formula(), map);
             }
-            FOF::And { left, right } => {
-                self.equation_rewrites(left, map);
-                self.equation_rewrites(right, map);
+            FOF::And(this) => {
+                self.equation_rewrites(this.left(), map);
+                self.equation_rewrites(this.right(), map);
             }
-            FOF::Or { left, right } => {
-                self.equation_rewrites(left, map);
-                self.equation_rewrites(right, map);
+            FOF::Or(this) => {
+                self.equation_rewrites(this.left(), map);
+                self.equation_rewrites(this.right(), map);
             }
-            FOF::Implies { left, right } => {
-                self.equation_rewrites(left, map);
-                self.equation_rewrites(right, map);
+            FOF::Implies(this) => {
+                self.equation_rewrites(this.premise(), map);
+                self.equation_rewrites(this.consequence(), map);
             }
-            FOF::Iff { left, right } => {
-                self.equation_rewrites(left, map);
-                self.equation_rewrites(right, map);
+            FOF::Iff(this) => {
+                self.equation_rewrites(this.left(), map);
+                self.equation_rewrites(this.right(), map);
             }
-            FOF::Exists { formula, .. } => {
-                self.equation_rewrites(formula, map);
+            FOF::Exists(this) => {
+                self.equation_rewrites(this.formula(), map);
             }
-            FOF::Forall { formula, .. } => {
-                self.equation_rewrites(formula, map);
+            FOF::Forall(this) => {
+                self.equation_rewrites(this.formula(), map);
             }
             _ => {}
         }
@@ -360,10 +363,10 @@ impl EqualityExpander {
     fn helper(&self, formula: &FOF, vars: &mut HashMap<V, i32>) -> Result<FOF, Error> {
         match formula {
             FOF::Top | FOF::Bottom => Ok(formula.clone()),
-            FOF::Atom { predicate, terms } => {
+            FOF::Atom(this) => {
                 let mut equations = Vec::new();
                 let mut new_terms = Vec::<Term>::new();
-                for term in terms {
+                for term in this.terms() {
                     match term {
                         Term::Var { variable } => {
                             vars.entry(variable.clone())
@@ -391,16 +394,18 @@ impl EqualityExpander {
                 }
                 Ok(equations
                     .into_iter()
-                    .fold(predicate.clone().app(new_terms), |fmla, eq| fmla.and(eq)))
+                    .fold(this.predicate().clone().app(new_terms), |fmla, eq| {
+                        fmla.and(eq)
+                    }))
             }
-            FOF::And { left, right } => {
-                let left = self.helper(left, vars)?;
-                let right = self.helper(right, vars)?;
+            FOF::And(this) => {
+                let left = self.helper(this.left(), vars)?;
+                let right = self.helper(this.right(), vars)?;
                 Ok(left.and(right))
             }
-            FOF::Or { left, right } => {
-                let left = self.helper(left, vars)?;
-                let right = self.helper(right, vars)?;
+            FOF::Or(this) => {
+                let left = self.helper(this.left(), vars)?;
+                let right = self.helper(this.right(), vars)?;
                 Ok(left.or(right))
             }
             _ => Err(Error::EqualityExpandUnsupported {
@@ -499,9 +504,9 @@ fn rr_helper(formula: &FOF, range: &[V], symbol: &str) -> Result<FOF, Error> {
                 .map(|c| formula.clone().and(c))
                 .unwrap_or_else(|| formula.clone())
         }
-        FOF::Or { left, right } => {
-            let left = rr_helper(left, range, symbol)?;
-            let right = rr_helper(right, range, symbol)?;
+        FOF::Or(this) => {
+            let left = rr_helper(this.left(), range, symbol)?;
+            let right = rr_helper(this.right(), range, symbol)?;
             left.or(right)
         }
         _ => {
@@ -547,8 +552,9 @@ where
 fn remove_reflexive_equations(formula: &FOF, eq_symbol: &str) -> Option<FOF> {
     use crate::syntax::{exists, forall, not};
     match &formula {
-        FOF::Atom { predicate, terms } => {
-            if predicate.0 == eq_symbol {
+        FOF::Atom(this) => {
+            let terms = this.terms();
+            if this.predicate().0 == eq_symbol {
                 assert_eq!(2, terms.len());
                 let left = terms.get(0).unwrap();
                 let right = terms.get(1).unwrap();
@@ -561,40 +567,38 @@ fn remove_reflexive_equations(formula: &FOF, eq_symbol: &str) -> Option<FOF> {
                 Some(formula.clone())
             }
         }
-        FOF::Equals { left, right } => {
-            if left == right {
+        FOF::Equals(this) => {
+            if this.left() == this.right() {
                 None
             } else {
                 Some(formula.clone())
             }
         }
-        FOF::Not { formula } => remove_reflexive_equations(formula, eq_symbol).map(not),
-        FOF::And { left, right } => combine_binary(
-            remove_reflexive_equations(left, eq_symbol),
-            remove_reflexive_equations(right, eq_symbol),
+        FOF::Not(this) => remove_reflexive_equations(this.formula(), eq_symbol).map(not),
+        FOF::And(this) => combine_binary(
+            remove_reflexive_equations(this.left(), eq_symbol),
+            remove_reflexive_equations(this.right(), eq_symbol),
             FOF::and,
         ),
-        FOF::Or { left, right } => combine_binary(
-            remove_reflexive_equations(left, eq_symbol),
-            remove_reflexive_equations(right, eq_symbol),
+        FOF::Or(this) => combine_binary(
+            remove_reflexive_equations(this.left(), eq_symbol),
+            remove_reflexive_equations(this.right(), eq_symbol),
             FOF::or,
         ),
-        FOF::Implies { left, right } => combine_binary(
-            remove_reflexive_equations(left, eq_symbol),
-            remove_reflexive_equations(right, eq_symbol),
+        FOF::Implies(this) => combine_binary(
+            remove_reflexive_equations(this.premise(), eq_symbol),
+            remove_reflexive_equations(this.consequence(), eq_symbol),
             FOF::implies,
         ),
-        FOF::Iff { left, right } => combine_binary(
-            remove_reflexive_equations(left, eq_symbol),
-            remove_reflexive_equations(right, eq_symbol),
+        FOF::Iff(this) => combine_binary(
+            remove_reflexive_equations(this.left(), eq_symbol),
+            remove_reflexive_equations(this.right(), eq_symbol),
             FOF::iff,
         ),
-        FOF::Exists { variables, formula } => {
-            remove_reflexive_equations(formula, eq_symbol).map(|f| exists(variables.clone(), f))
-        }
-        FOF::Forall { variables, formula } => {
-            remove_reflexive_equations(formula, eq_symbol).map(|f| forall(variables.clone(), f))
-        }
+        FOF::Exists(this) => remove_reflexive_equations(this.formula(), eq_symbol)
+            .map(|f| exists(this.variables().to_vec(), f)),
+        FOF::Forall(this) => remove_reflexive_equations(this.formula(), eq_symbol)
+            .map(|f| forall(this.variables().to_vec(), f)),
         _ => Some(formula.clone()),
     }
 }

@@ -337,54 +337,64 @@ macro_rules! fof {
         {
             let left = $crate::term!($($left)*);
             let right = $crate::term!($($right)*);
-            $crate::syntax::FOF::Equals {left, right}
+            $crate::syntax::FOF::from($crate::syntax::formula::Equals::new(left, right))
         }
     };
     (@not ($($fmla:tt)*)) => {
-        $crate::syntax::FOF::Not{
-            formula: Box::new(fof!($($fmla)*)),
-        }
+        $crate::syntax::FOF::from($crate::syntax::formula::Not::new(fof!($($fmla)*)))
     };
     (@and ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::And{
-            left: Box::new(fof!($($left)*)),
-            right: Box::new(fof!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::And::new(
+                fof!($($left)*),
+                fof!($($right)*),
+            )
+        )
     };
     (@or ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::Or{
-            left: Box::new(fof!($($left)*)),
-            right: Box::new(fof!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::Or::new(
+                fof!($($left)*),
+                fof!($($right)*),
+            )
+        )
     };
     (@implies ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::Implies{
-            left: Box::new(fof!($($left)*)),
-            right: Box::new(fof!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::Implies::new(
+                fof!($($left)*),
+                fof!($($right)*),
+            )
+        )
     };
     (@iff ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::Iff{
-            left: Box::new(fof!($($left)*)),
-            right: Box::new(fof!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::Iff::new(
+                fof!($($left)*),
+                fof!($($right)*),
+            )
+        )
     };
     (@forall ($($v:ident),+) ($($fmla:tt)*)) => {
         {
             let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
-            $crate::syntax::FOF::Forall{
-                variables: vs,
-                formula: Box::new(fof!($($fmla)*)),
-            }
+            $crate::syntax::FOF::from(
+                $crate::syntax::formula::Forall::new(
+                    vs,
+                    fof!($($fmla)*),
+                )
+            )
         }
     };
     (@exists ($($v:ident),+) ($($fmla:tt)*)) => {
         {
             let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
-            $crate::syntax::FOF::Exists{
-                variables: vs,
-                formula: Box::new(fof!($($fmla)*)),
-            }
+            $crate::syntax::FOF::from(
+                $crate::syntax::formula::Exists::new(
+                    vs,
+                    fof!($($fmla)*),
+                )
+            )
         }
     };
 }

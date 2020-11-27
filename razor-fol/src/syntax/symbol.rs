@@ -6,7 +6,7 @@
 ['Pred']: crate::syntax::Pred
 */
 
-use super::{Term, FOF};
+use super::{formula::Atom, Term, FOF};
 use std::fmt;
 
 /// Represents an uninterpreted function symbol with a given name.
@@ -132,10 +132,7 @@ impl Pred {
     ///
     /// [`Pred`]: crate::syntax::Pred
     pub fn app(self, terms: Vec<Term>) -> FOF {
-        FOF::Atom {
-            predicate: self,
-            terms,
-        }
+        Atom::new(self, terms).into()
     }
 }
 

@@ -33,19 +33,19 @@ impl From<GNF> for FOF {
 // and the positive literals form its head:
 fn split_sides(disjunct: FOF) -> (Vec<FOF>, Vec<FOF>) {
     match disjunct {
-        Or { left, right } => {
-            let (mut left_body, mut left_head) = split_sides(*left);
-            let (mut right_body, mut right_head) = split_sides(*right);
+        Or(this) => {
+            let (mut left_body, mut left_head) = split_sides(this.left().clone());
+            let (mut right_body, mut right_head) = split_sides(this.right().clone());
 
             left_body.append(&mut right_body);
-            let body: Vec<FOF> = left_body.into_iter().unique().collect();
+            let body: Vec<_> = left_body.into_iter().unique().collect();
 
             left_head.append(&mut right_head);
-            let head: Vec<FOF> = left_head.into_iter().unique().collect();
+            let head: Vec<_> = left_head.into_iter().unique().collect();
 
             (body, head)
         }
-        Not { formula } => (vec![*formula], vec![]),
+        Not(this) => (vec![this.formula().clone()], vec![]),
         _ => (vec![], vec![disjunct]),
     }
 }
@@ -61,9 +61,9 @@ fn to_implication(disjunct: FOF) -> GNF {
 // Split the CNF to a set of disjuncts.
 fn get_disjuncts(cnf: FOF) -> Vec<FOF> {
     match cnf {
-        And { left, right } => {
-            let mut left = get_disjuncts(*left);
-            let mut right = get_disjuncts(*right);
+        And(this) => {
+            let mut left = get_disjuncts(this.left().clone());
+            let mut right = get_disjuncts(this.right().clone());
             left.append(&mut right);
             left.into_iter().unique().collect()
         }
@@ -101,57 +101,57 @@ fn compress_geometric(formulae: Vec<GNF>) -> Vec<FOF> {
     let formulae: Vec<FOF> = formulae.into_iter().map(|gnf| gnf.into()).collect();
     formulae
         .into_iter()
-        .sorted_by(|f1, f2| {
+        .sorted_by(|first, second| {
             // sort sequents by their body
-            match (f1, f2) {
-                (Implies { left: f1, .. }, Implies { left: f2, .. }) => f1.cmp(f2),
+            match (first, second) {
+                (Implies(first), Implies(second)) => first.premise().cmp(second.premise()),
                 _ => Equal,
             }
         })
         .into_iter()
-        .coalesce(|f1, f2| {
+        .coalesce(|first, second| {
             // merge the ones with the same body:
-            match f1 {
-                Implies {
-                    left: ref l1,
-                    right: ref r1,
-                } => {
-                    let l_vars = l1.free_vars();
-                    let r_vars = r1.free_vars();
+            match first {
+                Implies(first) => {
+                    let l_vars = first.premise().free_vars();
+                    let r_vars = first.consequence().free_vars();
                     // compress sequents with no free variables that show up only in head:
                     if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
-                        match f2 {
-                            Implies {
-                                left: ref l2,
-                                right: ref r2,
-                            } => {
-                                let l_vars = l2.free_vars();
-                                let r_vars = r2.free_vars();
+                        match second {
+                            Implies(second) => {
+                                let l_vars = second.premise().free_vars();
+                                let r_vars = second.consequence().free_vars();
                                 if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
-                                    if l1 == l2 {
-                                        Ok(l2.clone().implies(r1.clone().and(*r2.clone())))
+                                    if first.premise() == second.premise() {
+                                        Ok(second.premise().clone().implies(
+                                            first
+                                                .consequence()
+                                                .clone()
+                                                .and(second.consequence().clone()),
+                                        ))
                                     } else {
-                                        Err((f1, f2))
+                                        Err(((*first).into(), (*second).into()))
                                     }
                                 } else {
-                                    Err((f2, f1))
+                                    Err(((*second).into(), (*first).into()))
                                 }
                             }
-                            _ => Err((f2, f1)),
+                            _ => Err((second, (*first).into())),
                         }
                     } else {
-                        Err((f1, f2))
+                        Err(((*first).into(), second))
                     }
                 }
-                _ => Err((f1, f2)),
+                _ => Err((first, second)),
             }
         })
         .map(|f| {
             // convert the head to dnf and simplify it:
             match f {
-                Implies { left, right: r } => {
-                    left.implies(simplify_dnf(r.pnf().snf().dnf().into()))
-                }
+                Implies(this) => this
+                    .premise()
+                    .clone()
+                    .implies(simplify_dnf(this.consequence().pnf().snf().dnf().into())),
                 _ => f,
             }
         })
@@ -162,9 +162,9 @@ fn compress_geometric(formulae: Vec<GNF>) -> Vec<FOF> {
 fn simplify_dnf(formula: FOF) -> FOF {
     fn disjunct_list(formula: FOF) -> Vec<FOF> {
         match formula {
-            Or { left, right } => {
-                let mut lefts = disjunct_list(*left);
-                let mut rights = disjunct_list(*right);
+            Or(this) => {
+                let mut lefts = disjunct_list(this.left().clone());
+                let mut rights = disjunct_list(this.right().clone());
                 lefts.append(&mut rights);
                 lefts
             }
@@ -174,9 +174,9 @@ fn simplify_dnf(formula: FOF) -> FOF {
 
     fn conjunct_list(formula: FOF) -> Vec<FOF> {
         match formula {
-            And { left, right } => {
-                let mut lefts = conjunct_list(*left);
-                let mut rights = conjunct_list(*right);
+            And(this) => {
+                let mut lefts = conjunct_list(this.left().clone());
+                let mut rights = conjunct_list(this.right().clone());
                 lefts.append(&mut rights);
                 lefts
             }

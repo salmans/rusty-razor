@@ -179,15 +179,21 @@ impl TermBased for FOF {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
             Top | Bottom => self.clone(),
-            Atom { predicate, terms } => predicate.clone().app(terms.iter().map(f).collect()),
-            Equals { left, right } => f(left).equals(f(right)),
-            Not { formula } => not(formula.transform(f)),
-            And { left, right } => left.transform(f).and(right.transform(f)),
-            Or { left, right } => left.transform(f).or(right.transform(f)),
-            Implies { left, right } => left.transform(f).implies(right.transform(f)),
-            Iff { left, right } => left.transform(f).iff(right.transform(f)),
-            Exists { variables, formula } => exists(variables.clone(), formula.transform(f)),
-            Forall { variables, formula } => forall(variables.clone(), formula.transform(f)),
+            Atom(this) => this
+                .predicate()
+                .clone()
+                .app(this.terms().iter().map(f).collect()),
+            Equals(this) => f(this.left()).equals(f(this.right())),
+            Not(this) => not(this.formula().transform(f)),
+            And(this) => this.left().transform(f).and(this.right().transform(f)),
+            Or(this) => this.left().transform(f).or(this.right().transform(f)),
+            Implies(this) => this
+                .premise()
+                .transform(f)
+                .implies(this.consequence().transform(f)),
+            Iff(this) => this.left().transform(f).iff(this.right().transform(f)),
+            Exists(this) => exists(this.variables().to_vec(), this.formula().transform(f)),
+            Forall(this) => forall(this.variables().to_vec(), this.formula().transform(f)),
         }
     }
 

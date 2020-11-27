@@ -29,11 +29,16 @@ impl From<SNF> for FOF {
 
 fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> FOF {
     match formula {
-        Forall { variables, formula } => {
-            skolem_vars.append(&mut variables.clone());
-            forall(variables, helper(*formula, skolem_vars, generator))
+        Forall(this) => {
+            let variables = this.variables();
+            skolem_vars.append(&mut variables.to_vec());
+            forall(
+                variables.to_vec(),
+                helper(this.formula().clone(), skolem_vars, generator),
+            )
         }
-        Exists { variables, formula } => {
+        Exists(this) => {
+            let variables = this.variables();
             let mut map: HashMap<&V, Term> = HashMap::new();
 
             variables.iter().for_each(|v| {
@@ -45,7 +50,7 @@ fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> F
                 }
             });
 
-            let substituted = formula.substitute(&map);
+            let substituted = this.formula().substitute(&map);
             helper(substituted, skolem_vars, generator)
         }
         _ => formula,

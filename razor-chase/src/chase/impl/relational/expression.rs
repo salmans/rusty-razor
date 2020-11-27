@@ -365,23 +365,25 @@ impl<'d> Convertor<'d> {
                 Mono::from(Singleton::new(vec![])),
                 RawExpression::Full,
             )),
-            FOF::Atom { predicate, .. } => {
+            FOF::Atom(this) => {
                 let free_vars = formula.free_vars().into_iter().cloned().collect_vec();
                 let mut sub =
-                    self.atomic_expression(predicate, &free_vars, &join_attr, &final_attr)?;
+                    self.atomic_expression(this.predicate(), &free_vars, &join_attr, &final_attr)?;
                 if matches!(sub.raw(), RawExpression::Project {..}) {
                     self.memoize(&mut sub)?;
                 }
                 Ok(sub)
             }
-            FOF::And { left, right } => {
-                let mut sub = self.and_expression(left, right, join_attr, final_attr)?;
+            FOF::And(this) => {
+                let mut sub =
+                    self.and_expression(this.left(), this.right(), join_attr, final_attr)?;
                 self.memoize(&mut sub)?;
                 Ok(sub)
             }
 
-            FOF::Or { left, right } => {
-                let mut sub = self.or_expression(left, right, join_attr, final_attr)?;
+            FOF::Or(this) => {
+                let mut sub =
+                    self.or_expression(this.left(), this.right(), join_attr, final_attr)?;
                 self.memoize(&mut sub)?;
                 Ok(sub)
             }

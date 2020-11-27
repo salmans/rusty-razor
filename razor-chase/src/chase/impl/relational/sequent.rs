@@ -93,8 +93,8 @@ impl Sequent {
     pub(super) fn new(formula: &FOF, convertor: &mut Convertor) -> Result<Self, Error> {
         #[inline]
         fn implies_parts(formula: &FOF) -> Result<(&FOF, &FOF), Error> {
-            if let FOF::Implies { left, right } = formula {
-                Ok((left, right))
+            if let FOF::Implies(this) = formula {
+                Ok((this.premise(), this.consequence()))
             } else {
                 Err(Error::BadSequentFormula {
                     formula: formula.clone(),
@@ -189,7 +189,10 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
     match formula {
         FOF::Top => Ok(vec![vec![]]),
         FOF::Bottom => Ok(vec![]),
-        FOF::Atom { predicate, terms } => {
+        FOF::Atom(this) => {
+            let predicate = this.predicate();
+            let terms = this.terms();
+
             let mut attributes = Vec::new();
             for term in terms {
                 match term {
@@ -226,9 +229,9 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
                 AttributeList::new(attributes),
             )]])
         }
-        FOF::And { left, right } => {
-            let mut left = build_branches(left)?;
-            let mut right = build_branches(right)?;
+        FOF::And(this) => {
+            let mut left = build_branches(this.left())?;
+            let mut right = build_branches(this.right())?;
 
             if left.is_empty() {
                 Ok(left)
@@ -245,9 +248,9 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
                 })
             }
         }
-        FOF::Or { left, right } => {
-            let mut left = build_branches(left)?;
-            let mut right = build_branches(right)?;
+        FOF::Or(this) => {
+            let mut left = build_branches(this.left())?;
+            let mut right = build_branches(this.right())?;
             left.append(&mut right);
             Ok(left)
         }
