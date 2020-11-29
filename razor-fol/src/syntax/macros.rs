@@ -337,52 +337,52 @@ macro_rules! fof {
         {
             let left = $crate::term!($($left)*);
             let right = $crate::term!($($right)*);
-            $crate::syntax::FOF::from($crate::syntax::formula::Equals::new(left, right))
+            $crate::syntax::FOF::from($crate::syntax::formula::Equals{left, right})
         }
     };
     (@not ($($fmla:tt)*)) => {
-        $crate::syntax::FOF::from($crate::syntax::formula::Not::new(fof!($($fmla)*)))
+        $crate::syntax::FOF::from($crate::syntax::formula::Not{ formula: fof!($($fmla)*) })
     };
     (@and ($($left:tt)*) ($($right:tt)*)) => {
         $crate::syntax::FOF::from(
-            $crate::syntax::formula::And::new(
-                fof!($($left)*),
-                fof!($($right)*),
-            )
+            $crate::syntax::formula::And {
+                left: fof!($($left)*),
+                right: fof!($($right)*),
+            }
         )
     };
     (@or ($($left:tt)*) ($($right:tt)*)) => {
         $crate::syntax::FOF::from(
-            $crate::syntax::formula::Or::new(
-                fof!($($left)*),
-                fof!($($right)*),
-            )
+            $crate::syntax::formula::Or {
+                left: fof!($($left)*),
+                right: fof!($($right)*),
+            }
         )
     };
-    (@implies ($($left:tt)*) ($($right:tt)*)) => {
+    (@implies ($($premise:tt)*) ($($consequence:tt)*)) => {
         $crate::syntax::FOF::from(
-            $crate::syntax::formula::Implies::new(
-                fof!($($left)*),
-                fof!($($right)*),
-            )
+            $crate::syntax::formula::Implies {
+                premise: fof!($($premise)*),
+                consequence: fof!($($consequence)*),
+            }
         )
     };
     (@iff ($($left:tt)*) ($($right:tt)*)) => {
         $crate::syntax::FOF::from(
-            $crate::syntax::formula::Iff::new(
-                fof!($($left)*),
-                fof!($($right)*),
-            )
+            $crate::syntax::formula::Iff {
+                left: fof!($($left)*),
+                right: fof!($($right)*),
+            }
         )
     };
     (@forall ($($v:ident),+) ($($fmla:tt)*)) => {
         {
             let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
             $crate::syntax::FOF::from(
-                $crate::syntax::formula::Forall::new(
-                    vs,
-                    fof!($($fmla)*),
-                )
+                $crate::syntax::formula::Forall {
+                    variables: vs,
+                    formula: fof!($($fmla)*),
+                }
             )
         }
     };
@@ -390,10 +390,10 @@ macro_rules! fof {
         {
             let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
             $crate::syntax::FOF::from(
-                $crate::syntax::formula::Exists::new(
-                    vs,
-                    fof!($($fmla)*),
-                )
+                $crate::syntax::formula::Exists {
+                    variables: vs,
+                    formula: fof!($($fmla)*),
+                }
             )
         }
     };

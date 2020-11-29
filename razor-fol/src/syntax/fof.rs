@@ -1,6 +1,7 @@
 /*! Defines the syntax of first-order formulae with equality.*/
-use super::formula::*;
 use super::V;
+use super::{formula::*, Term};
+use crate::transform::{Substitution, TermBased, VariableRenaming};
 use itertools::Itertools;
 use std::fmt;
 
@@ -21,7 +22,7 @@ pub enum FOF {
     /// **Note**: Equality is a special type of atomic first-order formula.
     Equals(Equals),
 
-    /// Is the negation of the first-order formula, wrapping a [`Not`].
+    /// Is the negation of a first-order formula, wrapping a [`Not`].
     Not(Box<Not<FOF>>),
 
     /// Is a conjunction of two first-order formulae, wrapping an [`And`].
@@ -39,7 +40,7 @@ pub enum FOF {
     /// Is an existentially quantified formula, wrapping an [`Exists`].
     Exists(Box<Exists<FOF>>),
 
-    /// Is a universally quantified formula, wrapping a [`Forall`].    
+    /// Is a universally quantified formula, wrapping a [`Forall`].
     Forall(Box<Forall<FOF>>),
 }
 
@@ -99,40 +100,56 @@ impl From<Forall<FOF>> for FOF {
 
 /// Returns the negation of `formula`.
 pub fn not(formula: FOF) -> FOF {
-    Not::new(formula).into()
+    Not { formula }.into()
 }
 
 /// Returns an existentially quantified first-order formula with the given
 /// `variables` and `formula`.
 pub fn exists(variables: Vec<V>, formula: FOF) -> FOF {
-    Exists::new(variables, formula).into()
+    Exists { variables, formula }.into()
 }
 
 /// Returns a universally quantified first-order formula with the given
 /// `variables` and `formula`.
 pub fn forall(variables: Vec<V>, formula: FOF) -> FOF {
-    Forall::new(variables, formula).into()
+    Forall { variables, formula }.into()
 }
 
 impl FOF {
     /// Returns a conjunction of the receiver and `formula`.
     pub fn and(self, formula: Self) -> Self {
-        And::new(self, formula).into()
+        And {
+            left: self,
+            right: formula,
+        }
+        .into()
     }
 
     /// Returns a disjunction of the receiver and `formula`.
     pub fn or(self, formula: Self) -> Self {
-        Or::new(self, formula).into()
+        Or {
+            left: self,
+            right: formula,
+        }
+        .into()
     }
 
     /// Returns an implication between the receiver and `formula`.
     pub fn implies(self, formula: Self) -> Self {
-        Implies::new(self, formula).into()
+        Implies {
+            premise: self,
+            consequence: formula,
+        }
+        .into()
     }
 
     /// Returns a bi-implication between the receiver and `formula`.
     pub fn iff(self, formula: Self) -> Self {
-        Iff::new(self, formula).into()
+        Iff {
+            left: self,
+            right: formula,
+        }
+        .into()
     }
 }
 
@@ -154,6 +171,46 @@ impl Formula for FOF {
     }
 }
 
+impl TermBased for FOF {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        match self {
+            FOF::Top | FOF::Bottom => self.clone(),
+            FOF::Atom(this) => this
+                .predicate
+                .clone()
+                .app(this.terms.iter().map(f).collect()),
+            FOF::Equals(this) => f(&this.left).equals(f(&this.right)),
+            FOF::Not(this) => not(this.formula.transform(f)),
+            FOF::And(this) => this.left.transform(f).and(this.right.transform(f)),
+            FOF::Or(this) => this.left.transform(f).or(this.right.transform(f)),
+            FOF::Implies(this) => this
+                .premise
+                .transform(f)
+                .implies(this.consequence.transform(f)),
+            FOF::Iff(this) => this.left.transform(f).iff(this.right.transform(f)),
+            FOF::Exists(this) => exists(this.variables.clone(), this.formula.transform(f)),
+            FOF::Forall(this) => forall(this.variables.clone(), this.formula.transform(f)),
+        }
+    }
+
+    /// **Note**: Applies a [`VariableRenaming`] on the **free** variables of the
+    /// first-order formula, keeping the bound variables unchanged.
+    ///
+    /// [`VariableRenaming`]: crate::transform::VariableRenaming
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
+        // this does not rename bound variables of the formula
+        self.transform(&|t: &Term| t.rename_vars(renaming))
+    }
+
+    /// **Note**: Applies a [`Substitution`] on the **free** variables of the first-order
+    /// formula, keeping the bound variables unchanged.
+    ///
+    /// [`Substitution`]: crate::transform::Substitution
+    fn substitute(&self, substitution: &impl Substitution) -> Self {
+        self.transform(&|t: &Term| t.substitute(substitution))
+    }
+}
+
 // used for pretty printing a formula
 impl fmt::Display for FOF {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -169,29 +226,29 @@ impl fmt::Display for FOF {
             Self::Top => write!(f, "⊤"),
             Self::Bottom => write!(f, "⟘"),
             Self::Atom(this) => {
-                let ts = this.terms().iter().map(|t| t.to_string()).collect_vec();
-                write!(f, "{}({})", this.predicate().to_string(), ts.join(", "))
+                let ts = this.terms.iter().map(|t| t.to_string()).collect_vec();
+                write!(f, "{}({})", this.predicate.to_string(), ts.join(", "))
             }
-            Self::Equals(this) => write!(f, "{} = {}", this.left(), this.right()),
-            Self::Not(this) => write!(f, "¬{}", parens(this.formula())),
-            Self::And(this) => write!(f, "{} ∧ {}", parens(this.left()), parens(this.right())),
-            Self::Or(this) => write!(f, "{} ∨ {}", parens(this.left()), parens(this.right())),
+            Self::Equals(this) => write!(f, "{} = {}", this.left, this.right),
+            Self::Not(this) => write!(f, "¬{}", parens(&this.formula)),
+            Self::And(this) => write!(f, "{} ∧ {}", parens(&this.left), parens(&this.right)),
+            Self::Or(this) => write!(f, "{} ∨ {}", parens(&this.left), parens(&this.right)),
             Self::Implies(this) => {
                 write!(
                     f,
                     "{} → {}",
-                    parens(this.premise()),
-                    parens(this.consequence())
+                    parens(&this.premise),
+                    parens(&this.consequence)
                 )
             }
-            Self::Iff(this) => write!(f, "{} ⇔ {}", parens(this.left()), parens(this.right())),
+            Self::Iff(this) => write!(f, "{} ⇔ {}", parens(&this.left), parens(&this.right)),
             Self::Exists(this) => {
-                let vs = this.variables().iter().map(|t| t.to_string()).collect_vec();
-                write!(f, "∃ {}. {}", vs.join(", "), parens(this.formula()))
+                let vs = this.variables.iter().map(|t| t.to_string()).collect_vec();
+                write!(f, "∃ {}. {}", vs.join(", "), parens(&this.formula))
             }
             Self::Forall(this) => {
-                let vs: Vec<_> = this.variables().iter().map(|t| t.to_string()).collect();
-                write!(f, "∀ {}. {}", vs.join(", "), parens(this.formula()))
+                let vs: Vec<_> = this.variables.iter().map(|t| t.to_string()).collect();
+                write!(f, "∀ {}. {}", vs.join(", "), parens(&this.formula))
             }
         }
     }
@@ -227,34 +284,34 @@ impl fmt::Debug for FOF {
             Self::Top => write!(f, "true"),
             Self::Bottom => write!(f, "false"),
             Self::Atom(this) => {
-                let ts = this.terms().iter().map(|t| t.to_string()).collect_vec();
-                write!(f, "{}({})", this.predicate().to_string(), ts.join(", "))
+                let ts = this.terms.iter().map(|t| t.to_string()).collect_vec();
+                write!(f, "{}({})", this.predicate.to_string(), ts.join(", "))
             }
-            Self::Equals(this) => write!(f, "{} = {}", this.left(), this.right()),
-            Self::Not(this) => match this.formula() {
-                Self::Top | Self::Bottom | Self::Atom { .. } => write!(f, "~{}", this.formula()),
-                _ => write!(f, "~({:?})", this.formula()),
+            Self::Equals(this) => write!(f, "{} = {}", this.left, this.right),
+            Self::Not(this) => match this.formula {
+                Self::Top | Self::Bottom | Self::Atom { .. } => write!(f, "~{}", this.formula),
+                _ => write!(f, "~({:?})", this.formula),
             },
-            Self::And(this) => write_binary(this.left(), this.right(), "&", f),
-            Self::Or(this) => write_binary(this.left(), this.right(), "|", f),
-            Self::Implies(this) => write_binary(this.premise(), this.consequence(), "->", f),
-            Self::Iff(this) => write_binary(this.left(), this.right(), "<=>", f),
+            Self::And(this) => write_binary(&this.left, &this.right, "&", f),
+            Self::Or(this) => write_binary(&this.left, &this.right, "|", f),
+            Self::Implies(this) => write_binary(&this.premise, &this.consequence, "->", f),
+            Self::Iff(this) => write_binary(&this.left, &this.right, "<=>", f),
             Self::Exists(this) => {
-                let vs = this.variables().iter().map(|t| t.to_string()).collect_vec();
-                match this.formula() {
+                let vs = this.variables.iter().map(|t| t.to_string()).collect_vec();
+                match this.formula {
                     Self::Top | Self::Bottom | Self::Atom { .. } => {
-                        write!(f, "? {}. {:?}", vs.join(", "), this.formula())
+                        write!(f, "? {}. {:?}", vs.join(", "), this.formula)
                     }
-                    _ => write!(f, "? {}. ({:?})", vs.join(", "), this.formula()),
+                    _ => write!(f, "? {}. ({:?})", vs.join(", "), this.formula),
                 }
             }
             Self::Forall(this) => {
-                let vs = this.variables().iter().map(|t| t.to_string()).collect_vec();
-                match this.formula() {
+                let vs = this.variables.iter().map(|t| t.to_string()).collect_vec();
+                match this.formula {
                     Self::Top | Self::Bottom | Self::Atom { .. } => {
-                        write!(f, "! {}. {:?}", vs.join(", "), this.formula())
+                        write!(f, "! {}. {:?}", vs.join(", "), this.formula)
                     }
-                    _ => write!(f, "! {}. ({:?})", vs.join(", "), this.formula()),
+                    _ => write!(f, "! {}. ({:?})", vs.join(", "), this.formula),
                 }
             }
         }

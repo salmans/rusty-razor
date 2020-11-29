@@ -513,16 +513,16 @@ impl Literal {
         match formula {
             FOF::Top => vec![],
             FOF::Atom(this) => vec![Literal::Atm {
-                predicate: this.predicate().clone(),
-                terms: this.terms().to_vec(),
+                predicate: this.predicate.clone(),
+                terms: this.terms.to_vec(),
             }],
             FOF::Equals(this) => vec![Literal::Eql {
-                left: this.left().clone(),
-                right: this.right().clone(),
+                left: this.left.clone(),
+                right: this.right.clone(),
             }],
             FOF::And(this) => {
-                let mut left = Literal::build_body(this.left());
-                let mut right = Literal::build_body(this.right());
+                let mut left = Literal::build_body(&this.left);
+                let mut right = Literal::build_body(&this.right);
                 left.append(&mut right);
                 left
             }
@@ -538,16 +538,16 @@ impl Literal {
             FOF::Top => vec![vec![]],
             FOF::Bottom => vec![],
             FOF::Atom(this) => vec![vec![Literal::Atm {
-                predicate: this.predicate().clone(),
-                terms: this.terms().to_vec(),
+                predicate: this.predicate.clone(),
+                terms: this.terms.clone(),
             }]],
             FOF::Equals(this) => vec![vec![Literal::Eql {
-                left: this.left().clone(),
-                right: this.right().clone(),
+                left: this.left.clone(),
+                right: this.right.clone(),
             }]],
             FOF::And(this) => {
-                let mut left = Literal::build_head(this.left());
-                let mut right = Literal::build_head(this.right());
+                let mut left = Literal::build_head(&this.left);
+                let mut right = Literal::build_head(&this.right);
                 if left.is_empty() {
                     left
                 } else if right.is_empty() {
@@ -562,8 +562,8 @@ impl Literal {
                 }
             }
             FOF::Or(this) => {
-                let mut left = Literal::build_head(this.left());
-                let mut right = Literal::build_head(this.right());
+                let mut left = Literal::build_head(&this.left);
+                let mut right = Literal::build_head(&this.right);
                 left.append(&mut right);
                 left
             }
@@ -623,8 +623,8 @@ impl TryFrom<&FOF> for Sequent {
     fn try_from(formula: &FOF) -> Result<Self, Self::Error> {
         match formula {
             FOF::Implies(this) => {
-                let left = this.premise();
-                let right = this.consequence();
+                let left = &this.premise;
+                let right = &this.consequence;
 
                 let free_vars: Vec<V> = formula.free_vars().into_iter().cloned().collect();
                 let body_literals = Literal::build_body(left);

@@ -30,15 +30,15 @@ impl From<SNF> for FOF {
 fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> FOF {
     match formula {
         Forall(this) => {
-            let variables = this.variables();
+            let variables = this.variables;
             skolem_vars.append(&mut variables.to_vec());
             forall(
                 variables.to_vec(),
-                helper(this.formula().clone(), skolem_vars, generator),
+                helper(this.formula, skolem_vars, generator),
             )
         }
         Exists(this) => {
-            let variables = this.variables();
+            let variables = this.variables;
             let mut map: HashMap<&V, Term> = HashMap::new();
 
             variables.iter().for_each(|v| {
@@ -50,7 +50,7 @@ fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> F
                 }
             });
 
-            let substituted = this.formula().substitute(&map);
+            let substituted = this.formula.substitute(&map);
             helper(substituted, skolem_vars, generator)
         }
         _ => formula,
@@ -93,7 +93,7 @@ impl PNF {
     /// assert_eq!("P(x, skolem0(x))", FOF::from(snf).to_string());
     /// ```
     pub fn snf_with(&self, generator: &mut Generator) -> SNF {
-        let free_vars = self.formula().free_vars().into_iter().cloned().collect();
+        let free_vars = self.free_vars().into_iter().cloned().collect();
         SNF(helper(self.clone().into(), free_vars, generator))
     }
 }

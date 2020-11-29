@@ -30,23 +30,23 @@ impl From<CNF> for FOF {
 fn distribute_or(formula: &FOF) -> FOF {
     match formula {
         Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(),
-        And(this) => distribute_or(this.left()).and(distribute_or(this.right())),
+        And(this) => distribute_or(&this.left).and(distribute_or(&this.right)),
         Or(this) => {
-            let left = distribute_or(this.left());
-            let right = distribute_or(this.right());
+            let left = distribute_or(&this.left);
+            let right = distribute_or(&this.right);
             if let And(left) = left {
-                let first = left.left().clone().or(right.clone());
-                let second = left.right().clone().or(right);
+                let first = left.left.or(right.clone());
+                let second = left.right.or(right);
                 distribute_or(&first).and(distribute_or(&second))
             } else if let And(right) = right {
-                let first = left.clone().or(right.left().clone());
-                let second = left.or(right.right().clone());
+                let first = left.clone().or(right.left);
+                let second = left.or(right.right);
                 distribute_or(&first).and(distribute_or(&second))
             } else {
                 left.or(right)
             }
         }
-        Forall(this) => forall(this.variables().to_vec(), distribute_or(this.formula())),
+        Forall(this) => forall(this.variables.clone(), distribute_or(&this.formula)),
         _ => unreachable!(), // NNF input
     }
 }
@@ -54,7 +54,7 @@ fn distribute_or(formula: &FOF) -> FOF {
 // Eliminates the existential quantifiers of the input formula.
 fn remove_forall(formula: FOF) -> FOF {
     if let Forall(this) = formula {
-        remove_forall(this.formula().clone())
+        remove_forall(this.formula)
     } else {
         formula
     }

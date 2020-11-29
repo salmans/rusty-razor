@@ -75,7 +75,11 @@ impl Term {
     /// [equation]: crate::syntax::FOF::Equals
     ///
     pub fn equals(self, term: Term) -> FOF {
-        Equals::new(self, term).into()
+        Equals {
+            left: self,
+            right: term,
+        }
+        .into()
     }
 }
 

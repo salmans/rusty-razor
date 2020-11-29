@@ -1,6 +1,6 @@
 /*! Provides an interface and the implementation for term substitution and variable renaming.*/
 
-use crate::syntax::{Term::*, FOF::*, *};
+use crate::syntax::{Term::*, *};
 use std::collections::HashMap;
 
 /// Is the trait of types that map variables to terms.
@@ -174,49 +174,9 @@ impl TermBased for Term {
     }
 }
 
-impl TermBased for FOF {
-    #[inline]
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
-        match self {
-            Top | Bottom => self.clone(),
-            Atom(this) => this
-                .predicate()
-                .clone()
-                .app(this.terms().iter().map(f).collect()),
-            Equals(this) => f(this.left()).equals(f(this.right())),
-            Not(this) => not(this.formula().transform(f)),
-            And(this) => this.left().transform(f).and(this.right().transform(f)),
-            Or(this) => this.left().transform(f).or(this.right().transform(f)),
-            Implies(this) => this
-                .premise()
-                .transform(f)
-                .implies(this.consequence().transform(f)),
-            Iff(this) => this.left().transform(f).iff(this.right().transform(f)),
-            Exists(this) => exists(this.variables().to_vec(), this.formula().transform(f)),
-            Forall(this) => forall(this.variables().to_vec(), this.formula().transform(f)),
-        }
-    }
-
-    /// **Note**: Applies a [`VariableRenaming`] on the **free** variables of the
-    /// first-order formula, keeping the bound variables unchanged.
-    ///
-    /// [`VariableRenaming`]: crate::transform::VariableRenaming
-    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
-        // this does not rename bound variables of the formula
-        self.transform(&|t: &Term| t.rename_vars(renaming))
-    }
-
-    /// **Note**: Applies a [`Substitution`] on the **free** variables of the first-order
-    /// formula, keeping the bound variables unchanged.
-    ///
-    /// [`Substitution`]: crate::transform::Substitution
-    fn substitute(&self, substitution: &impl Substitution) -> Self {
-        self.transform(&|t: &Term| t.substitute(substitution))
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::FOF::*;
     use super::*;
     use crate::{fof, term, v};
 

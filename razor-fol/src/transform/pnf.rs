@@ -1,28 +1,325 @@
-/*! Implements conversion to Prenex Normal Form (PNF) for formula.*/
+/*! Defines Prenex Normal Form (PNF) formulae and implements an algorithm for converting
+[`FOF`] to [`PNF`].
 
-use super::TermBased;
-use crate::syntax::{FOF::*, *};
+[`FOF`]: crate::syntax::FOF
+*/
+use super::{Substitution, TermBased, VariableRenaming};
+use crate::syntax::{exists, forall, not, FOF, V};
+use crate::syntax::{formula::*, Term};
 
-/// Is a wrapper around [`FOF`] that represents a formula in Prenex Normal Form (PNF).
+/// Defines the quantifier-free portion of [`PNF`].
+#[derive(Clone, Debug)]
+pub enum QuantifierFree {
+    /// Is logical top (⊤) or truth.
+    Top,
+
+    /// Is logical bottom (⟘) or falsehood.
+    Bottom,
+
+    /// Is an atomic formula, wrapping an [`Atom`].
+    Atom(Atom),
+
+    /// Is an atomic equality, wrapping an [`Equals`].
+    Equals(Equals),
+
+    /// Is the negation of a formula, wrapping a [`Not`].
+    Not(Box<Not<QuantifierFree>>),
+
+    /// Is a conjunction of two formulae, wrapping an [`And`].
+    And(Box<And<QuantifierFree>>),
+
+    /// Is a disjunction of two formulae, wrapping an [`Or`].
+    Or(Box<Or<QuantifierFree>>),
+
+    /// Is an implication between two formulae, wrapping an [`Implies`].
+    Implies(Box<Implies<QuantifierFree>>),
+
+    /// Is an bi-implication between two formulae, wrapping an [`Iff`].    
+    Iff(Box<Iff<QuantifierFree>>),
+}
+
+impl From<Atom> for QuantifierFree {
+    fn from(value: Atom) -> Self {
+        QuantifierFree::Atom(value)
+    }
+}
+
+impl From<Equals> for QuantifierFree {
+    fn from(value: Equals) -> Self {
+        QuantifierFree::Equals(value)
+    }
+}
+
+impl From<Not<QuantifierFree>> for QuantifierFree {
+    fn from(value: Not<QuantifierFree>) -> Self {
+        QuantifierFree::Not(Box::new(value))
+    }
+}
+
+impl From<And<QuantifierFree>> for QuantifierFree {
+    fn from(value: And<QuantifierFree>) -> Self {
+        QuantifierFree::And(Box::new(value))
+    }
+}
+
+impl From<Or<QuantifierFree>> for QuantifierFree {
+    fn from(value: Or<QuantifierFree>) -> Self {
+        QuantifierFree::Or(Box::new(value))
+    }
+}
+
+impl From<Implies<QuantifierFree>> for QuantifierFree {
+    fn from(value: Implies<QuantifierFree>) -> Self {
+        QuantifierFree::Implies(Box::new(value))
+    }
+}
+
+impl From<Iff<QuantifierFree>> for QuantifierFree {
+    fn from(value: Iff<QuantifierFree>) -> Self {
+        QuantifierFree::Iff(Box::new(value))
+    }
+}
+
+impl TermBased for QuantifierFree {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        match self {
+            QuantifierFree::Top | QuantifierFree::Bottom => self.clone(),
+            QuantifierFree::Atom(this) => Atom {
+                predicate: this.predicate.clone(),
+                terms: this.terms.iter().map(f).collect(),
+            }
+            .into(),
+            QuantifierFree::Equals(this) => Equals {
+                left: f(&this.left),
+                right: f(&this.right),
+            }
+            .into(),
+            QuantifierFree::Not(this) => Not {
+                formula: this.formula.transform(f),
+            }
+            .into(),
+            QuantifierFree::And(this) => And {
+                left: this.left.transform(f),
+                right: this.right.transform(f),
+            }
+            .into(),
+            QuantifierFree::Or(this) => Or {
+                left: this.left.transform(f),
+                right: this.right.transform(f),
+            }
+            .into(),
+            QuantifierFree::Implies(this) => Implies {
+                premise: this.premise.transform(f),
+                consequence: this.consequence.transform(f),
+            }
+            .into(),
+            QuantifierFree::Iff(this) => Iff {
+                left: this.left.transform(f),
+                right: this.right.transform(f),
+            }
+            .into(),
+        }
+    }
+
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
+        // this does not rename bound variables of the formula
+        self.transform(&|t: &Term| t.rename_vars(renaming))
+    }
+
+    fn substitute(&self, substitution: &impl Substitution) -> Self {
+        self.transform(&|t: &Term| t.substitute(substitution))
+    }
+}
+
+impl Formula for QuantifierFree {
+    fn free_vars(&self) -> Vec<&V> {
+        match self {
+            Self::Top => Vec::new(),
+            Self::Bottom => Vec::new(),
+            Self::Atom(this) => this.free_vars(),
+            Self::Equals(this) => this.free_vars(),
+            Self::Not(this) => this.free_vars(),
+            Self::And(this) => this.free_vars(),
+            Self::Or(this) => this.free_vars(),
+            Self::Implies(this) => this.free_vars(),
+            Self::Iff(this) => this.free_vars(),
+        }
+    }
+}
+
+impl From<QuantifierFree> for FOF {
+    fn from(value: QuantifierFree) -> Self {
+        match value {
+            QuantifierFree::Top => Self::Top,
+            QuantifierFree::Bottom => Self::Bottom,
+            QuantifierFree::Atom(this) => Self::Atom(this),
+            QuantifierFree::Equals(this) => Self::Equals(this),
+            QuantifierFree::Not(this) => not(this.formula.into()),
+            QuantifierFree::And(this) => {
+                let left: FOF = this.left.into();
+                let right: FOF = this.right.into();
+                left.and(right)
+            }
+            QuantifierFree::Or(this) => {
+                let left: FOF = this.left.into();
+                let right: FOF = this.right.into();
+                left.or(right)
+            }
+            QuantifierFree::Implies(this) => {
+                let pre: FOF = this.premise.into();
+                let cons: FOF = this.consequence.into();
+                pre.implies(cons)
+            }
+            QuantifierFree::Iff(this) => {
+                let left: FOF = this.left.into();
+                let right: FOF = this.right.into();
+                left.iff(right)
+            }
+        }
+    }
+}
+
+/// Represents a formula in Prenex Normal Form (PNF).
 ///
 /// **Hint**: A PNF is a first-order formula with all quantifiers (existential and
 /// universal) and bound variables at the front, followed by a quantifier-free part.
-///
-/// [`FOF`]: crate::syntax::FOF
 #[derive(Clone, Debug)]
-pub struct PNF(FOF);
+pub enum PNF {
+    /// Is the quantifier-free portion of a [`PNF`].
+    QuantifierFree(QuantifierFree),
+
+    /// Is an existentially quantified formula, wrapping an [`Exists`].
+    Exists(Box<Exists<PNF>>),
+
+    /// Is a universally quantified formula, wrapping a [`Forall`].
+    Forall(Box<Forall<PNF>>),
+}
+
+impl From<Atom> for PNF {
+    fn from(value: Atom) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Equals> for PNF {
+    fn from(value: Equals) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Not<QuantifierFree>> for PNF {
+    fn from(value: Not<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<And<QuantifierFree>> for PNF {
+    fn from(value: And<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Or<QuantifierFree>> for PNF {
+    fn from(value: Or<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Implies<QuantifierFree>> for PNF {
+    fn from(value: Implies<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Iff<QuantifierFree>> for PNF {
+    fn from(value: Iff<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Exists<PNF>> for PNF {
+    fn from(value: Exists<PNF>) -> Self {
+        Self::Exists(Box::new(value))
+    }
+}
+
+impl From<Forall<PNF>> for PNF {
+    fn from(value: Forall<PNF>) -> Self {
+        Self::Forall(Box::new(value))
+    }
+}
+
+impl From<QuantifierFree> for PNF {
+    fn from(value: QuantifierFree) -> Self {
+        Self::QuantifierFree(value)
+    }
+}
+
+impl From<&FOF> for PNF {
+    fn from(value: &FOF) -> Self {
+        pnf(value)
+    }
+}
 
 impl PNF {
-    /// Returns a reference to the first-order formula wrapped in the receiver PNF.
-    #[inline(always)]
-    pub fn formula(&self) -> &FOF {
-        &self.0
+    fn not(formula: QuantifierFree) -> Self {
+        Not { formula }.into()
+    }
+
+    fn exists(variables: Vec<V>, formula: Self) -> Self {
+        Exists { variables, formula }.into()
+    }
+
+    fn forall(variables: Vec<V>, formula: Self) -> Self {
+        Forall { variables, formula }.into()
+    }
+}
+
+impl Formula for PNF {
+    fn free_vars(&self) -> Vec<&V> {
+        match self {
+            PNF::QuantifierFree(this) => this.free_vars(),
+            PNF::Exists(this) => this.free_vars(),
+            PNF::Forall(this) => this.free_vars(),
+        }
+    }
+}
+
+impl TermBased for PNF {
+    #[inline]
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        match self {
+            PNF::QuantifierFree(this) => this.transform(f).into(),
+            PNF::Exists(this) => Exists {
+                variables: this.variables.clone(),
+                formula: this.formula.transform(f),
+            }
+            .into(),
+            PNF::Forall(this) => Forall {
+                variables: this.variables.clone(),
+                formula: this.formula.transform(f),
+            }
+            .into(),
+        }
+    }
+
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
+        // this does not rename bound variables of the formula
+        self.transform(&|t: &Term| t.rename_vars(renaming))
+    }
+
+    fn substitute(&self, substitution: &impl Substitution) -> Self {
+        self.transform(&|t: &Term| t.substitute(substitution))
     }
 }
 
 impl From<PNF> for FOF {
-    fn from(pnf: PNF) -> Self {
-        pnf.0
+    fn from(value: PNF) -> Self {
+        match value {
+            PNF::QuantifierFree(this) => this.into(),
+            PNF::Exists(this) => exists(this.variables, this.formula.into()),
+            PNF::Forall(this) => forall(this.variables, this.formula.into()),
+        }
     }
 }
 
@@ -39,7 +336,7 @@ fn rename(variable: &V, no_collision_variables: &[&V]) -> V {
 
 // helper for transforming formulae with binary operands
 #[inline]
-fn binary_helper(vars: &[V], formula: &FOF, other: &FOF) -> (Vec<V>, FOF) {
+fn binary_helper(vars: &[V], formula: &PNF, other: &PNF) -> (Vec<V>, PNF) {
     let formula_vars = formula.free_vars();
     let other_vars = other.free_vars();
 
@@ -67,93 +364,114 @@ fn binary_helper(vars: &[V], formula: &FOF, other: &FOF) -> (Vec<V>, FOF) {
 
 // The transforming function as a helper
 #[inline]
-fn pnf(formula: &FOF) -> FOF {
+fn pnf(formula: &FOF) -> PNF {
     match formula {
-        Top | Bottom | Atom { .. } | Equals { .. } => formula.clone(),
+        FOF::Top => PNF::QuantifierFree(QuantifierFree::Top),
+        FOF::Bottom => PNF::QuantifierFree(QuantifierFree::Bottom),
+        FOF::Atom(this) => this.clone().into(),
+        FOF::Equals(this) => this.clone().into(),
         // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
-        Not(this) => match pnf(this.formula()) {
-            Forall(forall) => exists(
-                forall.variables().to_vec(),
-                pnf(&not(forall.formula().clone())),
-            ),
-            Exists(exists) => forall(
-                exists.variables().to_vec(),
-                pnf(&not(exists.formula().clone())),
-            ),
-            f => not(f),
+        FOF::Not(this) => match pnf(&this.formula) {
+            PNF::Forall(forall) => PNF::exists(forall.variables, pnf(&not(forall.formula.into()))),
+            PNF::Exists(exists) => PNF::forall(exists.variables, pnf(&not(exists.formula.into()))),
+            PNF::QuantifierFree(this) => PNF::not(this),
         },
         // e.g. (Q x. F(x)) & G(y) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
-        And(this) => {
-            let left = pnf(this.left());
-            let right = pnf(this.right());
+        FOF::And(this) => {
+            let left = pnf(&this.left);
+            let right = pnf(&this.right);
 
-            if let Forall(f) = left {
-                let (vars, fmla) = binary_helper(&f.variables(), f.formula(), &right);
-                pnf(&forall(vars, fmla.and(right)))
-            } else if let Exists(e) = left {
-                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &right);
-                pnf(&exists(vars, fmla.and(right)))
-            } else if let Forall(f) = right {
-                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &left);
-                pnf(&forall(vars, left.and(fmla)))
-            } else if let Exists(e) = right {
-                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &left);
-                pnf(&exists(vars, left.and(fmla)))
-            } else {
-                left.and(right)
+            match (&left, &right) {
+                (PNF::Forall(f), _) => {
+                    let (vars, fmla) = binary_helper(&f.variables, &f.formula, &right);
+                    pnf(&forall(vars, FOF::from(fmla).and(right.into())))
+                }
+                (PNF::Exists(e), _) => {
+                    let (vars, fmla) = binary_helper(&e.variables, &e.formula, &right);
+                    pnf(&exists(vars, FOF::from(fmla).and(right.into())))
+                }
+                (_, PNF::Forall(f)) => {
+                    let (vars, fmla) = binary_helper(&f.variables, &f.formula, &left);
+                    pnf(&forall(vars, FOF::from(left).and(fmla.into())))
+                }
+                (_, PNF::Exists(e)) => {
+                    let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
+                    pnf(&exists(vars, FOF::from(left).and(fmla.into())))
+                }
+                (PNF::QuantifierFree(left), PNF::QuantifierFree(right)) => And {
+                    left: left.clone(),
+                    right: right.clone(),
+                }
+                .into(),
             }
         }
         // e.g. (Q x. F(x)) | G(y) => Q x'. F(x') | G(y) or F(x) | (Q y. G(y)) => Q y'. F(x) | G(y')
-        Or(this) => {
-            let left = pnf(this.left());
-            let right = pnf(this.right());
+        FOF::Or(this) => {
+            let left = pnf(&this.left);
+            let right = pnf(&this.right);
 
-            if let Forall(f) = left {
-                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &right);
-                pnf(&forall(vars, fmla.or(right)))
-            } else if let Exists(e) = left {
-                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &right);
-                pnf(&exists(vars, fmla.or(right)))
-            } else if let Forall(f) = right {
-                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &left);
-                pnf(&forall(vars, left.or(fmla)))
-            } else if let Exists(e) = right {
-                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &left);
-                pnf(&exists(vars, left.or(fmla)))
-            } else {
-                left.or(right)
+            match (&left, &right) {
+                (PNF::Forall(f), _) => {
+                    let (vars, fmla) = binary_helper(&f.variables, &f.formula, &right);
+                    pnf(&forall(vars, FOF::from(fmla).or(right.into())))
+                }
+                (PNF::Exists(e), _) => {
+                    let (vars, fmla) = binary_helper(&e.variables, &e.formula, &right);
+                    pnf(&exists(vars, FOF::from(fmla).or(right.into())))
+                }
+                (_, PNF::Forall(f)) => {
+                    let (vars, fmla) = binary_helper(&f.variables, &f.formula, &left);
+                    pnf(&forall(vars, FOF::from(left).or(fmla.into())))
+                }
+                (_, PNF::Exists(e)) => {
+                    let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
+                    pnf(&exists(vars, FOF::from(left).or(fmla.into())))
+                }
+                (PNF::QuantifierFree(left), PNF::QuantifierFree(right)) => Or {
+                    left: left.clone(),
+                    right: right.clone(),
+                }
+                .into(),
             }
         }
         // e.g. (Q x. F(x)) -> G(y) => Q' x'. F(x') -> G(y) or F(x) -> (Q y. G(y)) => Q' y'. F(x) -> G(y')
-        Implies(this) => {
-            let left = pnf(this.premise());
-            let right = pnf(this.consequence());
+        FOF::Implies(this) => {
+            let premise = pnf(&this.premise);
+            let consequence = pnf(&this.consequence);
 
-            if let Forall(f) = left {
-                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &right);
-                pnf(&exists(vars, fmla.implies(right)))
-            } else if let Exists(e) = left {
-                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &right);
-                pnf(&forall(vars, fmla.implies(right)))
-            } else if let Forall(f) = right {
-                let (vars, fmla) = binary_helper(f.variables(), f.formula(), &left);
-                pnf(&forall(vars, left.implies(fmla)))
-            } else if let Exists(e) = right {
-                let (vars, fmla) = binary_helper(e.variables(), e.formula(), &left);
-                pnf(&exists(vars, left.implies(fmla)))
-            } else {
-                left.implies(right)
+            match (&premise, &consequence) {
+                (PNF::Forall(f), _) => {
+                    let (vars, fmla) = binary_helper(&f.variables, &f.formula, &consequence);
+                    pnf(&exists(vars, FOF::from(fmla).implies(consequence.into())))
+                }
+                (PNF::Exists(e), _) => {
+                    let (vars, fmla) = binary_helper(&e.variables, &e.formula, &consequence);
+                    pnf(&forall(vars, FOF::from(fmla).implies(consequence.into())))
+                }
+                (_, PNF::Forall(f)) => {
+                    let (vars, fmla) = binary_helper(&f.variables, &f.formula, &premise);
+                    pnf(&forall(vars, FOF::from(premise).implies(fmla.into())))
+                }
+                (_, PNF::Exists(e)) => {
+                    let (vars, fmla) = binary_helper(&e.variables, &e.formula, &premise);
+                    pnf(&exists(vars, FOF::from(premise).implies(fmla.into())))
+                }
+                (PNF::QuantifierFree(premise), PNF::QuantifierFree(consequence)) => Implies {
+                    premise: premise.clone(),
+                    consequence: consequence.clone(),
+                }
+                .into(),
             }
         }
-        Iff(this) => {
-            let left = this.left();
-            let right = this.right();
+        FOF::Iff(this) => {
+            let left = &this.left;
+            let right = &this.right;
             let left_to_right = left.clone().implies(right.clone());
             let right_to_left = right.clone().implies(left.clone());
             pnf(&left_to_right.and(right_to_left))
         }
-        Exists(this) => exists(this.variables().to_vec(), pnf(this.formula())),
-        Forall(this) => forall(this.variables().to_vec(), pnf(this.formula())),
+        FOF::Exists(this) => PNF::exists(this.variables.clone(), pnf(&this.formula)),
+        FOF::Forall(this) => PNF::forall(this.variables.clone(), pnf(&this.formula)),
     }
 }
 
@@ -170,7 +488,7 @@ impl FOF {
     /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", FOF::from(pnf).to_string());
     /// ```
     pub fn pnf(&self) -> PNF {
-        PNF(pnf(self))
+        self.into()
     }
 }
 

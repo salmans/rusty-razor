@@ -94,7 +94,7 @@ impl Sequent {
         #[inline]
         fn implies_parts(formula: &FOF) -> Result<(&FOF, &FOF), Error> {
             if let FOF::Implies(this) = formula {
-                Ok((this.premise(), this.consequence()))
+                Ok((&this.premise, &this.consequence))
             } else {
                 Err(Error::BadSequentFormula {
                     formula: formula.clone(),
@@ -190,8 +190,8 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
         FOF::Top => Ok(vec![vec![]]),
         FOF::Bottom => Ok(vec![]),
         FOF::Atom(this) => {
-            let predicate = this.predicate();
-            let terms = this.terms();
+            let predicate = &this.predicate;
+            let terms = &this.terms;
 
             let mut attributes = Vec::new();
             for term in terms {
@@ -230,8 +230,8 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
             )]])
         }
         FOF::And(this) => {
-            let mut left = build_branches(this.left())?;
-            let mut right = build_branches(this.right())?;
+            let mut left = build_branches(&this.left)?;
+            let mut right = build_branches(&this.right)?;
 
             if left.is_empty() {
                 Ok(left)
@@ -249,8 +249,8 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
             }
         }
         FOF::Or(this) => {
-            let mut left = build_branches(this.left())?;
-            let mut right = build_branches(this.right())?;
+            let mut left = build_branches(&this.left)?;
+            let mut right = build_branches(&this.right)?;
             left.append(&mut right);
             Ok(left)
         }

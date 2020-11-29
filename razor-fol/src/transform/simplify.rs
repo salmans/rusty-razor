@@ -20,17 +20,17 @@ impl FOF {
         match self {
             Top | Bottom | Atom { .. } | Equals { .. } => self.clone(),
             Not(this) => {
-                let formula = this.formula().simplify();
+                let formula = this.formula.simplify();
                 match formula {
                     Top => Bottom,
                     Bottom => Top,
-                    Not(this) => this.formula().simplify(),
+                    Not(this) => this.formula.simplify(),
                     _ => not(formula),
                 }
             }
             And(this) => {
-                let left = this.left().simplify();
-                let right = this.right().simplify();
+                let left = this.left.simplify();
+                let right = this.right.simplify();
                 if let Bottom = left {
                     Bottom
                 } else if let Bottom = right {
@@ -44,8 +44,8 @@ impl FOF {
                 }
             }
             Or(this) => {
-                let left = this.left().simplify();
-                let right = this.right().simplify();
+                let left = this.left.simplify();
+                let right = this.right.simplify();
                 if let Top = left {
                     Top
                 } else if let Top = right {
@@ -59,8 +59,8 @@ impl FOF {
                 }
             }
             Implies(this) => {
-                let left = this.premise().simplify();
-                let right = this.consequence().simplify();
+                let left = this.premise.simplify();
+                let right = this.consequence.simplify();
                 if let Bottom = left {
                     Top
                 } else if let Top = right {
@@ -74,8 +74,8 @@ impl FOF {
                 }
             }
             Iff(this) => {
-                let left = this.left().simplify();
-                let right = this.right().simplify();
+                let left = this.left.simplify();
+                let right = this.right.simplify();
                 if let Top = left {
                     right
                 } else if let Top = right {
@@ -89,11 +89,11 @@ impl FOF {
                 }
             }
             Exists(this) => {
-                let formula = this.formula().simplify();
+                let formula = this.formula.simplify();
                 let free_vars = formula.free_vars();
                 let vs: Vec<V> = free_vars
                     .into_iter()
-                    .filter(|v| this.variables().contains(v))
+                    .filter(|v| this.variables.contains(v))
                     .cloned()
                     .collect();
                 if vs.is_empty() {
@@ -103,11 +103,11 @@ impl FOF {
                 }
             }
             Forall(this) => {
-                let formula = this.formula().simplify();
+                let formula = this.formula.simplify();
                 let free_vars = formula.free_vars();
                 let vs: Vec<V> = free_vars
                     .into_iter()
-                    .filter(|v| this.variables().contains(v))
+                    .filter(|v| this.variables.contains(v))
                     .cloned()
                     .collect();
                 if vs.is_empty() {

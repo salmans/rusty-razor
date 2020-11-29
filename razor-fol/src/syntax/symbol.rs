@@ -132,7 +132,11 @@ impl Pred {
     ///
     /// [`Pred`]: crate::syntax::Pred
     pub fn app(self, terms: Vec<Term>) -> FOF {
-        Atom::new(self, terms).into()
+        Atom {
+            predicate: self,
+            terms,
+        }
+        .into()
     }
 }
 

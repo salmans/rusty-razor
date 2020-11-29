@@ -37,29 +37,10 @@ pub trait Formula {
 }
 
 /// Represents an atomic formula, obtained by applying a predicate on a list of terms.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Atom {
-    predicate: Pred,
-    terms: Vec<Term>,
-}
-
-impl Atom {
-    /// Creates a new atom.
-    pub fn new(predicate: Pred, terms: Vec<Term>) -> Self {
-        Self { predicate, terms }
-    }
-
-    /// Returns the predicate of the receiver.
-    #[inline(always)]
-    pub fn predicate(&self) -> &Pred {
-        &self.predicate
-    }
-
-    /// Returns the terms of the receiver.
-    #[inline(always)]
-    pub fn terms(&self) -> &[Term] {
-        &self.terms
-    }
+    pub predicate: Pred,
+    pub terms: Vec<Term>,
 }
 
 impl Formula for Atom {
@@ -73,29 +54,10 @@ impl Formula for Atom {
 }
 
 /// Represents an equation between two terms.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Equals {
-    left: Term,
-    right: Term,
-}
-
-impl Equals {
-    /// Creates a new equation.
-    pub fn new(left: Term, right: Term) -> Self {
-        Self { left, right }
-    }
-
-    /// Returns the term on the left of the equation.
-    #[inline(always)]
-    pub fn left(&self) -> &Term {
-        &self.left
-    }
-
-    /// Returns the term on the right of the equation.
-    #[inline(always)]
-    pub fn right(&self) -> &Term {
-        &self.right
-    }
+    pub left: Term,
+    pub right: Term,
 }
 
 impl Formula for Equals {
@@ -107,22 +69,9 @@ impl Formula for Equals {
 }
 
 /// Represents the negation of a formula.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Not<F: Formula> {
-    formula: F,
-}
-
-impl<F: Formula> Not<F> {
-    /// Wraps `formula` in a new instance of [`Not`].
-    pub fn new(formula: F) -> Self {
-        Self { formula }
-    }
-
-    /// Returns the formula wrapped in the receiver.
-    #[inline(always)]
-    pub fn formula(&self) -> &F {
-        &self.formula
-    }
+    pub formula: F,
 }
 
 impl<F: Formula> Formula for Not<F> {
@@ -132,29 +81,10 @@ impl<F: Formula> Formula for Not<F> {
 }
 
 /// Represents the conjunction of two formulae.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct And<F: Formula> {
-    left: F,
-    right: F,
-}
-
-impl<F: Formula> And<F> {
-    /// Returns the conjunction of `left` and `right`.
-    pub fn new(left: F, right: F) -> Self {
-        Self { left, right }
-    }
-
-    /// Returns the formula on the left of the receiver.
-    #[inline(always)]
-    pub fn left(&self) -> &F {
-        &self.left
-    }
-
-    /// Returns the formula on the right of the receiver.
-    #[inline(always)]
-    pub fn right(&self) -> &F {
-        &self.right
-    }
+    pub left: F,
+    pub right: F,
 }
 
 impl<F: Formula> Formula for And<F> {
@@ -166,29 +96,10 @@ impl<F: Formula> Formula for And<F> {
 }
 
 /// Represents the disjunction of two formula.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Or<F: Formula> {
-    left: F,
-    right: F,
-}
-
-impl<F: Formula> Or<F> {
-    /// Returns the disjuction of `left` and `right`.    
-    pub fn new(left: F, right: F) -> Self {
-        Self { left, right }
-    }
-
-    /// Returns the formula on the left of the receiver.
-    #[inline(always)]
-    pub fn left(&self) -> &F {
-        &self.left
-    }
-
-    /// Returns the formula on the right of the receiver.
-    #[inline(always)]
-    pub fn right(&self) -> &F {
-        &self.right
-    }
+    pub left: F,
+    pub right: F,
 }
 
 impl<F: Formula> Formula for Or<F> {
@@ -200,32 +111,10 @@ impl<F: Formula> Formula for Or<F> {
 }
 
 /// Represents an implication between two formulae.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Implies<F: Formula> {
-    premise: F,
-    consequence: F,
-}
-
-impl<F: Formula> Implies<F> {
-    /// Returns an implication with a `premise` and a `consequence`.
-    pub fn new(premise: F, consequence: F) -> Self {
-        Self {
-            premise,
-            consequence,
-        }
-    }
-
-    /// Returns the premise of the receiver.
-    #[inline(always)]
-    pub fn premise(&self) -> &F {
-        &self.premise
-    }
-
-    /// Returns the consequence of the receiver.
-    #[inline(always)]
-    pub fn consequence(&self) -> &F {
-        &self.consequence
-    }
+    pub premise: F,
+    pub consequence: F,
 }
 
 impl<F: Formula> Formula for Implies<F> {
@@ -237,29 +126,10 @@ impl<F: Formula> Formula for Implies<F> {
 }
 
 /// Represents a bi-implication between two formulae.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Iff<F: Formula> {
-    left: F,
-    right: F,
-}
-
-impl<F: Formula> Iff<F> {
-    /// Returns a bi-implication between `left` and `rigth`.
-    pub fn new(left: F, right: F) -> Self {
-        Self { left, right }
-    }
-
-    /// Returns the formula on left of the receiver.
-    #[inline(always)]
-    pub fn left(&self) -> &F {
-        &self.left
-    }
-
-    /// Returns the formula on the right of the receiver.
-    #[inline(always)]
-    pub fn right(&self) -> &F {
-        &self.right
-    }
+    pub left: F,
+    pub right: F,
 }
 
 impl<F: Formula> Formula for Iff<F> {
@@ -271,29 +141,10 @@ impl<F: Formula> Formula for Iff<F> {
 }
 
 /// Represents an existentially quantified formula.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Exists<F: Formula> {
-    variables: Vec<V>,
-    formula: F,
-}
-
-impl<F: Formula> Exists<F> {
-    /// Returns an existentially quantified formula with bound `variables` and `formula`.
-    pub fn new(variables: Vec<V>, formula: F) -> Self {
-        Self { variables, formula }
-    }
-
-    /// Returns the bound variables of the receiver.
-    #[inline(always)]
-    pub fn variables(&self) -> &[V] {
-        &self.variables
-    }
-
-    /// Returns the formula of the existentially quantified receiver.
-    #[inline(always)]
-    pub fn formula(&self) -> &F {
-        &self.formula
-    }
+    pub variables: Vec<V>,
+    pub formula: F,
 }
 
 impl<F: Formula> Formula for Exists<F> {
@@ -307,29 +158,10 @@ impl<F: Formula> Formula for Exists<F> {
 }
 
 /// Represents a universally quantified formula.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Forall<F: Formula> {
-    variables: Vec<V>,
-    formula: F,
-}
-
-impl<F: Formula> Forall<F> {
-    /// Returns a universally quantified formula with bound `variables` and `formula`.    
-    pub fn new(variables: Vec<V>, formula: F) -> Self {
-        Self { variables, formula }
-    }
-
-    /// Returns the bound variables of the receiver.
-    #[inline(always)]
-    pub fn variables(&self) -> &[V] {
-        &self.variables
-    }
-
-    /// Returns the formula of the universally quantified receiver.
-    #[inline(always)]
-    pub fn formula(&self) -> &F {
-        &self.formula
-    }
+    pub variables: Vec<V>,
+    pub formula: F,
 }
 
 impl<F: Formula> Formula for Forall<F> {

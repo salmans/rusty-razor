@@ -196,13 +196,13 @@ fn formula_signature(formula: &FOF) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
     match formula {
         FOF::Top | FOF::Bottom => (Vec::new(), Vec::new(), Vec::new()),
         FOF::Atom(this) => {
-            let terms = this.terms();
+            let terms = &this.terms;
 
             let mut constants = Vec::new();
             let mut functions = Vec::new();
 
             for t in terms {
-                let (cs, fs) = term_signature(t);
+                let (cs, fs) = term_signature(&t);
                 constants.extend(cs);
                 functions.extend(fs);
             }
@@ -211,13 +211,13 @@ fn formula_signature(formula: &FOF) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
                 constants,
                 functions,
                 vec![PSig {
-                    symbol: this.predicate().clone(),
+                    symbol: this.predicate.clone(),
                     arity: terms.len() as u8,
                 }],
             )
         }
         FOF::Equals(this) => {
-            let (cs, fs) = combine_term_signatures(this.left(), this.right());
+            let (cs, fs) = combine_term_signatures(&this.left, &this.right);
             (
                 cs,
                 fs,
@@ -227,13 +227,13 @@ fn formula_signature(formula: &FOF) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
                 }],
             )
         }
-        FOF::Not(this) => formula_signature(this.formula()),
-        FOF::And(this) => combine_formula_signatures(this.left(), this.right()),
-        FOF::Or(this) => combine_formula_signatures(this.left(), this.right()),
-        FOF::Implies(this) => combine_formula_signatures(this.premise(), this.consequence()),
-        FOF::Iff(this) => combine_formula_signatures(this.left(), this.right()),
-        FOF::Exists(this) => formula_signature(this.formula()),
-        FOF::Forall(this) => formula_signature(this.formula()),
+        FOF::Not(this) => formula_signature(&this.formula),
+        FOF::And(this) => combine_formula_signatures(&this.left, &this.right),
+        FOF::Or(this) => combine_formula_signatures(&this.left, &this.right),
+        FOF::Implies(this) => combine_formula_signatures(&this.premise, &this.consequence),
+        FOF::Iff(this) => combine_formula_signatures(&this.left, &this.right),
+        FOF::Exists(this) => formula_signature(&this.formula),
+        FOF::Forall(this) => formula_signature(&this.formula),
     }
 }
 
