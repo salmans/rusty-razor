@@ -76,7 +76,7 @@ impl SNF {
     /// );
     /// ```
     pub fn dnf(&self) -> DNF {
-        let nnf = self.formula().nnf();
+        let nnf = FOF::from(self.clone()).nnf();
         DNF(remove_forall(distribute_and(&nnf.into())))
     }
 }

@@ -98,6 +98,38 @@ impl From<Forall<FOF>> for FOF {
     }
 }
 
+impl From<QuantifierFree> for FOF {
+    fn from(value: QuantifierFree) -> Self {
+        match value {
+            QuantifierFree::Top => Self::Top,
+            QuantifierFree::Bottom => Self::Bottom,
+            QuantifierFree::Atom(this) => Self::Atom(this),
+            QuantifierFree::Equals(this) => Self::Equals(this),
+            QuantifierFree::Not(this) => FOF::not(this.formula.into()),
+            QuantifierFree::And(this) => {
+                let left: FOF = this.left.into();
+                let right: FOF = this.right.into();
+                left.and(right)
+            }
+            QuantifierFree::Or(this) => {
+                let left: FOF = this.left.into();
+                let right: FOF = this.right.into();
+                left.or(right)
+            }
+            QuantifierFree::Implies(this) => {
+                let pre: FOF = this.premise.into();
+                let cons: FOF = this.consequence.into();
+                pre.implies(cons)
+            }
+            QuantifierFree::Iff(this) => {
+                let left: FOF = this.left.into();
+                let right: FOF = this.right.into();
+                left.iff(right)
+            }
+        }
+    }
+}
+
 impl FOF {
     /// Returns the negation of `formula`.
     pub fn not(formula: Self) -> Self {

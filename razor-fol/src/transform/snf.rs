@@ -1,59 +1,163 @@
-/*! Implements conversion to Skolem Normal Form (SNF) for formulae.*/
-use super::{TermBased, PNF};
-use crate::syntax::{symbol::Generator, FOF::*, *};
+/*! Defines Skolem Normal Form (PNF) formulae and implements an algorithm for converting
+[`PNF`] to [`SNF`].
+
+[`PNF`]: crate::transform::PNF
+*/
+use super::{Substitution, TermBased, VariableRenaming, PNF};
+use crate::syntax::{formula::*, symbol::Generator, Term, C, F, FOF, V};
 use std::collections::HashMap;
 
-/// Is a wrapper around [`FOF`] that represents a formula in Skolem Normal Form (SNF).
+/// Represents a formula in Skolem Normal Form (SNF).
 ///
 /// **Hint**: An SNF is a [PNF] with only universal quantifiers
 /// (see: <https://en.wikipedia.org/wiki/Skolem_normal_form>).
 ///
 /// [PNF]: crate::transform::PNF
-/// [`FOF`]: crate::syntax::FOF
 #[derive(Clone, Debug)]
-pub struct SNF(FOF);
+pub enum SNF {
+    /// Is the quantifier-free portion of an [`SNF`].
+    QuantifierFree(QuantifierFree),
+
+    /// Is a universally quantified formula, wrapping a [`Forall`].
+    Forall(Box<Forall<SNF>>),
+}
+
+impl From<Atom> for SNF {
+    fn from(value: Atom) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Equals> for SNF {
+    fn from(value: Equals) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Not<QuantifierFree>> for SNF {
+    fn from(value: Not<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<And<QuantifierFree>> for SNF {
+    fn from(value: And<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Or<QuantifierFree>> for SNF {
+    fn from(value: Or<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Implies<QuantifierFree>> for SNF {
+    fn from(value: Implies<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Iff<QuantifierFree>> for SNF {
+    fn from(value: Iff<QuantifierFree>) -> Self {
+        Self::QuantifierFree(value.into())
+    }
+}
+
+impl From<Forall<SNF>> for SNF {
+    fn from(value: Forall<SNF>) -> Self {
+        Self::Forall(Box::new(value))
+    }
+}
+
+impl From<QuantifierFree> for SNF {
+    fn from(value: QuantifierFree) -> Self {
+        Self::QuantifierFree(value)
+    }
+}
+
+impl From<&PNF> for SNF {
+    fn from(value: &PNF) -> Self {
+        value.snf()
+    }
+}
 
 impl SNF {
-    /// Returns a reference to the first-order formula wrapped in the receiver SNF.
-    #[inline(always)]
-    pub fn formula(&self) -> &FOF {
-        &self.0
+    /// Creates a new formula in SNF from a [`PNF`], a list of skolem variables and
+    /// [`Generator`] for creating fresh skolem function names.
+    fn new(pnf: PNF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> Self {
+        match pnf {
+            PNF::Forall(this) => {
+                let variables = this.variables;
+                skolem_vars.append(&mut variables.to_vec());
+                SNF::forall(
+                    variables.to_vec(),
+                    Self::new(this.formula, skolem_vars, generator),
+                )
+            }
+            PNF::Exists(this) => {
+                let variables = this.variables;
+                let mut map: HashMap<&V, Term> = HashMap::new();
+
+                variables.iter().for_each(|v| {
+                    if skolem_vars.is_empty() {
+                        map.insert(&v, C::from(&generator.generate_next()).into());
+                    } else {
+                        let vars: Vec<Term> =
+                            skolem_vars.iter().map(|v| v.clone().into()).collect();
+                        map.insert(&v, F::from(&generator.generate_next()).app(vars));
+                    }
+                });
+
+                let substituted = this.formula.substitute(&map);
+                Self::new(substituted, skolem_vars, generator)
+            }
+            PNF::QuantifierFree(this) => this.into(),
+        }
+    }
+
+    /// Creates a universally quantified [`SNF`].
+    fn forall(variables: Vec<V>, formula: Self) -> Self {
+        Forall { variables, formula }.into()
+    }
+}
+
+impl Formula for SNF {
+    fn free_vars(&self) -> Vec<&V> {
+        match self {
+            SNF::QuantifierFree(this) => this.free_vars(),
+            SNF::Forall(this) => this.free_vars(),
+        }
+    }
+}
+
+impl TermBased for SNF {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        match self {
+            SNF::QuantifierFree(this) => this.transform(f).into(),
+            SNF::Forall(this) => Forall {
+                variables: this.variables.clone(),
+                formula: this.formula.transform(f),
+            }
+            .into(),
+        }
+    }
+
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
+        self.transform(&|t: &Term| t.rename_vars(renaming))
+    }
+
+    fn substitute(&self, substitution: &impl Substitution) -> Self {
+        self.transform(&|t: &Term| t.substitute(substitution))
     }
 }
 
 impl From<SNF> for FOF {
-    fn from(snf: SNF) -> Self {
-        snf.0
-    }
-}
-
-fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> FOF {
-    match formula {
-        Forall(this) => {
-            let variables = this.variables;
-            skolem_vars.append(&mut variables.to_vec());
-            FOF::forall(
-                variables.to_vec(),
-                helper(this.formula, skolem_vars, generator),
-            )
+    fn from(value: SNF) -> Self {
+        match value {
+            SNF::QuantifierFree(this) => this.into(),
+            SNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
         }
-        Exists(this) => {
-            let variables = this.variables;
-            let mut map: HashMap<&V, Term> = HashMap::new();
-
-            variables.iter().for_each(|v| {
-                if skolem_vars.is_empty() {
-                    map.insert(&v, C::from(&generator.generate_next()).into());
-                } else {
-                    let vars: Vec<Term> = skolem_vars.iter().map(|v| v.clone().into()).collect();
-                    map.insert(&v, F::from(&generator.generate_next()).app(vars));
-                }
-            });
-
-            let substituted = this.formula.substitute(&map);
-            helper(substituted, skolem_vars, generator)
-        }
-        _ => formula,
     }
 }
 
@@ -94,7 +198,7 @@ impl PNF {
     /// ```
     pub fn snf_with(&self, generator: &mut Generator) -> SNF {
         let free_vars = self.free_vars().into_iter().cloned().collect();
-        SNF(helper(self.clone().into(), free_vars, generator))
+        SNF::new(self.clone().into(), free_vars, generator)
     }
 }
 
