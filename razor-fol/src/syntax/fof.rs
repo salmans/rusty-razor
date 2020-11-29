@@ -98,30 +98,30 @@ impl From<Forall<FOF>> for FOF {
     }
 }
 
-impl From<QuantifierFree> for FOF {
-    fn from(value: QuantifierFree) -> Self {
+impl From<QFF> for FOF {
+    fn from(value: QFF) -> Self {
         match value {
-            QuantifierFree::Top => Self::Top,
-            QuantifierFree::Bottom => Self::Bottom,
-            QuantifierFree::Atom(this) => Self::Atom(this),
-            QuantifierFree::Equals(this) => Self::Equals(this),
-            QuantifierFree::Not(this) => FOF::not(this.formula.into()),
-            QuantifierFree::And(this) => {
+            QFF::Top => Self::Top,
+            QFF::Bottom => Self::Bottom,
+            QFF::Atom(this) => Self::Atom(this),
+            QFF::Equals(this) => Self::Equals(this),
+            QFF::Not(this) => FOF::not(this.formula.into()),
+            QFF::And(this) => {
                 let left: FOF = this.left.into();
                 let right: FOF = this.right.into();
                 left.and(right)
             }
-            QuantifierFree::Or(this) => {
+            QFF::Or(this) => {
                 let left: FOF = this.left.into();
                 let right: FOF = this.right.into();
                 left.or(right)
             }
-            QuantifierFree::Implies(this) => {
+            QFF::Implies(this) => {
                 let pre: FOF = this.premise.into();
                 let cons: FOF = this.consequence.into();
                 pre.implies(cons)
             }
-            QuantifierFree::Iff(this) => {
+            QFF::Iff(this) => {
                 let left: FOF = this.left.into();
                 let right: FOF = this.right.into();
                 left.iff(right)
@@ -132,6 +132,8 @@ impl From<QuantifierFree> for FOF {
 
 impl FOF {
     /// Returns the negation of `formula`.
+    #[allow(clippy::should_implement_trait)]
+    // Disallow `formula.not()` intentionally:
     pub fn not(formula: Self) -> Self {
         Not { formula }.into()
     }

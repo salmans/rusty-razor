@@ -180,7 +180,7 @@ impl<F: Formula> Formula for Forall<F> {
 /// [`PNF`]: crate::transform::PNF
 /// [`SNF`]: crate::transform::SNF
 #[derive(Clone, Debug)]
-pub enum QuantifierFree {
+pub enum QFF {
     /// Is logical top (⊤) or truth.
     Top,
 
@@ -194,97 +194,97 @@ pub enum QuantifierFree {
     Equals(Equals),
 
     /// Is the negation of a formula, wrapping a [`Not`].
-    Not(Box<Not<QuantifierFree>>),
+    Not(Box<Not<QFF>>),
 
     /// Is a conjunction of two formulae, wrapping an [`And`].
-    And(Box<And<QuantifierFree>>),
+    And(Box<And<QFF>>),
 
     /// Is a disjunction of two formulae, wrapping an [`Or`].
-    Or(Box<Or<QuantifierFree>>),
+    Or(Box<Or<QFF>>),
 
     /// Is an implication between two formulae, wrapping an [`Implies`].
-    Implies(Box<Implies<QuantifierFree>>),
+    Implies(Box<Implies<QFF>>),
 
     /// Is an bi-implication between two formulae, wrapping an [`Iff`].    
-    Iff(Box<Iff<QuantifierFree>>),
+    Iff(Box<Iff<QFF>>),
 }
 
-impl From<Atom> for QuantifierFree {
+impl From<Atom> for QFF {
     fn from(value: Atom) -> Self {
-        QuantifierFree::Atom(value)
+        QFF::Atom(value)
     }
 }
 
-impl From<Equals> for QuantifierFree {
+impl From<Equals> for QFF {
     fn from(value: Equals) -> Self {
-        QuantifierFree::Equals(value)
+        QFF::Equals(value)
     }
 }
 
-impl From<Not<QuantifierFree>> for QuantifierFree {
-    fn from(value: Not<QuantifierFree>) -> Self {
-        QuantifierFree::Not(Box::new(value))
+impl From<Not<QFF>> for QFF {
+    fn from(value: Not<QFF>) -> Self {
+        QFF::Not(Box::new(value))
     }
 }
 
-impl From<And<QuantifierFree>> for QuantifierFree {
-    fn from(value: And<QuantifierFree>) -> Self {
-        QuantifierFree::And(Box::new(value))
+impl From<And<QFF>> for QFF {
+    fn from(value: And<QFF>) -> Self {
+        QFF::And(Box::new(value))
     }
 }
 
-impl From<Or<QuantifierFree>> for QuantifierFree {
-    fn from(value: Or<QuantifierFree>) -> Self {
-        QuantifierFree::Or(Box::new(value))
+impl From<Or<QFF>> for QFF {
+    fn from(value: Or<QFF>) -> Self {
+        QFF::Or(Box::new(value))
     }
 }
 
-impl From<Implies<QuantifierFree>> for QuantifierFree {
-    fn from(value: Implies<QuantifierFree>) -> Self {
-        QuantifierFree::Implies(Box::new(value))
+impl From<Implies<QFF>> for QFF {
+    fn from(value: Implies<QFF>) -> Self {
+        QFF::Implies(Box::new(value))
     }
 }
 
-impl From<Iff<QuantifierFree>> for QuantifierFree {
-    fn from(value: Iff<QuantifierFree>) -> Self {
-        QuantifierFree::Iff(Box::new(value))
+impl From<Iff<QFF>> for QFF {
+    fn from(value: Iff<QFF>) -> Self {
+        QFF::Iff(Box::new(value))
     }
 }
 
-impl TermBased for QuantifierFree {
+impl TermBased for QFF {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
-            QuantifierFree::Top | QuantifierFree::Bottom => self.clone(),
-            QuantifierFree::Atom(this) => Atom {
+            QFF::Top | QFF::Bottom => self.clone(),
+            QFF::Atom(this) => Atom {
                 predicate: this.predicate.clone(),
                 terms: this.terms.iter().map(f).collect(),
             }
             .into(),
-            QuantifierFree::Equals(this) => Equals {
+            QFF::Equals(this) => Equals {
                 left: f(&this.left),
                 right: f(&this.right),
             }
             .into(),
-            QuantifierFree::Not(this) => Not {
+            QFF::Not(this) => Not {
                 formula: this.formula.transform(f),
             }
             .into(),
-            QuantifierFree::And(this) => And {
+            QFF::And(this) => And {
                 left: this.left.transform(f),
                 right: this.right.transform(f),
             }
             .into(),
-            QuantifierFree::Or(this) => Or {
+            QFF::Or(this) => Or {
                 left: this.left.transform(f),
                 right: this.right.transform(f),
             }
             .into(),
-            QuantifierFree::Implies(this) => Implies {
+            QFF::Implies(this) => Implies {
                 premise: this.premise.transform(f),
                 consequence: this.consequence.transform(f),
             }
             .into(),
-            QuantifierFree::Iff(this) => Iff {
+            QFF::Iff(this) => Iff {
                 left: this.left.transform(f),
                 right: this.right.transform(f),
             }
@@ -302,7 +302,7 @@ impl TermBased for QuantifierFree {
     }
 }
 
-impl Formula for QuantifierFree {
+impl Formula for QFF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
             Self::Top => Vec::new(),

@@ -16,7 +16,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 pub enum SNF {
     /// Is the quantifier-free portion of an [`SNF`].
-    QuantifierFree(QuantifierFree),
+    QuantifierFree(QFF),
 
     /// Is a universally quantified formula, wrapping a [`Forall`].
     Forall(Box<Forall<SNF>>),
@@ -34,32 +34,32 @@ impl From<Equals> for SNF {
     }
 }
 
-impl From<Not<QuantifierFree>> for SNF {
-    fn from(value: Not<QuantifierFree>) -> Self {
+impl From<Not<QFF>> for SNF {
+    fn from(value: Not<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<And<QuantifierFree>> for SNF {
-    fn from(value: And<QuantifierFree>) -> Self {
+impl From<And<QFF>> for SNF {
+    fn from(value: And<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<Or<QuantifierFree>> for SNF {
-    fn from(value: Or<QuantifierFree>) -> Self {
+impl From<Or<QFF>> for SNF {
+    fn from(value: Or<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<Implies<QuantifierFree>> for SNF {
-    fn from(value: Implies<QuantifierFree>) -> Self {
+impl From<Implies<QFF>> for SNF {
+    fn from(value: Implies<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<Iff<QuantifierFree>> for SNF {
-    fn from(value: Iff<QuantifierFree>) -> Self {
+impl From<Iff<QFF>> for SNF {
+    fn from(value: Iff<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
@@ -70,8 +70,8 @@ impl From<Forall<SNF>> for SNF {
     }
 }
 
-impl From<QuantifierFree> for SNF {
-    fn from(value: QuantifierFree) -> Self {
+impl From<QFF> for SNF {
+    fn from(value: QFF) -> Self {
         Self::QuantifierFree(value)
     }
 }
@@ -198,7 +198,7 @@ impl PNF {
     /// ```
     pub fn snf_with(&self, generator: &mut Generator) -> SNF {
         let free_vars = self.free_vars().into_iter().cloned().collect();
-        SNF::new(self.clone().into(), free_vars, generator)
+        SNF::new(self.clone(), free_vars, generator)
     }
 }
 

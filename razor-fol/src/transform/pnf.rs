@@ -13,7 +13,7 @@ use crate::syntax::{formula::*, Term, FOF, V};
 #[derive(Clone, Debug)]
 pub enum PNF {
     /// Is the quantifier-free portion of a [`PNF`].
-    QuantifierFree(QuantifierFree),
+    QuantifierFree(QFF),
 
     /// Is an existentially quantified formula, wrapping an [`Exists`].
     Exists(Box<Exists<PNF>>),
@@ -34,32 +34,32 @@ impl From<Equals> for PNF {
     }
 }
 
-impl From<Not<QuantifierFree>> for PNF {
-    fn from(value: Not<QuantifierFree>) -> Self {
+impl From<Not<QFF>> for PNF {
+    fn from(value: Not<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<And<QuantifierFree>> for PNF {
-    fn from(value: And<QuantifierFree>) -> Self {
+impl From<And<QFF>> for PNF {
+    fn from(value: And<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<Or<QuantifierFree>> for PNF {
-    fn from(value: Or<QuantifierFree>) -> Self {
+impl From<Or<QFF>> for PNF {
+    fn from(value: Or<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<Implies<QuantifierFree>> for PNF {
-    fn from(value: Implies<QuantifierFree>) -> Self {
+impl From<Implies<QFF>> for PNF {
+    fn from(value: Implies<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
 
-impl From<Iff<QuantifierFree>> for PNF {
-    fn from(value: Iff<QuantifierFree>) -> Self {
+impl From<Iff<QFF>> for PNF {
+    fn from(value: Iff<QFF>) -> Self {
         Self::QuantifierFree(value.into())
     }
 }
@@ -76,8 +76,8 @@ impl From<Forall<PNF>> for PNF {
     }
 }
 
-impl From<QuantifierFree> for PNF {
-    fn from(value: QuantifierFree) -> Self {
+impl From<QFF> for PNF {
+    fn from(value: QFF) -> Self {
         Self::QuantifierFree(value)
     }
 }
@@ -89,7 +89,7 @@ impl From<&FOF> for PNF {
 }
 
 impl PNF {
-    fn not(formula: QuantifierFree) -> Self {
+    fn not(formula: QFF) -> Self {
         Not { formula }.into()
     }
 
@@ -192,8 +192,8 @@ fn binary_helper(vars: &[V], formula: &PNF, other: &PNF) -> (Vec<V>, PNF) {
 #[inline]
 fn pnf(formula: &FOF) -> PNF {
     match formula {
-        FOF::Top => PNF::QuantifierFree(QuantifierFree::Top),
-        FOF::Bottom => PNF::QuantifierFree(QuantifierFree::Bottom),
+        FOF::Top => PNF::QuantifierFree(QFF::Top),
+        FOF::Bottom => PNF::QuantifierFree(QFF::Bottom),
         FOF::Atom(this) => this.clone().into(),
         FOF::Equals(this) => this.clone().into(),
         // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
