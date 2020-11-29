@@ -323,7 +323,7 @@ named!(p_not<Span, FOF>,
     alt!(
         preceded!(
             sp!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
-            map!(alt!(p_not | p_quantified), not)
+            map!(alt!(p_not | p_quantified), FOF::not)
         ) |
         sp!(p_atom)
     )
@@ -407,7 +407,7 @@ named!(p_quantified<Span, FOF>,
         vs: return_error!(ErrorKind::Custom(ERR_VARS), p_vars) >>
         return_error!(ErrorKind::Custom(ERR_DOT), sp!(tag!(DOT))) >>
         f: return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula) >>
-        ( if q == FORALL { forall(vs, f) } else { exists(vs, f) } )
+        ( if q == FORALL { FOF::forall(vs, f) } else { FOF::exists(vs, f) } )
     )
 );
 

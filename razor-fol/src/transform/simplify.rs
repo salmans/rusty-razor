@@ -25,7 +25,7 @@ impl FOF {
                     Top => Bottom,
                     Bottom => Top,
                     Not(this) => this.formula.simplify(),
-                    _ => not(formula),
+                    _ => FOF::not(formula),
                 }
             }
             And(this) => {
@@ -68,7 +68,7 @@ impl FOF {
                 } else if let Top = left {
                     right
                 } else if let Bottom = right {
-                    not(left).simplify()
+                    FOF::not(left).simplify()
                 } else {
                     left.implies(right)
                 }
@@ -81,9 +81,9 @@ impl FOF {
                 } else if let Top = right {
                     left
                 } else if let Bottom = left {
-                    not(right).simplify()
+                    FOF::not(right).simplify()
                 } else if let Bottom = right {
-                    not(left).simplify()
+                    FOF::not(left).simplify()
                 } else {
                     left.iff(right)
                 }
@@ -99,7 +99,7 @@ impl FOF {
                 if vs.is_empty() {
                     formula
                 } else {
-                    exists(vs, formula)
+                    FOF::exists(vs, formula)
                 }
             }
             Forall(this) => {
@@ -113,7 +113,7 @@ impl FOF {
                 if vs.is_empty() {
                     formula
                 } else {
-                    forall(vs, formula)
+                    FOF::forall(vs, formula)
                 }
             }
         }

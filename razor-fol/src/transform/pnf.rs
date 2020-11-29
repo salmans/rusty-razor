@@ -4,8 +4,8 @@
 [`FOF`]: crate::syntax::FOF
 */
 use super::{Substitution, TermBased, VariableRenaming};
-use crate::syntax::{exists, forall, not, FOF, V};
 use crate::syntax::{formula::*, Term};
+use crate::syntax::{FOF, V};
 
 /// Defines the quantifier-free portion of [`PNF`].
 #[derive(Clone, Debug)]
@@ -154,7 +154,7 @@ impl From<QuantifierFree> for FOF {
             QuantifierFree::Bottom => Self::Bottom,
             QuantifierFree::Atom(this) => Self::Atom(this),
             QuantifierFree::Equals(this) => Self::Equals(this),
-            QuantifierFree::Not(this) => not(this.formula.into()),
+            QuantifierFree::Not(this) => FOF::not(this.formula.into()),
             QuantifierFree::And(this) => {
                 let left: FOF = this.left.into();
                 let right: FOF = this.right.into();
@@ -317,8 +317,8 @@ impl From<PNF> for FOF {
     fn from(value: PNF) -> Self {
         match value {
             PNF::QuantifierFree(this) => this.into(),
-            PNF::Exists(this) => exists(this.variables, this.formula.into()),
-            PNF::Forall(this) => forall(this.variables, this.formula.into()),
+            PNF::Exists(this) => FOF::exists(this.variables, this.formula.into()),
+            PNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
         }
     }
 }
@@ -372,8 +372,12 @@ fn pnf(formula: &FOF) -> PNF {
         FOF::Equals(this) => this.clone().into(),
         // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
         FOF::Not(this) => match pnf(&this.formula) {
-            PNF::Forall(forall) => PNF::exists(forall.variables, pnf(&not(forall.formula.into()))),
-            PNF::Exists(exists) => PNF::forall(exists.variables, pnf(&not(exists.formula.into()))),
+            PNF::Forall(forall) => {
+                PNF::exists(forall.variables, pnf(&FOF::not(forall.formula.into())))
+            }
+            PNF::Exists(exists) => {
+                PNF::forall(exists.variables, pnf(&FOF::not(exists.formula.into())))
+            }
             PNF::QuantifierFree(this) => PNF::not(this),
         },
         // e.g. (Q x. F(x)) & G(y) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
@@ -384,19 +388,19 @@ fn pnf(formula: &FOF) -> PNF {
             match (&left, &right) {
                 (PNF::Forall(f), _) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &right);
-                    pnf(&forall(vars, FOF::from(fmla).and(right.into())))
+                    pnf(&FOF::forall(vars, FOF::from(fmla).and(right.into())))
                 }
                 (PNF::Exists(e), _) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &right);
-                    pnf(&exists(vars, FOF::from(fmla).and(right.into())))
+                    pnf(&FOF::exists(vars, FOF::from(fmla).and(right.into())))
                 }
                 (_, PNF::Forall(f)) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &left);
-                    pnf(&forall(vars, FOF::from(left).and(fmla.into())))
+                    pnf(&FOF::forall(vars, FOF::from(left).and(fmla.into())))
                 }
                 (_, PNF::Exists(e)) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
-                    pnf(&exists(vars, FOF::from(left).and(fmla.into())))
+                    pnf(&FOF::exists(vars, FOF::from(left).and(fmla.into())))
                 }
                 (PNF::QuantifierFree(left), PNF::QuantifierFree(right)) => And {
                     left: left.clone(),
@@ -413,19 +417,19 @@ fn pnf(formula: &FOF) -> PNF {
             match (&left, &right) {
                 (PNF::Forall(f), _) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &right);
-                    pnf(&forall(vars, FOF::from(fmla).or(right.into())))
+                    pnf(&FOF::forall(vars, FOF::from(fmla).or(right.into())))
                 }
                 (PNF::Exists(e), _) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &right);
-                    pnf(&exists(vars, FOF::from(fmla).or(right.into())))
+                    pnf(&FOF::exists(vars, FOF::from(fmla).or(right.into())))
                 }
                 (_, PNF::Forall(f)) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &left);
-                    pnf(&forall(vars, FOF::from(left).or(fmla.into())))
+                    pnf(&FOF::forall(vars, FOF::from(left).or(fmla.into())))
                 }
                 (_, PNF::Exists(e)) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
-                    pnf(&exists(vars, FOF::from(left).or(fmla.into())))
+                    pnf(&FOF::exists(vars, FOF::from(left).or(fmla.into())))
                 }
                 (PNF::QuantifierFree(left), PNF::QuantifierFree(right)) => Or {
                     left: left.clone(),
@@ -442,19 +446,25 @@ fn pnf(formula: &FOF) -> PNF {
             match (&premise, &consequence) {
                 (PNF::Forall(f), _) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &consequence);
-                    pnf(&exists(vars, FOF::from(fmla).implies(consequence.into())))
+                    pnf(&FOF::exists(
+                        vars,
+                        FOF::from(fmla).implies(consequence.into()),
+                    ))
                 }
                 (PNF::Exists(e), _) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &consequence);
-                    pnf(&forall(vars, FOF::from(fmla).implies(consequence.into())))
+                    pnf(&FOF::forall(
+                        vars,
+                        FOF::from(fmla).implies(consequence.into()),
+                    ))
                 }
                 (_, PNF::Forall(f)) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &premise);
-                    pnf(&forall(vars, FOF::from(premise).implies(fmla.into())))
+                    pnf(&FOF::forall(vars, FOF::from(premise).implies(fmla.into())))
                 }
                 (_, PNF::Exists(e)) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &premise);
-                    pnf(&exists(vars, FOF::from(premise).implies(fmla.into())))
+                    pnf(&FOF::exists(vars, FOF::from(premise).implies(fmla.into())))
                 }
                 (PNF::QuantifierFree(premise), PNF::QuantifierFree(consequence)) => Implies {
                     premise: premise.clone(),
@@ -785,43 +795,53 @@ mod tests {
         //renaming tests
         assert_debug_string!(
             "! x``, x`. (P(x``) & Q(x))",
-            pnf(&forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .and(pred!(Q).app(vec![term!(x)]))),
+            pnf(
+                &FOF::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .and(pred!(Q).app(vec![term!(x)]))
+            ),
         );
         assert_debug_string!(
             "? x``, x`. (P(x``) & Q(x))",
-            pnf(&exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .and(pred!(Q).app(vec![term!(x)]))),
+            pnf(
+                &FOF::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .and(pred!(Q).app(vec![term!(x)]))
+            ),
         );
         assert_debug_string!(
             "? x``. (P(x``) & Q(x, x`))",
-            pnf(&exists(vec![v!(x)], fof!(P(x))).and(pred!(Q).app(vec![term!(x), v_1!(x).into()]))),
+            pnf(&FOF::exists(vec![v!(x)], fof!(P(x)))
+                .and(pred!(Q).app(vec![term!(x), v_1!(x).into()]))),
         );
         assert_debug_string!(
             "? x``. (P(x``, x`) & Q(x))",
-            pnf(&exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()])).and(fof!(Q(x)))),
+            pnf(
+                &FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
+                    .and(fof!(Q(x)))
+            ),
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) & P(x``))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .and(forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)])))),
+            pnf(&pred!(Q).app(vec![term!(x)]).and(FOF::forall(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            ))),
         );
         assert_debug_string!(
             "? x``, x`. (Q(x) & P(x``))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .and(exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)])))),
+            pnf(&pred!(Q).app(vec![term!(x)]).and(FOF::exists(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            ))),
         );
         assert_debug_string!(
             "? x``. (Q(x, x`) & P(x``))",
             pnf(&pred!(Q)
                 .app(vec![term!(x), v_1!(x).into()])
-                .and(exists(vec![v!(x)], pred!(P).app(vec![term!(x)])))),
+                .and(FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)])))),
         );
         assert_debug_string!(
             "? x``. (Q(x) & P(x``, x`))",
-            pnf(&pred!(Q).app(vec![term!(x)]).and(exists(
+            pnf(&pred!(Q).app(vec![term!(x)]).and(FOF::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]),
             ))),
@@ -829,47 +849,53 @@ mod tests {
 
         assert_debug_string!(
             "! x``, x`. (P(x``) | Q(x))",
-            pnf(&forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .or(pred!(Q).app(vec![term!(x)]))),
+            pnf(
+                &FOF::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .or(pred!(Q).app(vec![term!(x)]))
+            ),
         );
         assert_debug_string!(
             "? x``, x`. (P(x``) | Q(x))",
-            pnf(&exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .or(pred!(Q).app(vec![term!(x)])))
+            pnf(
+                &FOF::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .or(pred!(Q).app(vec![term!(x)]))
+            )
         );
         assert_debug_string!(
             "? x``. (P(x``) | Q(x, x`))",
-            pnf(&exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))
+            pnf(&FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))
                 .or(pred!(Q).app(vec![term!(x), v_1!(x).into()])))
         );
         assert_debug_string!(
             "? x``. (P(x``, x`) | Q(x))",
             pnf(
-                &exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
+                &FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
                     .or(pred!(Q).app(vec![term!(x)]))
             )
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) | P(x``))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .or(forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))))
+            pnf(&pred!(Q).app(vec![term!(x)]).or(FOF::forall(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            )))
         );
         assert_debug_string!(
             "? x``, x`. (Q(x) | P(x``))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .or(exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))))
+            pnf(&pred!(Q).app(vec![term!(x)]).or(FOF::exists(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            )))
         );
         assert_debug_string!(
             "? x``. (Q(x, x`) | P(x``))",
             pnf(&pred!(Q)
                 .app(vec![term!(x), v_1!(x).into()])
-                .or(exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))))
+                .or(FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))))
         );
         assert_debug_string!(
             "? x``. (Q(x) | P(x``, x`))",
-            pnf(&pred!(Q).app(vec![term!(x)]).or(exists(
+            pnf(&pred!(Q).app(vec![term!(x)]).or(FOF::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]),
             )))
@@ -877,47 +903,53 @@ mod tests {
 
         assert_debug_string!(
             "? x``, x`. (P(x``) -> Q(x))",
-            pnf(&forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .implies(pred!(Q).app(vec![term!(x)])))
+            pnf(
+                &FOF::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .implies(pred!(Q).app(vec![term!(x)]))
+            )
         );
         assert_debug_string!(
             "! x``, x`. (P(x``) -> Q(x))",
-            pnf(&exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .implies(pred!(Q).app(vec![term!(x)])))
+            pnf(
+                &FOF::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .implies(pred!(Q).app(vec![term!(x)]))
+            )
         );
         assert_debug_string!(
             "! x``. (P(x``) -> Q(x, x`))",
-            pnf(&exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))
+            pnf(&FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))
                 .implies(pred!(Q).app(vec![term!(x), v_1!(x).into()])))
         );
         assert_debug_string!(
             "! x``. (P(x``, x`) -> Q(x))",
             pnf(
-                &exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
+                &FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
                     .implies(pred!(Q).app(vec![term!(x)]))
             )
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) -> P(x``))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .implies(forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))))
+            pnf(&pred!(Q).app(vec![term!(x)]).implies(FOF::forall(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            )))
         );
         assert_debug_string!(
             "? x``, x`. (Q(x) -> P(x``))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .implies(exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))))
+            pnf(&pred!(Q).app(vec![term!(x)]).implies(FOF::exists(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            )))
         );
         assert_debug_string!(
             "? x``. (Q(x, x`) -> P(x``))",
             pnf(&pred!(Q)
                 .app(vec![term!(x), v_1!(x).into()])
-                .implies(exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))))
+                .implies(FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))))
         );
         assert_debug_string!(
             "? x``. (Q(x) -> P(x``, x`))",
-            pnf(&pred!(Q).app(vec![term!(x)]).implies(exists(
+            pnf(&pred!(Q).app(vec![term!(x)]).implies(FOF::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]),
             )))
@@ -925,47 +957,53 @@ mod tests {
 
         assert_debug_string!(
             "? x``, x`. (! x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            pnf(&forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .iff(pred!(Q).app(vec![term!(x)])))
+            pnf(
+                &FOF::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .iff(pred!(Q).app(vec![term!(x)]))
+            )
         );
         assert_debug_string!(
             "! x``, x`. (? x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            pnf(&exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
-                .iff(pred!(Q).app(vec![term!(x)])))
+            pnf(
+                &FOF::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))
+                    .iff(pred!(Q).app(vec![term!(x)]))
+            )
         );
         assert_debug_string!(
             "! x``. (? x```. ((P(x``) -> Q(x, x`)) & (Q(x, x`) -> P(x```))))",
-            pnf(&exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))
+            pnf(&FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))
                 .iff(pred!(Q).app(vec![term!(x), v_1!(x).into()])))
         );
         assert_debug_string!(
             "! x``. (? x```. ((P(x``, x`) -> Q(x)) & (Q(x) -> P(x```, x`))))",
             pnf(
-                &exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
+                &FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x), v_1!(x).into()]))
                     .iff(pred!(Q).app(vec![term!(x)]))
             )
         );
         assert_debug_string!(
             "! x``, x`. (? x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .iff(forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))))
+            pnf(&pred!(Q).app(vec![term!(x)]).iff(FOF::forall(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            )))
         );
         assert_debug_string!(
             "? x``, x`. (! x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            pnf(&pred!(Q)
-                .app(vec![term!(x)])
-                .iff(exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]))))
+            pnf(&pred!(Q).app(vec![term!(x)]).iff(FOF::exists(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)])
+            )))
         );
         assert_debug_string!(
             "? x``. (! x```. ((Q(x, x`) -> P(x``)) & (P(x```) -> Q(x, x`))))",
             pnf(&pred!(Q)
                 .app(vec![term!(x), v_1!(x).into()])
-                .iff(exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))))
+                .iff(FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]))))
         );
         assert_debug_string!(
             "? x``. (! x```. ((Q(x) -> P(x``, x`)) & (P(x```, x`) -> Q(x))))",
-            pnf(&pred!(Q).app(vec![term!(x)]).iff(exists(
+            pnf(&pred!(Q).app(vec![term!(x)]).iff(FOF::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]),
             )))

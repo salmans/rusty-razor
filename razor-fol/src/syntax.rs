@@ -7,7 +7,7 @@ pub mod symbol;
 mod term;
 mod theory;
 
-pub use fof::{exists, forall, not, FOF};
+pub use fof::FOF;
 pub use formula::Formula;
 pub use signature::Sig;
 pub use symbol::{FApp, Pred, C, EQ_SYM, F, V};

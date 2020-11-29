@@ -98,24 +98,24 @@ impl From<Forall<FOF>> for FOF {
     }
 }
 
-/// Returns the negation of `formula`.
-pub fn not(formula: FOF) -> FOF {
-    Not { formula }.into()
-}
-
-/// Returns an existentially quantified first-order formula with the given
-/// `variables` and `formula`.
-pub fn exists(variables: Vec<V>, formula: FOF) -> FOF {
-    Exists { variables, formula }.into()
-}
-
-/// Returns a universally quantified first-order formula with the given
-/// `variables` and `formula`.
-pub fn forall(variables: Vec<V>, formula: FOF) -> FOF {
-    Forall { variables, formula }.into()
-}
-
 impl FOF {
+    /// Returns the negation of `formula`.
+    pub fn not(formula: Self) -> Self {
+        Not { formula }.into()
+    }
+
+    /// Returns an existentially quantified first-order formula with the given
+    /// `variables` and `formula`.
+    pub fn exists(variables: Vec<V>, formula: Self) -> Self {
+        Exists { variables, formula }.into()
+    }
+
+    /// Returns a universally quantified first-order formula with the given
+    /// `variables` and `formula`.
+    pub fn forall(variables: Vec<V>, formula: Self) -> Self {
+        Forall { variables, formula }.into()
+    }
+
     /// Returns a conjunction of the receiver and `formula`.
     pub fn and(self, formula: Self) -> Self {
         And {
@@ -180,7 +180,7 @@ impl TermBased for FOF {
                 .clone()
                 .app(this.terms.iter().map(f).collect()),
             FOF::Equals(this) => f(&this.left).equals(f(&this.right)),
-            FOF::Not(this) => not(this.formula.transform(f)),
+            FOF::Not(this) => FOF::not(this.formula.transform(f)),
             FOF::And(this) => this.left.transform(f).and(this.right.transform(f)),
             FOF::Or(this) => this.left.transform(f).or(this.right.transform(f)),
             FOF::Implies(this) => this
@@ -188,8 +188,8 @@ impl TermBased for FOF {
                 .transform(f)
                 .implies(this.consequence.transform(f)),
             FOF::Iff(this) => this.left.transform(f).iff(this.right.transform(f)),
-            FOF::Exists(this) => exists(this.variables.clone(), this.formula.transform(f)),
-            FOF::Forall(this) => forall(this.variables.clone(), this.formula.transform(f)),
+            FOF::Exists(this) => FOF::exists(this.variables.clone(), this.formula.transform(f)),
+            FOF::Forall(this) => FOF::forall(this.variables.clone(), this.formula.transform(f)),
         }
     }
 

@@ -30,18 +30,18 @@ fn push_not(formula: &FOF) -> FOF {
     match formula {
         Top => Bottom,
         Bottom => Top,
-        Atom { .. } | Equals { .. } => not(formula.clone()),
+        Atom { .. } | Equals { .. } => FOF::not(formula.clone()),
         Not(this) => this.formula.clone(),
-        And(this) => nnf(&not(this.left.clone())).or(nnf(&not(this.right.clone()))),
-        Or(this) => nnf(&not(this.left.clone())).and(nnf(&not(this.right.clone()))),
-        Implies(this) => nnf(&this.premise).and(nnf(&not(this.consequence.clone()))),
+        And(this) => nnf(&FOF::not(this.left.clone())).or(nnf(&FOF::not(this.right.clone()))),
+        Or(this) => nnf(&FOF::not(this.left.clone())).and(nnf(&FOF::not(this.right.clone()))),
+        Implies(this) => nnf(&this.premise).and(nnf(&FOF::not(this.consequence.clone()))),
         Iff(this) => {
-            let left_and_not_right = nnf(&this.left).and(nnf(&not(this.right.clone())));
-            let not_left_and_right = nnf(&not(this.left.clone())).and(nnf(&this.right));
+            let left_and_not_right = nnf(&this.left).and(nnf(&FOF::not(this.right.clone())));
+            let not_left_and_right = nnf(&FOF::not(this.left.clone())).and(nnf(&this.right));
             left_and_not_right.or(not_left_and_right)
         }
-        Exists(this) => forall(this.variables.clone(), nnf(&not(this.formula.clone()))),
-        Forall(this) => exists(this.variables.clone(), nnf(&not(this.formula.clone()))),
+        Exists(this) => FOF::forall(this.variables.clone(), nnf(&FOF::not(this.formula.clone()))),
+        Forall(this) => FOF::exists(this.variables.clone(), nnf(&FOF::not(this.formula.clone()))),
     }
 }
 
@@ -51,14 +51,14 @@ fn nnf(fmla: &FOF) -> FOF {
         Not(this) => push_not(&this.formula),
         And(this) => nnf(&this.left).and(nnf(&this.right)),
         Or(this) => nnf(&this.left).or(nnf(&this.right)),
-        Implies(this) => nnf(&not(this.premise.clone())).or(nnf(&this.consequence)),
+        Implies(this) => nnf(&FOF::not(this.premise.clone())).or(nnf(&this.consequence)),
         Iff(this) => {
-            let not_left_or_right = nnf(&not(this.left.clone())).or(nnf(&this.right));
-            let left_or_not_right = nnf(&this.left).or(nnf(&not(this.right.clone())));
+            let not_left_or_right = nnf(&FOF::not(this.left.clone())).or(nnf(&this.right));
+            let left_or_not_right = nnf(&this.left).or(nnf(&FOF::not(this.right.clone())));
             not_left_or_right.and(left_or_not_right)
         }
-        Exists(this) => exists(this.variables.clone(), nnf(&this.formula)),
-        Forall(this) => forall(this.variables.clone(), nnf(&this.formula)),
+        Exists(this) => FOF::exists(this.variables.clone(), nnf(&this.formula)),
+        Forall(this) => FOF::forall(this.variables.clone(), nnf(&this.formula)),
     }
 }
 

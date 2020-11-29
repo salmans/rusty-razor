@@ -32,7 +32,7 @@ fn helper(formula: FOF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> F
         Forall(this) => {
             let variables = this.variables;
             skolem_vars.append(&mut variables.to_vec());
-            forall(
+            FOF::forall(
                 variables.to_vec(),
                 helper(this.formula, skolem_vars, generator),
             )

@@ -45,7 +45,7 @@ fn distribute_and(formula: &FOF) -> FOF {
                 left.and(right)
             }
         }
-        Forall(this) => forall(this.variables.clone(), distribute_and(&this.formula)),
+        Forall(this) => FOF::forall(this.variables.clone(), distribute_and(&this.formula)),
         _ => unreachable!(), // NNF input
     }
 }

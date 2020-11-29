@@ -46,7 +46,7 @@ fn distribute_or(formula: &FOF) -> FOF {
                 left.or(right)
             }
         }
-        Forall(this) => forall(this.variables.clone(), distribute_or(&this.formula)),
+        Forall(this) => FOF::forall(this.variables.clone(), distribute_or(&this.formula)),
         _ => unreachable!(), // NNF input
     }
 }

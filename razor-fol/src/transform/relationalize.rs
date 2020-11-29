@@ -550,7 +550,6 @@ where
 }
 
 fn remove_reflexive_equations(formula: &FOF, eq_symbol: &str) -> Option<FOF> {
-    use crate::syntax::{exists, forall, not};
     match &formula {
         FOF::Atom(this) => {
             let terms = &this.terms;
@@ -574,7 +573,7 @@ fn remove_reflexive_equations(formula: &FOF, eq_symbol: &str) -> Option<FOF> {
                 Some(formula.clone())
             }
         }
-        FOF::Not(this) => remove_reflexive_equations(&this.formula, eq_symbol).map(not),
+        FOF::Not(this) => remove_reflexive_equations(&this.formula, eq_symbol).map(FOF::not),
         FOF::And(this) => combine_binary(
             remove_reflexive_equations(&this.left, eq_symbol),
             remove_reflexive_equations(&this.right, eq_symbol),
@@ -596,9 +595,9 @@ fn remove_reflexive_equations(formula: &FOF, eq_symbol: &str) -> Option<FOF> {
             FOF::iff,
         ),
         FOF::Exists(this) => remove_reflexive_equations(&this.formula, eq_symbol)
-            .map(|f| exists(this.variables.clone(), f)),
+            .map(|f| FOF::exists(this.variables.clone(), f)),
         FOF::Forall(this) => remove_reflexive_equations(&this.formula, eq_symbol)
-            .map(|f| forall(this.variables.clone(), f)),
+            .map(|f| FOF::forall(this.variables.clone(), f)),
         _ => Some(formula.clone()),
     }
 }
