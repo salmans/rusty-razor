@@ -110,7 +110,12 @@ pub trait TermBased {
     /// let s = t.rename_vars(&renaming); // s = f(a, z, g(a, b, a))
     /// assert_eq!("f(a, z, g(a, b, a))", s.to_string())
     /// ```
-    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self;
+    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self
+    where
+        Self: Sized,
+    {
+        self.transform(&|t: &Term| t.rename_vars(renaming))
+    }
 
     /// Applies a [`Substitution`] on the variable sub-terms of the receiver.
     ///
@@ -143,7 +148,12 @@ pub trait TermBased {
     /// let s = t.substitute(&x_to_c); // s = f('c, g('c, y, 'c))
     /// assert_eq!("f('c, g('c, y, 'c))", s.to_string())
     /// ```
-    fn substitute(&self, sub: &impl Substitution) -> Self;
+    fn substitute(&self, sub: &impl Substitution) -> Self
+    where
+        Self: Sized,
+    {
+        self.transform(&|t: &Term| t.substitute(sub))
+    }
 }
 
 impl TermBased for Term {

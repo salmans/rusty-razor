@@ -1,9 +1,9 @@
-/*! Defines Prenex Normal Form (PNF) formulae and implements an algorithm for converting
+/*! Defines formulae in Prenex Normal Form (PNF) and implements an algorithm for converting
 a [`FOF`] to [`PNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
-use super::{Substitution, TermBased, VariableRenaming};
+use super::TermBased;
 use crate::syntax::{formula::*, Term, FOF, V};
 
 /// Represents a formula in Prenex Normal Form (PNF).
@@ -13,54 +13,54 @@ use crate::syntax::{formula::*, Term, FOF, V};
 #[derive(Clone, Debug)]
 pub enum PNF {
     /// Is the quantifier-free portion of a [`PNF`].
-    QuantifierFree(QFF),
+    QFF(QFF),
 
-    /// Is an existentially quantified formula, wrapping an [`Exists`].
+    /// Is an existentially quantified PNF, wrapping an [`Exists`].
     Exists(Box<Exists<PNF>>),
 
-    /// Is a universally quantified formula, wrapping a [`Forall`].
+    /// Is a universally quantified PNF, wrapping a [`Forall`].
     Forall(Box<Forall<PNF>>),
 }
 
 impl From<Atom> for PNF {
     fn from(value: Atom) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Equals> for PNF {
     fn from(value: Equals) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Not<QFF>> for PNF {
     fn from(value: Not<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<And<QFF>> for PNF {
     fn from(value: And<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Or<QFF>> for PNF {
     fn from(value: Or<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Implies<QFF>> for PNF {
     fn from(value: Implies<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Iff<QFF>> for PNF {
     fn from(value: Iff<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
@@ -78,7 +78,7 @@ impl From<Forall<PNF>> for PNF {
 
 impl From<QFF> for PNF {
     fn from(value: QFF) -> Self {
-        Self::QuantifierFree(value)
+        Self::QFF(value)
     }
 }
 
@@ -89,14 +89,17 @@ impl From<&FOF> for PNF {
 }
 
 impl PNF {
+    #[inline(always)]
     fn not(formula: QFF) -> Self {
         Not { formula }.into()
     }
 
+    #[inline(always)]
     fn exists(variables: Vec<V>, formula: Self) -> Self {
         Exists { variables, formula }.into()
     }
 
+    #[inline(always)]
     fn forall(variables: Vec<V>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
@@ -105,7 +108,7 @@ impl PNF {
 impl Formula for PNF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
-            PNF::QuantifierFree(this) => this.free_vars(),
+            PNF::QFF(this) => this.free_vars(),
             PNF::Exists(this) => this.free_vars(),
             PNF::Forall(this) => this.free_vars(),
         }
@@ -116,7 +119,7 @@ impl TermBased for PNF {
     #[inline]
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
-            PNF::QuantifierFree(this) => this.transform(f).into(),
+            PNF::QFF(this) => this.transform(f).into(),
             PNF::Exists(this) => Exists {
                 variables: this.variables.clone(),
                 formula: this.formula.transform(f),
@@ -129,20 +132,12 @@ impl TermBased for PNF {
             .into(),
         }
     }
-
-    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
-        self.transform(&|t: &Term| t.rename_vars(renaming))
-    }
-
-    fn substitute(&self, substitution: &impl Substitution) -> Self {
-        self.transform(&|t: &Term| t.substitute(substitution))
-    }
 }
 
 impl From<PNF> for FOF {
     fn from(value: PNF) -> Self {
         match value {
-            PNF::QuantifierFree(this) => this.into(),
+            PNF::QFF(this) => this.into(),
             PNF::Exists(this) => FOF::exists(this.variables, this.formula.into()),
             PNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
         }
@@ -192,8 +187,8 @@ fn binary_helper(vars: &[V], formula: &PNF, other: &PNF) -> (Vec<V>, PNF) {
 #[inline]
 fn pnf(formula: &FOF) -> PNF {
     match formula {
-        FOF::Top => PNF::QuantifierFree(QFF::Top),
-        FOF::Bottom => PNF::QuantifierFree(QFF::Bottom),
+        FOF::Top => PNF::QFF(QFF::Top),
+        FOF::Bottom => PNF::QFF(QFF::Bottom),
         FOF::Atom(this) => this.clone().into(),
         FOF::Equals(this) => this.clone().into(),
         // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
@@ -204,7 +199,7 @@ fn pnf(formula: &FOF) -> PNF {
             PNF::Exists(exists) => {
                 PNF::forall(exists.variables, pnf(&FOF::not(exists.formula.into())))
             }
-            PNF::QuantifierFree(this) => PNF::not(this),
+            PNF::QFF(this) => PNF::not(this),
         },
         // e.g. (Q x. F(x)) & G(y) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
         FOF::And(this) => {
@@ -228,7 +223,7 @@ fn pnf(formula: &FOF) -> PNF {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
                     pnf(&FOF::exists(vars, FOF::from(left).and(fmla.into())))
                 }
-                (PNF::QuantifierFree(left), PNF::QuantifierFree(right)) => And {
+                (PNF::QFF(left), PNF::QFF(right)) => And {
                     left: left.clone(),
                     right: right.clone(),
                 }
@@ -257,7 +252,7 @@ fn pnf(formula: &FOF) -> PNF {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
                     pnf(&FOF::exists(vars, FOF::from(left).or(fmla.into())))
                 }
-                (PNF::QuantifierFree(left), PNF::QuantifierFree(right)) => Or {
+                (PNF::QFF(left), PNF::QFF(right)) => Or {
                     left: left.clone(),
                     right: right.clone(),
                 }
@@ -292,7 +287,7 @@ fn pnf(formula: &FOF) -> PNF {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &premise);
                     pnf(&FOF::exists(vars, FOF::from(premise).implies(fmla.into())))
                 }
-                (PNF::QuantifierFree(premise), PNF::QuantifierFree(consequence)) => Implies {
+                (PNF::QFF(premise), PNF::QFF(consequence)) => Implies {
                     premise: premise.clone(),
                     consequence: consequence.clone(),
                 }

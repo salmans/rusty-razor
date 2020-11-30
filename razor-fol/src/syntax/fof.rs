@@ -1,7 +1,7 @@
 /*! Defines the syntax of first-order formulae with equality.*/
 use super::V;
 use super::{formula::*, Term};
-use crate::transform::{Substitution, TermBased, VariableRenaming};
+use crate::transform::TermBased;
 use itertools::Itertools;
 use std::fmt;
 
@@ -134,23 +134,27 @@ impl FOF {
     /// Returns the negation of `formula`.
     #[allow(clippy::should_implement_trait)]
     // Disallow `formula.not()` intentionally:
+    #[inline(always)]
     pub fn not(formula: Self) -> Self {
         Not { formula }.into()
     }
 
     /// Returns an existentially quantified first-order formula with the given
     /// `variables` and `formula`.
+    #[inline(always)]
     pub fn exists(variables: Vec<V>, formula: Self) -> Self {
         Exists { variables, formula }.into()
     }
 
     /// Returns a universally quantified first-order formula with the given
     /// `variables` and `formula`.
+    #[inline(always)]
     pub fn forall(variables: Vec<V>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
 
     /// Returns a conjunction of the receiver and `formula`.
+    #[inline(always)]
     pub fn and(self, formula: Self) -> Self {
         And {
             left: self,
@@ -160,6 +164,7 @@ impl FOF {
     }
 
     /// Returns a disjunction of the receiver and `formula`.
+    #[inline(always)]
     pub fn or(self, formula: Self) -> Self {
         Or {
             left: self,
@@ -169,6 +174,7 @@ impl FOF {
     }
 
     /// Returns an implication between the receiver and `formula`.
+    #[inline(always)]
     pub fn implies(self, formula: Self) -> Self {
         Implies {
             premise: self,
@@ -178,6 +184,7 @@ impl FOF {
     }
 
     /// Returns a bi-implication between the receiver and `formula`.
+    #[inline(always)]
     pub fn iff(self, formula: Self) -> Self {
         Iff {
             left: self,
@@ -225,23 +232,6 @@ impl TermBased for FOF {
             FOF::Exists(this) => FOF::exists(this.variables.clone(), this.formula.transform(f)),
             FOF::Forall(this) => FOF::forall(this.variables.clone(), this.formula.transform(f)),
         }
-    }
-
-    /// **Note**: Applies a [`VariableRenaming`] on the **free** variables of the
-    /// first-order formula, keeping the bound variables unchanged.
-    ///
-    /// [`VariableRenaming`]: crate::transform::VariableRenaming
-    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
-        // this does not rename bound variables of the formula
-        self.transform(&|t: &Term| t.rename_vars(renaming))
-    }
-
-    /// **Note**: Applies a [`Substitution`] on the **free** variables of the first-order
-    /// formula, keeping the bound variables unchanged.
-    ///
-    /// [`Substitution`]: crate::transform::Substitution
-    fn substitute(&self, substitution: &impl Substitution) -> Self {
-        self.transform(&|t: &Term| t.substitute(substitution))
     }
 }
 

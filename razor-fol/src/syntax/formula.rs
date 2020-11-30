@@ -54,6 +54,15 @@ impl Formula for Atom {
     }
 }
 
+impl TermBased for Atom {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            predicate: self.predicate.clone(),
+            terms: self.terms.iter().map(f).collect(),
+        }
+    }
+}
+
 /// Represents an equation between two terms.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Equals {
@@ -69,6 +78,15 @@ impl Formula for Equals {
     }
 }
 
+impl TermBased for Equals {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            left: f(&self.left),
+            right: f(&self.right),
+        }
+    }
+}
+
 /// Represents the negation of a formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Not<F: Formula> {
@@ -78,6 +96,14 @@ pub struct Not<F: Formula> {
 impl<F: Formula> Formula for Not<F> {
     fn free_vars(&self) -> Vec<&V> {
         self.formula.free_vars()
+    }
+}
+
+impl<F: Formula + TermBased> TermBased for Not<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Not {
+            formula: self.formula.transform(f),
+        }
     }
 }
 
@@ -96,6 +122,15 @@ impl<F: Formula> Formula for And<F> {
     }
 }
 
+impl<F: Formula + TermBased> TermBased for And<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            left: self.left.transform(f),
+            right: self.right.transform(f),
+        }
+    }
+}
+
 /// Represents the disjunction of two formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Or<F: Formula> {
@@ -108,6 +143,15 @@ impl<F: Formula> Formula for Or<F> {
         let mut vs = self.left.free_vars();
         vs.extend(self.right.free_vars());
         vs.into_iter().unique().collect()
+    }
+}
+
+impl<F: Formula + TermBased> TermBased for Or<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            left: self.left.transform(f),
+            right: self.right.transform(f),
+        }
     }
 }
 
@@ -126,6 +170,15 @@ impl<F: Formula> Formula for Implies<F> {
     }
 }
 
+impl<F: Formula + TermBased> TermBased for Implies<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            premise: self.premise.transform(f),
+            consequence: self.consequence.transform(f),
+        }
+    }
+}
+
 /// Represents a bi-implication between two formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Iff<F: Formula> {
@@ -138,6 +191,15 @@ impl<F: Formula> Formula for Iff<F> {
         let mut vs = self.left.free_vars();
         vs.extend(self.right.free_vars());
         vs.into_iter().unique().collect()
+    }
+}
+
+impl<F: Formula + TermBased> TermBased for Iff<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            left: self.left.transform(f),
+            right: self.right.transform(f),
+        }
     }
 }
 
@@ -158,6 +220,15 @@ impl<F: Formula> Formula for Exists<F> {
     }
 }
 
+impl<F: Formula + TermBased> TermBased for Exists<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            variables: self.variables.clone(),
+            formula: self.formula.transform(f),
+        }
+    }
+}
+
 /// Represents a universally quantified formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Forall<F: Formula> {
@@ -172,6 +243,79 @@ impl<F: Formula> Formula for Forall<F> {
             .into_iter()
             .filter(|v| !self.variables.contains(v))
             .collect()
+    }
+}
+
+impl<F: Formula + TermBased> TermBased for Forall<F> {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            variables: self.variables.clone(),
+            formula: self.formula.transform(f),
+        }
+    }
+}
+
+/// A literal is either an atomic formula [`Atom`] or its negation. Because we treat
+/// equality as a special case of an atomic formula, a literal may contain an [`Equals`] or
+/// its negation as well.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum Literal {
+    /// Wraps a (positive) atomic formula of type [`Atom`].
+    Atom(Atom),
+
+    /// Wraps the negation of an atomic formula of type [`Atom`].    
+    Neg(Atom),
+
+    /// Wraps a (positive) equality of type [`Equals`].
+    Equals(Equals),
+
+    /// Wraps the nagation of an equality of type [`Equals`].
+    Neq(Equals),
+}
+
+impl Formula for Literal {
+    fn free_vars(&self) -> Vec<&V> {
+        match self {
+            Literal::Atom(this) => this.free_vars(),
+            Literal::Neg(this) => this.free_vars(),
+            Literal::Equals(this) => this.free_vars(),
+            Literal::Neq(this) => this.free_vars(),
+        }
+    }
+}
+
+impl From<Atom> for Literal {
+    fn from(value: Atom) -> Self {
+        Self::Atom(value)
+    }
+}
+
+impl From<Not<Atom>> for Literal {
+    fn from(value: Not<Atom>) -> Self {
+        Self::Neg(value.formula)
+    }
+}
+
+impl From<Equals> for Literal {
+    fn from(value: Equals) -> Self {
+        Self::Equals(value)
+    }
+}
+
+impl From<Not<Equals>> for Literal {
+    fn from(value: Not<Equals>) -> Self {
+        Self::Neq(value.formula)
+    }
+}
+
+impl TermBased for Literal {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        match self {
+            Literal::Atom(this) => this.transform(f).into(),
+            Literal::Neg(this) => this.transform(f).into(),
+            Literal::Equals(this) => this.transform(f).into(),
+            Literal::Neq(this) => this.transform(f).into(),
+        }
     }
 }
 
@@ -255,50 +399,22 @@ impl TermBased for QFF {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
             QFF::Top | QFF::Bottom => self.clone(),
-            QFF::Atom(this) => Atom {
-                predicate: this.predicate.clone(),
-                terms: this.terms.iter().map(f).collect(),
-            }
-            .into(),
-            QFF::Equals(this) => Equals {
-                left: f(&this.left),
-                right: f(&this.right),
-            }
-            .into(),
-            QFF::Not(this) => Not {
-                formula: this.formula.transform(f),
-            }
-            .into(),
-            QFF::And(this) => And {
-                left: this.left.transform(f),
-                right: this.right.transform(f),
-            }
-            .into(),
-            QFF::Or(this) => Or {
-                left: this.left.transform(f),
-                right: this.right.transform(f),
-            }
-            .into(),
-            QFF::Implies(this) => Implies {
-                premise: this.premise.transform(f),
-                consequence: this.consequence.transform(f),
-            }
-            .into(),
-            QFF::Iff(this) => Iff {
-                left: this.left.transform(f),
-                right: this.right.transform(f),
-            }
-            .into(),
+            QFF::Atom(this) => this.transform(f).into(),
+            QFF::Equals(this) => this.transform(f).into(),
+            QFF::Not(this) => this.transform(f).into(),
+            QFF::And(this) => this.transform(f).into(),
+            QFF::Or(this) => this.transform(f).into(),
+            QFF::Implies(this) => this.transform(f).into(),
+            QFF::Iff(this) => this.transform(f).into(),
         }
     }
 
     fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
-        // this does not rename bound variables of the formula
         self.transform(&|t: &Term| t.rename_vars(renaming))
     }
 
-    fn substitute(&self, substitution: &impl Substitution) -> Self {
-        self.transform(&|t: &Term| t.substitute(substitution))
+    fn substitute(&self, sub: &impl Substitution) -> Self {
+        self.transform(&|t: &Term| t.substitute(sub))
     }
 }
 

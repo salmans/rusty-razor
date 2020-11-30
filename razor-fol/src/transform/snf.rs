@@ -1,9 +1,9 @@
-/*! Defines Skolem Normal Form (PNF) formulae and implements an algorithm for converting
+/*! Defines formulae in Skolem Normal Form (PNF) and implements an algorithm for converting
 [`PNF`] to [`SNF`].
 
 [`PNF`]: crate::transform::PNF
 */
-use super::{Substitution, TermBased, VariableRenaming, PNF};
+use super::{TermBased, PNF};
 use crate::syntax::{formula::*, symbol::Generator, Term, C, F, FOF, V};
 use std::collections::HashMap;
 
@@ -112,11 +112,12 @@ impl SNF {
                 let substituted = this.formula.substitute(&map);
                 Self::new(substituted, skolem_vars, generator)
             }
-            PNF::QuantifierFree(this) => this.into(),
+            PNF::QFF(this) => this.into(),
         }
     }
 
     /// Creates a universally quantified [`SNF`].
+    #[inline(always)]
     fn forall(variables: Vec<V>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
@@ -141,14 +142,6 @@ impl TermBased for SNF {
             }
             .into(),
         }
-    }
-
-    fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
-        self.transform(&|t: &Term| t.rename_vars(renaming))
-    }
-
-    fn substitute(&self, substitution: &impl Substitution) -> Self {
-        self.transform(&|t: &Term| t.substitute(substitution))
     }
 }
 
