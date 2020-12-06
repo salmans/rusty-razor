@@ -1,44 +1,163 @@
-/*! Implements conversion to Conjunctive Normal Form (CNF) for formulae.*/
+/*! Defines formulae in Conjunctive Normal Form (CNF) and implements an algorithm for
+converting [`SNF`] to [`CNF`].
 
-use super::SNF;
-use crate::syntax::{FOF::*, *};
+[`SNF`]: crate::transform::CNF
+ */
 
-/// Is a wrapper around [`FOF`] that represents a formula in Conjunctive Normal Form (CNF).
+use super::{TermBased, SNF};
+use crate::syntax::{formula::*, Term, FOF, V};
+use itertools::Itertools;
+
+/// Is a [`CNF`] clause, representing disjunction of zero or more [`Literal`]s.
+#[derive(Clone)]
+pub struct Clause(Vec<Literal>);
+
+impl Clause {
+    /// Consumes the receiver clause and `other` and returns a clause containing
+    /// all literals in the receiver and `other`.
+    pub fn union(self, other: Self) -> Self {
+        let mut lits = self.0;
+        lits.extend(other.0);
+        lits.into()
+    }
+}
+
+impl From<Literal> for Clause {
+    fn from(value: Literal) -> Self {
+        Clause(vec![value])
+    }
+}
+
+impl<I: IntoIterator<Item = Literal>> From<I> for Clause {
+    fn from(value: I) -> Self {
+        Clause(value.into_iter().collect())
+    }
+}
+
+impl Default for Clause {
+    fn default() -> Self {
+        Clause::from(Vec::<Literal>::new())
+    }
+}
+
+impl Formula for Clause {
+    fn free_vars(&self) -> Vec<&V> {
+        let mut vs = Vec::new();
+        for lit in &self.0 {
+            vs.extend(lit.free_vars());
+        }
+        vs.into_iter().unique().collect()
+    }
+}
+
+impl TermBased for Clause {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Clause(self.0.iter().map(|lit| lit.transform(f)).collect())
+    }
+}
+
+impl From<Clause> for FOF {
+    fn from(value: Clause) -> Self {
+        value
+            .0
+            .into_iter()
+            .map(|clause| match clause {
+                Literal::Atom(this) => this.into(),
+                Literal::Neg(this) => FOF::not(this.into()),
+                Literal::Equals(this) => this.into(),
+                Literal::Neq(this) => FOF::not(this.into()),
+            })
+            .fold1(|item, acc| item.or(acc))
+            .unwrap_or(FOF::Bottom)
+    }
+}
+
+/// Represents a formula in Conjunctive Normal Form (CNF).
 ///
-/// **Hint**: A CNF is a firsts-order formula that is a conjunction of zero or more clauses.
-/// A clause is a disjunction of atomic formulae (including equations).
-///
-/// [`FOF`]: crate::syntax::FOF
-#[derive(Clone, Debug)]
-pub struct CNF(FOF);
+/// **Hint**: A CNF is a firsts-order formula that is a conjunction of zero or
+/// more [`Clause`]s.
+#[derive(Clone)]
+pub struct CNF(Vec<Clause>);
+
+impl From<Clause> for CNF {
+    fn from(value: Clause) -> Self {
+        CNF(vec![value])
+    }
+}
 
 impl CNF {
-    /// Returns a reference to the first-order formula wrapped in the receiver CNF.
-    #[inline(always)]
-    pub fn formula(&self) -> &FOF {
-        &self.0
+    /// Consumes the receiver CNF and `other` and returns a CNF containing
+    /// all clauses in the receiver and `other`.    
+    pub fn union(self, other: Self) -> Self {
+        let mut lits = self.0;
+        lits.extend(other.0);
+        lits.into()
+    }
+}
+
+impl<I: IntoIterator<Item = Clause>> From<I> for CNF {
+    fn from(value: I) -> Self {
+        CNF(value.into_iter().collect())
+    }
+}
+
+impl Default for CNF {
+    fn default() -> Self {
+        CNF::from(Vec::<Clause>::new())
+    }
+}
+
+impl From<&SNF> for CNF {
+    fn from(value: &SNF) -> Self {
+        // Compromising type safety to avoid implementing a number of
+        // types arising from pairwise combinations of PNF, SNF and NNF:
+        let nnf = FOF::from(value.clone()).nnf();
+        cnf(distribute_or(&nnf.into()))
+    }
+}
+
+impl Formula for CNF {
+    fn free_vars(&self) -> Vec<&V> {
+        let mut vs = Vec::new();
+        for clause in &self.0 {
+            vs.extend(clause.free_vars());
+        }
+        vs.into_iter().unique().collect()
+    }
+}
+
+impl TermBased for CNF {
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        CNF(self.0.iter().map(|clause| clause.transform(f)).collect())
     }
 }
 
 impl From<CNF> for FOF {
-    fn from(cnf: CNF) -> Self {
-        cnf.0
+    fn from(value: CNF) -> Self {
+        value
+            .0
+            .into_iter()
+            .map(FOF::from)
+            .fold1(|item, acc| item.and(acc))
+            .unwrap_or(FOF::Top)
     }
 }
 
 // Distributes conjunctions in the given formula. The function assumes that its input is an NNF.
 fn distribute_or(formula: &FOF) -> FOF {
     match formula {
-        Top | Bottom | Atom { .. } | Equals { .. } | Not { .. } => formula.clone(),
-        And(this) => distribute_or(&this.left).and(distribute_or(&this.right)),
-        Or(this) => {
+        FOF::Top | FOF::Bottom | FOF::Atom { .. } | FOF::Equals { .. } | FOF::Not { .. } => {
+            formula.clone()
+        }
+        FOF::And(this) => distribute_or(&this.left).and(distribute_or(&this.right)),
+        FOF::Or(this) => {
             let left = distribute_or(&this.left);
             let right = distribute_or(&this.right);
-            if let And(left) = left {
+            if let FOF::And(left) = left {
                 let first = left.left.or(right.clone());
                 let second = left.right.or(right);
                 distribute_or(&first).and(distribute_or(&second))
-            } else if let And(right) = right {
+            } else if let FOF::And(right) = right {
                 let first = left.clone().or(right.left);
                 let second = left.or(right.right);
                 distribute_or(&first).and(distribute_or(&second))
@@ -46,17 +165,47 @@ fn distribute_or(formula: &FOF) -> FOF {
                 left.or(right)
             }
         }
-        Forall(this) => FOF::forall(this.variables.clone(), distribute_or(&this.formula)),
-        _ => unreachable!(), // NNF input
+        FOF::Forall(this) => FOF::forall(this.variables.clone(), distribute_or(&this.formula)),
+        _ => unreachable!(), // `formula` is both in SNF and NNF
     }
 }
 
 // Eliminates the existential quantifiers of the input formula.
-fn remove_forall(formula: FOF) -> FOF {
-    if let Forall(this) = formula {
-        remove_forall(this.formula)
-    } else {
-        formula
+fn cnf(formula: FOF) -> CNF {
+    match formula {
+        FOF::Top => CNF::default(),
+        FOF::Bottom => CNF::from(Clause::default()),
+        FOF::Atom(this) => Clause::from(Literal::from(this)).into(),
+        FOF::Equals(this) => Clause::from(Literal::from(this)).into(),
+        FOF::Not(this) => match this.formula {
+            FOF::Atom(atom) => {
+                let lit: Literal = Not { formula: atom }.into();
+                Clause::from(lit).into()
+            }
+            FOF::Equals(eq) => {
+                let lit: Literal = Not { formula: eq }.into();
+                Clause::from(lit).into()
+            }
+            _ => unreachable!(), // `formula` is in NNF
+        },
+        FOF::And(this) => cnf(this.left).union(cnf(this.right)),
+        FOF::Or(this) => {
+            let mut left = cnf(this.left);
+            let mut right = cnf(this.right);
+            if left.0.is_empty() {
+                left
+            } else if right.0.is_empty() {
+                right
+            } else if left.0.len() == 1 && right.0.len() == 1 {
+                let left = left.0.remove(0);
+                let right = right.0.remove(0);
+                left.union(right).into()
+            } else {
+                unreachable!() // Disjunction is distributed over conjunction in `formula`
+            }
+        }
+        FOF::Forall(this) => cnf(this.formula),
+        _ => unreachable!(), // `formula` is in SNF
     }
 }
 
@@ -73,8 +222,7 @@ impl SNF {
     /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", FOF::from(cnf).to_string());
     /// ```
     pub fn cnf(&self) -> CNF {
-        let nnf = FOF::from(self.clone()).nnf();
-        CNF(remove_forall(distribute_or(&nnf.into())))
+        self.into()
     }
 }
 
@@ -148,27 +296,27 @@ mod tests {
         }
         {
             let formula: FOF = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
-            assert_debug_string!("((P(x) | (Q(x) | Q(y))) & (P(x) | (Q(x) | (~Q(x))))) & ((P(x) | ((~Q(y)) | Q(y))) & (P(x) | ((~Q(y)) | (~Q(x)))))",
+            assert_debug_string!("((((P(x) | Q(x)) | Q(y)) & ((P(x) | Q(x)) | (~Q(x)))) & ((P(x) | (~Q(y))) | Q(y))) & ((P(x) | (~Q(y))) | (~Q(x)))",
                                 cnf(&formula));
         }
         {
             let formula: FOF = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
             assert_debug_string!(
-                "(((~P(x)) | R(z)) & ((~Q(y)) | R(z))) & ((~R(z)) | (P(x) | Q(y)))",
+                "(((~P(x)) | R(z)) & ((~Q(y)) | R(z))) & (((~R(z)) | P(x)) | Q(y))",
                 cnf(&formula),
             );
         }
         {
             let formula: FOF = "P(x) | (Q(x) | (R(y) & R(z)))".parse().unwrap();
             assert_debug_string!(
-                "(P(x) | (Q(x) | R(y))) & (P(x) | (Q(x) | R(z)))",
+                "((P(x) | Q(x)) | R(y)) & ((P(x) | Q(x)) | R(z))",
                 cnf(&formula),
             );
         }
         {
             let formula: FOF = "(P(x1) & P(x2)) | (Q(x1) & Q(x2))".parse().unwrap();
             assert_debug_string!(
-                "((P(x1) | Q(x1)) & (P(x1) | Q(x2))) & ((P(x2) | Q(x1)) & (P(x2) | Q(x2)))",
+                "(((P(x1) | Q(x1)) & (P(x1) | Q(x2))) & (P(x2) | Q(x1))) & (P(x2) | Q(x2))",
                 cnf(&formula),
             );
         }
@@ -187,7 +335,7 @@ mod tests {
         }
         {
             let formula: FOF = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
-            assert_debug_string!("(~P(x)) | ((~Q(y)) | (~R(x, y)))", cnf(&formula));
+            assert_debug_string!("((~P(x)) | (~Q(y))) | (~R(x, y))", cnf(&formula));
         }
         {
             let formula: FOF = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
@@ -217,7 +365,7 @@ mod tests {
                 "R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))"
                     .parse()
                     .unwrap();
-            assert_debug_string!("((~R(z)) | P(sk#0(z), x)) & (((~R(z)) | (~Q(u`, x`, y))) & ((~R(z)) | (~(w = f(u`)))))",
+            assert_debug_string!("(((~R(z)) | P(sk#0(z), x)) & ((~R(z)) | (~Q(u`, x`, y)))) & ((~R(z)) | (~(w = f(u`))))",             
                                 cnf(&formula));
         }
         {
@@ -251,7 +399,7 @@ mod tests {
             let formula: FOF = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))"
                 .parse()
                 .unwrap();
-            assert_debug_string!("((~P(x)) | ((~P(y)) | P(f(x, y)))) & (((~P(x)) | Q(x, sk#0(x, y))) & ((~P(x)) | (~P(sk#0(x, y)))))",
+            assert_debug_string!("((((~P(x)) | (~P(y))) | P(f(x, y))) & ((~P(x)) | Q(x, sk#0(x, y)))) & ((~P(x)) | (~P(sk#0(x, y))))",
                                 cnf(&formula));
         }
     }
