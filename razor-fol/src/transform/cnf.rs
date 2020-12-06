@@ -1,7 +1,7 @@
 /*! Defines formulae in Conjunctive Normal Form (CNF) and implements an algorithm for
 converting [`SNF`] to [`CNF`].
 
-[`SNF`]: crate::transform::CNF
+[`SNF`]: crate::transform::SNF
  */
 
 use super::{TermBased, SNF};
@@ -143,7 +143,8 @@ impl From<CNF> for FOF {
     }
 }
 
-// Distributes conjunctions in the given formula. The function assumes that its input is an NNF.
+// Distributes conjunctions in the given formula.
+// The function assumes that its input is in NNF and SNF.
 fn distribute_or(formula: &FOF) -> FOF {
     match formula {
         FOF::Top | FOF::Bottom | FOF::Atom { .. } | FOF::Equals { .. } | FOF::Not { .. } => {

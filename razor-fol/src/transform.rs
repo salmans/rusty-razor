@@ -11,7 +11,7 @@ mod substitution;
 use thiserror::Error;
 
 pub use cnf::{Clause as CNF_Clause, CNF};
-pub use dnf::DNF;
+pub use dnf::{Clause as DNF_Clause, DNF};
 pub use gnf::GNF;
 pub use nnf::NNF;
 pub use pnf::PNF;
