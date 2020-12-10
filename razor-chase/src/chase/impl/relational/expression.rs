@@ -6,7 +6,7 @@ use super::{
 use codd::expression::{Empty, Expression, Mono, Relation, Singleton};
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{Formula, Pred, FOF};
+use razor_fol::syntax::{Pred, FOF};
 use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -247,6 +247,7 @@ impl<'d> Convertor<'d> {
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
+        use razor_fol::transform::TermBased;
         use std::convert::TryFrom;
 
         let left_attrs = AttributeList::new(
@@ -352,6 +353,8 @@ impl<'d> Convertor<'d> {
         join_attr: &AttributeList,
         final_attr: &AttributeList,
     ) -> Result<SubExpression, Error> {
+        use razor_fol::transform::TermBased;
+
         match formula {
             FOF::Bottom => Ok(SubExpression::new(
                 AttributeList::new(vec![]),

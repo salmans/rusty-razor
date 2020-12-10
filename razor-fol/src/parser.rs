@@ -16,10 +16,10 @@
 //!
 //! Similarly, a [`Theory`] can be parsed from a string:
 //! ```rust
-//! use razor_fol::syntax::Theory;
+//! use razor_fol::syntax::{FOF, Theory};
 //!
 //! // parse a string into `Theory` (formulae are separated by `;`)
-//! let theory: Theory = r#"
+//! let theory: Theory<FOF> = r#"
 //!    // mathematical notation:
 //!    ∀ x. Eq(x, x);
 //!    // verbose notation:
@@ -415,7 +415,7 @@ named!(p_formula<Span, FOF>,
     alt!(p_quantified | p_implication)
 );
 
-named!(pub theory<Span, Result<Theory, Error>>,
+named!(pub theory<Span, Result<Theory<FOF>, Error>>,
     map!(
         many_till!(
             map!(
@@ -486,7 +486,7 @@ impl FromStr for FOF {
     }
 }
 
-impl FromStr for Theory {
+impl FromStr for Theory<FOF> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -1101,175 +1101,175 @@ mod test_parser {
     #[test]
     fn parse_failure() {
         {
-            let parsed: Result<Theory, Error> = "P(X)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(X)".parse();
             assert_eq!(
                 "expecting `term` at line 1, column 3; found \"X)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P('A)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P('A)".parse();
             assert_eq!(
                 "expecting `term` at line 1, column 3; found \"'A)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x)".parse();
             assert_eq!(
                 "missing `;` at line 1, column 5",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x".parse();
             assert_eq!(
                 "missing `)` at line 1, column 4",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "~P(x".parse();
+            let parsed: Result<Theory<FOF>, Error> = "~P(x".parse();
             assert_eq!(
                 "missing `)` at line 1, column 5",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) and ".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) and ".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 10",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) and X".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) and X".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 10; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) or".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) or".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 8",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) or X".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) or X".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 9; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) ->".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) ->".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 8",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) -> X".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) -> X".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 9; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) <=>".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) <=>".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 9",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x) <=> X".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) <=> X".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 10; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "!x P(x".parse();
+            let parsed: Result<Theory<FOF>, Error> = "!x P(x".parse();
             assert_eq!(
                 "missing `.` at line 1, column 4",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "! P(x)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "! P(x)".parse();
             assert_eq!(
                 "expecting `variables` at line 1, column 3; found \"P(x)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "!x . ".parse();
+            let parsed: Result<Theory<FOF>, Error> = "!x . ".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "!x . X".parse();
+            let parsed: Result<Theory<FOF>, Error> = "!x . X".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 6; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "?x P(x".parse();
+            let parsed: Result<Theory<FOF>, Error> = "?x P(x".parse();
             assert_eq!(
                 "missing `.` at line 1, column 4",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "? P(x)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "? P(x)".parse();
             assert_eq!(
                 "expecting `variables` at line 1, column 3; found \"P(x)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "?x . ".parse();
+            let parsed: Result<Theory<FOF>, Error> = "?x . ".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "?x . X".parse();
+            let parsed: Result<Theory<FOF>, Error> = "?x . X".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 6; found \"X\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "x".parse();
+            let parsed: Result<Theory<FOF>, Error> = "x".parse();
             assert_eq!(
                 "failed to parse the input at line 1, column 1",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "(X)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "(X)".parse();
             assert_eq!(
                 "expecting `formula` at line 1, column 2; found \"X)\"",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "(P(x)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "(P(x)".parse();
             assert_eq!(
                 "missing `)` at line 1, column 6",
                 parsed.err().unwrap().to_string()
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x)\n\
+            let parsed: Result<Theory<FOF>, Error> = "P(x)\n\
             Q(x) <=> R(x);"
                 .parse();
             assert_eq!(
@@ -1278,7 +1278,7 @@ mod test_parser {
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x);\n\
+            let parsed: Result<Theory<FOF>, Error> = "P(x);\n\
             Q(x) <=> R(x);\n\
             S(x) => Q(x);"
                 .parse();
@@ -1288,7 +1288,7 @@ mod test_parser {
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x);\n\
+            let parsed: Result<Theory<FOF>, Error> = "P(x);\n\
             Q(x) <=> R(x);\n\
             S(x) and "
                 .parse();
@@ -1298,7 +1298,7 @@ mod test_parser {
             );
         }
         {
-            let parsed: Result<Theory, Error> = "P(x);\n\
+            let parsed: Result<Theory<FOF>, Error> = "P(x);\n\
             P(x,y);"
                 .parse();
             assert_eq!(

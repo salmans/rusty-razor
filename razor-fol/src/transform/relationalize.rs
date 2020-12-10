@@ -1,6 +1,6 @@
 /*! Implements a relationalization algorithm for formulae.*/
 use super::Error;
-use crate::syntax::{symbol::Generator, Formula, Pred, Term, FOF, V};
+use crate::syntax::{symbol::Generator, Pred, Term, FOF, V};
 use std::collections::HashMap;
 
 /// Is a wrapper around [`FOF`] that represents a relationalized first-order formula.
@@ -493,6 +493,8 @@ pub fn range_restrict(
 // Is a helper for range_restrict that works on the wrapped formula inside the input `Relational`
 #[inline(always)]
 fn rr_helper(formula: &FOF, range: &[V], symbol: &str) -> Result<FOF, Error> {
+    use super::TermBased;
+
     let formula = match formula {
         FOF::Bottom => formula.clone(),
         FOF::Top => rr_conjunct(range, symbol).unwrap_or_else(|| formula.clone()),

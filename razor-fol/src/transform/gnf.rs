@@ -1,9 +1,249 @@
-/*! Implements conversion to Geometric Normal Form (GNF) for first-order formulae.*/
+/*! Defines formulae in Geometric Normal Form (GNF) and implements an algorithm for
+converting [`CNF`] to [`GNF`].
 
-use super::CNF;
-use crate::syntax::{symbol::Generator, FOF::*, *};
+[`CNF`]: crate::transform::CNF
+*/
+use super::{CNF_Clause, TermBased, CNF};
+use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
 use itertools::Itertools;
-use std::cmp::Ordering::Equal;
+use std::ops::Deref;
+
+/// Is the body of a formula in geometric form, representing the conjunctino of a list of
+/// [`Atomic`] formulae.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct Body(Vec<Atomic>);
+
+impl From<Atomic> for Body {
+    fn from(value: Atomic) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl<I: IntoIterator<Item = Atomic>> From<I> for Body {
+    fn from(value: I) -> Self {
+        Self(value.into_iter().collect())
+    }
+}
+
+impl Default for Body {
+    fn default() -> Self {
+        Self::from(Vec::<Atomic>::new())
+    }
+}
+
+impl Deref for Body {
+    type Target = [Atomic];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl TermBased for Body {
+    fn free_vars(&self) -> Vec<&V> {
+        self.iter()
+            .flat_map(|lit| lit.free_vars())
+            .unique()
+            .collect()
+    }
+
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self(self.0.iter().map(|lit| lit.transform(f)).collect())
+    }
+}
+
+impl Formula for Body {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|a| a.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+}
+
+impl From<Body> for FOF {
+    fn from(value: Body) -> Self {
+        value
+            .0
+            .into_iter()
+            .map(|atom| match atom {
+                Atomic::Atom(this) => FOF::from(this),
+                Atomic::Equals(this) => this.into(),
+            })
+            .fold1(|item, acc| item.and(acc))
+            .unwrap_or(FOF::Top)
+    }
+}
+
+/// Is a branch in the head of a formula in geometric form, representing the conjunctino of
+/// a list of [`Atomic`] formulae.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct Head(Vec<Atomic>);
+
+impl Head {
+    /// Returns a new [`Head`], resulting from the conjunction of the receiver and `other`.
+    pub fn and(&self, other: &Self) -> Self {
+        self.iter().chain(other.iter()).cloned().into()
+    }
+
+    /// Returns true if the receiver shadows the `other` clause; that is, if `other` is true,
+    /// then the receiver clause has to be true as well.
+    fn shadows(&self, other: &Self) -> bool {
+        (self.len() < other.len() || (self.len() == other.len() && self != other))
+            && self.iter().all(|cc| other.iter().any(|c| cc == c))
+    }
+}
+
+impl From<Atomic> for Head {
+    fn from(value: Atomic) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl<I: IntoIterator<Item = Atomic>> From<I> for Head {
+    fn from(value: I) -> Self {
+        Self(value.into_iter().collect())
+    }
+}
+
+impl Default for Head {
+    fn default() -> Self {
+        Self::from(Vec::<Atomic>::new())
+    }
+}
+
+impl Deref for Head {
+    type Target = [Atomic];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl TermBased for Head {
+    fn free_vars(&self) -> Vec<&V> {
+        self.iter().flat_map(|lit| lit.free_vars()).collect()
+    }
+
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self(self.iter().map(|lit| lit.transform(f)).collect())
+    }
+}
+
+impl Formula for Head {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+}
+
+impl From<Head> for FOF {
+    fn from(value: Head) -> Self {
+        value
+            .0
+            .into_iter()
+            .map(|atom| match atom {
+                Atomic::Atom(this) => FOF::from(this),
+                Atomic::Equals(this) => this.into(),
+            })
+            .fold1(|item, acc| item.and(acc))
+            .unwrap_or(FOF::Top)
+    }
+}
+
+/// Represents the disjunction of [`Head`]s in the head of a formula in geometric form.
+#[derive(Clone, Debug)]
+pub struct Heads(Vec<Head>);
+
+impl Heads {
+    /// Returns a simplified DNF equivalent to the receiver.
+    pub fn simplify(&self) -> Self {
+        let clauses = self
+            .iter()
+            .map(|c| Head::from(c.iter().unique().cloned()))
+            .collect_vec();
+
+        clauses
+            .iter()
+            .filter(|c1| !clauses.iter().any(|c2| c2.shadows(c1)))
+            .cloned()
+            .unique()
+            .collect_vec()
+            .into()
+    }
+
+    /// Returns a new instance of [`Heads`], corresponding to the conjunction of the
+    /// receiver and `other` after syntanctic transformation.
+    pub fn and(&self, other: &Self) -> Self {
+        self.iter()
+            .flat_map(|h1| other.iter().map(move |h2| h1.and(h2)))
+            .into()
+    }
+}
+
+impl From<Head> for Heads {
+    fn from(value: Head) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl<I: IntoIterator<Item = Head>> From<I> for Heads {
+    fn from(value: I) -> Self {
+        Self(value.into_iter().collect())
+    }
+}
+
+impl Deref for Heads {
+    type Target = [Head];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Default for Heads {
+    fn default() -> Self {
+        Self::from(Vec::<Head>::new())
+    }
+}
+
+impl TermBased for Heads {
+    fn free_vars(&self) -> Vec<&V> {
+        self.iter()
+            .flat_map(|lit| lit.free_vars())
+            .unique()
+            .collect()
+    }
+
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self(self.iter().map(|lit| lit.transform(f)).collect())
+    }
+}
+
+impl Formula for Heads {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+}
+
+impl From<Heads> for FOF {
+    fn from(value: Heads) -> Self {
+        value
+            .0
+            .into_iter()
+            .map(|atom| FOF::from(atom))
+            .fold1(|item, acc| item.or(acc))
+            .unwrap_or(FOF::Bottom)
+    }
+}
 
 /// Is a wrapper around [`FOF`] that represents a formula in Geometric Normal Form (GNF).
 ///
@@ -13,62 +253,73 @@ use std::cmp::Ordering::Equal;
 /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 /// [`FOF`]: crate::syntax::FOF
 #[derive(Clone, Debug)]
-pub struct GNF(FOF);
+pub struct GNF {
+    body: Body,
+    heads: Heads,
+}
 
 impl GNF {
-    /// Returns a reference to the first-order formula wrapped in the receiver NNF.
+    /// Returns the body of the receiver GNF.
     #[inline(always)]
-    pub fn formula(&self) -> &FOF {
-        &self.0
+    pub fn body(&self) -> &Body {
+        &self.body
+    }
+
+    /// Returns the heads of the receiver GNF.
+    #[inline(always)]
+    pub fn heads(&self) -> &Heads {
+        &self.heads
+    }
+}
+
+impl From<(Body, Heads)> for GNF {
+    fn from(value: (Body, Heads)) -> Self {
+        let (body, heads) = value;
+        Self { body, heads }
+    }
+}
+
+impl TermBased for GNF {
+    fn free_vars(&self) -> Vec<&V> {
+        let mut b_vars = self.body.free_vars();
+        b_vars.extend(self.heads.free_vars());
+        b_vars
+    }
+
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self {
+            body: self.body.transform(f).into(),
+            heads: self.heads.transform(f).into(),
+        }
+    }
+}
+
+impl Formula for GNF {
+    fn signature(&self) -> Result<Sig, Error> {
+        let sig = self.body().signature()?;
+        sig.merge(self.heads().signature()?)
     }
 }
 
 impl From<GNF> for FOF {
-    fn from(gnf: GNF) -> Self {
-        gnf.0
-    }
-}
-
-// For any disjunct of the CNF, the negative literals form the body of the geometric form
-// and the positive literals form its head:
-fn split_sides(disjunct: FOF) -> (Vec<FOF>, Vec<FOF>) {
-    match disjunct {
-        Or(this) => {
-            let (mut left_body, mut left_head) = split_sides(this.left);
-            let (mut right_body, mut right_head) = split_sides(this.right);
-
-            left_body.append(&mut right_body);
-            let body: Vec<_> = left_body.into_iter().unique().collect();
-
-            left_head.append(&mut right_head);
-            let head: Vec<_> = left_head.into_iter().unique().collect();
-
-            (body, head)
-        }
-        Not(this) => (vec![this.formula], vec![]),
-        _ => (vec![], vec![disjunct]),
+    fn from(value: GNF) -> Self {
+        let body: FOF = value.body.into();
+        body.implies(value.heads.into())
     }
 }
 
 // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
-fn to_implication(disjunct: FOF) -> GNF {
-    let (body, head) = split_sides(disjunct);
-    let body = body.into_iter().fold(Top, |x, y| x.and(y)).simplify();
-    let head = head.into_iter().fold(Bottom, |x, y| x.or(y)).simplify();
-    GNF(body.implies(head))
-}
+fn gnf(clause: &CNF_Clause) -> GNF {
+    let mut heads: Vec<Head> = Vec::new();
+    let mut body: Vec<Atomic> = Vec::new();
+    clause.iter().for_each(|lit| match lit {
+        Literal::Pos(this) => heads.push(Atomic::from(this.clone()).into()),
+        Literal::Neg(this) => body.push(Atomic::from(this.clone()).into()),
+    });
 
-// Split the CNF to a set of disjuncts.
-fn get_disjuncts(cnf: FOF) -> Vec<FOF> {
-    match cnf {
-        And(this) => {
-            let mut left = get_disjuncts(this.left);
-            let mut right = get_disjuncts(this.right);
-            left.append(&mut right);
-            left.into_iter().unique().collect()
-        }
-        _ => vec![cnf],
-    }
+    let body = Body::from(body);
+    let heads = Heads::from(heads);
+    (body, heads).into()
 }
 
 impl CNF {
@@ -89,160 +340,14 @@ impl CNF {
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
     pub fn gnf(&self) -> Vec<GNF> {
-        get_disjuncts(self.clone().into())
-            .into_iter()
-            .map(to_implication)
-            .collect()
-    }
-}
-
-// a helper to merge sequents with syntactically identical bodies
-fn compress_geometric(formulae: Vec<GNF>) -> Vec<FOF> {
-    let formulae: Vec<FOF> = formulae.into_iter().map(|gnf| gnf.into()).collect();
-    formulae
-        .into_iter()
-        .sorted_by(|first, second| {
-            // sort sequents by their body
-            match (first, second) {
-                (Implies(first), Implies(second)) => first.premise.cmp(&second.premise),
-                _ => Equal,
-            }
-        })
-        .into_iter()
-        .coalesce(|first, second| {
-            // merge the ones with the same body:
-            match first {
-                Implies(first) => {
-                    let l_vars = first.premise.free_vars();
-                    let r_vars = first.consequence.free_vars();
-                    // compress sequents with no free variables that show up only in head:
-                    if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
-                        match second {
-                            Implies(second) => {
-                                let l_vars = second.premise.free_vars();
-                                let r_vars = second.consequence.free_vars();
-                                if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
-                                    if first.premise == second.premise {
-                                        Ok(second.premise.implies(
-                                            first.consequence.clone().and(second.consequence),
-                                        ))
-                                    } else {
-                                        Err(((*first).into(), (*second).into()))
-                                    }
-                                } else {
-                                    Err(((*second).into(), (*first).into()))
-                                }
-                            }
-                            _ => Err((second, (*first).into())),
-                        }
-                    } else {
-                        Err(((*first).into(), second))
-                    }
-                }
-                _ => Err((first, second)),
-            }
-        })
-        .map(|f| {
-            // convert the head to dnf and simplify it:
-            match f {
-                Implies(this) => this
-                    .premise
-                    .implies(simplify_dnf(this.consequence.pnf().snf().dnf().into())),
-                _ => f,
-            }
-        })
-        .collect()
-}
-
-// Simplifies the given DNF as a helper for compress geometric.
-fn simplify_dnf(formula: FOF) -> FOF {
-    fn disjunct_list(formula: FOF) -> Vec<FOF> {
-        match formula {
-            Or(this) => {
-                let mut lefts = disjunct_list(this.left);
-                let mut rights = disjunct_list(this.right);
-                lefts.append(&mut rights);
-                lefts
-            }
-            _ => vec![formula],
-        }
-    }
-
-    fn conjunct_list(formula: FOF) -> Vec<FOF> {
-        match formula {
-            And(this) => {
-                let mut lefts = conjunct_list(this.left);
-                let mut rights = conjunct_list(this.right);
-                lefts.append(&mut rights);
-                lefts
-            }
-            _ => vec![formula],
-        }
-    }
-
-    let disjuncts: Vec<Vec<_>> = disjunct_list(formula)
-        .into_iter()
-        .map(|d| conjunct_list(d).into_iter().unique().collect())
-        .collect();
-
-    let disjuncts: Vec<Vec<_>> = disjuncts
-        .iter()
-        .filter(|d| {
-            !disjuncts.iter().any(|dd| {
-                (dd.len() < d.len() || (dd.len() == d.len() && dd < d))
-                    && dd.iter().all(|cc| d.iter().any(|c| cc == c))
-            })
-        })
-        .cloned()
-        .unique()
-        .collect();
-
-    disjuncts
-        .into_iter()
-        .map(|d| d.into_iter().fold1(|f1, f2| f1.and(f2)).unwrap())
-        .fold1(|f1, f2| f1.or(f2))
-        .unwrap()
-}
-
-impl Theory {
-    /// Transforms the given theory to a *geometric theory*, where all formulae are in
-    /// Geometric Normal Form (GNF).
-    ///
-    /// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
-    /// by Steve Vickers.
-    ///
-    /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::Theory;
-    ///
-    /// let theory: Theory = r#"
-    ///     not P(x) or Q(x);
-    ///     Q(x) -> exists y. R(x, y);
-    /// "#.parse().unwrap();
-    /// assert_eq!(r#"P(x) → Q(x)
-    /// Q(x) → R(x, sk#0(x))"#, theory.gnf().to_string());
-    /// ```
-    pub fn gnf(&self) -> Theory {
-        use core::convert::TryFrom;
-
-        let mut generator = Generator::new().set_prefix("sk#");
-        let formulae: Vec<GNF> = self
-            .formulae()
-            .iter()
-            .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
-            .collect();
-
-        // assuming that conversion to gnf won't change the signature
-        Theory::try_from(compress_geometric(formulae)).unwrap()
+        self.iter().map(gnf).collect()
     }
 }
 
 #[cfg(test)]
 mod test_transform {
     use super::*;
-    use crate::assert_debug_strings;
+    use crate::{assert_debug_strings, syntax::Theory};
 
     fn gnf(formula: &FOF) -> Vec<FOF> {
         formula
@@ -256,10 +361,18 @@ mod test_transform {
     }
 
     #[test]
+    fn battery() {
+        {
+            let formula: FOF = "false".parse().unwrap();
+            assert_debug_strings!("true -> false", gnf(&formula));
+        }
+    }
+
+    #[test]
     fn test_gnf() {
         {
             let formula: FOF = "true".parse().unwrap();
-            assert_debug_strings!("true -> true", gnf(&formula));
+            assert_debug_strings!("", gnf(&formula));
         }
         {
             let formula: FOF = "false".parse().unwrap();
@@ -376,7 +489,7 @@ mod test_transform {
         }
         {
             let formula: FOF = "false -> P(x)".parse().unwrap();
-            assert_debug_strings!("true -> true", gnf(&formula));
+            assert_debug_strings!("", gnf(&formula));
         }
     }
 
@@ -384,22 +497,22 @@ mod test_transform {
     fn test_gnf_theory() {
         // mostly testing if compression of heads works properly:
         {
-            let theory: Theory = "P('a); P('b);".parse().unwrap();
+            let theory: Theory<FOF> = "P('a); P('b);".parse().unwrap();
             assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae());
         }
         {
-            let theory: Theory = "P('a); P(x);".parse().unwrap();
+            let theory: Theory<FOF> = "P('a); P(x);".parse().unwrap();
             assert_debug_strings!("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae());
         }
         {
-            let theory: Theory = "P('a); P(x); P('b);".parse().unwrap();
+            let theory: Theory<FOF> = "P('a); P(x); P('b);".parse().unwrap();
             assert_debug_strings!(
                 "true -> P(x)\ntrue -> (P(\'a) & P(\'b))",
                 theory.gnf().formulae(),
             );
         }
         {
-            let theory: Theory = "(T() and V()) or (U() and V());".parse().unwrap();
+            let theory: Theory<FOF> = "(T() and V()) or (U() and V());".parse().unwrap();
             assert_debug_strings!(
                 "true -> ((T() & V()) | (U() & V()))",
                 theory.gnf().formulae()

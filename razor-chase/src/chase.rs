@@ -376,7 +376,7 @@ pub trait PreProcessorEx {
 
     /// Given a theory, returns an iterator of [sequents][SequentTrait] and an initial
     /// [model][ModelTrait] by applying the necessary pre-processing.
-    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model);
+    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model);
 }
 
 /// Strategy is the trait of algorithms for choosing sequents in the context of an implementation
@@ -534,7 +534,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// [the Chase]: self#the-chase
 ///
 /// ```rust
-/// use razor_fol::syntax::Theory;
+/// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
 ///     SchedulerTrait, StrategyTrait, chase_all,
 ///     r#impl::basic,
@@ -545,7 +545,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// use std::convert::TryInto;
 ///
 /// // parse the theory:
-/// let theory: Theory = r#"
+/// let theory: Theory<FOF> = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
 ///   R(x) -> exists y . S(x, y);
@@ -607,7 +607,7 @@ where
 /// [chase-step]: self#chase-step
 ///
 /// ```rust
-/// use razor_fol::syntax::Theory;
+/// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
 ///     SchedulerTrait, StrategyTrait, chase_step,
 ///     r#impl::basic,
@@ -618,7 +618,7 @@ where
 /// use std::convert::TryInto;
 ///
 /// // parse the theory:
-/// let theory: Theory = r#"
+/// let theory: Theory<FOF> = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
 ///   R(x) -> exists y . S(x, y);

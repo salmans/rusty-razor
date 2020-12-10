@@ -1,6 +1,6 @@
 /*! Defines the syntax of first-order formulae with equality.*/
 use super::V;
-use super::{formula::*, Term};
+use super::{formula::*, Sig, Term};
 use crate::transform::TermBased;
 use itertools::Itertools;
 use std::fmt;
@@ -194,7 +194,7 @@ impl FOF {
     }
 }
 
-impl Formula for FOF {
+impl TermBased for FOF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
             Self::Top => Vec::new(),
@@ -210,9 +210,7 @@ impl Formula for FOF {
             Self::Forall(this) => this.free_vars(),
         }
     }
-}
 
-impl TermBased for FOF {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
             FOF::Top | FOF::Bottom => self.clone(),
@@ -231,6 +229,24 @@ impl TermBased for FOF {
             FOF::Iff(this) => this.left.transform(f).iff(this.right.transform(f)),
             FOF::Exists(this) => FOF::exists(this.variables.clone(), this.formula.transform(f)),
             FOF::Forall(this) => FOF::forall(this.variables.clone(), this.formula.transform(f)),
+        }
+    }
+}
+
+impl Formula for FOF {
+    fn signature(&self) -> Result<super::Sig, super::Error> {
+        match self {
+            FOF::Top => Ok(Sig::new()),
+            FOF::Bottom => Ok(Sig::new()),
+            FOF::Atom(this) => this.signature(),
+            FOF::Equals(this) => this.signature(),
+            FOF::Not(this) => this.signature(),
+            FOF::And(this) => this.signature(),
+            FOF::Or(this) => this.signature(),
+            FOF::Implies(this) => this.signature(),
+            FOF::Iff(this) => this.signature(),
+            FOF::Exists(this) => this.signature(),
+            FOF::Forall(this) => this.signature(),
         }
     }
 }

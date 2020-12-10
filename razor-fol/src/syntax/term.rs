@@ -21,55 +21,6 @@ pub enum Term {
 }
 
 impl Term {
-    /// Returns a list of all free variable symbols in the term.
-    ///
-    /// **Note**: In the list of free variables, each variable symbol appears only once even if it
-    /// is present at multiple positions of the receiver term.
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::{syntax::{V, C, F, Term}, term};
-    /// # use itertools::Itertools;
-    ///
-    /// // `x_sym` and `y_sym` are variable symbols:
-    /// let x_sym = V::from("x");
-    /// let y_sym = V::from("y");
-    ///
-    /// // `c_sym` is a constant symbol:
-    /// let c_sym = C::from("c");
-    ///
-    /// // `x` and `y` are variable terms:
-    /// let x = Term::from(x_sym.clone());
-    /// let y = Term::from(y_sym.clone());
-    ///
-    /// // `c` is a constant term:
-    /// let c = Term::from(c_sym.clone());
-    ///
-    /// // `f` and `g` are function
-    /// let f = F::from("f");
-    /// let g = F::from("g");
-    ///
-    /// // f(x, g(y, c, x)):
-    /// let t = term!(f(x, g(y, @c, x)));
-    ///
-    /// // comparing the two (unordered) lists:
-    /// assert_eq!(vec![&x_sym, &y_sym].iter().sorted(), t.free_vars().iter().sorted())
-    /// ```
-    pub fn free_vars(&self) -> Vec<&V> {
-        use itertools::Itertools;
-
-        match self {
-            Term::Var { variable } => vec![variable],
-            Term::Const { constant: _ } => vec![],
-            Term::App { function: _, terms } => terms
-                .iter()
-                .flat_map(|t| t.free_vars())
-                .into_iter()
-                .unique()
-                .collect(),
-        }
-    }
-
     /// Returns an [equation] (formula) between the receiver and `term`.
     ///
     /// [equation]: crate::syntax::FOF::Equals
@@ -124,8 +75,7 @@ impl fmt::Debug for Term {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::term;
-    use crate::{assert_eq_sorted_vecs, v};
+    use crate::{assert_eq_sorted_vecs, term, transform::TermBased, v};
 
     #[test]
     fn test_var_free_vars() {

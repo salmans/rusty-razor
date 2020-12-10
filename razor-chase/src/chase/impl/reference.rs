@@ -15,7 +15,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{FApp, Term, Theory, C, F, V};
+use razor_fol::syntax::{FApp, Term, Theory, C, F, FOF, V};
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
@@ -521,7 +521,7 @@ impl PreProcessorEx for PreProcessor {
     type Sequent = Sequent;
     type Model = Model;
 
-    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         use std::convert::TryInto;
 
         (
@@ -736,7 +736,7 @@ mod test_reference {
         SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
@@ -787,7 +787,7 @@ mod test_reference {
         }
     }
 
-    fn run_test(theory: &Theory) -> Vec<Model> {
+    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
         use std::convert::TryInto;
 
         let geometric_theory = theory.gnf();

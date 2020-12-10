@@ -215,7 +215,7 @@ pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
     debug_assert_eq!(expected, strings.join("\n"));
 }
 
-pub fn read_theory_from_file(filename: &str) -> Theory {
+pub fn read_theory_from_file(filename: &str) -> Theory<FOF> {
     let mut f = File::open(filename).expect("file not found");
 
     let mut contents = String::new();
@@ -225,7 +225,7 @@ pub fn read_theory_from_file(filename: &str) -> Theory {
     contents.parse().unwrap()
 }
 
-pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
+pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::Model> {
     let pre_processor = basic::PreProcessor;
     let (sequents, init_model) = pre_processor.pre_process(theory);
     let evaluator = basic::Evaluator;
@@ -236,7 +236,7 @@ pub fn solve_basic(theory: &Theory) -> Vec<basic::Model> {
     chase_all(&mut scheduler, &evaluator, bounder)
 }
 
-pub fn solve_domain_bounded_basic(theory: &Theory, bound: usize) -> Vec<basic::Model> {
+pub fn solve_domain_bounded_basic(theory: &Theory<FOF>, bound: usize) -> Vec<basic::Model> {
     let pre_processor = basic::PreProcessor;
     let (sequents, init_model) = pre_processor.pre_process(theory);
     let evaluator = basic::Evaluator;

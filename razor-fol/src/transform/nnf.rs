@@ -4,7 +4,7 @@ converting a [`FOF`] to [`NNF`].
 [`FOF`]: crate::syntax::FOF
 */
 use super::TermBased;
-use crate::syntax::{formula::*, Term, FOF, V};
+use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
 
 /// Represents a formula in Negation Normal Form (NNF).
 ///
@@ -96,13 +96,8 @@ impl From<&FOF> for NNF {
 
 impl NNF {
     #[inline(always)]
-    fn neg(atom: Atom) -> Self {
+    fn neg(atom: Atomic) -> Self {
         Literal::Neg(atom).into()
-    }
-
-    #[inline(always)]
-    fn neq(equality: Equals) -> Self {
-        Literal::Neq(equality).into()
     }
 
     #[inline(always)]
@@ -135,6 +130,20 @@ impl NNF {
 }
 
 impl Formula for NNF {
+    fn signature(&self) -> Result<Sig, Error> {
+        match self {
+            NNF::Top => Ok(Sig::default()),
+            NNF::Bottom => Ok(Sig::default()),
+            NNF::Literal(this) => this.signature(),
+            NNF::And(this) => this.signature(),
+            NNF::Or(this) => this.signature(),
+            NNF::Exists(this) => this.signature(),
+            NNF::Forall(this) => this.signature(),
+        }
+    }
+}
+
+impl TermBased for NNF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
             Self::Top => Vec::new(),
@@ -146,10 +155,7 @@ impl Formula for NNF {
             Self::Forall(this) => this.free_vars(),
         }
     }
-}
 
-impl TermBased for NNF {
-    #[inline]
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
             Self::Top => NNF::Top,
@@ -169,10 +175,14 @@ impl From<NNF> for FOF {
             NNF::Top => Self::Top,
             NNF::Bottom => Self::Bottom,
             NNF::Literal(lit) => match lit {
-                Literal::Atom(this) => this.into(),
-                Literal::Neg(this) => Self::not(this.into()),
-                Literal::Equals(this) => this.into(),
-                Literal::Neq(this) => Self::not(this.into()),
+                Literal::Pos(pos) => match pos {
+                    Atomic::Atom(this) => this.into(),
+                    Atomic::Equals(this) => this.into(),
+                },
+                Literal::Neg(neg) => match neg {
+                    Atomic::Atom(this) => Self::not(this.into()),
+                    Atomic::Equals(this) => Self::not(this.into()),
+                },
             },
             NNF::And(this) => Self::from(this.left).and(this.right.into()),
             NNF::Or(this) => Self::from(this.left).or(this.right.into()),
@@ -188,8 +198,8 @@ fn push_not(formula: &FOF) -> NNF {
     match formula {
         FOF::Top => NNF::Bottom,
         FOF::Bottom => NNF::Top,
-        FOF::Atom(this) => NNF::neg(this.clone()),
-        FOF::Equals(this) => NNF::neq(this.clone()),
+        FOF::Atom(this) => NNF::neg(this.clone().into()),
+        FOF::Equals(this) => NNF::neg(this.clone().into()),
         FOF::Not(this) => nnf(&this.formula),
         FOF::And(this) => nnf(&FOF::not(this.left.clone())).or(nnf(&FOF::not(this.right.clone()))),
         FOF::Or(this) => nnf(&FOF::not(this.left.clone())).and(nnf(&FOF::not(this.right.clone()))),

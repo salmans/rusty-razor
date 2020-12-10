@@ -105,7 +105,7 @@ impl PNF {
     }
 }
 
-impl Formula for PNF {
+impl TermBased for PNF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
             PNF::QFF(this) => this.free_vars(),
@@ -113,10 +113,7 @@ impl Formula for PNF {
             PNF::Forall(this) => this.free_vars(),
         }
     }
-}
 
-impl TermBased for PNF {
-    #[inline]
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
             PNF::QFF(this) => this.transform(f).into(),
@@ -130,6 +127,16 @@ impl TermBased for PNF {
                 formula: this.formula.transform(f),
             }
             .into(),
+        }
+    }
+}
+
+impl Formula for PNF {
+    fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
+        match self {
+            PNF::QFF(this) => this.signature(),
+            PNF::Exists(this) => this.signature(),
+            PNF::Forall(this) => this.signature(),
         }
     }
 }

@@ -1,5 +1,5 @@
 /*! Implementas a basic syntactic simplification for formula. */
-
+use super::TermBased;
 use crate::syntax::{FOF::*, *};
 
 impl FOF {

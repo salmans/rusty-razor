@@ -225,7 +225,7 @@ mod test_batch {
         SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
@@ -276,7 +276,7 @@ mod test_batch {
         }
     }
 
-    fn run_test(theory: &Theory) -> Vec<Model> {
+    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
         use std::convert::TryInto;
 
         let geometric_theory = theory.gnf();

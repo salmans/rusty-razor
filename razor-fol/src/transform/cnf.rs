@@ -5,11 +5,12 @@ converting [`SNF`] to [`CNF`].
  */
 
 use super::{TermBased, SNF};
-use crate::syntax::{formula::*, Term, FOF, V};
+use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
 use itertools::Itertools;
+use std::ops::Deref;
 
 /// Is a [`CNF`] clause, representing disjunction of zero or more [`Literal`]s.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Clause(Vec<Literal>);
 
 impl Clause {
@@ -20,27 +21,40 @@ impl Clause {
         lits.extend(other.0);
         lits.into()
     }
+
+    /// Returns the literals of the receiver clause.
+    pub fn literals(&self) -> &[Literal] {
+        &self.0
+    }
+}
+
+impl Deref for Clause {
+    type Target = [Literal];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl From<Literal> for Clause {
     fn from(value: Literal) -> Self {
-        Clause(vec![value])
+        Self(vec![value])
     }
 }
 
 impl<I: IntoIterator<Item = Literal>> From<I> for Clause {
     fn from(value: I) -> Self {
-        Clause(value.into_iter().collect())
+        Self(value.into_iter().collect())
     }
 }
 
 impl Default for Clause {
     fn default() -> Self {
-        Clause::from(Vec::<Literal>::new())
+        Self::from(Vec::<Literal>::new())
     }
 }
 
-impl Formula for Clause {
+impl TermBased for Clause {
     fn free_vars(&self) -> Vec<&V> {
         let mut vs = Vec::new();
         for lit in &self.0 {
@@ -48,11 +62,19 @@ impl Formula for Clause {
         }
         vs.into_iter().unique().collect()
     }
+
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self(self.0.iter().map(|lit| lit.transform(f)).collect())
+    }
 }
 
-impl TermBased for Clause {
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
-        Clause(self.0.iter().map(|lit| lit.transform(f)).collect())
+impl Formula for Clause {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|l| l.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
     }
 }
 
@@ -62,10 +84,14 @@ impl From<Clause> for FOF {
             .0
             .into_iter()
             .map(|clause| match clause {
-                Literal::Atom(this) => this.into(),
-                Literal::Neg(this) => FOF::not(this.into()),
-                Literal::Equals(this) => this.into(),
-                Literal::Neq(this) => FOF::not(this.into()),
+                Literal::Pos(pos) => match pos {
+                    Atomic::Atom(this) => this.into(),
+                    Atomic::Equals(this) => this.into(),
+                },
+                Literal::Neg(neg) => match neg {
+                    Atomic::Atom(this) => FOF::not(this.into()),
+                    Atomic::Equals(this) => FOF::not(this.into()),
+                },
             })
             .fold1(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
@@ -76,12 +102,12 @@ impl From<Clause> for FOF {
 ///
 /// **Hint**: A CNF is a firsts-order formula that is a conjunction of zero or
 /// more [`Clause`]s.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CNF(Vec<Clause>);
 
 impl From<Clause> for CNF {
     fn from(value: Clause) -> Self {
-        CNF(vec![value])
+        Self(vec![value])
     }
 }
 
@@ -93,17 +119,30 @@ impl CNF {
         lits.extend(other.0);
         lits.into()
     }
+
+    /// Returns the clauses of the receiver CNF.
+    pub fn clauses(&self) -> &[Clause] {
+        &self.0
+    }
+}
+
+impl Deref for CNF {
+    type Target = [Clause];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl<I: IntoIterator<Item = Clause>> From<I> for CNF {
     fn from(value: I) -> Self {
-        CNF(value.into_iter().collect())
+        Self(value.into_iter().collect())
     }
 }
 
 impl Default for CNF {
     fn default() -> Self {
-        CNF::from(Vec::<Clause>::new())
+        Self::from(Vec::<Clause>::new())
     }
 }
 
@@ -116,7 +155,7 @@ impl From<&SNF> for CNF {
     }
 }
 
-impl Formula for CNF {
+impl TermBased for CNF {
     fn free_vars(&self) -> Vec<&V> {
         let mut vs = Vec::new();
         for clause in &self.0 {
@@ -124,11 +163,19 @@ impl Formula for CNF {
         }
         vs.into_iter().unique().collect()
     }
+
+    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+        Self(self.0.iter().map(|clause| clause.transform(f)).collect())
+    }
 }
 
-impl TermBased for CNF {
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
-        CNF(self.0.iter().map(|clause| clause.transform(f)).collect())
+impl Formula for CNF {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
     }
 }
 

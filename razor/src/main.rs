@@ -17,7 +17,7 @@ use razor_chase::{
     },
     trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
 };
-use razor_fol::syntax::Theory;
+use razor_fol::syntax::{Theory, FOF};
 use std::io;
 use std::{fs, io::Read};
 use structopt::StructOpt;
@@ -161,7 +161,7 @@ fn main() -> Result<(), Error> {
             show_incomplete,
             scheduler,
         } => {
-            let theory: Theory;
+            let theory: Theory<FOF>;
             if let Some(input) = input {
                 theory = read_theory_from_file(input.to_str().unwrap_or("."))?
             } else {
@@ -186,7 +186,7 @@ fn main() -> Result<(), Error> {
 }
 
 fn process_solve(
-    theory: &Theory,
+    theory: &Theory<FOF>,
     bound: Option<BoundCommand>,
     show_incomplete: bool,
     scheduler: SchedulerOption,
@@ -273,7 +273,7 @@ fn process_solve(
     Ok(())
 }
 
-pub fn read_theory_from_file(filename: &str) -> Result<Theory, Error> {
+pub fn read_theory_from_file(filename: &str) -> Result<Theory<FOF>, Error> {
     let mut f = fs::File::open(filename)
         .map_err(|e| Error::new(e).context("failed to find the input file"))?;
 

@@ -123,16 +123,14 @@ impl SNF {
     }
 }
 
-impl Formula for SNF {
+impl TermBased for SNF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
             SNF::QuantifierFree(this) => this.free_vars(),
             SNF::Forall(this) => this.free_vars(),
         }
     }
-}
 
-impl TermBased for SNF {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         match self {
             SNF::QuantifierFree(this) => this.transform(f).into(),
@@ -141,6 +139,15 @@ impl TermBased for SNF {
                 formula: this.formula.transform(f),
             }
             .into(),
+        }
+    }
+}
+
+impl Formula for SNF {
+    fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
+        match self {
+            SNF::QuantifierFree(this) => this.signature(),
+            SNF::Forall(this) => this.signature(),
         }
     }
 }

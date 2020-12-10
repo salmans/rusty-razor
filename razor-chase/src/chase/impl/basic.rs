@@ -621,6 +621,7 @@ impl TryFrom<&FOF> for Sequent {
     type Error = Error;
 
     fn try_from(formula: &FOF) -> Result<Self, Self::Error> {
+        use razor_fol::transform::TermBased;
         match formula {
             FOF::Implies(this) => {
                 let left = &this.premise;
@@ -681,7 +682,7 @@ impl PreProcessorEx for PreProcessor {
     type Sequent = Sequent;
     type Model = Model;
 
-    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         use std::convert::TryInto;
 
         (

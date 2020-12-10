@@ -73,6 +73,36 @@ impl VariableRenaming for HashMap<&V, V> {
 ///
 /// [`Term`]: crate::syntax::Term
 pub trait TermBased {
+    /// Returns a list of free variable symbols in the receiver.
+    ///
+    /// **Note**: In the list of free variables, each variable symbol appears only once
+    /// even if it is present at multiple positions of the receiver.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::{V, FOF};
+    /// # use itertools::Itertools;
+    /// use razor_fol::{syntax::Formula, transform::TermBased};
+    ///
+    /// // `x`, `y` and `z` are variable symbols:
+    /// let x = V::from("x");
+    /// let y = V::from("y");
+    /// let z = V::from("z");
+    ///
+    /// // (P(x) ∧ Q(x, f(g(x), y))) ∨ ('c = g(z))
+    /// let formula: FOF = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
+    /// assert_eq!(vec![&x, &y, &z].iter().sorted(), formula.free_vars().iter().sorted());
+    ///
+    /// // ∀ x. P(x, y)
+    /// let formula: FOF = "forall x. P(x, y)".parse().unwrap();
+    /// assert_eq!(vec![&y], formula.free_vars()); // FOF is a Formula
+    ///
+    /// // ∃ x. P(x, y)
+    /// let formula: FOF = "exists x. P(x, y)".parse().unwrap();
+    /// assert_eq!(vec![&y], formula.free_vars());
+    /// ```    
+    fn free_vars(&self) -> Vec<&V>;
+
     /// Applies a transformation function `f` on the [`Term`]s of the receiver.
     ///
     /// [`Term`]: crate::syntax::Term
@@ -157,6 +187,55 @@ pub trait TermBased {
 }
 
 impl TermBased for Term {
+    /// Returns a list of all free variable symbols in the term.
+    ///
+    /// **Note**: In the list of free variables, each variable symbol appears only once even if it
+    /// is present at multiple positions of the receiver term.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::{syntax::{V, C, F, Term}, transform::TermBased, term};
+    /// # use itertools::Itertools;
+    ///
+    /// // `x_sym` and `y_sym` are variable symbols:
+    /// let x_sym = V::from("x");
+    /// let y_sym = V::from("y");
+    ///
+    /// // `c_sym` is a constant symbol:
+    /// let c_sym = C::from("c");
+    ///
+    /// // `x` and `y` are variable terms:
+    /// let x = Term::from(x_sym.clone());
+    /// let y = Term::from(y_sym.clone());
+    ///
+    /// // `c` is a constant term:
+    /// let c = Term::from(c_sym.clone());
+    ///
+    /// // `f` and `g` are function
+    /// let f = F::from("f");
+    /// let g = F::from("g");
+    ///
+    /// // f(x, g(y, c, x)):
+    /// let t = term!(f(x, g(y, @c, x)));
+    ///
+    /// // comparing the two (unordered) lists:
+    /// assert_eq!(vec![&x_sym, &y_sym].iter().sorted(), t.free_vars().iter().sorted())
+    /// ```
+    fn free_vars(&self) -> Vec<&V> {
+        use itertools::Itertools;
+
+        match self {
+            Term::Var { variable } => vec![variable],
+            Term::Const { constant: _ } => vec![],
+            Term::App { function: _, terms } => terms
+                .iter()
+                .flat_map(|t| t.free_vars())
+                .into_iter()
+                .unique()
+                .collect(),
+        }
+    }
+
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         f(self)
     }

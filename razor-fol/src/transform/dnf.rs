@@ -5,11 +5,12 @@ converting [`SNF`] to [`DNF`].
  */
 
 use super::{TermBased, SNF};
-use crate::syntax::{formula::*, Term, FOF, V};
+use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
 use itertools::Itertools;
+use std::ops::Deref;
 
 /// Is a [`DNF`] clause, representing conjunction of zero or more [`Literal`]s.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Clause(Vec<Literal>);
 
 impl Clause {
@@ -19,6 +20,19 @@ impl Clause {
         let mut lits = self.0;
         lits.extend(other.0);
         lits.into()
+    }
+
+    /// Returns the literals of the receiver clause.
+    pub fn literals(&self) -> &[Literal] {
+        &self.0
+    }
+}
+
+impl Deref for Clause {
+    type Target = [Literal];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -40,7 +54,7 @@ impl Default for Clause {
     }
 }
 
-impl Formula for Clause {
+impl TermBased for Clause {
     fn free_vars(&self) -> Vec<&V> {
         let mut vs = Vec::new();
         for lit in &self.0 {
@@ -48,11 +62,19 @@ impl Formula for Clause {
         }
         vs.into_iter().unique().collect()
     }
-}
 
-impl TermBased for Clause {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         Clause(self.0.iter().map(|lit| lit.transform(f)).collect())
+    }
+}
+
+impl Formula for Clause {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|l| l.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
     }
 }
 
@@ -62,10 +84,14 @@ impl From<Clause> for FOF {
             .0
             .into_iter()
             .map(|clause| match clause {
-                Literal::Atom(this) => this.into(),
-                Literal::Neg(this) => FOF::not(this.into()),
-                Literal::Equals(this) => this.into(),
-                Literal::Neq(this) => FOF::not(this.into()),
+                Literal::Pos(pos) => match pos {
+                    Atomic::Atom(this) => this.into(),
+                    Atomic::Equals(this) => this.into(),
+                },
+                Literal::Neg(neg) => match neg {
+                    Atomic::Atom(this) => FOF::not(this.into()),
+                    Atomic::Equals(this) => FOF::not(this.into()),
+                },
             })
             .fold1(|item, acc| item.and(acc))
             .unwrap_or(FOF::Top)
@@ -93,6 +119,19 @@ impl DNF {
         lits.extend(other.0);
         lits.into()
     }
+
+    /// Returns the clauses of the receiver DNF.
+    pub fn clauses(&self) -> &[Clause] {
+        &self.0
+    }
+}
+
+impl Deref for DNF {
+    type Target = [Clause];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl<I: IntoIterator<Item = Clause>> From<I> for DNF {
@@ -117,6 +156,16 @@ impl From<&SNF> for DNF {
 }
 
 impl Formula for DNF {
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+}
+
+impl TermBased for DNF {
     fn free_vars(&self) -> Vec<&V> {
         let mut vs = Vec::new();
         for clause in &self.0 {
@@ -124,9 +173,7 @@ impl Formula for DNF {
         }
         vs.into_iter().unique().collect()
     }
-}
 
-impl TermBased for DNF {
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         DNF(self.0.iter().map(|clause| clause.transform(f)).collect())
     }

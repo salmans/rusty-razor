@@ -86,10 +86,10 @@ mod tests {
         },
         test_prelude::*,
     };
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::fs;
 
-    fn run(theory: &Theory, pre_processor: &PreProcessor) -> Vec<Model> {
+    fn run(theory: &Theory<FOF>, pre_processor: &PreProcessor) -> Vec<Model> {
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = Evaluator;

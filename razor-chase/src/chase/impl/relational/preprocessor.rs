@@ -24,7 +24,7 @@ impl PreProcessorEx for PreProcessor {
     type Sequent = Sequent;
     type Model = Model;
 
-    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         let mut theory = theory.gnf();
         theory
             .extend(equality_axioms())
