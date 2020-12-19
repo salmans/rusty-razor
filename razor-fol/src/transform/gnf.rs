@@ -239,7 +239,7 @@ impl From<Heads> for FOF {
         value
             .0
             .into_iter()
-            .map(|atom| FOF::from(atom))
+            .map(FOF::from)
             .fold1(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
     }
@@ -288,8 +288,8 @@ impl TermBased for GNF {
 
     fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
         Self {
-            body: self.body.transform(f).into(),
-            heads: self.heads.transform(f).into(),
+            body: self.body.transform(f),
+            heads: self.heads.transform(f),
         }
     }
 }
@@ -313,8 +313,8 @@ fn gnf(clause: &CNF_Clause) -> GNF {
     let mut heads: Vec<Head> = Vec::new();
     let mut body: Vec<Atomic> = Vec::new();
     clause.iter().for_each(|lit| match lit {
-        Literal::Pos(this) => heads.push(Atomic::from(this.clone()).into()),
-        Literal::Neg(this) => body.push(Atomic::from(this.clone()).into()),
+        Literal::Pos(this) => heads.push(this.clone().into()),
+        Literal::Neg(this) => body.push(this.clone()),
     });
 
     let body = Body::from(body);

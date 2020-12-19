@@ -88,13 +88,13 @@ fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
                             first.heads().and(second.heads()),
                         )))
                     } else {
-                        Err((first.into(), second.into()))
+                        Err((first, second))
                     }
                 } else {
-                    Err((second.into(), first.into()))
+                    Err((second, first))
                 }
             } else {
-                Err((first.into(), second))
+                Err((first, second))
             }
         })
         .into_iter()
@@ -134,7 +134,7 @@ impl Theory<FOF> {
         Theory::try_from(
             compress_geometric(formulae)
                 .into_iter()
-                .map(|g| FOF::from(g))
+                .map(FOF::from)
                 .collect_vec(),
         )
         .unwrap()
