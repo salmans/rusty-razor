@@ -9,7 +9,7 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{symbol::Generator, Pred, Term, C, F, FOF},
+    syntax::{symbol::Generator, Complex, Pred, C, F, FOF},
     transform::relationalize,
 };
 use std::convert::TryFrom;
@@ -196,7 +196,7 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
             let mut attributes = Vec::new();
             for term in terms {
                 match term {
-                    Term::Var { variable } => {
+                    Complex::Var { variable } => {
                         // calling `into_canonical` is unnecessary when branches are built before
                         // equality expansion because there are no equational attributes.
                         // (the existing algorithm)

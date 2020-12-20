@@ -4,7 +4,7 @@ converting [`CNF`] to [`GNF`].
 [`CNF`]: crate::transform::CNF
 */
 use super::{CNF_Clause, TermBased, CNF};
-use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
+use crate::syntax::{formula::*, Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
 
@@ -47,7 +47,7 @@ impl TermBased for Body {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.0.iter().map(|lit| lit.transform(f)).collect())
     }
 }
@@ -126,7 +126,7 @@ impl TermBased for Head {
         self.iter().flat_map(|lit| lit.free_vars()).collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.iter().map(|lit| lit.transform(f)).collect())
     }
 }
@@ -219,7 +219,7 @@ impl TermBased for Heads {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.iter().map(|lit| lit.transform(f)).collect())
     }
 }
@@ -286,7 +286,7 @@ impl TermBased for GNF {
         b_vars
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             body: self.body.transform(f),
             heads: self.heads.transform(f),

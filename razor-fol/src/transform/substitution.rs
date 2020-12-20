@@ -1,6 +1,6 @@
 /*! Provides an interface and the implementation for term substitution and variable renaming.*/
 
-use crate::syntax::{Term::*, *};
+use crate::syntax::{Complex::*, *};
 use std::collections::HashMap;
 
 /// Is the trait of types that map variables to terms.
@@ -8,7 +8,7 @@ pub trait Substitution {
     /// Maps `v` to a [`Term`].
     ///
     /// [`Term`]: crate::syntax::Term
-    fn apply(&self, v: &V) -> Term;
+    fn apply(&self, v: &V) -> Complex;
 }
 
 /// Any function from [`V`] to [`Term`] is a substitution.
@@ -17,9 +17,9 @@ pub trait Substitution {
 /// [`Term`]: crate::syntax::Term
 impl<F> Substitution for F
 where
-    F: Fn(&V) -> Term,
+    F: Fn(&V) -> Complex,
 {
-    fn apply(&self, v: &V) -> Term {
+    fn apply(&self, v: &V) -> Complex {
         self(v)
     }
 }
@@ -28,8 +28,8 @@ where
 ///
 /// [`V`]: crate::syntax::V
 /// [`Term`]: crate::syntax::Term
-impl Substitution for HashMap<&V, Term> {
-    fn apply(&self, v: &V) -> Term {
+impl Substitution for HashMap<&V, Complex> {
+    fn apply(&self, v: &V) -> Complex {
         self.get(v).cloned().unwrap_or_else(|| v.clone().into())
     }
 }
@@ -106,14 +106,14 @@ pub trait TermBased {
     /// Applies a transformation function `f` on the [`Term`]s of the receiver.
     ///
     /// [`Term`]: crate::syntax::Term
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self;
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self;
 
     /// Applies a [`VariableRenaming`] on the variable sub-terms of the receiver.
     ///
     /// [`VariableRenaming`]: crate::transform::VariableRenaming
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::{syntax::{V, C, F, Term}, term};
+    /// # use razor_fol::{syntax::{V, C, F, Complex}, term};
     /// use razor_fol::transform::TermBased;
     /// use std::collections::HashMap;
     ///
@@ -129,9 +129,9 @@ pub trait TermBased {
     /// renaming.insert(&x_sym, a_sym);
     /// renaming.insert(&y_sym, b_sym);
     ///
-    /// let x = Term::from(x_sym.clone());
-    /// let y = Term::from(y_sym.clone());
-    /// let z = Term::from(z_sym.clone());
+    /// let x = Complex::from(x_sym.clone());
+    /// let y = Complex::from(y_sym.clone());
+    /// let z = Complex::from(z_sym.clone());
     /// let f = F::from("f");
     /// let g = F::from("g");
     ///
@@ -144,7 +144,7 @@ pub trait TermBased {
     where
         Self: Sized,
     {
-        self.transform(&|t: &Term| t.rename_vars(renaming))
+        self.transform(&|t: &Complex| t.rename_vars(renaming))
     }
 
     /// Applies a [`Substitution`] on the variable sub-terms of the receiver.
@@ -152,24 +152,24 @@ pub trait TermBased {
     /// [`Substitution`]: crate::transform::Substitution
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::{syntax::{V, C, F, Term}, term};
+    /// # use razor_fol::{syntax::{V, C, F, Complex}, term};
     /// use razor_fol::transform::TermBased;
     ///
     /// // A substitution function that maps all variable symbols `x` to a constant term `c`.
     /// // Otherwise, wraps the variable symbol in a variable term.
-    /// fn x_to_c(v: &V) -> Term {
+    /// fn x_to_c(v: &V) -> Complex {
     ///     let x = V::from("x");
     ///     let c = C::from("c");
     ///
     ///     if v == &x {
-    ///         Term::from(c)
+    ///         Complex::from(c)
     ///     } else {
-    ///         Term::from(v.clone())
+    ///         Complex::from(v.clone())
     ///     }
     /// }
     ///
-    /// let x = Term::from(V::from("x"));
-    /// let y = Term::from(V::from("y"));
+    /// let x = Complex::from(V::from("x"));
+    /// let y = Complex::from(V::from("y"));
     /// let f = F::from("f");
     /// let g = F::from("g");
     ///
@@ -182,11 +182,11 @@ pub trait TermBased {
     where
         Self: Sized,
     {
-        self.transform(&|t: &Term| t.substitute(sub))
+        self.transform(&|t: &Complex| t.substitute(sub))
     }
 }
 
-impl TermBased for Term {
+impl TermBased for Complex {
     /// Returns a list of all free variable symbols in the term.
     ///
     /// **Note**: In the list of free variables, each variable symbol appears only once even if it
@@ -194,7 +194,7 @@ impl TermBased for Term {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::{syntax::{V, C, F, Term}, transform::TermBased, term};
+    /// # use razor_fol::{syntax::{V, C, F, Complex}, transform::TermBased, term};
     /// # use itertools::Itertools;
     ///
     /// // `x_sym` and `y_sym` are variable symbols:
@@ -205,11 +205,11 @@ impl TermBased for Term {
     /// let c_sym = C::from("c");
     ///
     /// // `x` and `y` are variable terms:
-    /// let x = Term::from(x_sym.clone());
-    /// let y = Term::from(y_sym.clone());
+    /// let x = Complex::from(x_sym.clone());
+    /// let y = Complex::from(y_sym.clone());
     ///
     /// // `c` is a constant term:
-    /// let c = Term::from(c_sym.clone());
+    /// let c = Complex::from(c_sym.clone());
     ///
     /// // `f` and `g` are function
     /// let f = F::from("f");
@@ -225,9 +225,9 @@ impl TermBased for Term {
         use itertools::Itertools;
 
         match self {
-            Term::Var { variable } => vec![variable],
-            Term::Const { constant: _ } => vec![],
-            Term::App { function: _, terms } => terms
+            Complex::Var { variable } => vec![variable],
+            Complex::Const { constant: _ } => vec![],
+            Complex::App { function: _, terms } => terms
                 .iter()
                 .flat_map(|t| t.free_vars())
                 .into_iter()
@@ -236,14 +236,14 @@ impl TermBased for Term {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         f(self)
     }
 
     fn rename_vars(&self, renaming: &impl VariableRenaming) -> Self {
         match self {
             Const { .. } => self.clone(),
-            Var { variable: v } => Term::from(renaming.apply(v)),
+            Var { variable: v } => Complex::from(renaming.apply(v)),
             App { function, terms } => {
                 let terms = terms.iter().map(|t| t.rename_vars(renaming)).collect();
                 function.clone().app(terms)
@@ -272,11 +272,11 @@ mod tests {
     #[test]
     fn test_substitution_map() {
         {
-            let map: HashMap<&V, Term> = HashMap::new();
+            let map: HashMap<&V, Complex> = HashMap::new();
             assert_eq!(term!(x), term!(x).substitute(&map));
         }
         {
-            let mut map: HashMap<&V, Term> = HashMap::new();
+            let mut map: HashMap<&V, Complex> = HashMap::new();
             let x_v = &v!(x);
             let y_var = term!(y);
 
@@ -284,7 +284,7 @@ mod tests {
             assert_eq!(term!(y), term!(x).substitute(&map));
         }
         {
-            let mut map: HashMap<&V, Term> = HashMap::new();
+            let mut map: HashMap<&V, Complex> = HashMap::new();
             let x_v = &v!(x);
             let y_v = &v!(y);
             let term_1 = term!(g(z));

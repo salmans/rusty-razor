@@ -156,7 +156,7 @@ impl fmt::Debug for E {
 /// Is the trait for special kind of variable-free terms that are used to witness existence of
 /// model elements. These terms are used as provenance information for models to describe *why*
 /// elements exist or facts are true in models.
-pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FApp {
+pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display {
     /// Is the type of elements that are witnessed by the witness term.
     ///
     /// **Note**: Although [`E`] is often the underlying symbol for representing model

@@ -4,7 +4,7 @@ a [`FOF`] to [`PNF`].
 [`FOF`]: crate::syntax::FOF
 */
 use super::TermBased;
-use crate::syntax::{formula::*, Term, FOF, V};
+use crate::syntax::{formula::*, Complex, FOF, V};
 
 /// Represents a formula in Prenex Normal Form (PNF).
 ///
@@ -114,7 +114,7 @@ impl TermBased for PNF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             PNF::QFF(this) => this.transform(f).into(),
             PNF::Exists(this) => Exists {

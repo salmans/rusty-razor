@@ -1,6 +1,6 @@
 /*! Defines the syntax of first-order formulae with equality.*/
 use super::V;
-use super::{formula::*, Sig, Term};
+use super::{formula::*, Complex, Sig};
 use crate::transform::TermBased;
 use itertools::Itertools;
 use std::fmt;
@@ -211,7 +211,7 @@ impl TermBased for FOF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             FOF::Top | FOF::Bottom => self.clone(),
             FOF::Atom(this) => this

@@ -15,7 +15,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{FApp, Term, Theory, C, F, FOF, V};
+use razor_fol::syntax::{Complex, Theory, C, F, FOF, V};
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
@@ -104,15 +104,15 @@ pub enum WitnessTerm {
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    pub fn witness(term: &Term, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
+    pub fn witness(term: &Complex, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
         match term {
-            Term::Const { constant } => WitnessTerm::Const {
+            Complex::Const { constant } => WitnessTerm::Const {
                 constant: constant.clone(),
             },
-            Term::Var { variable } => WitnessTerm::Elem {
+            Complex::Var { variable } => WitnessTerm::Elem {
                 element: lookup(&variable),
             },
-            Term::App { function, terms } => {
+            Complex::App { function, terms } => {
                 let terms = terms
                     .iter()
                     .map(|t| WitnessTerm::witness(t, lookup))
@@ -152,12 +152,6 @@ impl From<C> for WitnessTerm {
 impl From<Element> for WitnessTerm {
     fn from(element: Element) -> Self {
         WitnessTerm::Elem { element }
-    }
-}
-
-impl FApp for WitnessTerm {
-    fn apply(function: F, terms: Vec<Self>) -> Self {
-        WitnessTerm::App { function, terms }
     }
 }
 

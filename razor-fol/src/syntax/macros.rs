@@ -81,24 +81,24 @@ macro_rules! pred {
 /// [term]: crate::syntax::Term
 /// **Example**:
 /// ```rust
-/// # use razor_fol::{syntax::Term, f, v, c};
+/// # use razor_fol::{syntax::Complex, f, v, c};
 /// use razor_fol::term;
 ///
 /// // variable term:
 /// let v = term!(v);
 ///
-/// assert_eq!(Term::from(v!(v)), v);
+/// assert_eq!(Complex::from(v!(v)), v);
 ///
 /// // constant term (preceded by `@`):
 /// let c = term!(@c);
 ///
-/// assert_eq!(Term::from(c!(c)), c);
+/// assert_eq!(Complex::from(c!(c)), c);
 ///
 /// // complex term:
 /// let t = term!(f(x, g(@c, y)));
 ///
 /// assert_eq!(
-///     f!(f).app::<Term>(
+///     f!(f).app(
 ///         vec![v!(x).into(),
 ///         f!(g).app(vec![c!(c).into(), v!(y).into()])]),
 ///     t,
@@ -107,12 +107,12 @@ macro_rules! pred {
 #[macro_export]
 macro_rules! term {
     ($v:ident) => {
-        $crate::syntax::Term::Var {
+        $crate::syntax::Complex::Var {
             variable: $crate::v!($v),
         }
     };
     (@$c:ident) => {
-        $crate::syntax::Term::Const {
+        $crate::syntax::Complex::Const {
             constant: $crate::c!($c),
         }
     };
@@ -159,7 +159,7 @@ macro_rules! terms {
         }
     };
     () => {
-        Vec::<$crate::syntax::Term>::new()
+        Vec::<$crate::syntax::Complex>::new()
     };
     ($($tail:tt)*) => {
         $crate::terms!(@acc ($($tail)*) -> ())

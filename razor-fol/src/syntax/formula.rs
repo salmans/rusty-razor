@@ -2,7 +2,7 @@
 for constructing formulae.*/
 use super::{
     signature::{FSig, PSig},
-    Error, Pred, Sig, Term, EQ_SYM, V,
+    Complex, Error, Pred, Sig, EQ_SYM, V,
 };
 use crate::transform::TermBased;
 use itertools::Itertools;
@@ -16,7 +16,7 @@ pub trait Formula {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Atom {
     pub predicate: Pred,
-    pub terms: Vec<Term>,
+    pub terms: Vec<Complex>,
 }
 
 impl TermBased for Atom {
@@ -28,7 +28,7 @@ impl TermBased for Atom {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             predicate: self.predicate.clone(),
             terms: self.terms.iter().map(f).collect(),
@@ -36,11 +36,11 @@ impl TermBased for Atom {
     }
 }
 
-fn term_signature(term: &Term, sig: &mut Sig) -> Result<(), Error> {
+fn term_signature(term: &Complex, sig: &mut Sig) -> Result<(), Error> {
     match term {
-        Term::Var { .. } => {}
-        Term::Const { constant } => sig.add_constant(constant.clone()),
-        Term::App { function, terms } => {
+        Complex::Var { .. } => {}
+        Complex::Const { constant } => sig.add_constant(constant.clone()),
+        Complex::App { function, terms } => {
             for t in terms {
                 term_signature(t, sig)?;
             }
@@ -74,8 +74,8 @@ impl Formula for Atom {
 /// Represents an equation between two terms.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Equals {
-    pub left: Term,
-    pub right: Term,
+    pub left: Complex,
+    pub right: Complex,
 }
 
 impl TermBased for Equals {
@@ -85,7 +85,7 @@ impl TermBased for Equals {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             left: f(&self.left),
             right: f(&self.right),
@@ -117,7 +117,7 @@ impl<F: Formula + TermBased> TermBased for Not<F> {
         self.formula.free_vars()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Not {
             formula: self.formula.transform(f),
         }
@@ -144,7 +144,7 @@ impl<F: Formula + TermBased> TermBased for And<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             left: self.left.transform(f),
             right: self.right.transform(f),
@@ -172,7 +172,7 @@ impl<F: Formula + TermBased> TermBased for Or<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             left: self.left.transform(f),
             right: self.right.transform(f),
@@ -200,7 +200,7 @@ impl<F: Formula + TermBased> TermBased for Implies<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             premise: self.premise.transform(f),
             consequence: self.consequence.transform(f),
@@ -230,7 +230,7 @@ impl<F: Formula + TermBased> TermBased for Iff<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             left: self.left.transform(f),
             right: self.right.transform(f),
@@ -260,7 +260,7 @@ impl<F: Formula + TermBased> TermBased for Exists<F> {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             variables: self.variables.clone(),
             formula: self.formula.transform(f),
@@ -296,7 +296,7 @@ impl<F: Formula + TermBased> TermBased for Forall<F> {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             variables: self.variables.clone(),
             formula: self.formula.transform(f),
@@ -334,7 +334,7 @@ impl TermBased for Atomic {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             Atomic::Atom(this) => Self::Atom(this.transform(f)),
             Atomic::Equals(this) => Self::Equals(this.transform(f)),
@@ -414,7 +414,7 @@ impl TermBased for Literal {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             Literal::Pos(this) => this.transform(f).into(),
             Literal::Neg(this) => this.transform(f).into(),
@@ -513,7 +513,7 @@ impl TermBased for QFF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             QFF::Top | QFF::Bottom => self.clone(),
             QFF::Atom(this) => this.transform(f).into(),

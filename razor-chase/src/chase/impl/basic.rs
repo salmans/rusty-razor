@@ -53,15 +53,15 @@ pub enum WitnessTerm {
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    fn witness(term: &Term, assign: &impl Fn(&V) -> E) -> Self {
+    fn witness(term: &Complex, assign: &impl Fn(&V) -> E) -> Self {
         match term {
-            Term::Const { constant } => Self::Const {
+            Complex::Const { constant } => Self::Const {
                 constant: constant.clone(),
             },
-            Term::Var { variable } => Self::Elem {
+            Complex::Var { variable } => Self::Elem {
                 element: assign(&variable),
             },
-            Term::App { function, terms } => {
+            Complex::App { function, terms } => {
                 let terms = terms.iter().map(|t| Self::witness(t, assign)).collect();
                 Self::App {
                     function: function.clone(),
@@ -69,6 +69,11 @@ impl WitnessTerm {
                 }
             }
         }
+    }
+
+    /// Builds a term by applying `function` on `args` as arguments.
+    pub fn apply(function: F, terms: Vec<Self>) -> Self {
+        WitnessTerm::App { function, terms }
     }
 }
 
@@ -116,12 +121,6 @@ impl From<E> for WitnessTerm {
 impl From<&E> for WitnessTerm {
     fn from(element: &E) -> Self {
         Self::from(*element)
-    }
-}
-
-impl FApp for WitnessTerm {
-    fn apply(function: F, terms: Vec<Self>) -> Self {
-        WitnessTerm::App { function, terms }
     }
 }
 
@@ -497,12 +496,15 @@ pub enum Literal {
     ///
     /// [`Formula`]: razor_fol::syntax::Formula
     /// [`Atom`]: razor_fol::syntax::FOF::Atom
-    Atm { predicate: Pred, terms: Vec<Term> },
+    Atm {
+        predicate: Pred,
+        terms: Vec<Complex>,
+    },
 
     /// Represents a equality literal, corresponding to an atomic [`Formula`] of variant [`Equals`].
     ///
     /// [`Equals`]: razor_fol::syntax::FOF::Equals
-    Eql { left: Term, right: Term },
+    Eql { left: Complex, right: Complex },
 }
 
 impl Literal {
@@ -938,14 +940,14 @@ mod test_basic {
 
     #[test]
     fn test_witness_app() {
-        let f_0: WitnessTerm = f().app(vec![]);
+        let f_0 = WitnessTerm::apply(f(), vec![]);
         assert_eq!("f[]", f_0.to_string());
-        assert_eq!("f['c]", f().app(vec![_c_()]).to_string());
-        let g_0: WitnessTerm = g().app(vec![]);
-        assert_eq!("f[g[]]", f().app(vec![g_0]).to_string());
+        assert_eq!("f['c]", WitnessTerm::apply(f(), vec![_c_()]).to_string());
+        let g_0 = WitnessTerm::apply(g(), vec![]);
+        assert_eq!("f[g[]]", WitnessTerm::apply(f(), vec![g_0]).to_string());
         assert_eq!(
             "f['c, g['d]]",
-            f().app(vec![_c_(), g().app(vec![_d_()])]).to_string()
+            WitnessTerm::apply(f(), vec![_c_(), WitnessTerm::apply(g(), vec![_d_()])]).to_string()
         );
     }
 
@@ -1009,17 +1011,17 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app1(f().app(vec![_c_()])));
+            model.observe(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()])));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app1(_e_1())].into_iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app1(_e_1())));
-            assert!(model.is_observed(&_R_().app1(f().app(vec![_c_()]))));
+            assert!(model.is_observed(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()]))));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![f().app(vec![_e_0()])]),
+                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
         }
@@ -1038,24 +1040,30 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app2(f().app(vec![_c_()]), g().app(vec![f().app(vec![_c_()])])));
+            model.observe(&_R_().app2(
+                WitnessTerm::apply(f(), vec![_c_()]),
+                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])]),
+            ));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1(), e_2()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())].into_iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
-            assert!(model.is_observed(
-                &_R_().app2(f().app(vec![_c_()]), g().app(vec![f().app(vec![_c_()])]))
-            ));
-            assert!(model.is_observed(&_R_().app(vec![f().app(vec![_c_()]), _e_2()])));
+            assert!(model.is_observed(&_R_().app2(
+                WitnessTerm::apply(f(), vec![_c_()]),
+                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])])
+            )));
+            assert!(
+                model.is_observed(&_R_().app(vec![WitnessTerm::apply(f(), vec![_c_()]), _e_2()]))
+            );
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![f().app(vec![_e_0()])]),
+                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
             assert_eq_sets(
-                &Vec::from_iter(vec![g().app(vec![_e_1()])]),
+                &Vec::from_iter(vec![WitnessTerm::apply(g(), vec![_e_1()])]),
                 &model.witness(&e_2()),
             );
         }
@@ -1076,9 +1084,12 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app(vec![_a_(), f().app(vec![_a_()])]));
+            model.observe(&_R_().app(vec![_a_(), WitnessTerm::apply(f(), vec![_a_()])]));
             model.observe(&_S_().app(vec![_b_()]));
-            model.observe(&_R_().app(vec![g().app(vec![f().app(vec![_a_()])]), _b_()]));
+            model.observe(&_R_().app(vec![
+                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_a_()])]),
+                _b_(),
+            ]));
             model.observe(&_S_().app(vec![_c_()]));
             assert_eq_sets(
                 &Vec::from_iter(vec![e_0(), e_1(), e_2(), e_3(), e_4()]),

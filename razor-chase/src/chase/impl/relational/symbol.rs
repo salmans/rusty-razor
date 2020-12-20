@@ -32,9 +32,10 @@ impl Symbol {
             Symbol::Func { symbol, arity } => {
                 assert_eq!(args.len() as u8, *arity);
 
-                let witness = symbol
-                    .clone()
-                    .app(args.iter().map(|e| e.clone().into()).collect());
+                let witness = WitnessTerm::apply(
+                    symbol.clone(),
+                    args.iter().map(|e| e.clone().into()).collect(),
+                );
                 Ok(witness)
             }
             _ => Err(Error::BadWitnessTerm {
@@ -64,7 +65,8 @@ impl Symbol {
             Symbol::Func { symbol, ref arity } => {
                 assert_eq!(args.len() as u8, arity + 1);
                 let last = args[*arity as usize];
-                let app = symbol.clone().app(
+                let app = WitnessTerm::apply(
+                    symbol.clone(),
                     args[0..(*arity as usize)]
                         .iter()
                         .map(WitnessTerm::from)

@@ -4,7 +4,7 @@ converting a [`FOF`] to [`NNF`].
 [`FOF`]: crate::syntax::FOF
 */
 use super::TermBased;
-use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
+use crate::syntax::{formula::*, Complex, Error, Sig, FOF, V};
 
 /// Represents a formula in Negation Normal Form (NNF).
 ///
@@ -156,7 +156,7 @@ impl TermBased for NNF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             Self::Top => NNF::Top,
             Self::Bottom => NNF::Bottom,

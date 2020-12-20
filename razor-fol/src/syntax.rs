@@ -10,8 +10,8 @@ mod theory;
 pub use fof::FOF;
 pub use formula::Formula;
 pub use signature::Sig;
-pub use symbol::{FApp, Pred, C, EQ_SYM, F, V};
-pub use term::Term;
+pub use symbol::{Pred, C, EQ_SYM, F, V};
+pub use term::{Complex, Term};
 pub use theory::Theory;
 use thiserror::Error;
 

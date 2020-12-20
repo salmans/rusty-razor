@@ -38,37 +38,37 @@ pub fn _z() -> V {
 }
 
 #[allow(dead_code)]
-pub fn u() -> Term {
+pub fn u() -> Complex {
     V::from("u").into()
 }
 
 #[allow(dead_code)]
-pub fn v() -> Term {
+pub fn v() -> Complex {
     V::from("v").into()
 }
 
 #[allow(dead_code)]
-pub fn w() -> Term {
+pub fn w() -> Complex {
     V::from("w").into()
 }
 
 #[allow(dead_code)]
-pub fn x() -> Term {
+pub fn x() -> Complex {
     V::from("x").into()
 }
 
 #[allow(dead_code)]
-pub fn x_1() -> Term {
+pub fn x_1() -> Complex {
     V::from("x`").into()
 }
 
 #[allow(dead_code)]
-pub fn y() -> Term {
+pub fn y() -> Complex {
     V::from("y").into()
 }
 
 #[allow(dead_code)]
-pub fn z() -> Term {
+pub fn z() -> Complex {
     V::from("z").into()
 }
 
@@ -104,17 +104,17 @@ pub fn _d() -> C {
 }
 
 #[allow(dead_code)]
-pub fn a() -> Term {
+pub fn a() -> Complex {
     C::from("a").into()
 }
 
 #[allow(dead_code)]
-pub fn b() -> Term {
+pub fn b() -> Complex {
     C::from("b").into()
 }
 
 #[allow(dead_code)]
-pub fn c() -> Term {
+pub fn c() -> Complex {
     C::from("c").into()
 }
 

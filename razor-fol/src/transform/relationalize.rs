@@ -1,6 +1,6 @@
 /*! Implements a relationalization algorithm for formulae.*/
 use super::Error;
-use crate::syntax::{symbol::Generator, Pred, Term, FOF, V};
+use crate::syntax::{symbol::Generator, Complex, Pred, FOF, V};
 use std::collections::HashMap;
 
 /// Is a wrapper around [`FOF`] that represents a relationalized first-order formula.
@@ -52,7 +52,7 @@ pub struct Relationalizer {
 macro_rules! term_as_var {
     ($term:expr) => {{
         match $term {
-            Term::Var { variable: v } => v,
+            Complex::Var { variable: v } => v,
             _ => unreachable!(),
         }
     }};
@@ -191,10 +191,10 @@ impl Relationalizer {
 
     // Recursively flattens a term and returns the resulting formula together with a placeholder variable
     // for the term. Nothing needs to be done if the input term is a variable.
-    fn flatten_term(&mut self, term: &Term) -> Option<(FOF, V)> {
+    fn flatten_term(&mut self, term: &Complex) -> Option<(FOF, V)> {
         match term {
-            Term::Var { .. } => None,
-            Term::Const { constant } => {
+            Complex::Var { .. } => None,
+            Complex::Const { constant } => {
                 let var = self.generate_variable();
                 let pred = Pred(
                     self.constant_predicate_generator
@@ -203,7 +203,7 @@ impl Relationalizer {
                 let fmla = pred.app(vec![var.clone().into()]);
                 Some((fmla, var))
             }
-            Term::App { function, terms } => {
+            Complex::App { function, terms } => {
                 let mut conjuncts = vec![];
                 let mut new_terms = terms
                     .iter()
@@ -215,7 +215,7 @@ impl Relationalizer {
                             })
                             .unwrap_or_else(|| t.clone())
                     })
-                    .collect::<Vec<Term>>();
+                    .collect::<Vec<Complex>>();
 
                 let var = self.generate_variable();
                 new_terms.push(var.clone().into());
@@ -247,7 +247,7 @@ impl Relationalizer {
         use super::substitution::TermBased;
         let sub = |v: &V| {
             let variable = map.get(v).map(|&t| t.clone()).unwrap_or_else(|| v.clone());
-            Term::Var { variable }
+            Complex::Var { variable }
         };
         formula.substitute(&sub)
     }
@@ -365,10 +365,10 @@ impl EqualityExpander {
             FOF::Top | FOF::Bottom => Ok(formula.clone()),
             FOF::Atom(this) => {
                 let mut equations = Vec::new();
-                let mut new_terms = Vec::<Term>::new();
+                let mut new_terms = Vec::<Complex>::new();
                 for term in &this.terms {
                     match term {
-                        Term::Var { variable } => {
+                        Complex::Var { variable } => {
                             vars.entry(variable.clone())
                                 .and_modify(|count| {
                                     let new_var = V(self
@@ -383,7 +383,7 @@ impl EqualityExpander {
                                     *count += 1;
                                 })
                                 .or_insert_with(|| {
-                                    new_terms.push(Term::Var {
+                                    new_terms.push(Complex::Var {
                                         variable: variable.clone(),
                                     });
                                     0

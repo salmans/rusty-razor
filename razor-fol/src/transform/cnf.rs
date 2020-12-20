@@ -5,7 +5,7 @@ converting [`SNF`] to [`CNF`].
  */
 
 use super::{TermBased, SNF};
-use crate::syntax::{formula::*, Error, Sig, Term, FOF, V};
+use crate::syntax::{formula::*, Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
 
@@ -63,7 +63,7 @@ impl TermBased for Clause {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.0.iter().map(|lit| lit.transform(f)).collect())
     }
 }
@@ -164,7 +164,7 @@ impl TermBased for CNF {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.0.iter().map(|clause| clause.transform(f)).collect())
     }
 }

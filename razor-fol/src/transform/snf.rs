@@ -4,7 +4,7 @@
 [`PNF`]: crate::transform::PNF
 */
 use super::{TermBased, PNF};
-use crate::syntax::{formula::*, symbol::Generator, Term, C, F, FOF, V};
+use crate::syntax::{formula::*, symbol::Generator, Complex, C, F, FOF, V};
 use std::collections::HashMap;
 
 /// Represents a formula in Skolem Normal Form (SNF).
@@ -97,13 +97,13 @@ impl SNF {
             }
             PNF::Exists(this) => {
                 let variables = this.variables;
-                let mut map: HashMap<&V, Term> = HashMap::new();
+                let mut map: HashMap<&V, Complex> = HashMap::new();
 
                 variables.iter().for_each(|v| {
                     if skolem_vars.is_empty() {
                         map.insert(&v, C::from(&generator.generate_next()).into());
                     } else {
-                        let vars: Vec<Term> =
+                        let vars: Vec<Complex> =
                             skolem_vars.iter().map(|v| v.clone().into()).collect();
                         map.insert(&v, F::from(&generator.generate_next()).app(vars));
                     }
@@ -131,7 +131,7 @@ impl TermBased for SNF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Term) -> Term) -> Self {
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             SNF::QuantifierFree(this) => this.transform(f).into(),
             SNF::Forall(this) => Forall {

@@ -1,11 +1,14 @@
 /*! Defines the syntax for first-order terms. */
 
-use super::{formula::Equals, FApp, C, F, FOF, V};
+use super::{formula::Equals, C, F, FOF, V};
 use std::fmt;
 
-/// Represents a first-order term and consists of variables, constants and function applications.
+/// Is the trait of types that act as terms.
+pub trait Term {}
+
+/// Represents a (complex) first-order term and consists of variables, constants and function applications.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Term {
+pub enum Complex {
     /// Is a variable term, wrapping a [variable symbol].
     ///
     /// [variable symbol]: crate::syntax::V
@@ -16,44 +19,44 @@ pub enum Term {
     /// [constant symbol]: crate::syntax::C
     Const { constant: C },
 
-    /// Is a composite term, made by applying a `function` on a list of `terms`.
-    App { function: F, terms: Vec<Term> },
+    /// Recursively defines a term by applying a `function` on a list of `terms`.
+    App { function: F, terms: Vec<Complex> },
 }
 
-impl Term {
+impl Complex {
     /// Returns an [equation] (formula) between the receiver and `term`.
     ///
     /// [equation]: crate::syntax::FOF::Equals
     ///
-    pub fn equals(self, term: Term) -> FOF {
+    pub fn equals(self, term: Self) -> FOF {
         Equals {
             left: self,
             right: term,
         }
         .into()
     }
+
+    /// Builds a term by applying `function` on `args` as arguments.
+    pub fn apply(function: F, terms: Vec<Self>) -> Self {
+        Self::App { function, terms }
+    }
 }
 
-impl From<V> for Term {
+impl Term for Complex {}
+
+impl From<V> for Complex {
     fn from(variable: V) -> Self {
         Self::Var { variable }
     }
 }
 
-impl From<C> for Term {
+impl From<C> for Complex {
     fn from(constant: C) -> Self {
         Self::Const { constant }
     }
 }
 
-// term is an FApp type.
-impl FApp for Term {
-    fn apply(function: F, terms: Vec<Term>) -> Self {
-        Self::App { function, terms }
-    }
-}
-
-impl fmt::Display for Term {
+impl fmt::Display for Complex {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Var { variable } => write!(f, "{}", variable),
@@ -66,7 +69,7 @@ impl fmt::Display for Term {
     }
 }
 
-impl fmt::Debug for Term {
+impl fmt::Debug for Complex {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }

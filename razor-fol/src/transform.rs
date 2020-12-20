@@ -27,7 +27,7 @@ pub enum Error {
     RelationalizeFailure { formula: super::syntax::FOF },
 
     #[error("failed on non-variable term: `{}`", .term.to_string())]
-    EqualityExpandNonVar { term: super::syntax::Term },
+    EqualityExpandNonVar { term: super::syntax::Complex },
 
     #[error("fialed to expand equality for formula: `{}`", .formula.to_string())]
     EqualityExpandUnsupported { formula: super::syntax::FOF },

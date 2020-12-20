@@ -1,7 +1,7 @@
 use super::{expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
-use razor_fol::syntax::{Sig, Term, Theory, FOF, V};
+use razor_fol::syntax::{Complex, Sig, Theory, FOF, V};
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
 /// This is done by the standard conversion to geometric normal form followed by relationalization.
@@ -67,9 +67,9 @@ fn equality_axioms() -> Vec<FOF> {
 fn integrity_axioms(sig: &Sig) -> Vec<FOF> {
     let mut result = Vec::new();
     for c in sig.constants() {
-        let x = Term::from(V("x".to_string()));
-        let y = Term::from(V("y".to_string()));
-        let c = Term::from(c.clone());
+        let x = Complex::from(V("x".to_string()));
+        let y = Complex::from(V("y".to_string()));
+        let c = Complex::from(c.clone());
 
         let left = {
             let c_x = c.clone().equals(x.clone());
@@ -81,15 +81,15 @@ fn integrity_axioms(sig: &Sig) -> Vec<FOF> {
     }
 
     for f in sig.functions().values() {
-        let x = Term::from(V("x".to_string()));
-        let y = Term::from(V("y".to_string()));
+        let x = Complex::from(V("x".to_string()));
+        let y = Complex::from(V("y".to_string()));
 
         let left = {
             let xs = (0..f.arity)
-                .map(|n| Term::from(V(format!("x{}", n))))
+                .map(|n| Complex::from(V(format!("x{}", n))))
                 .collect_vec();
             let ys = (0..f.arity)
-                .map(|n| Term::from(V(format!("y{}", n))))
+                .map(|n| Complex::from(V(format!("y{}", n))))
                 .collect_vec();
 
             let f_xs = f.symbol.clone().app(xs.clone()).equals(x.clone());

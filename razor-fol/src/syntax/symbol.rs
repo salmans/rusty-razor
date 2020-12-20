@@ -6,7 +6,7 @@
 ['Pred']: crate::syntax::Pred
 */
 
-use super::{formula::Atom, Term, FOF};
+use super::{formula::Atom, Complex, FOF};
 use std::fmt;
 
 /// Represents an uninterpreted function symbol with a given name.
@@ -21,8 +21,8 @@ impl F {
     /// arity of function symbols. The user is expected to assume the arity of the function.
     ///
     /// [`F`]: crate::syntax::F
-    pub fn app<T: FApp>(self, args: Vec<T>) -> T {
-        T::apply(self, args)
+    pub fn app(self, args: Vec<Complex>) -> Complex {
+        Complex::apply(self, args)
     }
 }
 
@@ -49,15 +49,6 @@ impl fmt::Debug for F {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
-}
-
-/// Is the trait for types that can be passed to a function of type [`F`] as arguments.
-///
-/// [`F`]: crate::syntax::F
-///
-pub trait FApp: Sized {
-    /// Builds a composite term by applying `function` on `args` as arguments.
-    fn apply(function: F, args: Vec<Self>) -> Self;
 }
 
 /// Represents a variable symbol with a given name.
@@ -131,7 +122,7 @@ impl Pred {
     /// on the arity of predicate symbols. The user is expected to assume the arity of the predicate.
     ///
     /// [`Pred`]: crate::syntax::Pred
-    pub fn app(self, terms: Vec<Term>) -> FOF {
+    pub fn app(self, terms: Vec<Complex>) -> FOF {
         Atom {
             predicate: self,
             terms,
