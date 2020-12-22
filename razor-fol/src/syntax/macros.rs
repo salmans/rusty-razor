@@ -81,7 +81,7 @@ macro_rules! pred {
 /// [term]: crate::syntax::Term
 /// **Example**:
 /// ```rust
-/// # use razor_fol::{syntax::Complex, f, v, c};
+/// # use razor_fol::{syntax::term::Complex, f, v, c};
 /// use razor_fol::term;
 ///
 /// // variable term:
@@ -107,12 +107,12 @@ macro_rules! pred {
 #[macro_export]
 macro_rules! term {
     ($v:ident) => {
-        $crate::syntax::Complex::Var {
+        $crate::syntax::term::Complex::Var {
             variable: $crate::v!($v),
         }
     };
     (@$c:ident) => {
-        $crate::syntax::Complex::Const {
+        $crate::syntax::term::Complex::Const {
             constant: $crate::c!($c),
         }
     };
@@ -159,7 +159,7 @@ macro_rules! terms {
         }
     };
     () => {
-        Vec::<$crate::syntax::Complex>::new()
+        Vec::<$crate::syntax::term::Complex>::new()
     };
     ($($tail:tt)*) => {
         $crate::terms!(@acc ($($tail)*) -> ())

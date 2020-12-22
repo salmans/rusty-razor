@@ -3,8 +3,7 @@ a [`FOF`] to [`PNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
-use super::TermBased;
-use crate::syntax::{formula::*, Complex, FOF, V};
+use crate::syntax::{formula::*, qff::QFF, term::Complex, FOF, V};
 
 /// Represents a formula in Prenex Normal Form (PNF).
 ///
@@ -22,14 +21,14 @@ pub enum PNF {
     Forall(Box<Forall<PNF>>),
 }
 
-impl From<Atom> for PNF {
-    fn from(value: Atom) -> Self {
+impl From<Atom<Complex>> for PNF {
+    fn from(value: Atom<Complex>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Equals> for PNF {
-    fn from(value: Equals) -> Self {
+impl From<Equals<Complex>> for PNF {
+    fn from(value: Equals<Complex>) -> Self {
         Self::QFF(value.into())
     }
 }
@@ -105,7 +104,17 @@ impl PNF {
     }
 }
 
-impl TermBased for PNF {
+impl Formula for PNF {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
+        match self {
+            PNF::QFF(this) => this.signature(),
+            PNF::Exists(this) => this.signature(),
+            PNF::Forall(this) => this.signature(),
+        }
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         match self {
             PNF::QFF(this) => this.free_vars(),
@@ -127,16 +136,6 @@ impl TermBased for PNF {
                 formula: this.formula.transform(f),
             }
             .into(),
-        }
-    }
-}
-
-impl Formula for PNF {
-    fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
-        match self {
-            PNF::QFF(this) => this.signature(),
-            PNF::Exists(this) => this.signature(),
-            PNF::Forall(this) => this.signature(),
         }
     }
 }

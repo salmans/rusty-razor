@@ -15,7 +15,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{Complex, Theory, C, F, FOF, V};
+use razor_fol::syntax::{term::Complex, Theory, C, F, FOF, V};
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},

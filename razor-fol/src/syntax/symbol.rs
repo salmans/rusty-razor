@@ -6,7 +6,7 @@
 ['Pred']: crate::syntax::Pred
 */
 
-use super::{formula::Atom, Complex, FOF};
+use super::{formula::Atom, term::Complex, FOF};
 use std::fmt;
 
 /// Represents an uninterpreted function symbol with a given name.

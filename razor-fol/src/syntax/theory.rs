@@ -1,7 +1,7 @@
 /*! Defines theories of formulae. */
 
 use super::{symbol::Generator, Error, Formula, Sig, FOF};
-use crate::transform::{TermBased, GNF};
+use crate::transform::GNF;
 use itertools::Itertools;
 use std::{convert::TryFrom, fmt};
 

@@ -145,7 +145,7 @@ impl TryFrom<&syntax::FOF> for AttributeList {
     type Error = Error;
 
     fn try_from(value: &syntax::FOF) -> Result<Self, Self::Error> {
-        use razor_fol::transform::TermBased;
+        use razor_fol::syntax::Formula;
 
         let attributes = value
             .free_vars()

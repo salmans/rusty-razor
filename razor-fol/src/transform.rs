@@ -7,7 +7,6 @@ mod pnf;
 pub mod relationalize;
 mod simplify;
 mod snf;
-mod substitution;
 use thiserror::Error;
 
 pub use cnf::{Clause as CNF_Clause, CNF};
@@ -17,7 +16,6 @@ pub use nnf::NNF;
 pub use pnf::PNF;
 pub use relationalize::Relational;
 pub use snf::SNF;
-pub use substitution::{Substitution, TermBased, VariableRenaming};
 
 /// Is the type of errors returned by syntactic transformations.
 #[derive(Error, Debug)]
@@ -27,7 +25,7 @@ pub enum Error {
     RelationalizeFailure { formula: super::syntax::FOF },
 
     #[error("failed on non-variable term: `{}`", .term.to_string())]
-    EqualityExpandNonVar { term: super::syntax::Complex },
+    EqualityExpandNonVar { term: super::syntax::term::Complex },
 
     #[error("fialed to expand equality for formula: `{}`", .formula.to_string())]
     EqualityExpandUnsupported { formula: super::syntax::FOF },

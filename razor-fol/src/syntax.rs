@@ -2,16 +2,17 @@
 mod fof;
 pub mod formula;
 mod macros;
+pub mod qff;
 mod signature;
 pub mod symbol;
-mod term;
+pub mod term;
 mod theory;
 
 pub use fof::FOF;
 pub use formula::Formula;
 pub use signature::Sig;
 pub use symbol::{Pred, C, EQ_SYM, F, V};
-pub use term::{Complex, Term};
+pub use term::Term;
 pub use theory::Theory;
 use thiserror::Error;
 

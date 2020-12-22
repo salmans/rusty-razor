@@ -3,8 +3,8 @@
 
 [`PNF`]: crate::transform::PNF
 */
-use super::{TermBased, PNF};
-use crate::syntax::{formula::*, symbol::Generator, Complex, C, F, FOF, V};
+use super::PNF;
+use crate::syntax::{formula::*, qff::QFF, symbol::Generator, term::Complex, C, F, FOF, V};
 use std::collections::HashMap;
 
 /// Represents a formula in Skolem Normal Form (SNF).
@@ -15,52 +15,52 @@ use std::collections::HashMap;
 /// [PNF]: crate::transform::PNF
 #[derive(Clone, Debug)]
 pub enum SNF {
-    /// Is the quantifier-free portion of an [`SNF`].
-    QuantifierFree(QFF),
+    /// Is the quantifier-free sub-formula of an [`SNF`].
+    QFF(QFF),
 
     /// Is a universally quantified formula, wrapping a [`Forall`].
     Forall(Box<Forall<SNF>>),
 }
 
-impl From<Atom> for SNF {
-    fn from(value: Atom) -> Self {
-        Self::QuantifierFree(value.into())
+impl From<Atom<Complex>> for SNF {
+    fn from(value: Atom<Complex>) -> Self {
+        Self::QFF(value.into())
     }
 }
 
-impl From<Equals> for SNF {
-    fn from(value: Equals) -> Self {
-        Self::QuantifierFree(value.into())
+impl From<Equals<Complex>> for SNF {
+    fn from(value: Equals<Complex>) -> Self {
+        Self::QFF(value.into())
     }
 }
 
 impl From<Not<QFF>> for SNF {
     fn from(value: Not<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<And<QFF>> for SNF {
     fn from(value: And<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Or<QFF>> for SNF {
     fn from(value: Or<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Implies<QFF>> for SNF {
     fn from(value: Implies<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
 impl From<Iff<QFF>> for SNF {
     fn from(value: Iff<QFF>) -> Self {
-        Self::QuantifierFree(value.into())
+        Self::QFF(value.into())
     }
 }
 
@@ -72,7 +72,7 @@ impl From<Forall<SNF>> for SNF {
 
 impl From<QFF> for SNF {
     fn from(value: QFF) -> Self {
-        Self::QuantifierFree(value)
+        Self::QFF(value)
     }
 }
 
@@ -123,17 +123,26 @@ impl SNF {
     }
 }
 
-impl TermBased for SNF {
+impl Formula for SNF {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
+        match self {
+            SNF::QFF(this) => this.signature(),
+            SNF::Forall(this) => this.signature(),
+        }
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         match self {
-            SNF::QuantifierFree(this) => this.free_vars(),
+            SNF::QFF(this) => this.free_vars(),
             SNF::Forall(this) => this.free_vars(),
         }
     }
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            SNF::QuantifierFree(this) => this.transform(f).into(),
+            SNF::QFF(this) => this.transform(f).into(),
             SNF::Forall(this) => Forall {
                 variables: this.variables.clone(),
                 formula: this.formula.transform(f),
@@ -143,19 +152,10 @@ impl TermBased for SNF {
     }
 }
 
-impl Formula for SNF {
-    fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
-        match self {
-            SNF::QuantifierFree(this) => this.signature(),
-            SNF::Forall(this) => this.signature(),
-        }
-    }
-}
-
 impl From<SNF> for FOF {
     fn from(value: SNF) -> Self {
         match value {
-            SNF::QuantifierFree(this) => this.into(),
+            SNF::QFF(this) => this.into(),
             SNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
         }
     }

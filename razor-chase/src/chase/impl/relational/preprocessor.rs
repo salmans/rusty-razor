@@ -1,7 +1,7 @@
 use super::{expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
-use razor_fol::syntax::{Complex, Sig, Theory, FOF, V};
+use razor_fol::syntax::{term::Complex, Sig, Theory, FOF, V};
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
 /// This is done by the standard conversion to geometric normal form followed by relationalization.

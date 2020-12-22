@@ -1,7 +1,7 @@
 use crate::chase::{bounder::DomainSize, scheduler::FIFO, strategy::Linear};
 use crate::chase::{r#impl::basic, r#impl::reference, *};
 use itertools::Itertools;
-use razor_fol::syntax::*;
+use razor_fol::syntax::{term::Complex, Pred, Theory, C, F, FOF, V};
 use std::{fmt, fs::File, io::Read};
 
 pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {

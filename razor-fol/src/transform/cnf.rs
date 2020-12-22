@@ -4,14 +4,14 @@ converting [`SNF`] to [`CNF`].
 [`SNF`]: crate::transform::SNF
  */
 
-use super::{TermBased, SNF};
-use crate::syntax::{formula::*, Complex, Error, Sig, FOF, V};
+use super::SNF;
+use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
 
 /// Is a [`CNF`] clause, representing disjunction of zero or more [`Literal`]s.
 #[derive(Clone, Debug)]
-pub struct Clause(Vec<Literal>);
+pub struct Clause(Vec<Literal<Complex>>);
 
 impl Clause {
     /// Consumes the receiver clause and `other` and returns a clause containing
@@ -23,26 +23,26 @@ impl Clause {
     }
 
     /// Returns the literals of the receiver clause.
-    pub fn literals(&self) -> &[Literal] {
+    pub fn literals(&self) -> &[Literal<Complex>] {
         &self.0
     }
 }
 
 impl Deref for Clause {
-    type Target = [Literal];
+    type Target = [Literal<Complex>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<Literal> for Clause {
-    fn from(value: Literal) -> Self {
+impl From<Literal<Complex>> for Clause {
+    fn from(value: Literal<Complex>) -> Self {
         Self(vec![value])
     }
 }
 
-impl<I: IntoIterator<Item = Literal>> From<I> for Clause {
+impl<I: IntoIterator<Item = Literal<Complex>>> From<I> for Clause {
     fn from(value: I) -> Self {
         Self(value.into_iter().collect())
     }
@@ -50,11 +50,21 @@ impl<I: IntoIterator<Item = Literal>> From<I> for Clause {
 
 impl Default for Clause {
     fn default() -> Self {
-        Self::from(Vec::<Literal>::new())
+        Self::from(Vec::<Literal<Complex>>::new())
     }
 }
 
-impl TermBased for Clause {
+impl Formula for Clause {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|l| l.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         let mut vs = Vec::new();
         for lit in &self.0 {
@@ -65,16 +75,6 @@ impl TermBased for Clause {
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.0.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl Formula for Clause {
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|l| l.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
     }
 }
 
@@ -155,7 +155,17 @@ impl From<&SNF> for CNF {
     }
 }
 
-impl TermBased for CNF {
+impl Formula for CNF {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         let mut vs = Vec::new();
         for clause in &self.0 {
@@ -166,16 +176,6 @@ impl TermBased for CNF {
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.0.iter().map(|clause| clause.transform(f)).collect())
-    }
-}
-
-impl Formula for CNF {
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|c| c.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
     }
 }
 
@@ -227,11 +227,11 @@ fn cnf(formula: FOF) -> CNF {
         FOF::Equals(this) => Clause::from(Literal::from(this)).into(),
         FOF::Not(this) => match this.formula {
             FOF::Atom(atom) => {
-                let lit: Literal = Not { formula: atom }.into();
+                let lit: Literal<_> = Not { formula: atom }.into();
                 Clause::from(lit).into()
             }
             FOF::Equals(eq) => {
-                let lit: Literal = Not { formula: eq }.into();
+                let lit: Literal<_> = Not { formula: eq }.into();
                 Clause::from(lit).into()
             }
             _ => unreachable!(), // `formula` is in NNF

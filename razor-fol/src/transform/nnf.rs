@@ -3,8 +3,7 @@ converting a [`FOF`] to [`NNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
-use super::TermBased;
-use crate::syntax::{formula::*, Complex, Error, Sig, FOF, V};
+use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
 
 /// Represents a formula in Negation Normal Form (NNF).
 ///
@@ -19,7 +18,7 @@ pub enum NNF {
     Bottom,
 
     /// Is a literal, wrapping a [`Literal`].
-    Literal(Literal),
+    Literal(Literal<Complex>),
 
     /// Is a conjunction of two formulae, wrapping an [`And`].    
     And(Box<And<NNF>>),
@@ -34,26 +33,26 @@ pub enum NNF {
     Forall(Box<Forall<NNF>>),
 }
 
-impl From<Atom> for NNF {
-    fn from(value: Atom) -> Self {
+impl From<Atom<Complex>> for NNF {
+    fn from(value: Atom<Complex>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<Equals> for NNF {
-    fn from(value: Equals) -> Self {
+impl From<Equals<Complex>> for NNF {
+    fn from(value: Equals<Complex>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<Not<Atom>> for NNF {
-    fn from(value: Not<Atom>) -> Self {
+impl From<Not<Atom<Complex>>> for NNF {
+    fn from(value: Not<Atom<Complex>>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<Not<Equals>> for NNF {
-    fn from(value: Not<Equals>) -> Self {
+impl From<Not<Equals<Complex>>> for NNF {
+    fn from(value: Not<Equals<Complex>>) -> Self {
         Self::Literal(value.into())
     }
 }
@@ -82,8 +81,8 @@ impl From<Forall<NNF>> for NNF {
     }
 }
 
-impl From<Literal> for NNF {
-    fn from(value: Literal) -> Self {
+impl From<Literal<Complex>> for NNF {
+    fn from(value: Literal<Complex>) -> Self {
         Self::Literal(value)
     }
 }
@@ -96,7 +95,7 @@ impl From<&FOF> for NNF {
 
 impl NNF {
     #[inline(always)]
-    fn neg(atom: Atomic) -> Self {
+    fn neg(atom: Atomic<Complex>) -> Self {
         Literal::Neg(atom).into()
     }
 
@@ -130,6 +129,8 @@ impl NNF {
 }
 
 impl Formula for NNF {
+    type Term = Complex;
+
     fn signature(&self) -> Result<Sig, Error> {
         match self {
             NNF::Top => Ok(Sig::default()),
@@ -141,9 +142,7 @@ impl Formula for NNF {
             NNF::Forall(this) => this.signature(),
         }
     }
-}
 
-impl TermBased for NNF {
     fn free_vars(&self) -> Vec<&V> {
         match self {
             Self::Top => Vec::new(),

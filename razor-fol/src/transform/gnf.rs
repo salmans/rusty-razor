@@ -3,23 +3,23 @@ converting [`CNF`] to [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */
-use super::{CNF_Clause, TermBased, CNF};
-use crate::syntax::{formula::*, Complex, Error, Sig, FOF, V};
+use super::{CNF_Clause, CNF};
+use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
 
 /// Is the body of a formula in geometric form, representing the conjunctino of a list of
 /// [`Atomic`] formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct Body(Vec<Atomic>);
+pub struct Body(Vec<Atomic<Complex>>);
 
-impl From<Atomic> for Body {
-    fn from(value: Atomic) -> Self {
+impl From<Atomic<Complex>> for Body {
+    fn from(value: Atomic<Complex>) -> Self {
         Self(vec![value])
     }
 }
 
-impl<I: IntoIterator<Item = Atomic>> From<I> for Body {
+impl<I: IntoIterator<Item = Atomic<Complex>>> From<I> for Body {
     fn from(value: I) -> Self {
         Self(value.into_iter().collect())
     }
@@ -27,19 +27,29 @@ impl<I: IntoIterator<Item = Atomic>> From<I> for Body {
 
 impl Default for Body {
     fn default() -> Self {
-        Self::from(Vec::<Atomic>::new())
+        Self::from(Vec::<Atomic<_>>::new())
     }
 }
 
 impl Deref for Body {
-    type Target = [Atomic];
+    type Target = [Atomic<Complex>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl TermBased for Body {
+impl Formula for Body {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|a| a.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         self.iter()
             .flat_map(|lit| lit.free_vars())
@@ -49,16 +59,6 @@ impl TermBased for Body {
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.0.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl Formula for Body {
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|a| a.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
     }
 }
 
@@ -79,7 +79,7 @@ impl From<Body> for FOF {
 /// Is a branch in the head of a formula in geometric form, representing the conjunctino of
 /// a list of [`Atomic`] formulae.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Head(Vec<Atomic>);
+pub struct Head(Vec<Atomic<Complex>>);
 
 impl Head {
     /// Returns a new [`Head`], resulting from the conjunction of the receiver and `other`.
@@ -95,13 +95,13 @@ impl Head {
     }
 }
 
-impl From<Atomic> for Head {
-    fn from(value: Atomic) -> Self {
+impl From<Atomic<Complex>> for Head {
+    fn from(value: Atomic<Complex>) -> Self {
         Self(vec![value])
     }
 }
 
-impl<I: IntoIterator<Item = Atomic>> From<I> for Head {
+impl<I: IntoIterator<Item = Atomic<Complex>>> From<I> for Head {
     fn from(value: I) -> Self {
         Self(value.into_iter().collect())
     }
@@ -109,35 +109,35 @@ impl<I: IntoIterator<Item = Atomic>> From<I> for Head {
 
 impl Default for Head {
     fn default() -> Self {
-        Self::from(Vec::<Atomic>::new())
+        Self::from(Vec::<Atomic<_>>::new())
     }
 }
 
 impl Deref for Head {
-    type Target = [Atomic];
+    type Target = [Atomic<Complex>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl TermBased for Head {
-    fn free_vars(&self) -> Vec<&V> {
-        self.iter().flat_map(|lit| lit.free_vars()).collect()
-    }
-
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        Self(self.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
 impl Formula for Head {
+    type Term = Complex;
+
     fn signature(&self) -> Result<Sig, Error> {
         Sig::new_from_signatures(
             self.iter()
                 .map(|c| c.signature())
                 .collect::<Result<Vec<_>, _>>()?,
         )
+    }
+
+    fn free_vars(&self) -> Vec<&V> {
+        self.iter().flat_map(|lit| lit.free_vars()).collect()
+    }
+
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        Self(self.iter().map(|lit| lit.transform(f)).collect())
     }
 }
 
@@ -211,7 +211,17 @@ impl Default for Heads {
     }
 }
 
-impl TermBased for Heads {
+impl Formula for Heads {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         self.iter()
             .flat_map(|lit| lit.free_vars())
@@ -221,16 +231,6 @@ impl TermBased for Heads {
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self(self.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl Formula for Heads {
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|c| c.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
     }
 }
 
@@ -279,7 +279,14 @@ impl From<(Body, Heads)> for GNF {
     }
 }
 
-impl TermBased for GNF {
+impl Formula for GNF {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        let sig = self.body().signature()?;
+        sig.merge(self.heads().signature()?)
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         let mut b_vars = self.body.free_vars();
         b_vars.extend(self.heads.free_vars());
@@ -294,13 +301,6 @@ impl TermBased for GNF {
     }
 }
 
-impl Formula for GNF {
-    fn signature(&self) -> Result<Sig, Error> {
-        let sig = self.body().signature()?;
-        sig.merge(self.heads().signature()?)
-    }
-}
-
 impl From<GNF> for FOF {
     fn from(value: GNF) -> Self {
         let body: FOF = value.body.into();
@@ -311,7 +311,7 @@ impl From<GNF> for FOF {
 // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
 fn gnf(clause: &CNF_Clause) -> GNF {
     let mut heads: Vec<Head> = Vec::new();
-    let mut body: Vec<Atomic> = Vec::new();
+    let mut body: Vec<Atomic<_>> = Vec::new();
     clause.iter().for_each(|lit| match lit {
         Literal::Pos(this) => heads.push(this.clone().into()),
         Literal::Neg(this) => body.push(this.clone()),

@@ -57,7 +57,9 @@ pub enum Error {
 
     /// Is an error reeturned when a flat term is expected but a non-flat term is found.
     #[error("expecting flat term, found `{}`", .term.to_string())]
-    BadFlatTerm { term: razor_fol::syntax::Complex },
+    BadFlatTerm {
+        term: razor_fol::syntax::term::Complex,
+    },
 
     /// Is an error returned when a relational formula is expected but a non-relational
     /// formula is found.

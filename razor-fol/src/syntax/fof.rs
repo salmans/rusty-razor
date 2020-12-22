@@ -1,7 +1,6 @@
 /*! Defines the syntax of first-order formulae with equality.*/
 use super::V;
-use super::{formula::*, Complex, Sig};
-use crate::transform::TermBased;
+use super::{formula::*, qff::QFF, term::Complex, Sig};
 use itertools::Itertools;
 use std::fmt;
 
@@ -15,12 +14,12 @@ pub enum FOF {
     Bottom,
 
     /// Is an atomic first-order formula, wrapping an [`Atom`].
-    Atom(Atom),
+    Atom(Atom<Complex>),
 
     /// Is a first-order equality, wrapping an [`Equals`].
     ///
     /// **Note**: Equality is a special type of atomic first-order formula.
-    Equals(Equals),
+    Equals(Equals<Complex>),
 
     /// Is the negation of a first-order formula, wrapping a [`Not`].
     Not(Box<Not<FOF>>),
@@ -44,14 +43,14 @@ pub enum FOF {
     Forall(Box<Forall<FOF>>),
 }
 
-impl From<Atom> for FOF {
-    fn from(value: Atom) -> Self {
+impl From<Atom<Complex>> for FOF {
+    fn from(value: Atom<Complex>) -> Self {
         Self::Atom(value)
     }
 }
 
-impl From<Equals> for FOF {
-    fn from(value: Equals) -> Self {
+impl From<Equals<Complex>> for FOF {
+    fn from(value: Equals<Complex>) -> Self {
         Self::Equals(value)
     }
 }
@@ -194,7 +193,25 @@ impl FOF {
     }
 }
 
-impl TermBased for FOF {
+impl Formula for FOF {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<super::Sig, super::Error> {
+        match self {
+            FOF::Top => Ok(Sig::new()),
+            FOF::Bottom => Ok(Sig::new()),
+            FOF::Atom(this) => this.signature(),
+            FOF::Equals(this) => this.signature(),
+            FOF::Not(this) => this.signature(),
+            FOF::And(this) => this.signature(),
+            FOF::Or(this) => this.signature(),
+            FOF::Implies(this) => this.signature(),
+            FOF::Iff(this) => this.signature(),
+            FOF::Exists(this) => this.signature(),
+            FOF::Forall(this) => this.signature(),
+        }
+    }
+
     fn free_vars(&self) -> Vec<&V> {
         match self {
             Self::Top => Vec::new(),
@@ -229,24 +246,6 @@ impl TermBased for FOF {
             FOF::Iff(this) => this.left.transform(f).iff(this.right.transform(f)),
             FOF::Exists(this) => FOF::exists(this.variables.clone(), this.formula.transform(f)),
             FOF::Forall(this) => FOF::forall(this.variables.clone(), this.formula.transform(f)),
-        }
-    }
-}
-
-impl Formula for FOF {
-    fn signature(&self) -> Result<super::Sig, super::Error> {
-        match self {
-            FOF::Top => Ok(Sig::new()),
-            FOF::Bottom => Ok(Sig::new()),
-            FOF::Atom(this) => this.signature(),
-            FOF::Equals(this) => this.signature(),
-            FOF::Not(this) => this.signature(),
-            FOF::And(this) => this.signature(),
-            FOF::Or(this) => this.signature(),
-            FOF::Implies(this) => this.signature(),
-            FOF::Iff(this) => this.signature(),
-            FOF::Exists(this) => this.signature(),
-            FOF::Forall(this) => this.signature(),
         }
     }
 }

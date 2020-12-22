@@ -4,7 +4,7 @@
 //!
 //! [`StrategyTrait`]: crate::chase::StrategyTrait
 use crate::chase::{SequentTrait, StrategyTrait};
-use razor_fol::syntax::FOF;
+use razor_fol::syntax::{Formula, FOF};
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
@@ -126,8 +126,6 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait
     for Bootstrap<'s, S, Stg>
 {
     fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
-        use razor_fol::transform::TermBased;
-
         let (initial_sequents, rest) = sequents
             .into_iter()
             .partition(|s| s.body() == FOF::Top && s.head().free_vars().is_empty());

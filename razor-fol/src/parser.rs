@@ -249,7 +249,7 @@ named!(p_func<Span, F>,
     )
 );
 
-named!(p_nonempty_terms<Span, Vec<Complex>>,
+named!(p_nonempty_terms<Span, Vec<term::Complex>>,
     terminated!(
         separated_nonempty_list!(
             tag!(COMMA),
@@ -259,7 +259,7 @@ named!(p_nonempty_terms<Span, Vec<Complex>>,
     )
 );
 
-named!(p_term_args<Span, Vec<Complex>>,
+named!(p_term_args<Span, Vec<term::Complex>>,
     alt!(
         value!(vec![], delimited!(tag!(L_PAREN), opt!(space),tag!(R_PAREN))) |
         delimited!(
@@ -270,7 +270,7 @@ named!(p_term_args<Span, Vec<Complex>>,
     )
 );
 
-named!(p_term<Span, Complex>,
+named!(p_term<Span, term::Complex>,
     alt!(
         map!(
             terminated!(
@@ -283,7 +283,7 @@ named!(p_term<Span, Complex>,
         map!(sp!(p_const), |c| c.into()) |
         map!( // composite term
             pair!(sp!(p_func), sp!(p_term_args)),
-            |(f, ts): (F, Vec<Complex>)| f.app(ts)
+            |(f, ts): (F, Vec<term::Complex>)| f.app(ts)
         )
     )
 );
@@ -310,7 +310,7 @@ named!(p_atom<Span, FOF>,
         // composite term:
         map!(
             pair!(p_pred, sp!(p_term_args)),
-            |(p, ts): (Pred, Vec<Complex>)| p.app(ts)
+            |(p, ts): (Pred, Vec<term::Complex>)| p.app(ts)
         ) |
         delimited!(sp!(tag!(L_PAREN)),
             return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula),

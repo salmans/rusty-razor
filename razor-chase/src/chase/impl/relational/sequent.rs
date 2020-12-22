@@ -9,7 +9,7 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{symbol::Generator, Complex, Pred, C, F, FOF},
+    syntax::{symbol::Generator, term::Complex, Pred, C, F, FOF},
     transform::relationalize,
 };
 use std::convert::TryFrom;

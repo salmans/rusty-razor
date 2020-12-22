@@ -10,7 +10,7 @@
 use crate::chase::*;
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::*;
+use razor_fol::syntax::{term::Complex, Formula, FOF};
 use std::{
     collections::{HashMap, HashSet},
     convert::TryFrom,
@@ -23,7 +23,7 @@ use thiserror::Error;
 pub enum Error {
     /// Is returned when a sequent cannot be constructed from a formula.
     #[error("cannot build sequent from formula `{}`", .formula.to_string())]
-    BadSequentFormula { formula: razor_fol::syntax::FOF },
+    BadSequentFormula { formula: FOF },
 }
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
@@ -623,7 +623,6 @@ impl TryFrom<&FOF> for Sequent {
     type Error = Error;
 
     fn try_from(formula: &FOF) -> Result<Self, Self::Error> {
-        use razor_fol::transform::TermBased;
         match formula {
             FOF::Implies(this) => {
                 let left = &this.premise;
