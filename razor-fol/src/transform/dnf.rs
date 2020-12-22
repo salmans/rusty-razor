@@ -4,7 +4,7 @@ converting [`SNF`] to [`DNF`].
 [`SNF`]: crate::transform::SNF
  */
 
-use super::SNF;
+use super::{PNF, SNF};
 use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
@@ -134,6 +134,12 @@ impl Deref for DNF {
     }
 }
 
+impl std::fmt::Display for DNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        FOF::from(self).fmt(f)
+    }
+}
+
 impl<I: IntoIterator<Item = Clause>> From<I> for DNF {
     fn from(value: I) -> Self {
         DNF(value.into_iter().collect())
@@ -187,6 +193,12 @@ impl From<DNF> for FOF {
             .map(FOF::from)
             .fold1(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
+    }
+}
+
+impl From<&DNF> for FOF {
+    fn from(value: &DNF) -> Self {
+        value.clone().into()
     }
 }
 
@@ -268,11 +280,50 @@ impl SNF {
     ///
     /// assert_eq!(
     ///    "((((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ (Q(y) ∧ P(x))",
-    ///    FOF::from(dnf).to_string()
+    ///    dnf.to_string()
     /// );
     /// ```
     pub fn dnf(&self) -> DNF {
         self.into()
+    }
+}
+
+impl PNF {
+    /// Transform the receiver PNF to a Disjunctive Normal Form (DNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let formula: FOF = "P(x) iff Q(y)".parse().unwrap();
+    /// let pnf = formula.pnf();
+    ///
+    /// assert_eq!(
+    ///    "((((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ (Q(y) ∧ P(x))",
+    ///    pnf.dnf().to_string()
+    /// );
+    /// ```
+    pub fn dnf(&self) -> DNF {
+        self.snf().dnf()
+    }
+}
+
+impl FOF {
+    /// Transform the receiver FOF to a Disjunctive Normal Form (DNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let fof: FOF = "P(x) iff Q(y)".parse().unwrap();
+    ///
+    /// assert_eq!(
+    ///    "((((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ (Q(y) ∧ P(x))",
+    ///    fof.dnf().to_string()
+    /// );
+    /// ```
+    pub fn dnf(&self) -> DNF {
+        self.pnf().snf().dnf()
     }
 }
 

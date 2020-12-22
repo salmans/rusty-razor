@@ -152,12 +152,24 @@ impl Formula for SNF {
     }
 }
 
+impl std::fmt::Display for SNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        FOF::from(self).fmt(f)
+    }
+}
+
 impl From<SNF> for FOF {
     fn from(value: SNF) -> Self {
         match value {
             SNF::QFF(this) => this.into(),
             SNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
         }
+    }
+}
+
+impl From<&SNF> for FOF {
+    fn from(value: &SNF) -> Self {
+        value.clone().into()
     }
 }
 
@@ -172,7 +184,7 @@ impl PNF {
     /// let pnf = formula.pnf();
     /// let snf = pnf.snf();
     ///
-    /// assert_eq!("P(x, sk#0(x))", FOF::from(snf).to_string());
+    /// assert_eq!("P(x, sk#0(x))", snf.to_string());
     /// ```
     pub fn snf(&self) -> SNF {
         self.snf_with(&mut Generator::new().set_prefix("sk#"))
@@ -194,11 +206,27 @@ impl PNF {
     /// let pnf = formula.pnf();
     /// let snf = pnf.snf_with(&mut generator);
     ///
-    /// assert_eq!("P(x, skolem0(x))", FOF::from(snf).to_string());
+    /// assert_eq!("P(x, skolem0(x))", snf.to_string());
     /// ```
     pub fn snf_with(&self, generator: &mut Generator) -> SNF {
         let free_vars = self.free_vars().into_iter().cloned().collect();
         SNF::new(self.clone(), free_vars, generator)
+    }
+}
+
+impl FOF {
+    /// Transforms the receiver FOF to a Skolem Normal Form (SNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let fof: FOF = "∃ y. P(x, y)".parse().unwrap();
+    ///
+    /// assert_eq!("P(x, sk#0(x))", fof.snf().to_string());
+    /// ```
+    pub fn snf(&self) -> SNF {
+        self.pnf().snf()
     }
 }
 

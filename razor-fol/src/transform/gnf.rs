@@ -3,7 +3,7 @@ converting [`CNF`] to [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */
-use super::{CNF_Clause, CNF};
+use super::{CNF_Clause, CNF, PNF, SNF};
 use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
@@ -301,10 +301,22 @@ impl Formula for GNF {
     }
 }
 
+impl std::fmt::Display for GNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        FOF::from(self).fmt(f)
+    }
+}
+
 impl From<GNF> for FOF {
     fn from(value: GNF) -> Self {
         let body: FOF = value.body.into();
         body.implies(value.heads.into())
+    }
+}
+
+impl From<&GNF> for FOF {
+    fn from(value: &GNF) -> Self {
+        value.clone().into()
     }
 }
 
@@ -335,12 +347,56 @@ impl CNF {
     ///  
     /// let gnf_to_string: Vec<String> = gnfs
     ///     .into_iter()
-    ///     .map(|f| FOF::from(f).to_string())
+    ///     .map(|f| f.to_string())
     ///     .collect();
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
     pub fn gnf(&self) -> Vec<GNF> {
         self.iter().map(gnf).collect()
+    }
+}
+
+impl SNF {
+    /// Transforms the receiver SNF to a list of formulae in Geometric Normal Form (GNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let formula: FOF = "P(x) & (Q(x) | R(x))".parse().unwrap();
+    /// let snf = formula.pnf().snf();
+    /// let gnfs = snf.gnf();
+    ///  
+    /// let gnf_to_string: Vec<String> = gnfs
+    ///     .into_iter()
+    ///     .map(|f| f.to_string())
+    ///     .collect();
+    /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
+    /// ```
+    pub fn gnf(&self) -> Vec<GNF> {
+        self.cnf().gnf()
+    }
+}
+
+impl PNF {
+    /// Transforms the receiver PNF to a list of formulae in Geometric Normal Form (GNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let formula: FOF = "P(x) & (Q(x) | R(x))".parse().unwrap();
+    /// let pnf = formula.pnf();
+    /// let gnfs = pnf.gnf();
+    ///  
+    /// let gnf_to_string: Vec<String> = gnfs
+    ///     .into_iter()
+    ///     .map(|f| f.to_string())
+    ///     .collect();
+    /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
+    /// ```
+    pub fn gnf(&self) -> Vec<GNF> {
+        self.snf().cnf().gnf()
     }
 }
 

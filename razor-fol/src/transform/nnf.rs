@@ -168,6 +168,12 @@ impl Formula for NNF {
     }
 }
 
+impl std::fmt::Display for NNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        FOF::from(self).fmt(f)
+    }
+}
+
 impl From<NNF> for FOF {
     fn from(value: NNF) -> Self {
         match value {
@@ -188,6 +194,12 @@ impl From<NNF> for FOF {
             NNF::Exists(this) => Self::exists(this.variables, this.formula.into()),
             NNF::Forall(this) => Self::forall(this.variables, this.formula.into()),
         }
+    }
+}
+
+impl From<&NNF> for FOF {
+    fn from(value: &NNF) -> Self {
+        value.clone().into()
     }
 }
 
@@ -247,7 +259,7 @@ impl FOF {
     /// let formula: FOF = "not (P(x) iff Q(y))".parse().unwrap();
     /// let nnf = formula.nnf();
     ///
-    /// assert_eq!("(P(x) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ Q(y))", FOF::from(nnf).to_string());
+    /// assert_eq!("(P(x) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ Q(y))", nnf.to_string());
     /// ```
     pub fn nnf(&self) -> NNF {
         self.into()

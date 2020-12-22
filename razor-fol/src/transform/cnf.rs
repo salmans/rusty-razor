@@ -4,7 +4,7 @@ converting [`SNF`] to [`CNF`].
 [`SNF`]: crate::transform::SNF
  */
 
-use super::SNF;
+use super::{PNF, SNF};
 use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
 use itertools::Itertools;
 use std::ops::Deref;
@@ -134,6 +134,12 @@ impl Deref for CNF {
     }
 }
 
+impl std::fmt::Display for CNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        FOF::from(self).fmt(f)
+    }
+}
+
 impl<I: IntoIterator<Item = Clause>> From<I> for CNF {
     fn from(value: I) -> Self {
         Self(value.into_iter().collect())
@@ -187,6 +193,12 @@ impl From<CNF> for FOF {
             .map(FOF::from)
             .fold1(|item, acc| item.and(acc))
             .unwrap_or(FOF::Top)
+    }
+}
+
+impl From<&CNF> for FOF {
+    fn from(value: &CNF) -> Self {
+        value.clone().into()
     }
 }
 
@@ -267,10 +279,41 @@ impl SNF {
     /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
     /// let snf = formula.pnf().snf();
     /// let cnf = snf.cnf();
-    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", FOF::from(cnf).to_string());
+    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", cnf.to_string());
     /// ```
     pub fn cnf(&self) -> CNF {
         self.into()
+    }
+}
+
+impl PNF {
+    /// Transform the receiver PNF to a Conjunctive Normal Form (CNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
+    /// let pnf = formula.pnf();
+    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", pnf.cnf().to_string());
+    /// ```
+    pub fn cnf(&self) -> CNF {
+        self.snf().cnf()
+    }
+}
+
+impl FOF {
+    /// Transform the receiver FOF to a Conjunctive Normal Form (CNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let fof: FOF = "P(x) <=> Q(y)".parse().unwrap();
+    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", fof.cnf().to_string());
+    /// ```    
+    pub fn cnf(&self) -> CNF {
+        self.pnf().snf().cnf()
     }
 }
 

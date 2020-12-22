@@ -140,6 +140,12 @@ impl Formula for PNF {
     }
 }
 
+impl std::fmt::Display for PNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        FOF::from(self).fmt(f)
+    }
+}
+
 impl From<PNF> for FOF {
     fn from(value: PNF) -> Self {
         match value {
@@ -147,6 +153,12 @@ impl From<PNF> for FOF {
             PNF::Exists(this) => FOF::exists(this.variables, this.formula.into()),
             PNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
         }
+    }
+}
+
+impl From<&PNF> for FOF {
+    fn from(value: &PNF) -> Self {
+        value.clone().into()
     }
 }
 
@@ -322,7 +334,7 @@ impl FOF {
     /// let formula: FOF = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
     /// let pnf = formula.pnf();
     ///
-    /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", FOF::from(pnf).to_string());
+    /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", pnf.to_string());
     /// ```
     pub fn pnf(&self) -> PNF {
         self.into()
