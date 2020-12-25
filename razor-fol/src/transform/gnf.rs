@@ -3,247 +3,20 @@ converting [`CNF`] to [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */
-use super::{CNF_Clause, CNF, PNF, SNF};
-use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
+use super::{CNF, PNF, SNF};
+use crate::syntax::{
+    formula::{
+        clause::{Clause, Literal, PosClause, PosClauseSet},
+        *,
+    },
+    term::Complex,
+    Error, Sig, FOF, V,
+};
 use itertools::Itertools;
-use std::ops::Deref;
 
-/// Is the body of a formula in geometric form, representing the conjunctino of a list of
-/// [`Atomic`] formulae.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct Body(Vec<Atomic<Complex>>);
-
-impl From<Atomic<Complex>> for Body {
-    fn from(value: Atomic<Complex>) -> Self {
-        Self(vec![value])
-    }
-}
-
-impl<I: IntoIterator<Item = Atomic<Complex>>> From<I> for Body {
-    fn from(value: I) -> Self {
-        Self(value.into_iter().collect())
-    }
-}
-
-impl Default for Body {
-    fn default() -> Self {
-        Self::from(Vec::<Atomic<_>>::new())
-    }
-}
-
-impl Deref for Body {
-    type Target = [Atomic<Complex>];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Formula for Body {
-    type Term = Complex;
-
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|a| a.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
-    }
-
-    fn free_vars(&self) -> Vec<&V> {
-        self.iter()
-            .flat_map(|lit| lit.free_vars())
-            .unique()
-            .collect()
-    }
-
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        Self(self.0.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl From<Body> for FOF {
-    fn from(value: Body) -> Self {
-        value
-            .0
-            .into_iter()
-            .map(|atom| match atom {
-                Atomic::Atom(this) => FOF::from(this),
-                Atomic::Equals(this) => this.into(),
-            })
-            .fold1(|item, acc| item.and(acc))
-            .unwrap_or(FOF::Top)
-    }
-}
-
-/// Is a branch in the head of a formula in geometric form, representing the conjunctino of
-/// a list of [`Atomic`] formulae.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Head(Vec<Atomic<Complex>>);
-
-impl Head {
-    /// Returns a new [`Head`], resulting from the conjunction of the receiver and `other`.
-    pub fn and(&self, other: &Self) -> Self {
-        self.iter().chain(other.iter()).cloned().into()
-    }
-
-    /// Returns true if the receiver shadows the `other` clause; that is, if `other` is true,
-    /// then the receiver clause has to be true as well.
-    fn shadows(&self, other: &Self) -> bool {
-        (self.len() < other.len() || (self.len() == other.len() && self != other))
-            && self.iter().all(|cc| other.iter().any(|c| cc == c))
-    }
-}
-
-impl From<Atomic<Complex>> for Head {
-    fn from(value: Atomic<Complex>) -> Self {
-        Self(vec![value])
-    }
-}
-
-impl<I: IntoIterator<Item = Atomic<Complex>>> From<I> for Head {
-    fn from(value: I) -> Self {
-        Self(value.into_iter().collect())
-    }
-}
-
-impl Default for Head {
-    fn default() -> Self {
-        Self::from(Vec::<Atomic<_>>::new())
-    }
-}
-
-impl Deref for Head {
-    type Target = [Atomic<Complex>];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Formula for Head {
-    type Term = Complex;
-
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|c| c.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
-    }
-
-    fn free_vars(&self) -> Vec<&V> {
-        self.iter().flat_map(|lit| lit.free_vars()).collect()
-    }
-
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        Self(self.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl From<Head> for FOF {
-    fn from(value: Head) -> Self {
-        value
-            .0
-            .into_iter()
-            .map(|atom| match atom {
-                Atomic::Atom(this) => FOF::from(this),
-                Atomic::Equals(this) => this.into(),
-            })
-            .fold1(|item, acc| item.and(acc))
-            .unwrap_or(FOF::Top)
-    }
-}
-
-/// Represents the disjunction of [`Head`]s in the head of a formula in geometric form.
-#[derive(Clone, Debug)]
-pub struct Heads(Vec<Head>);
-
-impl Heads {
-    /// Returns a simplified DNF equivalent to the receiver.
-    pub fn simplify(&self) -> Self {
-        let clauses = self
-            .iter()
-            .map(|c| Head::from(c.iter().unique().cloned()))
-            .collect_vec();
-
-        clauses
-            .iter()
-            .filter(|c1| !clauses.iter().any(|c2| c2.shadows(c1)))
-            .cloned()
-            .unique()
-            .collect_vec()
-            .into()
-    }
-
-    /// Returns a new instance of [`Heads`], corresponding to the conjunction of the
-    /// receiver and `other` after syntanctic transformation.
-    pub fn and(&self, other: &Self) -> Self {
-        self.iter()
-            .flat_map(|h1| other.iter().map(move |h2| h1.and(h2)))
-            .into()
-    }
-}
-
-impl From<Head> for Heads {
-    fn from(value: Head) -> Self {
-        Self(vec![value])
-    }
-}
-
-impl<I: IntoIterator<Item = Head>> From<I> for Heads {
-    fn from(value: I) -> Self {
-        Self(value.into_iter().collect())
-    }
-}
-
-impl Deref for Heads {
-    type Target = [Head];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Default for Heads {
-    fn default() -> Self {
-        Self::from(Vec::<Head>::new())
-    }
-}
-
-impl Formula for Heads {
-    type Term = Complex;
-
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|c| c.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
-    }
-
-    fn free_vars(&self) -> Vec<&V> {
-        self.iter()
-            .flat_map(|lit| lit.free_vars())
-            .unique()
-            .collect()
-    }
-
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        Self(self.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl From<Heads> for FOF {
-    fn from(value: Heads) -> Self {
-        value
-            .0
-            .into_iter()
-            .map(FOF::from)
-            .fold1(|item, acc| item.or(acc))
-            .unwrap_or(FOF::Bottom)
-    }
-}
+// GNF positive clauses and clause sets are constructed over complex terms.
+type GnfClause = PosClause<Complex>;
+type GnfClauseSet = PosClauseSet<Complex>;
 
 /// Is a wrapper around [`FOF`] that represents a formula in Geometric Normal Form (GNF).
 ///
@@ -254,28 +27,54 @@ impl From<Heads> for FOF {
 /// [`FOF`]: crate::syntax::FOF
 #[derive(Clone, Debug)]
 pub struct GNF {
-    body: Body,
-    heads: Heads,
+    /// Is the body of a GNF, comprised of a positive clause.
+    body: GnfClause,
+
+    /// Is the head of a GNF, consisting of a positive clause set.
+    head: GnfClauseSet,
 }
 
 impl GNF {
     /// Returns the body of the receiver GNF.
     #[inline(always)]
-    pub fn body(&self) -> &Body {
+    pub fn body(&self) -> &GnfClause {
         &self.body
     }
 
-    /// Returns the heads of the receiver GNF.
+    /// Returns the head of the receiver GNF.
     #[inline(always)]
-    pub fn heads(&self) -> &Heads {
-        &self.heads
+    pub fn head(&self) -> &GnfClauseSet {
+        &self.head
+    }
+
+    // Renders each clause as conjunction of literals
+    fn clause_to_fof(clause: GnfClause) -> FOF {
+        clause
+            .into_atomics()
+            .into_iter()
+            .map(|atomic| match atomic {
+                Atomic::Atom(this) => FOF::from(this),
+                Atomic::Equals(this) => this.into(),
+            })
+            .fold1(|item, acc| item.and(acc))
+            .unwrap_or(FOF::Top)
+    }
+
+    // Renders each clause set as disjunction of clauses
+    fn clause_set_to_fof(clause: GnfClauseSet) -> FOF {
+        clause
+            .into_clauses()
+            .into_iter()
+            .map(Self::clause_to_fof)
+            .fold1(|item, acc| item.or(acc))
+            .unwrap_or(FOF::Bottom)
     }
 }
 
-impl From<(Body, Heads)> for GNF {
-    fn from(value: (Body, Heads)) -> Self {
-        let (body, heads) = value;
-        Self { body, heads }
+impl From<(GnfClause, GnfClauseSet)> for GNF {
+    fn from(value: (GnfClause, GnfClauseSet)) -> Self {
+        let (body, head) = value;
+        Self { body, head }
     }
 }
 
@@ -284,19 +83,19 @@ impl Formula for GNF {
 
     fn signature(&self) -> Result<Sig, Error> {
         let sig = self.body().signature()?;
-        sig.merge(self.heads().signature()?)
+        sig.merge(self.head().signature()?)
     }
 
     fn free_vars(&self) -> Vec<&V> {
         let mut b_vars = self.body.free_vars();
-        b_vars.extend(self.heads.free_vars());
-        b_vars
+        b_vars.extend(self.head.free_vars());
+        b_vars.into_iter().unique().collect()
     }
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
             body: self.body.transform(f),
-            heads: self.heads.transform(f),
+            head: self.head.transform(f),
         }
     }
 }
@@ -309,8 +108,9 @@ impl std::fmt::Display for GNF {
 
 impl From<GNF> for FOF {
     fn from(value: GNF) -> Self {
-        let body: FOF = value.body.into();
-        body.implies(value.heads.into())
+        let body = GNF::clause_to_fof(value.body);
+        let head = GNF::clause_set_to_fof(value.head);
+        body.implies(head)
     }
 }
 
@@ -321,17 +121,17 @@ impl From<&GNF> for FOF {
 }
 
 // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
-fn gnf(clause: &CNF_Clause) -> GNF {
-    let mut heads: Vec<Head> = Vec::new();
+fn gnf(clause: &Clause<Complex>) -> GNF {
+    let mut head: Vec<PosClause<_>> = Vec::new();
     let mut body: Vec<Atomic<_>> = Vec::new();
     clause.iter().for_each(|lit| match lit {
-        Literal::Pos(this) => heads.push(this.clone().into()),
+        Literal::Pos(this) => head.push(this.clone().into()),
         Literal::Neg(this) => body.push(this.clone()),
     });
 
-    let body = Body::from(body);
-    let heads = Heads::from(heads);
-    (body, heads).into()
+    let body = PosClause::from(body);
+    let head = PosClauseSet::from(head);
+    (body, head).into()
 }
 
 impl CNF {
@@ -401,9 +201,10 @@ impl PNF {
 }
 
 #[cfg(test)]
-mod test_transform {
+mod tests {
     use super::*;
     use crate::{assert_debug_strings, syntax::Theory};
+    use itertools::Itertools;
 
     fn gnf(formula: &FOF) -> Vec<FOF> {
         formula
@@ -551,7 +352,7 @@ mod test_transform {
 
     #[test]
     fn test_gnf_theory() {
-        // mostly testing if compression of heads works properly:
+        // mostly testing if compression of head works properly:
         {
             let theory: Theory<FOF> = "P('a); P('b);".parse().unwrap();
             assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae());

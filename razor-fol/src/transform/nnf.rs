@@ -3,7 +3,11 @@ converting a [`FOF`] to [`NNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
-use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
+use crate::syntax::{
+    formula::{clause::Literal, *},
+    term::Complex,
+    Error, Sig, FOF, V,
+};
 
 /// Represents a formula in Negation Normal Form (NNF).
 ///

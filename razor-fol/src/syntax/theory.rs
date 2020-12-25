@@ -76,16 +76,16 @@ fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
         .coalesce(|first, second| {
             // merge the ones with the same body:
             let l_vars = first.body().free_vars();
-            let r_vars = first.heads().free_vars();
+            let r_vars = first.head().free_vars();
             // compress sequents with no free variables that show up only in head:
             if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
                 let l_vars = second.body().free_vars();
-                let r_vars = second.heads().free_vars();
+                let r_vars = second.head().free_vars();
                 if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
                     if first.body() == second.body() {
                         Ok(GNF::from((
                             first.body().clone(),
-                            first.heads().and(second.heads()),
+                            first.head().cross_union(second.head()),
                         )))
                     } else {
                         Err((first, second))
@@ -98,7 +98,7 @@ fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
             }
         })
         .into_iter()
-        .map(|g| (g.body().clone(), g.heads().simplify()).into())
+        .map(|g| (g.body().clone(), g.head().simplify()).into())
         .collect()
 }
 

@@ -1,11 +1,14 @@
 /*! Introduces an abstraction for formulae and various generic types as building blocks
 for various formula types.*/
+pub mod clause;
+
 use super::{
     signature::PSig,
     term::{Renaming, Substitution},
     Error, Pred, Sig, Term, EQ_SYM, V,
 };
 use itertools::Itertools;
+use std::hash::Hash;
 
 /// Is the trait of formulae, including first-order formulae.
 pub trait Formula {
@@ -406,77 +409,6 @@ impl<T: Term> Formula for Atomic<T> {
         match self {
             Atomic::Atom(this) => Self::Atom(this.transform(f)),
             Atomic::Equals(this) => Self::Equals(this.transform(f)),
-        }
-    }
-}
-
-/// A literal is either an [`Atomic`] formula or its negation.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum Literal<T: Term> {
-    /// Wraps an (positive) [`Atomic`] formula.
-    Pos(Atomic<T>),
-
-    /// Wraps the negation of an [`Atomic`] formula.    
-    Neg(Atomic<T>),
-}
-
-impl<T: Term> From<Atomic<T>> for Literal<T> {
-    fn from(value: Atomic<T>) -> Self {
-        Self::Pos(value)
-    }
-}
-
-impl<T: Term> From<Not<Atomic<T>>> for Literal<T> {
-    fn from(value: Not<Atomic<T>>) -> Self {
-        Self::Neg(value.formula)
-    }
-}
-
-impl<T: Term> From<Atom<T>> for Literal<T> {
-    fn from(value: Atom<T>) -> Self {
-        Self::Pos(value.into())
-    }
-}
-
-impl<T: Term> From<Not<Atom<T>>> for Literal<T> {
-    fn from(value: Not<Atom<T>>) -> Self {
-        Self::Neg(value.formula.into())
-    }
-}
-
-impl<T: Term> From<Equals<T>> for Literal<T> {
-    fn from(value: Equals<T>) -> Self {
-        Self::Pos(value.into())
-    }
-}
-
-impl<T: Term> From<Not<Equals<T>>> for Literal<T> {
-    fn from(value: Not<Equals<T>>) -> Self {
-        Self::Neg(value.formula.into())
-    }
-}
-
-impl<T: Term> Formula for Literal<T> {
-    type Term = T;
-
-    fn signature(&self) -> Result<Sig, Error> {
-        match self {
-            Literal::Pos(this) => this.signature(),
-            Literal::Neg(this) => this.signature(),
-        }
-    }
-
-    fn free_vars(&self) -> Vec<&V> {
-        match self {
-            Literal::Pos(this) => this.free_vars(),
-            Literal::Neg(this) => this.free_vars(),
-        }
-    }
-
-    fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
-        match self {
-            Literal::Pos(this) => this.transform(f).into(),
-            Literal::Neg(this) => this.transform(f).into(),
         }
     }
 }

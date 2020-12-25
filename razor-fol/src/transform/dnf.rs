@@ -5,83 +5,49 @@ converting [`SNF`] to [`DNF`].
  */
 
 use super::{PNF, SNF};
-use crate::syntax::{formula::*, term::Complex, Error, Sig, FOF, V};
+use crate::syntax::{
+    formula::{
+        clause::{Clause, ClauseSet, Literal},
+        *,
+    },
+    term::Complex,
+    Error, Sig, FOF, V,
+};
 use itertools::Itertools;
 use std::ops::Deref;
 
-/// Is a [`DNF`] clause, representing conjunction of zero or more [`Literal`]s.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Clause(Vec<Literal<Complex>>);
+// DNF clauses and clause sets are constructed over complex terms.
+type DnfClause = Clause<Complex>;
+type DnfClauseSet = ClauseSet<Complex>;
 
-impl Clause {
-    /// Consumes the receiver clause and `other` and returns a clause containing
-    /// all literals in the receiver and `other`.
-    pub fn union(self, other: Self) -> Self {
-        let mut lits = self.0;
-        lits.extend(other.0);
-        lits.into()
+/// Represents a formula in Disjunctive Normal Form (DNF).
+///
+/// **Hint**: A DNF is a firsts-order formula that is a disjunction of zero or
+/// more [`Clause`]s where each clause is a conjunction of [`Literal`]s.
+#[derive(Clone)]
+pub struct DNF(DnfClauseSet);
+
+impl From<DnfClauseSet> for DNF {
+    fn from(value: DnfClauseSet) -> Self {
+        DNF(value)
     }
+}
 
-    /// Returns the literals of the receiver clause.
-    pub fn literals(&self) -> &[Literal<Complex>] {
+impl DNF {
+    /// Returns the clauses of the receiver DNF.
+    pub fn clauses(&self) -> &[DnfClause] {
         &self.0
     }
-}
 
-impl Deref for Clause {
-    type Target = [Literal<Complex>];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<Literal<Complex>> for Clause {
-    fn from(value: Literal<Complex>) -> Self {
-        Clause(vec![value])
-    }
-}
-
-impl<I: IntoIterator<Item = Literal<Complex>>> From<I> for Clause {
-    fn from(value: I) -> Self {
-        Clause(value.into_iter().collect())
-    }
-}
-
-impl Default for Clause {
-    fn default() -> Self {
-        Clause::from(Vec::<Literal<Complex>>::new())
-    }
-}
-
-impl Formula for Clause {
-    type Term = Complex;
-
-    fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|l| l.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
+    /// Consumes the receiver and returns the underlying clauses.
+    pub fn into_clauses(self) -> Vec<DnfClause> {
+        self.0.into_clauses()
     }
 
-    fn free_vars(&self) -> Vec<&V> {
-        let mut vs = Vec::new();
-        for lit in &self.0 {
-            vs.extend(lit.free_vars());
-        }
-        vs.into_iter().unique().collect()
-    }
-
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        Clause(self.0.iter().map(|lit| lit.transform(f)).collect())
-    }
-}
-
-impl From<Clause> for FOF {
-    fn from(value: Clause) -> Self {
-        value
-            .0
+    #[inline(always)]
+    fn clause_to_fof(clause: DnfClause) -> FOF {
+        clause
+            .into_literals()
             .into_iter()
             .map(|clause| match clause {
                 Literal::Pos(pos) => match pos {
@@ -98,36 +64,8 @@ impl From<Clause> for FOF {
     }
 }
 
-/// Represents a formula in Disjunctive Normal Form (DNF).
-///
-/// **Hint**: A DNF is a firsts-order formula that is a disjunction of zero or
-/// more [`Clause`]s.
-#[derive(Clone)]
-pub struct DNF(Vec<Clause>);
-
-impl From<Clause> for DNF {
-    fn from(value: Clause) -> Self {
-        DNF(vec![value])
-    }
-}
-
-impl DNF {
-    /// Consumes the receiver DNF and `other` and returns a DNF containing
-    /// all clauses in the receiver and `other`.    
-    pub fn union(self, other: Self) -> Self {
-        let mut lits = self.0;
-        lits.extend(other.0);
-        lits.into()
-    }
-
-    /// Returns the clauses of the receiver DNF.
-    pub fn clauses(&self) -> &[Clause] {
-        &self.0
-    }
-}
-
 impl Deref for DNF {
-    type Target = [Clause];
+    type Target = DnfClauseSet;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -140,15 +78,9 @@ impl std::fmt::Display for DNF {
     }
 }
 
-impl<I: IntoIterator<Item = Clause>> From<I> for DNF {
-    fn from(value: I) -> Self {
-        DNF(value.into_iter().collect())
-    }
-}
-
 impl Default for DNF {
     fn default() -> Self {
-        DNF::from(Vec::<Clause>::new())
+        DNF::from(ClauseSet::<_>::default())
     }
 }
 
@@ -165,32 +97,24 @@ impl Formula for DNF {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
-            self.iter()
-                .map(|c| c.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )
+        self.0.signature()
     }
 
     fn free_vars(&self) -> Vec<&V> {
-        let mut vs = Vec::new();
-        for clause in &self.0 {
-            vs.extend(clause.free_vars());
-        }
-        vs.into_iter().unique().collect()
+        self.0.free_vars()
     }
 
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        DNF(self.0.iter().map(|clause| clause.transform(f)).collect())
+        DNF(self.0.transform(f))
     }
 }
 
 impl From<DNF> for FOF {
     fn from(value: DNF) -> Self {
         value
-            .0
+            .into_clauses()
             .into_iter()
-            .map(FOF::from)
+            .map(DNF::clause_to_fof)
             .fold1(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
     }
@@ -231,37 +155,50 @@ fn distribute_and(formula: &FOF) -> FOF {
 // Eliminates the existential quantifiers of the input formula.
 fn dnf(formula: FOF) -> DNF {
     match formula {
-        FOF::Top => DNF::from(Clause::default()),
+        FOF::Top => ClauseSet::from(Clause::default()).into(),
         FOF::Bottom => DNF::default(),
-        FOF::Atom(this) => Clause::from(Literal::from(this)).into(),
-        FOF::Equals(this) => Clause::from(Literal::from(this)).into(),
+        FOF::Atom(this) => {
+            let clause = Clause::from(Literal::from(this));
+            ClauseSet::from(clause).into()
+        }
+        FOF::Equals(this) => {
+            let clause = Clause::from(Literal::from(this));
+            ClauseSet::from(clause).into()
+        }
         FOF::Not(this) => match this.formula {
             FOF::Atom(atom) => {
                 let lit: Literal<_> = Not { formula: atom }.into();
-                Clause::from(lit).into()
+                let clause = Clause::from(lit);
+                ClauseSet::from(clause).into()
             }
             FOF::Equals(eq) => {
                 let lit: Literal<_> = Not { formula: eq }.into();
-                Clause::from(lit).into()
+                let clause = Clause::from(lit);
+                ClauseSet::from(clause).into()
             }
             _ => unreachable!(), // `formula` is in NNF
         },
         FOF::And(this) => {
-            let mut left = dnf(this.left);
-            let mut right = dnf(this.right);
+            let left = dnf(this.left);
+            let right = dnf(this.right);
             if left.0.is_empty() {
                 left
             } else if right.0.is_empty() {
                 right
             } else if left.0.len() == 1 && right.0.len() == 1 {
-                let left = left.0.remove(0);
-                let right = right.0.remove(0);
-                left.union(right).into()
+                let left = left.into_clauses().remove(0);
+                let right = right.into_clauses().remove(0);
+                let clause = left.union(right);
+                ClauseSet::from(clause).into()
             } else {
                 unreachable!() // Conjunction is distributed over disjunction in `formula`
             }
         }
-        FOF::Or(this) => dnf(this.left).union(dnf(this.right)),
+        FOF::Or(this) => {
+            let left = dnf(this.left);
+            let right = dnf(this.right);
+            left.0.union(right.0).into()
+        }
         FOF::Forall(this) => dnf(this.formula),
         _ => unreachable!(), // `formula` is in SNF
     }
