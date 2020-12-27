@@ -1383,10 +1383,10 @@ mod test_basic {
         );
         assert_eq!(
             "Domain: {e#0, e#1, e#2}\n\
-                       Facts: <P(e#0, e#0)>, <P(e#1, e#2)>, <Q(e#0)>\n\
-                       'c -> e#0\n\
-                       'a -> e#1\n\
-                       'b -> e#2",
+             Facts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\
+             'a -> e#0\n\
+             'b -> e#1\n\
+             'c -> e#2",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy17.raz"
             )))
@@ -1967,14 +1967,13 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: <P(e#0)>, <Q(e#0)>\n\
-        'a, \'b -> e#0\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1}\n\
-        Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
-        'a -> e#0\n\
-        'b -> e#1",
+            "Domain: {e#0, e#1}\n\
+             Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
+             'a -> e#0\n\'b -> e#1\n\
+             -- -- -- -- -- -- -- -- -- --\n\
+             Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>\n\
+             'a, \
+             'b -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy45.raz"
             )))

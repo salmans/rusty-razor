@@ -52,6 +52,8 @@ impl GNF {
         clause
             .into_atomics()
             .into_iter()
+            .sorted()
+            .into_iter()
             .map(|atomic| match atomic {
                 Atomic::Atom(this) => FOF::from(this),
                 Atomic::Equals(this) => this.into(),
@@ -64,6 +66,8 @@ impl GNF {
     fn clause_set_to_fof(clause: GnfClauseSet) -> FOF {
         clause
             .into_clauses()
+            .into_iter()
+            .sorted()
             .into_iter()
             .map(Self::clause_to_fof)
             .fold1(|item, acc| item.or(acc))
@@ -274,21 +278,14 @@ mod tests {
         {
             let formula: FOF = "P(x) | Q(x) -> P(y) & Q(y)".parse().unwrap();
             assert_debug_strings!(
-                "P(x) -> P(y)\n\
-        P(x) -> Q(y)\n\
-        Q(x) -> P(y)\n\
-        Q(x) -> Q(y)",
+                "P(x) -> P(y)\nQ(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> Q(y)",
                 gnf(&formula),
             );
         }
         {
             let formula: FOF = "P(x) | Q(x) <=> P(y) & Q(y)".parse().unwrap();
             assert_debug_strings!(
-                "P(x) -> P(y)\n\
-        P(x) -> Q(y)\n\
-        Q(x) -> P(y)\n\
-        Q(x) -> Q(y)\n\
-        (P(y) & Q(y)) -> (P(x) | Q(x))",
+                "(P(y) & Q(y)) -> (P(x) | Q(x))\nP(x) -> P(y)\nQ(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> Q(y)",
                 gnf(&formula),
             );
         }
@@ -301,10 +298,7 @@ mod tests {
                 .parse()
                 .unwrap();
             assert_debug_strings!(
-                "P(x) -> (Q(sk#0(x)) | P(sk#1(x)))\n\
-        P(x) -> (Q(sk#0(x)) | S(x, sk#1(x)))\n\
-        P(x) -> (R(x, sk#0(x)) | P(sk#1(x)))\n\
-        P(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))",
+"P(x) -> (P(sk#1(x)) | Q(sk#0(x)))\nP(x) -> (P(sk#1(x)) | R(x, sk#0(x)))\nP(x) -> (Q(sk#0(x)) | S(x, sk#1(x)))\nP(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))",                
                 gnf(&formula),
             );
         }
@@ -318,17 +312,7 @@ mod tests {
             let formula: FOF = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))"
                 .parse()
                 .unwrap();
-            assert_debug_strings!(
-                "((P(x) & Q(y)) & R(x, y)) -> S(x, y)\n\
-        ((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n\
-        true -> ((R(x, y) | S(x, y)) | P(x))\n\
-        true -> ((R(x, y) | S(x, y)) | Q(y))\n\
-        R(x, y) -> (R(x, y) | P(x))\n\
-        R(x, y) -> (R(x, y) | Q(y))\n\
-        S(x, y) -> (S(x, y) | P(x))\n\
-        S(x, y) -> (S(x, y) | Q(y))\n\
-        (S(x, y) & R(x, y)) -> P(x)\n\
-        (S(x, y) & R(x, y)) -> Q(y)",
+            assert_debug_strings!("true -> ((P(x) | R(x, y)) | S(x, y))\nR(x, y) -> (P(x) | R(x, y))\nS(x, y) -> (P(x) | S(x, y))\n(R(x, y) & S(x, y)) -> P(x)\ntrue -> ((Q(y) | R(x, y)) | S(x, y))\nR(x, y) -> (Q(y) | R(x, y))\nS(x, y) -> (Q(y) | S(x, y))\n(R(x, y) & S(x, y)) -> Q(y)\n((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n((P(x) & Q(y)) & R(x, y)) -> S(x, y)",
                 gnf(&formula),
             );
         }

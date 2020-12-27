@@ -14,7 +14,7 @@ use crate::syntax::{
     Error, Sig, FOF, V,
 };
 use itertools::Itertools;
-use std::ops::Deref;
+use std::{collections::BTreeSet, ops::Deref};
 
 // CNF clauses and clause sets are constructed over complex terms.
 type CnfClause = Clause<Complex>;
@@ -35,12 +35,12 @@ impl From<CnfClauseSet> for CNF {
 
 impl CNF {
     /// Returns the clauses of the receiver CNF.
-    pub fn clauses(&self) -> &[CnfClause] {
+    pub fn clauses(&self) -> &BTreeSet<CnfClause> {
         &self.0
     }
 
     /// Consumes the receiver and returns the underlying clauses.
-    pub fn into_clauses(self) -> Vec<CnfClause> {
+    pub fn into_clauses(self) -> BTreeSet<CnfClause> {
         self.0.into_clauses()
     }
 
@@ -48,6 +48,8 @@ impl CNF {
     fn clause_to_fof(clause: CnfClause) -> FOF {
         clause
             .into_literals()
+            .into_iter()
+            .sorted()
             .into_iter()
             .map(|clause| match clause {
                 Literal::Pos(pos) => match pos {
@@ -113,6 +115,8 @@ impl From<CNF> for FOF {
     fn from(value: CNF) -> Self {
         value
             .into_clauses()
+            .into_iter()
+            .sorted()
             .into_iter()
             .map(CNF::clause_to_fof)
             .fold1(|item, acc| item.and(acc))
@@ -183,7 +187,7 @@ fn cnf(formula: FOF) -> CNF {
         FOF::And(this) => {
             let left = cnf(this.left);
             let right = cnf(this.right);
-            left.0.union(right.0).into()
+            left.0.union(&right.0).into()
         }
         FOF::Or(this) => {
             let left = cnf(this.left);
@@ -193,9 +197,9 @@ fn cnf(formula: FOF) -> CNF {
             } else if right.0.is_empty() {
                 right
             } else if left.0.len() == 1 && right.0.len() == 1 {
-                let left = left.into_clauses().remove(0);
-                let right = right.into_clauses().remove(0);
-                let clause = left.union(right);
+                let left = left.into_clauses().into_iter().next().unwrap();
+                let right = right.into_clauses().into_iter().next().unwrap();
+                let clause = left.union(&right);
                 ClauseSet::from(clause).into()
             } else {
                 unreachable!() // Disjunction is distributed over conjunction in `formula`
@@ -216,7 +220,7 @@ impl SNF {
     /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
     /// let snf = formula.pnf().snf();
     /// let cnf = snf.cnf();
-    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", cnf.to_string());
+    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", cnf.to_string());
     /// ```
     pub fn cnf(&self) -> CNF {
         self.into()
@@ -232,7 +236,7 @@ impl PNF {
     ///
     /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
     /// let pnf = formula.pnf();
-    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", pnf.cnf().to_string());
+    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", pnf.cnf().to_string());
     /// ```
     pub fn cnf(&self) -> CNF {
         self.snf().cnf()
@@ -247,7 +251,7 @@ impl FOF {
     /// # use razor_fol::syntax::FOF;
     ///
     /// let fof: FOF = "P(x) <=> Q(y)".parse().unwrap();
-    /// assert_eq!("((¬P(x)) ∨ Q(y)) ∧ ((¬Q(y)) ∨ P(x))", fof.cnf().to_string());
+    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", fof.cnf().to_string());
     /// ```    
     pub fn cnf(&self) -> CNF {
         self.pnf().snf().cnf()
@@ -295,11 +299,11 @@ mod tests {
         }
         {
             let formula: FOF = "P(x) -> Q(y)".parse().unwrap();
-            assert_debug_string!("(~P(x)) | Q(y)", cnf(&formula));
+            assert_debug_string!("Q(y) | (~P(x))", cnf(&formula));
         }
         {
             let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
-            assert_debug_string!("((~P(x)) | Q(y)) & ((~Q(y)) | P(x))", cnf(&formula));
+            assert_debug_string!("(P(x) | (~Q(y))) & (Q(y) | (~P(x)))", cnf(&formula));
         }
         {
             let formula: FOF = "!x. P(x)".parse().unwrap();
@@ -320,17 +324,18 @@ mod tests {
         }
         {
             let formula: FOF = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
-            assert_debug_string!("((~P(x)) | R(z)) & ((~Q(y)) | R(z))", cnf(&formula));
+            assert_debug_string!("(R(z) | (~P(x))) & (R(z) | (~Q(y)))", cnf(&formula));
         }
         {
             let formula: FOF = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
-            assert_debug_string!("((((P(x) | Q(x)) | Q(y)) & ((P(x) | Q(x)) | (~Q(x)))) & ((P(x) | (~Q(y))) | Q(y))) & ((P(x) | (~Q(y))) | (~Q(x)))",
-                                cnf(&formula));
+            assert_debug_string!(
+                        "((((P(x) | Q(x)) | Q(y)) & ((P(x) | Q(x)) | (~Q(x)))) & ((P(x) | Q(y)) | (~Q(y)))) & ((P(x) | (~Q(x))) | (~Q(y)))",
+                                        cnf(&formula));
         }
         {
             let formula: FOF = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
             assert_debug_string!(
-                "(((~P(x)) | R(z)) & ((~Q(y)) | R(z))) & (((~R(z)) | P(x)) | Q(y))",
+                "(((P(x) | Q(y)) | (~R(z))) & (R(z) | (~P(x)))) & (R(z) | (~Q(y)))",
                 cnf(&formula),
             );
         }
@@ -359,7 +364,7 @@ mod tests {
         }
         {
             let formula: FOF = "!x. ((? y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
-            assert_debug_string!("((~P(y)) | (~Q(x, y))) | R(x)", cnf(&formula));
+            assert_debug_string!("(R(x) | (~P(y))) | (~Q(x, y))", cnf(&formula));
         }
         {
             let formula: FOF = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
@@ -367,12 +372,12 @@ mod tests {
         }
         {
             let formula: FOF = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
-            assert_debug_string!("((~P(y, x)) | Q(y)) & ((~Q(x)) | Q(y))", cnf(&formula));
+            assert_debug_string!("(Q(y) | (~P(y, x))) & (Q(y) | (~Q(x)))", cnf(&formula));
         }
         {
             let formula: FOF = "!y. ((!x. (P(y, x) | Q(x))) -> Q(y))".parse().unwrap();
             assert_debug_string!(
-                "((~P(y, sk#0(y))) | Q(y)) & ((~Q(sk#0(y))) | Q(y))",
+                "(Q(y) | (~P(y, sk#0(y)))) & (Q(y) | (~Q(sk#0(y))))",
                 cnf(&formula),
             );
         }
@@ -393,15 +398,14 @@ mod tests {
                 "R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))"
                     .parse()
                     .unwrap();
-            assert_debug_string!("(((~R(z)) | P(sk#0(z), x)) & ((~R(z)) | (~Q(u`, x`, y)))) & ((~R(z)) | (~(w = f(u`))))",             
-                                cnf(&formula));
+            assert_debug_string!("((P(sk#0(z), x) | (~R(z))) & ((~Q(u`, x`, y)) | (~R(z)))) & ((~R(z)) | (~(w = f(u`))))", cnf(&formula));
         }
         {
             let formula: FOF = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))"
                 .parse()
                 .unwrap();
             assert_debug_string!(
-                "(P(y) | Q(sk#0(x, y), x)) & ((~Q(x, y)) | Q(sk#0(x, y), x))",
+                "(P(y) | Q(sk#0(x, y), x)) & (Q(sk#0(x, y), x) | (~Q(x, y)))",
                 cnf(&formula),
             );
         }
@@ -410,7 +414,7 @@ mod tests {
                 .parse()
                 .unwrap();
             assert_debug_string!(
-                "(P(sk#0(x)) | Q(sk#1(x), x)) & ((~Q(x, sk#0(x))) | Q(sk#1(x), x))",
+                "(P(sk#0(x)) | Q(sk#1(x), x)) & (Q(sk#1(x), x) | (~Q(x, sk#0(x))))",
                 cnf(&formula),
             );
         }
@@ -419,7 +423,7 @@ mod tests {
                 .parse()
                 .unwrap();
             assert_debug_string!(
-                "P('sk#0) & (((~Q('sk#0, y)) | (y = z)) | (~Q('sk#0, z)))",
+                "P(\'sk#0) & (((y = z) | (~Q(\'sk#0, y))) | (~Q(\'sk#0, z)))",
                 cnf(&formula),
             );
         }
@@ -427,8 +431,8 @@ mod tests {
             let formula: FOF = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))"
                 .parse()
                 .unwrap();
-            assert_debug_string!("((((~P(x)) | (~P(y))) | P(f(x, y))) & ((~P(x)) | Q(x, sk#0(x, y)))) & ((~P(x)) | (~P(sk#0(x, y))))",
-                                cnf(&formula));
+            assert_debug_string!(
+        "(((P(f(x, y)) | (~P(x))) | (~P(y))) & (Q(x, sk#0(x, y)) | (~P(x)))) & ((~P(x)) | (~P(sk#0(x, y))))", cnf(&formula));
         }
     }
 }

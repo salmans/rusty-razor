@@ -14,7 +14,7 @@ use crate::syntax::{
     Error, Sig, FOF, V,
 };
 use itertools::Itertools;
-use std::ops::Deref;
+use std::{collections::BTreeSet, ops::Deref};
 
 // DNF clauses and clause sets are constructed over complex terms.
 type DnfClause = Clause<Complex>;
@@ -35,12 +35,12 @@ impl From<DnfClauseSet> for DNF {
 
 impl DNF {
     /// Returns the clauses of the receiver DNF.
-    pub fn clauses(&self) -> &[DnfClause] {
+    pub fn clauses(&self) -> &BTreeSet<DnfClause> {
         &self.0
     }
 
     /// Consumes the receiver and returns the underlying clauses.
-    pub fn into_clauses(self) -> Vec<DnfClause> {
+    pub fn into_clauses(self) -> BTreeSet<DnfClause> {
         self.0.into_clauses()
     }
 
@@ -48,6 +48,8 @@ impl DNF {
     fn clause_to_fof(clause: DnfClause) -> FOF {
         clause
             .into_literals()
+            .into_iter()
+            .sorted()
             .into_iter()
             .map(|clause| match clause {
                 Literal::Pos(pos) => match pos {
@@ -113,6 +115,8 @@ impl From<DNF> for FOF {
     fn from(value: DNF) -> Self {
         value
             .into_clauses()
+            .into_iter()
+            .sorted()
             .into_iter()
             .map(DNF::clause_to_fof)
             .fold1(|item, acc| item.or(acc))
@@ -186,9 +190,9 @@ fn dnf(formula: FOF) -> DNF {
             } else if right.0.is_empty() {
                 right
             } else if left.0.len() == 1 && right.0.len() == 1 {
-                let left = left.into_clauses().remove(0);
-                let right = right.into_clauses().remove(0);
-                let clause = left.union(right);
+                let left = left.into_clauses().into_iter().next().unwrap();
+                let right = right.into_clauses().into_iter().next().unwrap();
+                let clause = left.union(&right);
                 ClauseSet::from(clause).into()
             } else {
                 unreachable!() // Conjunction is distributed over disjunction in `formula`
@@ -197,7 +201,7 @@ fn dnf(formula: FOF) -> DNF {
         FOF::Or(this) => {
             let left = dnf(this.left);
             let right = dnf(this.right);
-            left.0.union(right.0).into()
+            left.0.union(&right.0).into()
         }
         FOF::Forall(this) => dnf(this.formula),
         _ => unreachable!(), // `formula` is in SNF
@@ -216,7 +220,7 @@ impl SNF {
     /// let dnf = snf.dnf();
     ///
     /// assert_eq!(
-    ///    "((((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ (Q(y) ∧ P(x))",
+    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
     ///    dnf.to_string()
     /// );
     /// ```
@@ -236,7 +240,7 @@ impl PNF {
     /// let pnf = formula.pnf();
     ///
     /// assert_eq!(
-    ///    "((((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ (Q(y) ∧ P(x))",
+    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
     ///    pnf.dnf().to_string()
     /// );
     /// ```
@@ -255,7 +259,7 @@ impl FOF {
     /// let fof: FOF = "P(x) iff Q(y)".parse().unwrap();
     ///
     /// assert_eq!(
-    ///    "((((¬P(x)) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ P(x))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ (Q(y) ∧ P(x))",
+    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
     ///    fof.dnf().to_string()
     /// );
     /// ```
@@ -305,12 +309,12 @@ mod tests {
         }
         {
             let formula: FOF = "P(x) -> Q(y)".parse().unwrap();
-            assert_debug_string!("(~P(x)) | Q(y)", dnf(&formula));
+            assert_debug_string!("Q(y) | (~P(x))", dnf(&formula));
         }
         {
             let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
             assert_debug_string!(
-                "((((~P(x)) & (~Q(y))) | ((~P(x)) & P(x))) | (Q(y) & (~Q(y)))) | (Q(y) & P(x))",
+                "(((P(x) & Q(y)) | (P(x) & (~P(x)))) | (Q(y) & (~Q(y)))) | ((~P(x)) & (~Q(y)))",
                 dnf(&formula),
             );
         }
@@ -333,7 +337,7 @@ mod tests {
         }
         {
             let formula: FOF = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
-            assert_debug_string!("((~P(x)) & (~Q(y))) | R(z)", dnf(&formula));
+            assert_debug_string!("R(z) | ((~P(x)) & (~Q(y)))", dnf(&formula));
         }
         {
             let formula: FOF = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
@@ -344,7 +348,7 @@ mod tests {
         }
         {
             let formula: FOF = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
-            assert_debug_string!("(((((((~P(x)) & (~Q(y))) & (~R(z))) | (((~P(x)) & (~Q(y))) & P(x))) | (((~P(x)) & (~Q(y))) & Q(y))) | (R(z) & (~R(z)))) | (R(z) & P(x))) | (R(z) & Q(y))",                                 
+            assert_debug_string!("(((((P(x) & R(z)) | ((P(x) & (~P(x))) & (~Q(y)))) | (Q(y) & R(z))) | ((Q(y) & (~P(x))) & (~Q(y)))) | (R(z) & (~R(z)))) | (((~P(x)) & (~Q(y))) & (~R(z)))",
                                 dnf(&formula));
         }
         {
@@ -367,7 +371,7 @@ mod tests {
         }
         {
             let formula: FOF = "!x. ((? y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
-            assert_debug_string!("((~P(y)) | (~Q(x, y))) | R(x)", dnf(&formula));
+            assert_debug_string!("(R(x) | (~P(y))) | (~Q(x, y))", dnf(&formula));
         }
         {
             let formula: FOF = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
@@ -375,11 +379,11 @@ mod tests {
         }
         {
             let formula: FOF = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
-            assert_debug_string!("((~P(y, x)) & (~Q(x))) | Q(y)", dnf(&formula));
+            assert_debug_string!("Q(y) | ((~P(y, x)) & (~Q(x)))", dnf(&formula));
         }
         {
             let formula: FOF = "!y. ((!x. (P(y, x) | Q(x))) -> Q(y))".parse().unwrap();
-            assert_debug_string!("((~P(y, sk#0(y))) & (~Q(sk#0(y)))) | Q(y)", dnf(&formula));
+            assert_debug_string!("Q(y) | ((~P(y, sk#0(y))) & (~Q(sk#0(y))))", dnf(&formula));
         }
         {
             let formula: FOF = "?x. ?y. P(x, y)".parse().unwrap();
@@ -399,7 +403,7 @@ mod tests {
                     .parse()
                     .unwrap();
             assert_debug_string!(
-                "(~R(z)) | ((P(sk#0(z), x) & (~Q(u`, x`, y))) & (~(w = f(u`))))",
+                "((P(sk#0(z), x) & (~Q(u`, x`, y))) & (~(w = f(u`)))) | (~R(z))",
                 dnf(&formula),
             );
         }
@@ -422,15 +426,14 @@ mod tests {
             let formula: FOF = "?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))"
                 .parse()
                 .unwrap();
-            assert_debug_string!("((P('sk#0) & (~Q('sk#0, y))) | (P('sk#0) & (y = z))) | (P('sk#0) & (~Q('sk#0, z)))",
-                                dnf(&formula));
+            assert_debug_string!(
+                "((P(\'sk#0) & (y = z)) | (P(\'sk#0) & (~Q(\'sk#0, y)))) | (P(\'sk#0) & (~Q(\'sk#0, z)))", dnf(&formula));
         }
         {
             let formula: FOF = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))"
                 .parse()
                 .unwrap();
-            assert_debug_string!("((~P(x)) | (((~P(y)) & Q(x, sk#0(x, y))) & (~P(sk#0(x, y))))) | ((P(f(x, y)) & Q(x, sk#0(x, y))) & (~P(sk#0(x, y))))",
-                                 dnf(&formula));
+            assert_debug_string!("(((P(f(x, y)) & Q(x, sk#0(x, y))) & (~P(sk#0(x, y)))) | ((Q(x, sk#0(x, y)) & (~P(y))) & (~P(sk#0(x, y))))) | (~P(x))", dnf(&formula));
         }
     }
 }
