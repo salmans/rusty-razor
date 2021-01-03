@@ -264,11 +264,8 @@ impl fmt::Display for FOF {
         match self {
             Self::Top => write!(f, "⊤"),
             Self::Bottom => write!(f, "⟘"),
-            Self::Atom(this) => {
-                let ts = this.terms.iter().map(|t| t.to_string()).collect_vec();
-                write!(f, "{}({})", this.predicate.to_string(), ts.join(", "))
-            }
-            Self::Equals(this) => write!(f, "{} = {}", this.left, this.right),
+            Self::Atom(this) => this.fmt(f),
+            Self::Equals(this) => this.fmt(f),
             Self::Not(this) => write!(f, "¬{}", parens(&this.formula)),
             Self::And(this) => write!(f, "{} ∧ {}", parens(&this.left), parens(&this.right)),
             Self::Or(this) => write!(f, "{} ∨ {}", parens(&this.left), parens(&this.right)),

@@ -1,7 +1,10 @@
 use super::{expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
-use razor_fol::syntax::{term::Complex, Sig, Theory, FOF, V};
+use razor_fol::{
+    syntax::{formula::*, term::Complex, Sig, Theory, FOF, V},
+    transform::{PcfSet, GNF, PCF},
+};
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
 /// This is done by the standard conversion to geometric normal form followed by relationalization.
@@ -50,40 +53,65 @@ impl PreProcessorEx for PreProcessor {
     }
 }
 
-// Equality axioms:
-fn equality_axioms() -> Vec<FOF> {
-    use razor_fol::fof;
+fn equality_axioms() -> Vec<GNF> {
+    use razor_fol::term;
+
+    let x_y: Atomic<_> = Equals {
+        left: term!(x),
+        right: term!(y),
+    }
+    .into();
+    let y_z: Atomic<_> = Equals {
+        left: term!(y),
+        right: term!(z),
+    }
+    .into();
+    let x_z: Atomic<_> = Equals {
+        left: term!(y),
+        right: term!(z),
+    }
+    .into();
+
+    let transitive: GNF = (PCF::from(vec![x_y, y_z]), PcfSet::from(PCF::from(x_z))).into();
 
     vec![
-        // formula!(['|'] -> [(x) = (x)]), // not needed: added automatically for new elements
-        // formula!([(x) = (y)] -> [(y) = (x)]), // not needed
-        fof!([{(x) = (y)} & {(y) = (z)}] -> [(x) = (z)]),
+        // reflexive (not needed - automatically added for new elements):
+        // fof!(['|'] -> [(x) = (x)]),
+        // symmetric (not needed):
+        // fof!([(x) = (y)] -> [(y) = (x)]),
+        transitive,
     ]
 }
 
 // Function integrity axioms in the form of:
 // 1) 'c = x & 'c = y -> x = y
 // 2) (f(x1, ..., xn) = x) & (f(y1, ..., yn) = y) & x1 = y1 & ... & xn = yn -> x = y
-fn integrity_axioms(sig: &Sig) -> Vec<FOF> {
+fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
+    use razor_fol::term;
+
     let mut result = Vec::new();
     for c in sig.constants() {
-        let x = Complex::from(V("x".to_string()));
-        let y = Complex::from(V("y".to_string()));
-        let c = Complex::from(c.clone());
+        let c_x: Atomic<_> = Equals {
+            left: c.clone().into(),
+            right: term!(x),
+        }
+        .into();
+        let c_y: Atomic<_> = Equals {
+            left: c.clone().into(),
+            right: term!(y),
+        }
+        .into();
+        let x_y: Atomic<_> = Equals {
+            left: term!(x),
+            right: term!(y),
+        }
+        .into();
 
-        let left = {
-            let c_x = c.clone().equals(x.clone());
-            let c_y = c.clone().equals(y.clone());
-            c_x.and(c_y) // ('c = x) & ('c = y)
-        };
-        let right = x.equals(y); // x = y
-        result.push(left.implies(right));
+        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PcfSet::from(PCF::from(x_y))).into();
+        result.push(gnf);
     }
 
     for f in sig.functions().values() {
-        let x = Complex::from(V("x".to_string()));
-        let y = Complex::from(V("y".to_string()));
-
         let left = {
             let xs = (0..f.arity)
                 .map(|n| Complex::from(V(format!("x{}", n))))
@@ -92,16 +120,36 @@ fn integrity_axioms(sig: &Sig) -> Vec<FOF> {
                 .map(|n| Complex::from(V(format!("y{}", n))))
                 .collect_vec();
 
-            let f_xs = f.symbol.clone().app(xs.clone()).equals(x.clone());
-            let f_ys = f.symbol.clone().app(ys.clone()).equals(y.clone());
+            let f_xs: Atomic<_> = Equals {
+                left: f.symbol.clone().app(xs.clone()),
+                right: term!(x),
+            }
+            .into();
+            let f_ys: Atomic<_> = Equals {
+                left: f.symbol.clone().app(ys.clone()),
+                right: term!(y),
+            }
+            .into();
 
-            let xs_ys = xs.into_iter().zip(ys.into_iter()).map(|(x, y)| x.equals(y));
+            let xs_ys = xs
+                .into_iter()
+                .zip(ys.into_iter())
+                .map(|(x, y)| Atomic::from(Equals { left: x, right: y }));
 
-            xs_ys.fold(f_xs.and(f_ys), |fmla, eq| fmla.and(eq))
+            let mut atomics = Vec::new();
+            atomics.push(f_xs);
+            atomics.push(f_ys);
+            atomics.extend(xs_ys);
+            atomics
         };
+        let right: Atomic<_> = Equals {
+            left: term!(x),
+            right: term!(y),
+        }
+        .into();
 
-        let right = x.equals(y); // x = y
-        result.push(left.implies(right));
+        let gnf: GNF = (PCF::from(left), PcfSet::from(PCF::from(right))).into();
+        result.push(gnf);
     }
 
     result

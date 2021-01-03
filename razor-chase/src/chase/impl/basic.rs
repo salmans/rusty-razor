@@ -10,13 +10,18 @@
 use crate::chase::*;
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{term::Complex, Formula, FOF};
+use razor_fol::{
+    syntax::{formula::Atomic, term::Complex, Formula, FOF},
+    transform::GNF,
+};
 use std::{
     collections::{HashMap, HashSet},
-    convert::TryFrom,
     fmt, iter,
 };
 use thiserror::Error;
+
+// Is a positive literal apearing in the body and the head of sequents
+pub type Literal = Atomic<Complex>;
 
 /// Is the type of errors arising from inconsistencies in the syntax of formulae.
 #[derive(Error, Debug)]
@@ -489,126 +494,19 @@ impl fmt::Display for Model {
     }
 }
 
-/// Represents atomic formulae in [`Sequent`].
-#[derive(Clone)]
-pub enum Literal {
-    /// Represents an atomic literal, corresponding to an atomic [`Formula`] of variant [`Atom`].
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    /// [`Atom`]: razor_fol::syntax::FOF::Atom
-    Atm {
-        predicate: Pred,
-        terms: Vec<Complex>,
-    },
-
-    /// Represents a equality literal, corresponding to an atomic [`Formula`] of variant [`Equals`].
-    ///
-    /// [`Equals`]: razor_fol::syntax::FOF::Equals
-    Eql { left: Complex, right: Complex },
-}
-
-impl Literal {
-    /// Builds the body of a [`Sequent`] from a [`Formula`].
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    fn build_body(formula: &FOF) -> Vec<Literal> {
-        match formula {
-            FOF::Top => vec![],
-            FOF::Atom(this) => vec![Literal::Atm {
-                predicate: this.predicate.clone(),
-                terms: this.terms.to_vec(),
-            }],
-            FOF::Equals(this) => vec![Literal::Eql {
-                left: this.left.clone(),
-                right: this.right.clone(),
-            }],
-            FOF::And(this) => {
-                let mut left = Literal::build_body(&this.left);
-                let mut right = Literal::build_body(&this.right);
-                left.append(&mut right);
-                left
-            }
-            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
-        }
-    }
-
-    /// Builds the head of a [`Sequent`] from a [`Formula`].
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    fn build_head(formula: &FOF) -> Vec<Vec<Literal>> {
-        match formula {
-            FOF::Top => vec![vec![]],
-            FOF::Bottom => vec![],
-            FOF::Atom(this) => vec![vec![Literal::Atm {
-                predicate: this.predicate.clone(),
-                terms: this.terms.clone(),
-            }]],
-            FOF::Equals(this) => vec![vec![Literal::Eql {
-                left: this.left.clone(),
-                right: this.right.clone(),
-            }]],
-            FOF::And(this) => {
-                let mut left = Literal::build_head(&this.left);
-                let mut right = Literal::build_head(&this.right);
-                if left.is_empty() {
-                    left
-                } else if right.is_empty() {
-                    right
-                } else if left.len() == 1 && right.len() == 1 {
-                    let mut left = left.remove(0);
-                    let mut right = right.remove(0);
-                    left.append(&mut right);
-                    vec![left]
-                } else {
-                    unreachable!("expecting standard geometric sequent, found `{}`", formula)
-                }
-            }
-            FOF::Or(this) => {
-                let mut left = Literal::build_head(&this.left);
-                let mut right = Literal::build_head(&this.right);
-                left.append(&mut right);
-                left
-            }
-            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
-        }
-    }
-}
-
-impl<'t> fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            Literal::Atm { predicate, terms } => {
-                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}({})", predicate, ts.join(", "))
-            }
-            Literal::Eql { left, right } => write!(f, "{} = {}", left, right),
-        }
-    }
-}
-
-/// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
+/// Is represented by a list of [`Atomic`]s in the body and a list of list of `Atomic`s in the
 /// head.
 #[derive(Clone)]
 pub struct Sequent {
     /// Is the list of free variables in the sequent and is used for memoization.
     pub free_vars: Vec<V>,
 
-    /// Is the [`Formula`] from which the body of the sequent is built.
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    body: FOF,
-
-    /// Is the [`Formula`] from which the head of the sequent is built.
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    head: FOF,
-
     /// Represents the body of the sequent as a list of [`Literal`]s. The literals in
     /// `body_literals` are assumed to be conjoined.
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub body_literals: Vec<Literal>,
+    pub body: Vec<Atomic<Complex>>,
 
     /// Represents the head of the sequent as a list of list of [`Literal`]s. The literals in
     /// each sublist of `head_literals` are assumed to be conjoined where the sublists are
@@ -616,43 +514,42 @@ pub struct Sequent {
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub head_literals: Vec<Vec<Literal>>,
+    pub head: Vec<Vec<Atomic<Complex>>>,
+
+    // other fields:
+    body_fof: FOF,
+    head_fof: FOF,
 }
 
-impl TryFrom<&FOF> for Sequent {
-    type Error = Error;
+impl From<&GNF> for Sequent {
+    fn from(value: &GNF) -> Self {
+        let body = value.body();
+        let head = value.head();
+        let free_vars: Vec<V> = value.free_vars().into_iter().cloned().collect();
+        let body_fof: FOF = FOF::from(body);
+        let head_fof: FOF = FOF::from(head);
 
-    fn try_from(formula: &FOF) -> Result<Self, Self::Error> {
-        match formula {
-            FOF::Implies(this) => {
-                let left = &this.premise;
-                let right = &this.consequence;
+        let body = body.iter().cloned().collect_vec();
+        let head = head
+            .iter()
+            .map(|h| h.iter().cloned().collect_vec())
+            .collect_vec();
 
-                let free_vars: Vec<V> = formula.free_vars().into_iter().cloned().collect();
-                let body_literals = Literal::build_body(left);
-                let head_literals = Literal::build_head(right);
-                let body = left.clone();
-                let head = right.clone();
-                Ok(Sequent {
-                    free_vars,
-                    body,
-                    head,
-                    body_literals,
-                    head_literals,
-                })
-            }
-            _ => Err(Error::BadSequentFormula {
-                formula: formula.clone(),
-            }),
+        Self {
+            free_vars,
+            body,
+            head,
+            body_fof,
+            head_fof,
         }
     }
 }
 
 impl fmt::Display for Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let body: Vec<String> = self.body_literals.iter().map(|l| l.to_string()).collect();
+        let body: Vec<String> = self.body.iter().map(|l| l.to_string()).collect();
         let head: Vec<String> = self
-            .head_literals
+            .head
             .iter()
             .map(|ls| {
                 let ls: Vec<String> = ls.iter().map(|l| l.to_string()).collect();
@@ -665,11 +562,11 @@ impl fmt::Display for Sequent {
 
 impl SequentTrait for Sequent {
     fn body(&self) -> FOF {
-        self.body.clone()
+        self.body_fof.clone()
     }
 
     fn head(&self) -> FOF {
-        self.head.clone()
+        self.head_fof.clone()
     }
 }
 
@@ -745,9 +642,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
 
                 // build body and head observations
                 let body: Vec<Observation<WitnessTerm>> =
-                    sequent.body_literals.iter().map(&observe_literal).collect();
+                    sequent.body.iter().map(&observe_literal).collect();
                 let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
-                    .head_literals
+                    .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
                     .collect();
@@ -834,19 +731,20 @@ fn make_observe_literal(
     assignment_func: impl Fn(&V) -> E,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
-        Literal::Atm { predicate, terms } => {
-            let terms = terms
+        Atomic::Atom(this) => {
+            let terms = this
+                .terms
                 .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
-                relation: Rel(predicate.0.clone()),
+                relation: Rel(this.predicate.0.clone()),
                 terms,
             }
         }
-        Literal::Eql { left, right } => {
-            let left = WitnessTerm::witness(left, &assignment_func);
-            let right = WitnessTerm::witness(right, &assignment_func);
+        Atomic::Equals(this) => {
+            let left = WitnessTerm::witness(&this.left, &assignment_func);
+            let right = WitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -1116,121 +1014,68 @@ mod test_basic {
         model.observe(&_R_().app1(_e_0()));
     }
 
+    // Assumes that `fof` is in GNF, so it converts to a single GNF
+    fn sequents(gnfs: Vec<GNF>) -> Vec<Sequent> {
+        gnfs.iter().map(Sequent::from).collect()
+    }
+
     #[test]
     fn test_build_sequent() {
+        assert_debug_string("[]", sequents("true -> true".parse::<FOF>().unwrap().gnf()));
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> true".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> true & true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> true & true".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> true | true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[], []]",
-            Sequent::try_from(&"true -> true | true".parse().unwrap()).unwrap(),
+            "[[] -> []]",
+            sequents("true -> false".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> []",
-            Sequent::try_from(&"true -> false".parse().unwrap()).unwrap(),
+            "[[] -> []]",
+            sequents("true -> false & true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> []",
-            Sequent::try_from(&"true -> false & true".parse().unwrap()).unwrap(),
+            "[[] -> []]",
+            sequents("true -> true & false".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> []",
-            Sequent::try_from(&"true -> true & false".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> true | false".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> true | false".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> false | true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> false | true".parse().unwrap()).unwrap(),
+            "[[P(x)] -> [[Q(x)]]]",
+            sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[P(x)] -> [[Q(x)]]",
-            Sequent::try_from(&"P(x) -> Q(x)".parse().unwrap()).unwrap(),
+            "[[P(x), Q(x)] -> [[Q(y)]]]",
+            sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[P(x), Q(x)] -> [[Q(y)]]",
-            Sequent::try_from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()).unwrap(),
+            "[[P(x), Q(x)] -> [[Q(x)], [R(z)]], [P(x), Q(x)] -> [[Q(x)], [S(z)]]]",
+            sequents(
+                "P(x) & Q(x) -> Q(x) | (R(z) & S(z))"
+                    .parse::<FOF>()
+                    .unwrap()
+                    .gnf(),
+            ),
         );
         assert_debug_string(
-            "[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
-            Sequent::try_from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()).unwrap(),
+            "[[] -> [[P(x)], [P(y)], [P(z)]], [] -> [[P(x)], [P(y)], [Q(z)]], [] -> [[P(x)], [P(z)], [Q(y)]], [] -> [[P(x)], [Q(y)], [Q(z)]], [] -> [[P(y)], [P(z)], [Q(x)]], [] -> [[P(y)], [Q(x)], [Q(z)]], [] -> [[P(z)], [Q(x)], [Q(y)]], [] -> [[Q(x)], [Q(y)], [Q(z)]]]",
+            sequents(
+                "true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
+                    .parse::<FOF>()
+                    .unwrap()
+                    .gnf(),
+            ),
         );
-        assert_debug_string(
-            "[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-            Sequent::try_from(
-                &"true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
-                    .parse()
-                    .unwrap(),
-            )
-            .unwrap(),
-        );
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_1() {
-        Sequent::try_from(&"true".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_2() {
-        Sequent::try_from(&"false".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_3() {
-        Sequent::try_from(&"false -> true".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_4() {
-        Sequent::try_from(&"(P(x) | Q(x)) -> R(x)".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_5() {
-        Sequent::try_from(&"P(x) -> R(x) & (Q(z) | R(z))".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_6() {
-        Sequent::try_from(&"P(x) -> ?x. Q(x)".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_7() {
-        Sequent::try_from(&"?x.Q(x) -> P(x)".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_8() {
-        Sequent::try_from(&"true -> ~false".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_9() {
-        Sequent::try_from(&"true -> ~true".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_10() {
-        Sequent::try_from(&"~P(x) -> ~Q(x)".parse().unwrap()).unwrap();
     }
 
     #[test]
@@ -1382,11 +1227,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0, e#1, e#2}\n\
-             Facts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\
-             'a -> e#0\n\
-             'b -> e#1\n\
-             'c -> e#2",
+            "Domain: {e#0, e#1, e#2}\nFacts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\'a -> e#0\n\'b -> e#1\n\'c -> e#2",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy17.raz"
             )))
@@ -1899,9 +1740,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <R(e#0, e#0, e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2 -> e#0",
+            "Domain: {e#0}\nFacts: <R(e#0, e#0, e#0)>\n'sk#0, 'sk#1, 'sk#2 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy38.raz"
             )))

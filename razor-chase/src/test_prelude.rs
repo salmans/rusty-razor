@@ -178,12 +178,6 @@ pub fn _S_() -> Rel {
     Rel::from("S")
 }
 
-impl fmt::Debug for basic::Literal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 impl fmt::Debug for basic::Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
@@ -228,8 +222,10 @@ pub fn read_theory_from_file(filename: &str) -> Theory<FOF> {
 pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::Model> {
     let pre_processor = basic::PreProcessor;
     let (sequents, init_model) = pre_processor.pre_process(theory);
+
     let evaluator = basic::Evaluator;
     let strategy = Linear::new(sequents.iter());
+
     let mut scheduler = FIFO::new();
     let bounder: Option<&DomainSize> = None;
     scheduler.add(init_model, strategy);

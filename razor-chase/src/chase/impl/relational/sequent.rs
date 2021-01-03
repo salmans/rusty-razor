@@ -9,8 +9,8 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{symbol::Generator, term::Complex, Pred, C, F, FOF},
-    transform::relationalize,
+    syntax::{symbol::Generator, Pred, C, F, FOF},
+    transform::{relationalize, PcfSet, Relational, GNF},
 };
 use std::convert::TryFrom;
 
@@ -90,34 +90,21 @@ impl Sequent {
         &self.attributes
     }
 
-    pub(super) fn new(formula: &FOF, convertor: &mut Convertor) -> Result<Self, Error> {
-        #[inline]
-        fn implies_parts(formula: &FOF) -> Result<(&FOF, &FOF), Error> {
-            if let FOF::Implies(this) = formula {
-                Ok((&this.premise, &this.consequence))
-            } else {
-                Err(Error::BadSequentFormula {
-                    formula: formula.clone(),
-                })
-            }
-        }
+    pub(super) fn new(gnf: &GNF, convertor: &mut Convertor) -> Result<Self, Error> {
+        // relationalize and expand equalities of `body` and `head`:
+        let body_er = expand_equality(&relationalize(&vec![gnf.body().clone()].into()));
+        let head_r = relationalize(gnf.head());
+        let branches = build_branches(&head_r)?; // relationalized right is enough for building branches
+        let head_er = expand_equality(&head_r);
 
-        let (left, right) = implies_parts(formula)?;
-
-        // relationalize and expand equalities of `left` and `right`:
-        let left_er = expand_equality(&relationalize(left)?)?;
-        let right_r = relationalize(right)?;
-        let branches = build_branches(right_r.formula())?; // relationalized right is enough for building branches
-        let right_er = expand_equality(&right_r)?;
-
-        let right_attrs = AttributeList::try_from(right_er.formula())?.universals();
-        let range = Vec::from(&right_attrs);
+        let head_attrs = AttributeList::try_from(&head_er)?.universals();
+        let range = Vec::from(&head_attrs);
 
         // apply range restriction:
-        let left_rr = relationalize::range_restrict(&left_er, &range, DOMAIN)?;
-        let right_rr = relationalize::range_restrict(&right_er, &range, DOMAIN)?;
+        let body_rr = relationalize::range_restrict(&body_er, &range, DOMAIN);
+        let head_rr = relationalize::range_restrict(&head_er, &range, DOMAIN);
 
-        let left_attrs = AttributeList::try_from(left_rr.formula())?.intersect(&right_attrs);
+        let body_attrs = AttributeList::try_from(&body_rr)?.intersect(&head_attrs);
 
         let branches = if branches.iter().any(|branch| branch.is_empty()) {
             vec![vec![]] // logically the right is true
@@ -129,23 +116,23 @@ impl Sequent {
                 .collect()
         };
 
-        let left_expr = convertor.convert(left_rr.formula(), &left_attrs)?;
-        let right_expr = convertor.convert(right_rr.formula(), &left_attrs)?;
+        let body_expr = convertor.convert(&FOF::from(body_rr), &body_attrs)?;
+        let head_expr = convertor.convert(&FOF::from(head_rr), &body_attrs)?;
 
         let expression = match &branches[..] {
-            [] => left_expr, // Bottom
+            [] => body_expr, // Bottom
             _ => match &branches[0][..] {
                 [] => rel_exp::Mono::from(rel_exp::Empty::new()), // Top
-                _ => rel_exp::Mono::from(rel_exp::Difference::new(left_expr, right_expr)), // Other
+                _ => rel_exp::Mono::from(rel_exp::Difference::new(body_expr, head_expr)), // Other
             },
         };
 
         Ok(Self {
             branches,
-            attributes: left_attrs,
+            attributes: body_attrs,
             expression,
-            body_formula: left.clone(),
-            head_formula: right.clone(),
+            body_formula: gnf.body().into(),
+            head_formula: gnf.head().into(),
         })
     }
 }
@@ -161,20 +148,18 @@ impl SequentTrait for Sequent {
 }
 
 // Relationalizes `formula` if possible; otherwise, returns an error.
-fn relationalize(formula: &FOF) -> Result<relationalize::Relational, Error> {
+fn relationalize(gnf: &PcfSet) -> relationalize::Relational {
     let mut relationalizer = relationalize::Relationalizer::default();
     relationalizer.set_equality_symbol(EQUALITY);
     relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
     relationalizer
         .set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
-    relationalizer.transform(formula).map_err(|e| e.into())
+    gnf.relational_with(&mut relationalizer)
 }
 
 // Makes the implicit equalities in `formula` explicit by creating new equations for
 // variables that appear in more than one position.
-fn expand_equality(
-    formula: &relationalize::Relational,
-) -> Result<relationalize::Relational, Error> {
+fn expand_equality(formula: &relationalize::Relational) -> relationalize::Relational {
     let mut equality_expander = relationalize::EqualityExpander::default();
     equality_expander.set_equality_symbol(EQUALITY);
     equality_expander.set_equality_generator(
@@ -182,29 +167,24 @@ fn expand_equality(
             .set_prefix(EQUATIONAL_PREFIX)
             .set_delimiter(SEPERATOR),
     );
-    equality_expander.transform(formula).map_err(|e| e.into())
+    equality_expander.transform(formula)
 }
 
-fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
-    match formula {
-        FOF::Top => Ok(vec![vec![]]),
-        FOF::Bottom => Ok(vec![]),
-        FOF::Atom(this) => {
-            let predicate = &this.predicate;
-            let terms = &this.terms;
+fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
+    let mut result = Vec::new();
+    for clause in rel.iter() {
+        let mut new_clause = Vec::new();
+        for lit in clause.iter() {
+            let predicate = &lit.predicate;
+            let terms = &lit.terms;
 
-            let mut attributes = Vec::new();
-            for term in terms {
-                match term {
-                    Complex::Var { variable } => {
-                        // calling `into_canonical` is unnecessary when branches are built before
-                        // equality expansion because there are no equational attributes.
-                        // (the existing algorithm)
-                        attributes.push(Attribute::try_from(variable)?)
-                    }
-                    _ => return Err(Error::BadFlatTerm { term: term.clone() }),
-                }
-            }
+            // calling `into_canonical` is unnecessary when branches are built
+            // before equality expansion because there are no equational
+            // attributes. (the existing algorithm)
+            let attributes = terms
+                .iter()
+                .map(|v| Attribute::try_from(v.symbol()))
+                .collect::<Result<Vec<_>, _>>()?;
 
             let symbol = if predicate.0 == DOMAIN {
                 Symbol::Domain
@@ -224,40 +204,11 @@ fn build_branches(formula: &FOF) -> Result<Vec<Vec<Atom>>, Error> {
                 }
             };
 
-            Ok(vec![vec![Atom::new(
-                &symbol,
-                AttributeList::new(attributes),
-            )]])
+            new_clause.push(Atom::new(&symbol, AttributeList::new(attributes)));
         }
-        FOF::And(this) => {
-            let mut left = build_branches(&this.left)?;
-            let mut right = build_branches(&this.right)?;
-
-            if left.is_empty() {
-                Ok(left)
-            } else if right.is_empty() {
-                Ok(right)
-            } else if left.len() == 1 && right.len() == 1 {
-                let mut left = left.remove(0);
-                let mut right = right.remove(0);
-                left.append(&mut right);
-                Ok(vec![left])
-            } else {
-                Err(Error::BadSequentFormula {
-                    formula: formula.clone(),
-                })
-            }
-        }
-        FOF::Or(this) => {
-            let mut left = build_branches(&this.left)?;
-            let mut right = build_branches(&this.right)?;
-            left.append(&mut right);
-            Ok(left)
-        }
-        _ => Err(Error::BadSequentFormula {
-            formula: formula.clone(),
-        }),
+        result.push(new_clause);
     }
+    Ok(result)
 }
 
 impl std::fmt::Display for Sequent {

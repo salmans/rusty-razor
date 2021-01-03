@@ -1,8 +1,6 @@
 /*! Defines theories of formulae. */
 
-use super::{symbol::Generator, Error, Formula, Sig, FOF};
-use crate::transform::GNF;
-use itertools::Itertools;
+use super::{Error, Formula, Sig};
 use std::{convert::TryFrom, fmt};
 
 /// is a first-order theory, containing a set of first-order formulae.
@@ -64,80 +62,6 @@ impl<T: Formula + fmt::Display> fmt::Display for Theory<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let fs: Vec<String> = self.formulae.iter().map(|t| t.to_string()).collect();
         write!(f, "{}", fs.join("\n"))
-    }
-}
-
-// a helper to merge sequents with syntactically identical bodies
-fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
-    formulae
-        .into_iter()
-        .sorted_by(|first, second| first.body().cmp(second.body()))
-        .into_iter()
-        .coalesce(|first, second| {
-            // merge the ones with the same body:
-            let l_vars = first.body().free_vars();
-            let r_vars = first.head().free_vars();
-            // compress sequents with no free variables that show up only in head:
-            if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
-                let l_vars = second.body().free_vars();
-                let r_vars = second.head().free_vars();
-                if r_vars.iter().all(|rv| l_vars.iter().any(|lv| lv == rv)) {
-                    if first.body() == second.body() {
-                        Ok(GNF::from((
-                            first.body().clone(),
-                            first.head().cross_union(second.head()),
-                        )))
-                    } else {
-                        Err((first, second))
-                    }
-                } else {
-                    Err((second, first))
-                }
-            } else {
-                Err((first, second))
-            }
-        })
-        .into_iter()
-        .map(|g| (g.body().clone(), g.head().simplify()).into())
-        .collect()
-}
-
-impl Theory<FOF> {
-    /// Transforms the given theory to a *geometric theory*, where all formulae are in
-    /// Geometric Normal Form (GNF).
-    ///
-    /// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
-    /// by Steve Vickers.
-    ///
-    /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::{FOF, Theory};
-    ///
-    /// let theory: Theory<FOF> = r#"
-    ///     not P(x) or Q(x);
-    ///     Q(x) -> exists y. R(x, y);
-    /// "#.parse().unwrap();
-    /// assert_eq!(r#"P(x) → Q(x)
-    /// Q(x) → R(x, sk#0(x))"#, theory.gnf().to_string());
-    /// ```
-    pub fn gnf(&self) -> Self {
-        let mut generator = Generator::new().set_prefix("sk#");
-        let formulae: Vec<GNF> = self
-            .formulae()
-            .iter()
-            .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
-            .collect();
-
-        // assuming that conversion to gnf won't change the signature
-        Theory::try_from(
-            compress_geometric(formulae)
-                .into_iter()
-                .map(FOF::from)
-                .collect_vec(),
-        )
-        .unwrap()
     }
 }
 

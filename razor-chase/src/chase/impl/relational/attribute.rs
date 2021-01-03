@@ -1,6 +1,6 @@
 use super::{constants::*, Error};
 use itertools::Itertools;
-use razor_fol::syntax;
+use razor_fol::{syntax, transform::Relational};
 use std::convert::TryFrom;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -141,10 +141,10 @@ impl Deref for AttributeList {
     }
 }
 
-impl TryFrom<&syntax::FOF> for AttributeList {
+impl TryFrom<&Relational> for AttributeList {
     type Error = Error;
 
-    fn try_from(value: &syntax::FOF) -> Result<Self, Self::Error> {
+    fn try_from(value: &Relational) -> Result<Self, Self::Error> {
         use razor_fol::syntax::Formula;
 
         let attributes = value

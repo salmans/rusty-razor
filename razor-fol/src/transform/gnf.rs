@@ -6,50 +6,110 @@ converting [`CNF`] to [`GNF`].
 use super::{CNF, PNF, SNF};
 use crate::syntax::{
     formula::{
-        clause::{Clause, Literal, PosClause, PosClauseSet},
+        clause::{Clause, Literal},
         *,
     },
+    symbol::Generator,
     term::Complex,
-    Error, Sig, FOF, V,
+    Error, Sig, Theory, FOF, V,
 };
 use itertools::Itertools;
+use std::{collections::BTreeSet, ops::Deref};
 
-// GNF positive clauses and clause sets are constructed over complex terms.
-type GnfClause = PosClause<Complex>;
-type GnfClauseSet = PosClauseSet<Complex>;
+// A positive literal is simply an atomic formula.
+type PosLiteral = Atomic<Complex>;
 
-/// Is a wrapper around [`FOF`] that represents a formula in Geometric Normal Form (GNF).
-///
-/// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
-/// by Steve Vickers.
-///
-/// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
-/// [`FOF`]: crate::syntax::FOF
-#[derive(Clone, Debug)]
-pub struct GNF {
-    /// Is the body of a GNF, comprised of a positive clause.
-    body: GnfClause,
+/// A Positive Conjunctive Formula (PCF) represents a collection of [`Atomic`]s, interpreted
+/// as a conjunction of positive literals. PCFs are building blocks of [`GNF`]s.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct PCF(BTreeSet<PosLiteral>);
 
-    /// Is the head of a GNF, consisting of a positive clause set.
-    head: GnfClauseSet,
+impl PCF {
+    /// Returns the atomic formulae of the receiver clause.
+    pub fn atomics(&self) -> &BTreeSet<PosLiteral> {
+        &self.0
+    }
+
+    /// Consumes the receiver and returns its underlying list of [`PosLiteral`]s.
+    pub fn into_atomics(self) -> BTreeSet<PosLiteral> {
+        self.0
+    }
 }
 
-impl GNF {
-    /// Returns the body of the receiver GNF.
-    #[inline(always)]
-    pub fn body(&self) -> &GnfClause {
-        &self.body
+impl PCF {
+    /// Returns a new clause, resulting from the joinging the atomic formulae of the
+    /// receiver and `other`.
+    pub fn union(&self, other: &Self) -> Self {
+        self.0.union(&other.0).cloned().into()
+    }
+}
+
+impl Deref for PCF {
+    type Target = BTreeSet<PosLiteral>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<PosLiteral> for PCF {
+    fn from(value: PosLiteral) -> Self {
+        vec![value].into_iter().into()
+    }
+}
+
+impl From<Atom<Complex>> for PCF {
+    fn from(value: Atom<Complex>) -> Self {
+        let literal = Atomic::from(value);
+        vec![literal].into_iter().into()
+    }
+}
+
+impl From<Equals<Complex>> for PCF {
+    fn from(value: Equals<Complex>) -> Self {
+        let literal = Atomic::from(value);
+        vec![literal].into_iter().into()
+    }
+}
+
+impl<I> From<I> for PCF
+where
+    I: IntoIterator<Item = PosLiteral>,
+{
+    fn from(value: I) -> Self {
+        Self(value.into_iter().collect())
+    }
+}
+
+impl Default for PCF {
+    fn default() -> Self {
+        Vec::<PosLiteral>::new().into()
+    }
+}
+
+impl Formula for PCF {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
     }
 
-    /// Returns the head of the receiver GNF.
-    #[inline(always)]
-    pub fn head(&self) -> &GnfClauseSet {
-        &self.head
+    fn free_vars(&self) -> Vec<&V> {
+        self.iter().flat_map(|lit| lit.free_vars()).collect()
     }
 
-    // Renders each clause as conjunction of literals
-    fn clause_to_fof(clause: GnfClause) -> FOF {
-        clause
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        self.iter().map(|lit| lit.transform(f)).into()
+    }
+}
+
+impl From<PCF> for FOF {
+    fn from(value: PCF) -> Self {
+        value
             .into_atomics()
             .into_iter()
             .sorted()
@@ -61,22 +121,159 @@ impl GNF {
             .fold1(|item, acc| item.and(acc))
             .unwrap_or(FOF::Top)
     }
+}
 
-    // Renders each clause set as disjunction of clauses
-    fn clause_set_to_fof(clause: GnfClauseSet) -> FOF {
-        clause
+impl From<&PCF> for FOF {
+    fn from(value: &PCF) -> Self {
+        value.clone().into()
+    }
+}
+
+/// Represents a set of [`PCF`]s. A set of [`PCF`]s in the head of a [`GNF`] is
+/// interpreted as disjunction of PCFs where PCF is a conjunction of positive literals.
+#[derive(Clone, Debug)]
+pub struct PcfSet(BTreeSet<PCF>);
+
+impl PcfSet {
+    /// Returns the clauses of the receiver.
+    pub fn clauses(&self) -> &BTreeSet<PCF> {
+        &self.0
+    }
+
+    /// Consumes the receiver and returns its underlying clauses.
+    pub fn into_clauses(self) -> BTreeSet<PCF> {
+        self.0
+    }
+}
+
+impl PcfSet {
+    /// Returns a new positive clause set, containing clauses obtained by pairwise unioning
+    /// of the clauses in the receiver and `other`.
+    pub fn cross_union(&self, other: &Self) -> Self {
+        self.iter()
+            .flat_map(|h1| other.iter().map(move |h2| h1.union(&h2)))
+            .into()
+    }
+
+    /// Returns a new clause set obtained by removing duplicate clauses of the reciever.
+    /// It also removes duplicate (positive) literals in each clause.
+    pub fn simplify(&self) -> Self {
+        self.iter()
+            .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_subset(c1)))
+            .cloned()
+            .collect_vec()
+            .into()
+    }
+}
+
+impl From<PCF> for PcfSet {
+    fn from(value: PCF) -> Self {
+        vec![value].into_iter().into()
+    }
+}
+
+impl<I> From<I> for PcfSet
+where
+    I: IntoIterator<Item = PCF>,
+{
+    fn from(value: I) -> Self {
+        Self(value.into_iter().collect())
+    }
+}
+
+impl Deref for PcfSet {
+    type Target = BTreeSet<PCF>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Default for PcfSet {
+    fn default() -> Self {
+        Vec::<PCF>::new().into()
+    }
+}
+
+impl Formula for PcfSet {
+    type Term = Complex;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::new_from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+
+    fn free_vars(&self) -> Vec<&V> {
+        self.iter()
+            .flat_map(|lit| lit.free_vars())
+            .unique()
+            .collect()
+    }
+
+    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        self.iter().map(|lit| lit.transform(f)).into()
+    }
+}
+
+impl From<PcfSet> for FOF {
+    fn from(value: PcfSet) -> Self {
+        value
             .into_clauses()
             .into_iter()
             .sorted()
             .into_iter()
-            .map(Self::clause_to_fof)
+            .map(FOF::from)
             .fold1(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
     }
 }
 
-impl From<(GnfClause, GnfClauseSet)> for GNF {
-    fn from(value: (GnfClause, GnfClauseSet)) -> Self {
+impl From<&PcfSet> for FOF {
+    fn from(value: &PcfSet) -> Self {
+        value.clone().into()
+    }
+}
+
+/// Is a wrapper around [`FOF`] that represents a formula in Geometric Normal Form (GNF).
+///
+/// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
+/// by Steve Vickers.
+///
+/// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
+/// [`FOF`]: crate::syntax::FOF
+#[derive(Clone, Debug)]
+pub struct GNF {
+    /// Is the body of a GNF, comprised of a positive clause.
+    body: PCF,
+
+    /// Is the head of a GNF, consisting of a positive clause set.
+    head: PcfSet,
+}
+
+impl GNF {
+    /// Returns the body of the receiver GNF.
+    #[inline(always)]
+    pub fn body(&self) -> &PCF {
+        &self.body
+    }
+
+    /// Returns the head of the receiver GNF.
+    #[inline(always)]
+    pub fn head(&self) -> &PcfSet {
+        &self.head
+    }
+
+    /// Consumes the receiver and returns its body and head.
+    pub fn into_body_and_head(self) -> (PCF, PcfSet) {
+        (self.body, self.head)
+    }
+}
+
+impl From<(PCF, PcfSet)> for GNF {
+    fn from(value: (PCF, PcfSet)) -> Self {
         let (body, head) = value;
         Self { body, head }
     }
@@ -112,8 +309,8 @@ impl std::fmt::Display for GNF {
 
 impl From<GNF> for FOF {
     fn from(value: GNF) -> Self {
-        let body = GNF::clause_to_fof(value.body);
-        let head = GNF::clause_set_to_fof(value.head);
+        let body = FOF::from(value.body);
+        let head = FOF::from(value.head);
         body.implies(head)
     }
 }
@@ -126,15 +323,15 @@ impl From<&GNF> for FOF {
 
 // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
 fn gnf(clause: &Clause<Complex>) -> GNF {
-    let mut head: Vec<PosClause<_>> = Vec::new();
+    let mut head: Vec<PCF> = Vec::new();
     let mut body: Vec<Atomic<_>> = Vec::new();
     clause.iter().for_each(|lit| match lit {
         Literal::Pos(this) => head.push(this.clone().into()),
         Literal::Neg(this) => body.push(this.clone()),
     });
 
-    let body = PosClause::from(body);
-    let head = PosClauseSet::from(head);
+    let body = PCF::from(body);
+    let head = PcfSet::from(head);
     (body, head).into()
 }
 
@@ -156,7 +353,8 @@ impl CNF {
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
     pub fn gnf(&self) -> Vec<GNF> {
-        self.iter().map(gnf).collect()
+        let gnfs = self.iter().map(gnf).collect();
+        compress_geometric(gnfs)
     }
 }
 
@@ -200,8 +398,105 @@ impl PNF {
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
     pub fn gnf(&self) -> Vec<GNF> {
-        self.snf().cnf().gnf()
+        self.snf().gnf()
     }
+}
+
+impl FOF {
+    /// Transforms the receiver FOF to a list of formulae in Geometric Normal Form (GNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    ///
+    /// let fof: FOF = "P(x) & (Q(x) | R(x))".parse().unwrap();
+    /// let gnfs = fof.gnf();
+    ///  
+    /// let gnf_to_string: Vec<String> = gnfs
+    ///     .into_iter()
+    ///     .map(|f| f.to_string())
+    ///     .collect();
+    /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
+    /// ```
+    pub fn gnf(&self) -> Vec<GNF> {
+        self.pnf().gnf()
+    }
+}
+
+impl Theory<FOF> {
+    /// Transforms the given theory to a *geometric theory*, where all formulae are in
+    /// Geometric Normal Form (GNF).
+    ///
+    /// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
+    /// by Steve Vickers.
+    ///
+    /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::{FOF, Theory};
+    ///
+    /// let theory: Theory<FOF> = r#"
+    ///     not P(x) or Q(x);
+    ///     Q(x) -> exists y. R(x, y);
+    /// "#.parse().unwrap();
+    /// assert_eq!(r#"P(x) → Q(x)
+    /// Q(x) → R(x, sk#0(x))"#, theory.gnf().to_string());
+    /// ```
+    pub fn gnf(&self) -> Theory<GNF> {
+        use std::convert::TryFrom;
+
+        let mut generator = Generator::new().set_prefix("sk#");
+        let formulae: Vec<GNF> = self
+            .formulae()
+            .iter()
+            .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
+            .collect();
+
+        // Assuming that the conversion does not change the signature of the theory, thus it's safe:
+        Theory::try_from(compress_geometric(formulae)).unwrap()
+    }
+}
+
+// a helper to merge sequents with syntactically identical bodies
+fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
+    formulae
+        .into_iter()
+        .sorted_by(|first, second| first.body().cmp(second.body()))
+        .into_iter()
+        .coalesce(|first, second| {
+            // merge the ones with the same body:
+            let body_vars = first.body().free_vars();
+            let head_vars = first.head().free_vars();
+            // compress sequents with no free variables that show up only in head:
+            if head_vars
+                .iter()
+                .all(|hv| body_vars.iter().any(|bv| bv == hv))
+            {
+                let body_vars = second.body().free_vars();
+                let head_vars = second.head().free_vars();
+                if head_vars
+                    .iter()
+                    .all(|hv| body_vars.iter().any(|bv| bv == hv))
+                {
+                    if first.body() == second.body() {
+                        Ok(GNF::from((
+                            first.body().clone(),
+                            first.head().cross_union(second.head()),
+                        )))
+                    } else {
+                        Err((first, second))
+                    }
+                } else {
+                    Err((second, first))
+                }
+            } else {
+                Err((first, second))
+            }
+        })
+        .into_iter()
+        .map(|g| (g.body().clone(), g.head().simplify()).into())
+        .collect()
 }
 
 #[cfg(test)]
@@ -211,14 +506,7 @@ mod tests {
     use itertools::Itertools;
 
     fn gnf(formula: &FOF) -> Vec<FOF> {
-        formula
-            .pnf()
-            .snf()
-            .cnf()
-            .gnf()
-            .into_iter()
-            .map(|gnf| gnf.into())
-            .collect()
+        formula.gnf().into_iter().map(|gnf| gnf.into()).collect()
     }
 
     #[test]
@@ -278,14 +566,14 @@ mod tests {
         {
             let formula: FOF = "P(x) | Q(x) -> P(y) & Q(y)".parse().unwrap();
             assert_debug_strings!(
-                "P(x) -> P(y)\nQ(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> Q(y)",
+                "P(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> P(y)\nQ(x) -> Q(y)",
                 gnf(&formula),
             );
         }
         {
             let formula: FOF = "P(x) | Q(x) <=> P(y) & Q(y)".parse().unwrap();
             assert_debug_strings!(
-                "(P(y) & Q(y)) -> (P(x) | Q(x))\nP(x) -> P(y)\nQ(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> Q(y)",
+                "P(x) -> P(y)\nP(x) -> Q(y)\n(P(y) & Q(y)) -> (P(x) | Q(x))\nQ(x) -> P(y)\nQ(x) -> Q(y)",
                 gnf(&formula),
             );
         }
@@ -298,7 +586,7 @@ mod tests {
                 .parse()
                 .unwrap();
             assert_debug_strings!(
-"P(x) -> (P(sk#1(x)) | Q(sk#0(x)))\nP(x) -> (P(sk#1(x)) | R(x, sk#0(x)))\nP(x) -> (Q(sk#0(x)) | S(x, sk#1(x)))\nP(x) -> (R(x, sk#0(x)) | S(x, sk#1(x)))",                
+                "P(x) -> ((P(sk#1(x)) & S(x, sk#1(x))) | (Q(sk#0(x)) & R(x, sk#0(x))))",
                 gnf(&formula),
             );
         }
@@ -312,7 +600,7 @@ mod tests {
             let formula: FOF = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))"
                 .parse()
                 .unwrap();
-            assert_debug_strings!("true -> ((P(x) | R(x, y)) | S(x, y))\nR(x, y) -> (P(x) | R(x, y))\nS(x, y) -> (P(x) | S(x, y))\n(R(x, y) & S(x, y)) -> P(x)\ntrue -> ((Q(y) | R(x, y)) | S(x, y))\nR(x, y) -> (Q(y) | R(x, y))\nS(x, y) -> (Q(y) | S(x, y))\n(R(x, y) & S(x, y)) -> Q(y)\n((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n((P(x) & Q(y)) & R(x, y)) -> S(x, y)",
+            assert_debug_strings!("true -> ((P(x) | R(x, y)) | S(x, y))\ntrue -> ((Q(y) | R(x, y)) | S(x, y))\n((P(x) & Q(y)) & R(x, y)) -> S(x, y)\n((P(x) & Q(y)) & S(x, y)) -> R(x, y)\nR(x, y) -> ((P(x) & Q(y)) | R(x, y))\n(R(x, y) & S(x, y)) -> (P(x) & Q(y))\nS(x, y) -> ((P(x) & Q(y)) | S(x, y))",
                 gnf(&formula),
             );
         }
@@ -339,25 +627,19 @@ mod tests {
         // mostly testing if compression of head works properly:
         {
             let theory: Theory<FOF> = "P('a); P('b);".parse().unwrap();
-            assert_debug_strings!("true -> (P('a) & P('b))", theory.gnf().formulae());
+            assert_eq!("⊤ → (P(\'a) ∧ P(\'b))", theory.gnf().to_string());
         }
         {
             let theory: Theory<FOF> = "P('a); P(x);".parse().unwrap();
-            assert_debug_strings!("true -> P(x)\ntrue -> P('a)", theory.gnf().formulae());
+            assert_eq!("⊤ → P(x)\n⊤ → P(\'a)", theory.gnf().to_string());
         }
         {
             let theory: Theory<FOF> = "P('a); P(x); P('b);".parse().unwrap();
-            assert_debug_strings!(
-                "true -> P(x)\ntrue -> (P(\'a) & P(\'b))",
-                theory.gnf().formulae(),
-            );
+            assert_eq!("⊤ → P(x)\n⊤ → (P(\'a) ∧ P(\'b))", theory.gnf().to_string(),);
         }
         {
             let theory: Theory<FOF> = "(T() and V()) or (U() and V());".parse().unwrap();
-            assert_debug_strings!(
-                "true -> ((T() & V()) | (U() & V()))",
-                theory.gnf().formulae()
-            );
+            assert_eq!("⊤ → ((T() ∧ V()) ∨ (U() ∧ V()))", theory.gnf().to_string());
         }
     }
 }

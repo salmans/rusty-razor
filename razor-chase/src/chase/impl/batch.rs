@@ -25,7 +25,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::V;
+use razor_fol::syntax::{formula::Atomic, V};
 use std::{collections::HashMap, iter};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
@@ -74,9 +74,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
 
                 // build body and head observations
                 let body: Vec<Observation<WitnessTerm>> =
-                    sequent.body_literals.iter().map(&observe_literal).collect();
+                    sequent.body.iter().map(&observe_literal).collect();
                 let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
-                    .head_literals
+                    .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
                     .collect();
@@ -173,19 +173,20 @@ fn make_observe_literal(
     assignment_func: impl Fn(&V) -> Element,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
-        basic::Literal::Atm { predicate, terms } => {
-            let terms = terms
+        Atomic::Atom(this) => {
+            let terms = this
+                .terms
                 .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
-                relation: Rel(predicate.0.clone()),
+                relation: Rel(this.predicate.0.clone()),
                 terms,
             }
         }
-        basic::Literal::Eql { left, right } => {
-            let left = WitnessTerm::witness(left, &assignment_func);
-            let right = WitnessTerm::witness(right, &assignment_func);
+        Atomic::Equals(this) => {
+            let left = WitnessTerm::witness(&this.left, &assignment_func);
+            let right = WitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -218,11 +219,8 @@ mod test_batch {
     use crate::chase::r#impl::basic::Sequent;
     use crate::chase::r#impl::reference::Model;
     use crate::chase::{
-        bounder::DomainSize,
-        chase_all,
-        scheduler::FIFO,
-        strategy::{Bootstrap, Fair},
-        SchedulerTrait, StrategyTrait,
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
+        StrategyTrait,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -287,7 +285,7 @@ mod test_batch {
             .collect();
 
         let evaluator = Evaluator;
-        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+        let strategy = Fair::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);

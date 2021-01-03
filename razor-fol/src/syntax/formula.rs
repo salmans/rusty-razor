@@ -8,7 +8,7 @@ use super::{
     Error, Pred, Sig, Term, EQ_SYM, V,
 };
 use itertools::Itertools;
-use std::hash::Hash;
+use std::{fmt, hash::Hash};
 
 /// Is the trait of formulae, including first-order formulae.
 pub trait Formula {
@@ -111,6 +111,13 @@ impl<T: Term> Formula for Atom<T> {
     }
 }
 
+impl<T: Term + fmt::Display> fmt::Display for Atom<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ts = self.terms.iter().map(|t| t.to_string()).collect_vec();
+        write!(f, "{}({})", self.predicate.to_string(), ts.join(", "))
+    }
+}
+
 /// Represents an equation between two terms.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Equals<T: Term> {
@@ -149,6 +156,12 @@ impl<T: Term> Formula for Equals<T> {
     }
 }
 
+impl<T: Term + fmt::Display> fmt::Display for Equals<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} = {}", self.left, self.right)
+    }
+}
+
 /// Represents the negation of a formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Not<F: Formula> {
@@ -171,6 +184,12 @@ impl<F: Formula> Formula for Not<F> {
         Not {
             formula: self.formula.transform(f),
         }
+    }
+}
+
+impl<F: Formula + fmt::Display> fmt::Display for Not<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "¬{}", self.formula)
     }
 }
 
@@ -205,6 +224,12 @@ impl<F: Formula> Formula for And<F> {
     }
 }
 
+impl<F: Formula + fmt::Display> fmt::Display for And<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ∧ {}", self.left, self.right)
+    }
+}
+
 /// Represents the disjunction of two formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Or<F: Formula> {
@@ -233,6 +258,12 @@ impl<F: Formula> Formula for Or<F> {
             left: self.left.transform(f),
             right: self.right.transform(f),
         }
+    }
+}
+
+impl<F: Formula + fmt::Display> fmt::Display for Or<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ∨ {}", self.left, self.right)
     }
 }
 
@@ -269,6 +300,12 @@ impl<F: Formula> Formula for Implies<F> {
     }
 }
 
+impl<F: Formula + fmt::Display> fmt::Display for Implies<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} → {}", self.premise, self.consequence)
+    }
+}
+
 /// Represents a bi-implication between two formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Iff<F: Formula> {
@@ -297,6 +334,12 @@ impl<F: Formula> Formula for Iff<F> {
             left: self.left.transform(f),
             right: self.right.transform(f),
         }
+    }
+}
+
+impl<F: Formula + fmt::Display> fmt::Display for Iff<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ⇔ {}", self.left, self.right)
     }
 }
 
@@ -333,6 +376,13 @@ impl<F: Formula> Formula for Exists<F> {
     }
 }
 
+impl<F: Formula + fmt::Display> fmt::Display for Exists<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let vs = self.variables.iter().map(|t| t.to_string()).collect_vec();
+        write!(f, "∃ {}. {}", vs.join(", "), self.formula)
+    }
+}
+
 /// Represents a universally quantified formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Forall<F: Formula> {
@@ -363,6 +413,13 @@ impl<F: Formula> Formula for Forall<F> {
             variables: self.variables.clone(),
             formula: self.formula.transform(f),
         }
+    }
+}
+
+impl<F: Formula + fmt::Display> fmt::Display for Forall<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let vs: Vec<_> = self.variables.iter().map(|t| t.to_string()).collect();
+        write!(f, "∀ {}. {}", vs.join(", "), self.formula)
     }
 }
 
@@ -409,6 +466,15 @@ impl<T: Term> Formula for Atomic<T> {
         match self {
             Atomic::Atom(this) => Self::Atom(this.transform(f)),
             Atomic::Equals(this) => Self::Equals(this.transform(f)),
+        }
+    }
+}
+
+impl<T: Term + fmt::Display> fmt::Display for Atomic<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Atomic::Atom(this) => this.fmt(f),
+            Atomic::Equals(this) => this.fmt(f),
         }
     }
 }

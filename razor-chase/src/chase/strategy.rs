@@ -129,6 +129,7 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait
         let (initial_sequents, rest) = sequents
             .into_iter()
             .partition(|s| s.body() == FOF::Top && s.head().free_vars().is_empty());
+
         Bootstrap {
             initial_sequents,
             strategy: Stg::new(rest),
