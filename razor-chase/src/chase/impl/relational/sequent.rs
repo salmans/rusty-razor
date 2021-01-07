@@ -9,7 +9,7 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{symbol::Generator, Pred, C, F, FOF},
+    syntax::{formula::Atomic, symbol::Generator, Pred, C, F, FOF},
     transform::{relationalize, PcfSet, Relational, GNF},
 };
 use std::convert::TryFrom;
@@ -116,8 +116,8 @@ impl Sequent {
                 .collect()
         };
 
-        let body_expr = convertor.convert(&FOF::from(body_rr), &body_attrs)?;
-        let head_expr = convertor.convert(&FOF::from(head_rr), &body_attrs)?;
+        let body_expr = convertor.convert(body_rr, &body_attrs)?;
+        let head_expr = convertor.convert(head_rr, &body_attrs)?;
 
         let expression = match &branches[..] {
             [] => body_expr, // Bottom
@@ -150,7 +150,6 @@ impl SequentTrait for Sequent {
 // Relationalizes `formula` if possible; otherwise, returns an error.
 fn relationalize(gnf: &PcfSet) -> relationalize::Relational {
     let mut relationalizer = relationalize::Relationalizer::default();
-    relationalizer.set_equality_symbol(EQUALITY);
     relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
     relationalizer
         .set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
@@ -174,37 +173,48 @@ fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
     let mut result = Vec::new();
     for clause in rel.iter() {
         let mut new_clause = Vec::new();
-        for lit in clause.iter() {
-            let predicate = &lit.predicate;
-            let terms = &lit.terms;
+        for atomic in clause.iter() {
+            match atomic {
+                Atomic::Atom(this) => {
+                    let predicate = &this.predicate;
+                    let terms = &this.terms;
 
-            // calling `into_canonical` is unnecessary when branches are built
-            // before equality expansion because there are no equational
-            // attributes. (the existing algorithm)
-            let attributes = terms
-                .iter()
-                .map(|v| Attribute::try_from(v.symbol()))
-                .collect::<Result<Vec<_>, _>>()?;
+                    // calling `into_canonical` is unnecessary when branches are built
+                    // before equality expansion because there are no equational
+                    // attributes. (the existing algorithm)
+                    let attributes = terms
+                        .iter()
+                        .map(|v| Attribute::try_from(v.symbol()))
+                        .collect::<Result<Vec<_>, _>>()?;
 
-            let symbol = if predicate.0 == DOMAIN {
-                Symbol::Domain
-            } else if predicate.0 == EQUALITY {
-                Symbol::Equality
-            } else if predicate.0.starts_with(CONSTANT_PREDICATE_PREFIX) {
-                Symbol::Const(C(predicate.0[1..].to_string()))
-            } else if predicate.0.starts_with(FUNCTIONAL_PREDICATE_PREFIX) {
-                Symbol::Func {
-                    symbol: F(predicate.0[1..].to_string()),
-                    arity: (terms.len() - 1) as u8,
+                    let symbol = if predicate.0 == DOMAIN {
+                        Symbol::Domain
+                    } else if predicate.0.starts_with(CONSTANT_PREDICATE_PREFIX) {
+                        Symbol::Const(C(predicate.0[1..].to_string()))
+                    } else if predicate.0.starts_with(FUNCTIONAL_PREDICATE_PREFIX) {
+                        Symbol::Func {
+                            symbol: F(predicate.0[1..].to_string()),
+                            arity: (terms.len() - 1) as u8,
+                        }
+                    } else {
+                        Symbol::Pred {
+                            symbol: Pred(predicate.0.to_string()),
+                            arity: terms.len() as u8,
+                        }
+                    };
+
+                    new_clause.push(Atom::new(&symbol, AttributeList::new(attributes)));
                 }
-            } else {
-                Symbol::Pred {
-                    symbol: Pred(predicate.0.to_string()),
-                    arity: terms.len() as u8,
-                }
-            };
+                Atomic::Equals(this) => {
+                    let left = Attribute::try_from(this.left.symbol())?;
+                    let right = Attribute::try_from(this.right.symbol())?;
 
-            new_clause.push(Atom::new(&symbol, AttributeList::new(attributes)));
+                    new_clause.push(Atom::new(
+                        &Symbol::Equality,
+                        AttributeList::new(vec![left, right]),
+                    ));
+                }
+            }
         }
         result.push(new_clause);
     }

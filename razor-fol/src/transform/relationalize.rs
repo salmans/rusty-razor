@@ -10,7 +10,7 @@ use crate::syntax::{
 use itertools::Itertools;
 use std::{collections::HashMap, ops::Deref};
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Variable(V);
 
 impl Variable {
@@ -21,13 +21,21 @@ impl Variable {
     }
 }
 
+impl Deref for Variable {
+    type Target = V;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl From<V> for Variable {
     fn from(value: V) -> Self {
         Self(value)
     }
 }
 
-type FlatAtom = Atom<Variable>;
+type FlatAtom = Atomic<Variable>;
 
 impl Term for Variable {
     fn signature(&self) -> Result<Sig, Error> {
@@ -51,7 +59,7 @@ impl Term for Variable {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RelClause(Vec<FlatAtom>);
 
 impl RelClause {
@@ -121,11 +129,18 @@ impl Formula for RelClause {
 
 impl From<FlatAtom> for FOF {
     fn from(value: FlatAtom) -> Self {
-        Atom::<Complex> {
-            predicate: value.predicate,
-            terms: value.terms.into_iter().map(|v| v.0.into()).collect(),
+        match value {
+            Atomic::Atom(this) => Atom::<Complex> {
+                predicate: this.predicate,
+                terms: this.terms.into_iter().map(|v| v.symbol().into()).collect(),
+            }
+            .into(),
+            Atomic::Equals(this) => Equals {
+                left: this.left.symbol().into(),
+                right: this.right.symbol().into(),
+            }
+            .into(),
         }
-        .into()
     }
 }
 
@@ -149,7 +164,7 @@ impl From<RelClause> for FOF {
 /// to a relational form.
 ///
 /// [`GNF`]: crate::transform::GNF
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Relational(Vec<RelClause>);
 
 impl From<RelClause> for Relational {
@@ -242,9 +257,6 @@ impl std::fmt::Display for Relational {
 ///
 /// [`transform`]: Relationalizer::transform()
 pub struct Relationalizer {
-    // Is the symbol used to convert equality to a predicate.
-    equality_symbol: String,
-
     // Is the [`Generator`] instance used to generate variable names used as placeholders
     // in flattened formulae.
     flattening_generator: Generator,
@@ -261,11 +273,6 @@ pub struct Relationalizer {
 }
 
 impl Relationalizer {
-    /// Use `symbol` for equality predicates.
-    pub fn set_equality_symbol<S: Into<String>>(&mut self, symbol: S) {
-        self.equality_symbol = symbol.into();
-    }
-
     /// Use `generator` to generate flattening variable names.
     pub fn set_flattening_generator(&mut self, generator: Generator) {
         self.flattening_generator = generator;
@@ -300,7 +307,6 @@ impl Default for Relationalizer {
     ///   * Function predicates are prefixed with `$`.    
     fn default() -> Self {
         Self {
-            equality_symbol: "=".into(),
             flattening_generator: Generator::new().set_prefix("?"),
             function_predicate_generator: Generator::new().set_prefix("$"),
             constant_predicate_generator: Generator::new().set_prefix("@"),
@@ -380,7 +386,8 @@ fn flatten_formula(clause_set: &PcfSet, relationalizer: &mut Relationalizer) -> 
                         let atom = Atom {
                             predicate: this.predicate.clone(),
                             terms,
-                        };
+                        }
+                        .into();
 
                         // !!! Preserving the topological order among variables:
                         conjuncts.push(atom);
@@ -399,10 +406,7 @@ fn flatten_formula(clause_set: &PcfSet, relationalizer: &mut Relationalizer) -> 
                             conjuncts.extend(cs.into_atomics());
                         }
                         let right = right_var.into();
-                        let equals = Atom {
-                            predicate: relationalizer.equality_symbol.as_str().into(),
-                            terms: vec![left, right],
-                        };
+                        let equals = Equals { left, right }.into();
 
                         conjuncts.push(equals);
                         conjuncts
@@ -421,17 +425,13 @@ fn equation_rewrites<'a>(
     relationalizer: &mut Relationalizer,
 ) {
     clause_set.iter().for_each(|clause| {
-        clause.iter().for_each(|lit| {
-            let predicate = &lit.predicate;
-            let terms = &lit.terms;
+        clause.iter().for_each(|atomic| match atomic {
+            Atomic::Equals(this) => {
+                let left = &this.left;
+                let right = &this.right;
 
-            if predicate.0 == relationalizer.equality_symbol {
-                assert_eq!(2, terms.len());
-                let left = &terms.get(0).unwrap().0;
-                let right = &terms.get(1).unwrap().0;
-
-                let l_generated = relationalizer.generated_variables.contains(left);
-                let r_generated = relationalizer.generated_variables.contains(right);
+                let l_generated = relationalizer.generated_variables.contains(left.symbol());
+                let r_generated = relationalizer.generated_variables.contains(right.symbol());
 
                 match (l_generated, r_generated) {
                     (false, true) => {
@@ -441,10 +441,10 @@ fn equation_rewrites<'a>(
                         map.insert(left, right);
                     }
                     (true, true) => {
-                        if map.contains_key(left) {
-                            map.insert(right, map.get(left).unwrap());
-                        } else if map.contains_key(right) {
-                            map.insert(left, map.get(right).unwrap());
+                        if map.contains_key(left.symbol()) {
+                            map.insert(right, map.get(left.symbol()).unwrap());
+                        } else if map.contains_key(right.symbol()) {
+                            map.insert(left, map.get(right.symbol()).unwrap());
                         } else {
                             map.insert(left, right);
                         }
@@ -452,6 +452,7 @@ fn equation_rewrites<'a>(
                     _ => {}
                 }
             }
+            _ => {}
         });
     });
 }
@@ -488,7 +489,7 @@ impl PcfSet {
     pub fn relational_with(&self, relationalizer: &mut Relationalizer) -> Relational {
         let flattened = flatten_formula(self, relationalizer);
         let simplified = simplify_equations(&flattened, relationalizer);
-        let result = remove_reflexive_equations(simplified, &relationalizer.equality_symbol);
+        let result = remove_reflexive_equations(simplified);
         relationalizer.reset(); // prepare for next call to `transform`
 
         result
@@ -563,37 +564,105 @@ impl EqualityExpander {
             .map(|clause| {
                 clause
                     .iter()
-                    .flat_map(|lit| {
-                        let mut equations = Vec::<Atom<_>>::new();
-                        let mut new_terms = Vec::new();
-                        for variable in &lit.terms {
-                            vars.entry(variable.0.clone())
+                    .flat_map(|atomic| match atomic {
+                        Atomic::Atom(this) => {
+                            let mut equations = Vec::<Atomic<_>>::new();
+                            let mut new_terms = Vec::new();
+                            for variable in &this.terms {
+                                vars.entry(variable.symbol().clone())
+                                    .and_modify(|count| {
+                                        let new_var = V(self
+                                            .equality_generator
+                                            .indexed_symbol(variable.0.to_string(), *count));
+
+                                        let left = variable.clone();
+                                        let right = new_var.clone().into();
+
+                                        let eq = Atom {
+                                            predicate: self.equality_symbol.as_str().into(),
+                                            terms: vec![left, right],
+                                        }
+                                        .into();
+                                        equations.push(eq);
+                                        new_terms.push(new_var.into());
+                                        *count += 1;
+                                    })
+                                    .or_insert_with(|| {
+                                        new_terms.push(variable.clone().into());
+                                        0
+                                    });
+                            }
+                            equations.push(
+                                Atom {
+                                    predicate: this.predicate.clone(),
+                                    terms: new_terms,
+                                }
+                                .into(),
+                            );
+                            equations
+                        }
+                        Atomic::Equals(this) => {
+                            let mut equations = Vec::<Atomic<_>>::new();
+                            let left = &this.left;
+                            let right = &this.right;
+                            let mut new_left = V("".into());
+                            let mut new_right = V("".into());
+
+                            vars.entry(left.symbol().clone())
                                 .and_modify(|count| {
                                     let new_var = V(self
                                         .equality_generator
-                                        .indexed_symbol(variable.0.to_string(), *count));
+                                        .indexed_symbol(left.to_string(), *count));
 
-                                    let left = variable.clone();
+                                    let left = left.clone();
                                     let right = new_var.clone().into();
 
                                     let eq = Atom {
                                         predicate: self.equality_symbol.as_str().into(),
                                         terms: vec![left, right],
-                                    };
+                                    }
+                                    .into();
                                     equations.push(eq);
-                                    new_terms.push(new_var.into());
+                                    new_left = new_var.into();
                                     *count += 1;
                                 })
                                 .or_insert_with(|| {
-                                    new_terms.push(variable.clone().into());
+                                    new_left = left.symbol().clone();
                                     0
                                 });
+
+                            vars.entry(right.symbol().clone())
+                                .and_modify(|count| {
+                                    let new_var = V(self
+                                        .equality_generator
+                                        .indexed_symbol(right.to_string(), *count));
+
+                                    let left = right.clone();
+                                    let right = new_var.clone().into();
+
+                                    let eq = Atom {
+                                        predicate: self.equality_symbol.as_str().into(),
+                                        terms: vec![left, right],
+                                    }
+                                    .into();
+                                    equations.push(eq);
+                                    new_right = new_var.into();
+                                    *count += 1;
+                                })
+                                .or_insert_with(|| {
+                                    new_right = right.symbol().clone();
+                                    0
+                                });
+
+                            equations.push(
+                                Equals {
+                                    left: new_left.into(),
+                                    right: new_right.into(),
+                                }
+                                .into(),
+                            );
+                            equations
                         }
-                        equations.push(Atom {
-                            predicate: lit.predicate.clone(),
-                            terms: new_terms,
-                        });
-                        equations
                     })
                     .into()
             })
@@ -620,7 +689,7 @@ impl EqualityExpander {
     /// ```
     pub fn transform(&self, rel: &Relational) -> Relational {
         let transformed = self.helper(rel);
-        let result = remove_reflexive_equations(transformed, &self.equality_symbol);
+        let result = remove_reflexive_equations(transformed);
         result
     }
 }
@@ -690,19 +759,21 @@ fn rr_helper(range: &[V], symbol: &str) -> RelClause {
     result.into()
 }
 
-fn remove_reflexive_equations(rel: Relational, equality_symbol: &str) -> Relational {
+fn remove_reflexive_equations(rel: Relational) -> Relational {
     rel.into_clauses()
         .into_iter()
         .map(|clause| {
             clause
                 .into_atomics()
                 .into_iter()
-                .filter(|lit| lit.predicate.0 != equality_symbol || lit.terms[0] != lit.terms[1])
+                .filter(|atomic| match atomic {
+                    Atomic::Equals(this) => this.left != this.right,
+                    _ => true,
+                })
                 .into()
         })
         .into()
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -746,16 +817,16 @@ mod tests {
             flatten(fof!(P(x, y))),
         };
         assert_eq! {
-            "[=(x, y)]",
+            "[x = y]",
             flatten(fof!((x) = (y))),
         }
 
         assert_eq! {
-            "[@c(?0) & =(x, ?0)]",
+            "[@c(?0) & (x = ?0)]",
             flatten(fof!((x) = (@c))),
         }
         assert_eq! {
-            "[(@c(?0) & @d(?1)) & =(?0, ?1)]",
+            "[(@c(?0) & @d(?1)) & (?0 = ?1)]",
             flatten(fof!((@c) = (@d))),
         }
         assert_eq! {

@@ -5,7 +5,13 @@ use super::{
 };
 use codd::expression::{Empty, Expression, Mono, Relation, Singleton};
 use either::Either;
-use razor_fol::syntax::{Formula, Pred, FOF};
+use razor_fol::{
+    syntax::{
+        formula::{Atom, Atomic, Equals},
+        Formula,
+    },
+    transform::{RelClause, Relational, Variable},
+};
 use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -152,10 +158,10 @@ impl<'d> Convertor<'d> {
     /// relational expression attributes.
     pub fn convert(
         &mut self,
-        formula: &FOF,
+        rel: Relational,
         attributes: &AttributeList,
     ) -> Result<Mono<Tuple>, Error> {
-        self.expression(formula, &AttributeList::new(vec![]), attributes)
+        self.relational(rel, &AttributeList::new(vec![]), attributes)
             .map(SubExpression::into_expression)
     }
 
@@ -173,22 +179,34 @@ impl<'d> Convertor<'d> {
         Ok(())
     }
 
+    fn atomic(
+        &mut self,
+        atomic: Atomic<Variable>,
+        key_attrs: &AttributeList,
+        attrs: &AttributeList,
+    ) -> Result<SubExpression, Error> {
+        match atomic {
+            Atomic::Atom(this) => self.atom(this, key_attrs, attrs),
+            Atomic::Equals(this) => self.equals(this, key_attrs, attrs),
+        }
+    }
+
     /// Creates a relational expression (projection over an instance) for a predicate `pred` applied
     /// to a list of variables `vars`. `key_attrs` is the expected key attributes for joining the
     /// resulting subexpression with the subexpression at the upper level in the expression tree.
     /// `attrs` is the expected attributes of the resulting subexpression.
-    fn atomic_expression(
-        &self,
-        pred: &Pred,
-        vars: &[razor_fol::syntax::V],
+    fn atom(
+        &mut self,
+        atom: Atom<Variable>,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
         use std::convert::TryFrom;
 
-        let vars = vars
+        let vars = atom
+            .terms
             .iter()
-            .map(Attribute::try_from)
+            .map(|t| Attribute::try_from(t.symbol()))
             .collect::<Result<Vec<_>, _>>()?;
         let mut expr_attrs = Vec::new(); // attributes of the resulting expression
         let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
@@ -205,7 +223,7 @@ impl<'d> Convertor<'d> {
             || expr_indices.iter().zip(0..vars.len()).any(|(x, y)| *x != y);
 
         // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
-        let instance: Mono<Tuple> = Relation::new(&pred.to_string()).into();
+        let instance: Mono<Tuple> = Relation::new(&atom.predicate.to_string()).into();
         let expr_attrs = AttributeList::new(expr_attrs);
 
         // `join_key` transforms a tuple to its expected keys:
@@ -213,11 +231,11 @@ impl<'d> Convertor<'d> {
 
         let raw = if is_projected {
             RawExpression::Project {
-                expression: RawExpression::Relation(pred.to_string()).boxed(),
+                expression: RawExpression::Relation(atom.predicate.to_string()).boxed(),
                 indices: expr_indices.iter().map(|&i| i as u8).collect(),
             }
         } else {
-            RawExpression::Relation(pred.to_string())
+            RawExpression::Relation(atom.predicate.to_string())
         };
 
         // optimize identity projection:
@@ -232,21 +250,102 @@ impl<'d> Convertor<'d> {
             instance
         };
 
-        Ok(SubExpression::new(expr_attrs, key, expr, raw))
+        let mut result = SubExpression::new(expr_attrs, key, expr, raw);
+        if matches!(result.raw(), RawExpression::Project {..}) {
+            self.memoize(&mut result)?;
+        }
+
+        Ok(result)
+    }
+
+    fn equals(
+        &mut self,
+        equals: Equals<Variable>,
+        key_attrs: &AttributeList,
+        attrs: &AttributeList,
+    ) -> Result<SubExpression, Error> {
+        use std::convert::TryFrom;
+
+        let left = Attribute::try_from(equals.left.symbol())?;
+        let right = Attribute::try_from(equals.right.symbol())?;
+
+        let mut expr_attrs = Vec::new(); // attributes of the resulting expression
+        let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
+
+        for attr in attrs.iter() {
+            if attr == &left {
+                expr_indices.push(0);
+                expr_attrs.push(attr.clone());
+            } else if attr == &right {
+                expr_indices.push(1);
+                expr_attrs.push(attr.clone());
+            }
+        }
+
+        let is_projected = attrs.len() != 2 || expr_indices != [0, 1];
+
+        // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
+        let instance: Mono<Tuple> = Relation::new("=").into(); // FIXME
+        let expr_attrs = AttributeList::new(expr_attrs);
+
+        // `join_key` transforms a tuple to its expected keys:
+        let key = expr_attrs.project(&key_attrs);
+
+        let raw = if is_projected {
+            RawExpression::Project {
+                expression: RawExpression::Relation("=".into()).boxed(), // FIXME
+                indices: expr_indices.iter().map(|&i| i as u8).collect(),
+            }
+        } else {
+            RawExpression::Relation("=".into()) // FIXME
+        };
+
+        // optimize identity projection:
+        let expr = if is_projected {
+            // Project only the expected attributes of the instance:
+            instance
+                .builder()
+                .project(move |p| expr_indices.iter().map(|i| p[*i]).collect())
+                .build()
+                .into()
+        } else {
+            instance
+        };
+
+        let mut result = SubExpression::new(expr_attrs, key, expr, raw);
+        if matches!(result.raw(), RawExpression::Project {..}) {
+            self.memoize(&mut result)?;
+        }
+
+        Ok(result)
     }
 
     /// Creates a join expression for the conjunction of `left` and `right`.
     /// `key_attrs` is the expected key attributes for joining the
     /// resulting subexpression with the subexpression at the upper level in the expression tree.
     /// `attrs` is the expected attributes of the resulting subexpression.
-    fn and_expression(
+    fn clause(
         &mut self,
-        left: &FOF,
-        right: &FOF,
+        clause: RelClause,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
         use std::convert::TryFrom;
+
+        let mut atoms = clause.into_atomics();
+        if atoms.len() == 0 {
+            return Ok(SubExpression::new(
+                AttributeList::new(vec![]),
+                |t: &Tuple| t.clone(),
+                Mono::from(Singleton::new(vec![])),
+                RawExpression::Full,
+            ));
+        } else if atoms.len() == 1 {
+            return self.atomic(atoms.remove(0), key_attrs, attrs);
+        }
+
+        let left: RelClause = atoms.remove(0).into();
+        let right: RelClause = atoms.into();
 
         let left_attrs = AttributeList::new(
             left.free_vars()
@@ -263,8 +362,8 @@ impl<'d> Convertor<'d> {
         );
 
         let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
-        let left_sub = self.expression(left, &common_vars, &attrs.union(&right_attrs))?;
-        let right_sub = self.expression(right, &common_vars, &attrs.union(&left_sub.attributes))?;
+        let left_sub = self.clause(left, &common_vars, &attrs.union(&right_attrs))?;
+        let right_sub = self.clause(right, &common_vars, &attrs.union(&left_sub.attributes))?;
 
         let mut expr_attrs = Vec::new(); // attributes of the resulting expression
         let mut expr_indices = Vec::new(); // indices of those attributes
@@ -309,23 +408,40 @@ impl<'d> Convertor<'d> {
             })
             .build();
 
-        Ok(SubExpression::new(expr_attrs, join_key, join.into(), raw))
+        let mut result = SubExpression::new(expr_attrs, join_key, join.into(), raw);
+        self.memoize(&mut result)?;
+
+        Ok(result)
     }
 
     /// Creates a union expression for the disjunction of `left` and `right`.
     /// `key_attrs` is the expected key attributes for joining the
     /// resulting subexpression with the subexpression at the upper level in the expression tree.
     /// `attrs` is the expected attributes of the resulting subexpression.
-    fn or_expression(
+    fn relational(
         &mut self,
-        left: &FOF,
-        right: &FOF,
+        rel: Relational,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
+        let mut clauses = rel.into_clauses();
+        if clauses.len() == 0 {
+            return Ok(SubExpression::new(
+                AttributeList::new(vec![]),
+                |t: &Tuple| t.clone(),
+                Mono::from(Empty::new()),
+                RawExpression::Empty,
+            ));
+        } else if clauses.len() == 1 {
+            return self.clause(clauses.remove(0), key_attrs, attrs);
+        }
+
+        let left: Relational = clauses.remove(0).into();
+        let right: Relational = clauses.into();
+
         // Disjuctions simply hope that left and right have the same attributes:
-        let left_exp = self.expression(left, key_attrs, attrs)?;
-        let right_exp = self.expression(right, key_attrs, attrs)?;
+        let left_exp = self.relational(left, key_attrs, attrs)?;
+        let right_exp = self.relational(right, key_attrs, attrs)?;
 
         assert_eq!(left_exp.attributes, right_exp.attributes);
 
@@ -336,61 +452,15 @@ impl<'d> Convertor<'d> {
             .build();
         let raw = RawExpression::union(left_exp.raw, right_exp.raw);
 
-        Ok(SubExpression::new(
+        let mut result = SubExpression::new(
             left_exp.attributes,
             left_exp.join_key, // irrelevant
             Mono::from(union),
             raw,
-        ))
-    }
+        );
+        self.memoize(&mut result)?;
 
-    // A helper for `convert`.
-    fn expression(
-        &mut self,
-        formula: &FOF,
-        join_attr: &AttributeList,
-        final_attr: &AttributeList,
-    ) -> Result<SubExpression, Error> {
-        use itertools::Itertools;
-
-        match formula {
-            FOF::Bottom => Ok(SubExpression::new(
-                AttributeList::new(vec![]),
-                |t: &Tuple| t.clone(),
-                Mono::from(Empty::new()),
-                RawExpression::Empty,
-            )),
-            FOF::Top => Ok(SubExpression::new(
-                AttributeList::new(vec![]),
-                |t: &Tuple| t.clone(),
-                Mono::from(Singleton::new(vec![])),
-                RawExpression::Full,
-            )),
-            FOF::Atom(this) => {
-                let free_vars = formula.free_vars().into_iter().cloned().collect_vec();
-                let mut sub =
-                    self.atomic_expression(&this.predicate, &free_vars, join_attr, final_attr)?;
-                if matches!(sub.raw(), RawExpression::Project {..}) {
-                    self.memoize(&mut sub)?;
-                }
-                Ok(sub)
-            }
-            FOF::And(this) => {
-                let mut sub =
-                    self.and_expression(&this.left, &this.right, join_attr, final_attr)?;
-                self.memoize(&mut sub)?;
-                Ok(sub)
-            }
-
-            FOF::Or(this) => {
-                let mut sub = self.or_expression(&this.left, &this.right, join_attr, final_attr)?;
-                self.memoize(&mut sub)?;
-                Ok(sub)
-            }
-            _ => Err(Error::BadRelationalFormula {
-                formula: formula.clone(),
-            }),
-        }
+        Ok(result)
     }
 }
 
@@ -405,7 +475,7 @@ mod tests {
     use super::*;
     use crate::chase::E;
     use codd::{query, Database, Tuples};
-    use razor_fol::{fof, v};
+    use razor_fol::{fof, syntax::FOF, v};
     use std::convert::TryFrom;
 
     macro_rules! atts {
@@ -420,12 +490,12 @@ mod tests {
             let mut db = setup_database().unwrap();
             let mut convertor = Convertor::new();
             let mut memo = Convertor::memoizing(&mut db);
-            let original = convertor.convert(&$fmla, &$atts).unwrap();
-            let memoized = memo.convert(&$fmla, &$atts).unwrap();
+            let original = convertor.convert(relational_head($fmla), &$atts).unwrap();
+            let memoized = memo.convert(relational_head($fmla), &$atts).unwrap();
 
             if $is_memoized {
                 assert!(matches!(memoized, Mono::View(_)));
-                let rememoized = memo.convert(&$fmla, &$atts).unwrap();
+                let rememoized = memo.convert(relational_head($fmla), &$atts).unwrap();
                 match (&memoized, &rememoized) {
                     (Mono::View(ref v1), Mono::View(ref v2)) => {
                         assert_eq!(format!("{:?}", v1), format!("{:?}", v2))
@@ -455,6 +525,12 @@ mod tests {
         Ok(db)
     }
 
+    // Assumes the input in GNF
+    fn relational_head(fof: FOF) -> Relational {
+        let mut gnf = fof.gnf();
+        gnf.remove(0).into_body_and_head().1.relational()
+    }
+
     #[test]
     fn test_atom() {
         let db = setup_database().unwrap();
@@ -462,7 +538,11 @@ mod tests {
             let formula = fof!(P(x));
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![]),
+                    &atts!(vec![v!(x)]),
+                )
                 .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
@@ -477,7 +557,11 @@ mod tests {
             let formula = fof!(P(x));
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![v!(x)]),
+                    &atts!(vec![v!(x)]),
+                )
                 .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
@@ -492,8 +576,8 @@ mod tests {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(
-                    &formula,
+                .relational(
+                    relational_head(formula),
                     &AttributeList::new(vec![]),
                     &atts!(vec![v!(x), v!(y)]),
                 )
@@ -515,8 +599,8 @@ mod tests {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(
-                    &formula,
+                .relational(
+                    relational_head(formula),
                     &atts!(vec![v!(x), v!(y)]),
                     &atts!(vec![v!(y), v!(x)]),
                 )
@@ -538,7 +622,11 @@ mod tests {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x), v!(x)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![v!(x)]),
+                    &atts!(vec![v!(x), v!(x)]),
+                )
                 .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
@@ -567,10 +655,14 @@ mod tests {
     fn test_and() -> Result<(), Error> {
         let db = setup_database().unwrap();
         {
-            let formula = fof!([P(x)] & [R(y, z)]);
+            let formula = fof!({D(x, y, z)} -> {[P(x)] & [R(y, z)]});
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y), v!(z)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![]),
+                    &atts!(vec![v!(x), v!(y), v!(z)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -591,10 +683,14 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y), v!(z)]), result.attributes);
         }
         {
-            let formula = fof!([P(x)] & [R(y, x)]);
+            let formula = fof!({D(x, y)} -> {[P(x)] & [R(y, x)]});
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![]),
+                    &atts!(vec![v!(x), v!(y)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -602,10 +698,14 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y)]), result.attributes);
         }
         {
-            let formula = fof!([P(x)] & [R(x, y)]);
+            let formula = fof!({D(x, y)} -> {[P(x)] & [R(x, y)]});
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![v!(y)]), &atts!(vec![v!(x), v!(y)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![v!(y)]),
+                    &atts!(vec![v!(x), v!(y)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -616,10 +716,14 @@ mod tests {
             assert_eq!(atts!(vec![v!(x), v!(y)]), result.attributes);
         }
         {
-            let formula = fof!([P(x)] & [Q(y, z)]);
+            let formula = fof!({D(x, y, z)} -> {[P(x)] & [Q(y, z)]});
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![v!(x), v!(y)]), &atts!([v!(y), v!(x)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![v!(x), v!(y)]),
+                    &atts!([v!(y), v!(x)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -640,11 +744,11 @@ mod tests {
             assert_eq!(atts!(vec![v!(y), v!(x)]), result.attributes);
         }
         {
-            let formula = fof!([P(x)] & [Q(y, z)]);
+            let formula = fof!({D(x, y, z)} -> {[P(x)] & [Q(y, z)]});
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(
-                    &formula,
+                .relational(
+                    relational_head(formula),
                     &atts!(vec![v!(y), v!(x)]),
                     &atts!(vec![v!(x), v!(y)]),
                 )
@@ -691,7 +795,11 @@ mod tests {
             let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![]),
+                    &atts!(vec![v!(x), v!(y)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -713,7 +821,11 @@ mod tests {
             let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![]), &atts!(vec![v!(y)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![]),
+                    &atts!(vec![v!(y)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -744,10 +856,14 @@ mod tests {
     fn test_formula() {
         let db = setup_database().unwrap();
         {
-            let formula = fof!({ [P(x)] & [P(x)] } & { P(x) });
+            let formula = fof!([D(x)] -> [{ [P(x)] & [P(x)] } & { P(x) }]);
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![v!(x)]),
+                    &atts!(vec![v!(x)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -758,10 +874,14 @@ mod tests {
             assert_eq!(atts!(vec![v!(x)]), result.attributes);
         }
         {
-            let formula = fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] });
+            let formula = fof!([D(x, y)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }]);
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(&formula, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
+                .relational(
+                    relational_head(formula),
+                    &atts!(vec![v!(x)]),
+                    &atts!(vec![v!(x)]),
+                )
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -772,11 +892,11 @@ mod tests {
             assert_eq!(atts!(vec![v!(x)]), result.attributes);
         }
         {
-            let formula = fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] });
+            let formula = fof!([D(x, y, z)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }]);
             let mut convertor = Convertor::new();
             let result = convertor
-                .expression(
-                    &formula,
+                .relational(
+                    relational_head(formula),
                     &atts!(vec![v!(z)]),
                     &atts!(vec![v!(y), v!(x), v!(z)]),
                 )
@@ -804,17 +924,17 @@ mod tests {
     #[test]
     fn test_formula_memoized() {
         test_memo!(
-            fof!({ [P(x)] & [P(x)] } & { P(x) }),
+            fof!([D(x)] -> [{ [P(x)] & [P(x)] } & { P(x) }]),
+            atts!(vec![v!(x)]),
+            false
+        );
+        test_memo!(
+            fof!([D(x, y)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }]),
             atts!(vec![v!(x)]),
             true
         );
         test_memo!(
-            fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }),
-            atts!(vec![v!(x)]),
-            true
-        );
-        test_memo!(
-            fof!({ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }),
+            fof!([D(x, y, z)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }]),
             atts!(vec![v!(y), v!(x), v!(z)]),
             true
         );

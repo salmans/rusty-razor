@@ -282,6 +282,12 @@ impl From<V> for Complex {
     }
 }
 
+impl From<&V> for Complex {
+    fn from(variable: &V) -> Self {
+        variable.clone().into()
+    }
+}
+
 impl From<C> for Complex {
     fn from(constant: C) -> Self {
         Self::Const { constant }
