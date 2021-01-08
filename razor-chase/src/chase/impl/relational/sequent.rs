@@ -10,7 +10,7 @@ use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
     syntax::{formula::Atomic, symbol::Generator, Pred, C, F, FOF},
-    transform::{relationalize, PcfSet, Relational, GNF},
+    transform::{LinearConfig, PcfSet, Relational, RelationalConfig, GNF},
 };
 use std::convert::TryFrom;
 
@@ -92,17 +92,17 @@ impl Sequent {
 
     pub(super) fn new(gnf: &GNF, convertor: &mut Convertor) -> Result<Self, Error> {
         // relationalize and expand equalities of `body` and `head`:
-        let body_er = expand_equality(&relationalize(&vec![gnf.body().clone()].into()));
+        let body_er = linearize(&relationalize(&vec![gnf.body().clone()].into()));
         let head_r = relationalize(gnf.head());
         let branches = build_branches(&head_r)?; // relationalized right is enough for building branches
-        let head_er = expand_equality(&head_r);
+        let head_er = linearize(&head_r);
 
         let head_attrs = AttributeList::try_from(&head_er)?.universals();
         let range = Vec::from(&head_attrs);
 
         // apply range restriction:
-        let body_rr = relationalize::range_restrict(&body_er, &range, DOMAIN);
-        let head_rr = relationalize::range_restrict(&head_er, &range, DOMAIN);
+        let body_rr = body_er.range_restrict(&&range, DOMAIN);
+        let head_rr = head_er.range_restrict(&range, DOMAIN);
 
         let body_attrs = AttributeList::try_from(&body_rr)?.intersect(&head_attrs);
 
@@ -148,8 +148,8 @@ impl SequentTrait for Sequent {
 }
 
 // Relationalizes `formula` if possible; otherwise, returns an error.
-fn relationalize(gnf: &PcfSet) -> relationalize::Relational {
-    let mut relationalizer = relationalize::Relationalizer::default();
+fn relationalize(gnf: &PcfSet) -> Relational {
+    let mut relationalizer = RelationalConfig::default();
     relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
     relationalizer
         .set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
@@ -158,15 +158,14 @@ fn relationalize(gnf: &PcfSet) -> relationalize::Relational {
 
 // Makes the implicit equalities in `formula` explicit by creating new equations for
 // variables that appear in more than one position.
-fn expand_equality(formula: &relationalize::Relational) -> relationalize::Relational {
-    let mut equality_expander = relationalize::EqualityExpander::default();
-    equality_expander.set_equality_symbol(EQUALITY);
-    equality_expander.set_equality_generator(
+fn linearize(formula: &Relational) -> Relational {
+    let mut config = LinearConfig::default();
+    config.set_equality_generator(
         Generator::new()
             .set_prefix(EQUATIONAL_PREFIX)
             .set_delimiter(SEPERATOR),
     );
-    equality_expander.transform(formula)
+    formula.linear_with(&config)
 }
 
 fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
