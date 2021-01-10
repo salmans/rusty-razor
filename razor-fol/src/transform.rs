@@ -14,10 +14,9 @@ use thiserror::Error;
 pub use cnf::CNF;
 pub use dnf::DNF;
 pub use gnf::{PcfSet, GNF, PCF};
-pub use linear::LinearConfig;
 pub use nnf::NNF;
 pub use pnf::PNF;
-pub use relational::{RelClause, Relational, RelationalConfig, Variable};
+pub use relational::{RelClause, Relational, Variable};
 pub use snf::SNF;
 
 /// Is the type of errors returned by syntactic transformations.

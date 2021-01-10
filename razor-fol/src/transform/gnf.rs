@@ -9,7 +9,6 @@ use crate::syntax::{
         clause::{Clause, Literal},
         *,
     },
-    symbol::Generator,
     term::Complex,
     Error, Sig, Theory, FOF, V,
 };
@@ -441,16 +440,34 @@ impl Theory<FOF> {
     ///     Q(x) -> exists y. R(x, y);
     /// "#.parse().unwrap();
     /// assert_eq!(r#"P(x) → Q(x)
-    /// Q(x) → R(x, sk#0(x))"#, theory.gnf().to_string());
+    /// Q(x) → R(x, f#0(x))"#, theory.gnf().to_string());
     /// ```
     pub fn gnf(&self) -> Theory<GNF> {
         use std::convert::TryFrom;
 
-        let mut generator = Generator::new().set_prefix("sk#");
+        let mut c_counter = 0;
+        let mut f_counter = 0;
+        let mut const_generator = || {
+            let sk_name = format!("c#{}", c_counter);
+            c_counter += 1;
+            sk_name.into()
+        };
+
+        let mut fn_generator = || {
+            let sk_name = format!("f#{}", f_counter);
+            f_counter += 1;
+            sk_name.into()
+        };
+
         let formulae: Vec<GNF> = self
             .formulae()
             .iter()
-            .flat_map(|f| f.pnf().snf_with(&mut generator).cnf().gnf())
+            .flat_map(|f| {
+                f.pnf()
+                    .snf_with(&mut const_generator, &mut fn_generator)
+                    .cnf()
+                    .gnf()
+            })
             .collect();
 
         // Assuming that the conversion does not change the signature of the theory, thus it's safe:
@@ -557,7 +574,7 @@ mod tests {
         }
         {
             let formula: FOF = "? x. P(x)".parse().unwrap();
-            assert_debug_strings!("true -> P('sk#0)", gnf(&formula));
+            assert_debug_strings!("true -> P('c#0)", gnf(&formula));
         }
         {
             let formula: FOF = "P(x) & Q(x) -> P(y) | Q(y)".parse().unwrap();
@@ -579,14 +596,14 @@ mod tests {
         }
         {
             let formula: FOF = "!x. (P(x) -> ?y. Q(x,y))".parse().unwrap();
-            assert_debug_strings!("P(x) -> Q(x, sk#0(x))", gnf(&formula));
+            assert_debug_strings!("P(x) -> Q(x, f#0(x))", gnf(&formula));
         }
         {
             let formula: FOF = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))"
                 .parse()
                 .unwrap();
             assert_debug_strings!(
-                "P(x) -> ((P(sk#1(x)) & S(x, sk#1(x))) | (Q(sk#0(x)) & R(x, sk#0(x))))",
+                "P(x) -> ((P(f#1(x)) & S(x, f#1(x))) | (Q(f#0(x)) & R(x, f#0(x))))",
                 gnf(&formula),
             );
         }
@@ -606,7 +623,7 @@ mod tests {
         }
         {
             let formula: FOF = "? x. P(x) -> Q(x)".parse().unwrap();
-            assert_debug_strings!("P('sk#0) -> Q('sk#0)", gnf(&formula));
+            assert_debug_strings!("P('c#0) -> Q('c#0)", gnf(&formula));
         }
         {
             let formula: FOF = "(? x. P(x)) -> Q(x)".parse().unwrap();
@@ -614,7 +631,7 @@ mod tests {
         }
         {
             let formula: FOF = "? x. (P(x) -> Q(x))".parse().unwrap();
-            assert_debug_strings!("P('sk#0) -> Q('sk#0)", gnf(&formula));
+            assert_debug_strings!("P('c#0) -> Q('c#0)", gnf(&formula));
         }
         {
             let formula: FOF = "false -> P(x)".parse().unwrap();

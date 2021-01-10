@@ -9,8 +9,8 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::Atomic, symbol::Generator, Pred, C, F, FOF},
-    transform::{LinearConfig, PcfSet, Relational, RelationalConfig, GNF},
+    syntax::{formula::Atomic, Pred, C, F, FOF},
+    transform::{PcfSet, Relational, GNF},
 };
 use std::convert::TryFrom;
 
@@ -147,25 +147,26 @@ impl SequentTrait for Sequent {
     }
 }
 
-// Relationalizes `formula` if possible; otherwise, returns an error.
+// Relationalizes `formula` if possible; otherwise.
 fn relationalize(gnf: &PcfSet) -> Relational {
-    let mut relationalizer = RelationalConfig::default();
-    relationalizer.set_flattening_generator(Generator::new().set_prefix(EXISTENTIAL_PREFIX));
-    relationalizer
-        .set_predicate_generator(Generator::new().set_prefix(FUNCTIONAL_PREDICATE_PREFIX));
-    gnf.relational_with(&mut relationalizer)
+    let mut var_counter = 0;
+    let mut var_generator = || {
+        let name = format!("{}{}", EXISTENTIAL_PREFIX, var_counter);
+        var_counter += 1;
+        name.into()
+    };
+    let mut const_generator = |c: &C| format!("{}{}", CONSTANT_PREDICATE_PREFIX, c.0).into();
+    let mut fn_generator = |f: &F| format!("{}{}", FUNCTIONAL_PREDICATE_PREFIX, f.0).into();
+
+    gnf.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
 }
 
 // Makes the implicit equalities in `formula` explicit by creating new equations for
 // variables that appear in more than one position.
 fn linearize(formula: &Relational) -> Relational {
-    let mut config = LinearConfig::default();
-    config.set_equality_generator(
-        Generator::new()
-            .set_prefix(EQUATIONAL_PREFIX)
-            .set_delimiter(SEPERATOR),
-    );
-    formula.linear_with(&config)
+    let mut generator =
+        |name: &str, count| format!("{}{}{}{}", EQUATIONAL_PREFIX, name, SEPERATOR, count).into();
+    formula.linear_with(&mut generator)
 }
 
 fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {

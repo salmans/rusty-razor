@@ -4,7 +4,7 @@
 [`PNF`]: crate::transform::PNF
 */
 use super::PNF;
-use crate::syntax::{formula::*, qff::QFF, symbol::Generator, term::Complex, C, F, FOF, V};
+use crate::syntax::{formula::*, qff::QFF, term::Complex, C, F, FOF, V};
 use std::collections::HashMap;
 
 /// Represents a formula in Skolem Normal Form (SNF).
@@ -83,16 +83,25 @@ impl From<&PNF> for SNF {
 }
 
 impl SNF {
-    /// Creates a new formula in SNF from a [`PNF`], a list of skolem variables and
-    /// [`Generator`] for creating fresh skolem function names.
-    fn new(pnf: PNF, mut skolem_vars: Vec<V>, generator: &mut Generator) -> Self {
+    /// Creates a new formula in SNF from a [`PNF`], a list of skolem variables, and
+    /// a `generator` function for creating fresh skolem functions.
+    fn new<CG, FG>(
+        pnf: PNF,
+        mut skolem_vars: Vec<V>,
+        const_generator: &mut CG,
+        fn_generator: &mut FG,
+    ) -> Self
+    where
+        CG: FnMut() -> C,
+        FG: FnMut() -> F,
+    {
         match pnf {
             PNF::Forall(this) => {
                 let variables = this.variables;
                 skolem_vars.append(&mut variables.to_vec());
                 SNF::forall(
                     variables.to_vec(),
-                    Self::new(this.formula, skolem_vars, generator),
+                    Self::new(this.formula, skolem_vars, const_generator, fn_generator),
                 )
             }
             PNF::Exists(this) => {
@@ -101,16 +110,16 @@ impl SNF {
 
                 variables.iter().for_each(|v| {
                     if skolem_vars.is_empty() {
-                        map.insert(&v, C::from(&generator.generate_next()).into());
+                        map.insert(&v, const_generator().into());
                     } else {
                         let vars: Vec<Complex> =
                             skolem_vars.iter().map(|v| v.clone().into()).collect();
-                        map.insert(&v, F::from(&generator.generate_next()).app(vars));
+                        map.insert(&v, fn_generator().app(vars));
                     }
                 });
 
                 let substituted = this.formula.substitute(&map);
-                Self::new(substituted, skolem_vars, generator)
+                Self::new(substituted, skolem_vars, const_generator, fn_generator)
             }
             PNF::QFF(this) => this.into(),
         }
@@ -184,10 +193,23 @@ impl PNF {
     /// let pnf = formula.pnf();
     /// let snf = pnf.snf();
     ///
-    /// assert_eq!("P(x, sk#0(x))", snf.to_string());
+    /// assert_eq!("P(x, f#0(x))", snf.to_string());
     /// ```
     pub fn snf(&self) -> SNF {
-        self.snf_with(&mut Generator::new().set_prefix("sk#"))
+        let mut c_counter = 0;
+        let mut f_counter = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        self.snf_with(&mut const_generator, &mut fn_generator)
     }
 
     /// Is similar to [`PNF::snf`] but uses an existing [`Generator`] to avoid collision
@@ -199,18 +221,33 @@ impl PNF {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{FOF, symbol::Generator};
+    /// # use razor_fol::syntax::FOF;
     ///
-    /// let mut generator = Generator::new().set_prefix("skolem");
+    /// let mut c_counter = 0;
+    /// let mut f_counter = 0;
+    /// let mut const_generator = || {
+    ///     let c = c_counter;
+    ///     c_counter += 1;
+    ///     format!("skolem_const{}", c).into()
+    /// };
+    /// let mut fn_generator = || {
+    ///     let c = f_counter;
+    ///     f_counter += 1;
+    ///     format!("skolem_fn{}", c).into()
+    /// };    
     /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
     /// let pnf = formula.pnf();
-    /// let snf = pnf.snf_with(&mut generator);
+    /// let snf = pnf.snf_with(&mut const_generator, &mut fn_generator);
     ///
-    /// assert_eq!("P(x, skolem0(x))", snf.to_string());
+    /// assert_eq!("P(x, skolem_fn0(x))", snf.to_string());
     /// ```
-    pub fn snf_with(&self, generator: &mut Generator) -> SNF {
+    pub fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+    where
+        CG: FnMut() -> C,
+        FG: FnMut() -> F,
+    {
         let free_vars = self.free_vars().into_iter().cloned().collect();
-        SNF::new(self.clone(), free_vars, generator)
+        SNF::new(self.clone(), free_vars, const_generator, fn_generator)
     }
 }
 
@@ -223,7 +260,7 @@ impl FOF {
     ///
     /// let fof: FOF = "∃ y. P(x, y)".parse().unwrap();
     ///
-    /// assert_eq!("P(x, sk#0(x))", fof.snf().to_string());
+    /// assert_eq!("P(x, f#0(x))", fof.snf().to_string());
     /// ```
     pub fn snf(&self) -> SNF {
         self.pnf().snf()
@@ -238,44 +275,67 @@ mod tests {
     fn snf(formula: &FOF) -> FOF {
         formula.pnf().snf().into()
     }
-    fn snf_with(formula: &FOF, generator: &mut Generator) -> FOF {
-        formula.pnf().snf_with(generator).into()
+    fn snf_with<CG, FG>(formula: &FOF, const_generator: &mut CG, fn_generator: &mut FG) -> FOF
+    where
+        CG: FnMut() -> C,
+        FG: FnMut() -> F,
+    {
+        formula.pnf().snf_with(const_generator, fn_generator).into()
     }
 
     #[test]
     fn test_snf() {
-        assert_debug_string!("P('sk#0)", snf(&fof!(? x. (P(x)))));
+        assert_debug_string!("P('c#0)", snf(&fof!(? x. (P(x)))));
 
-        assert_debug_string!("! x. P(x, sk#0(x))", snf(&fof!(!x. (?y. (P(x, y))))));
-        assert_debug_string!("P(x, sk#0(x))", snf(&fof!(?y. (P(x, y)))));
+        assert_debug_string!("! x. P(x, f#0(x))", snf(&fof!(!x. (?y. (P(x, y))))));
+        assert_debug_string!("P(x, f#0(x))", snf(&fof!(?y. (P(x, y)))));
         assert_debug_string!(
-            "! x. P(x, f(g(sk#0(x)), h(sk#0(x))))",
+            "! x. P(x, f(g(f#0(x)), h(f#0(x))))",
             snf(&fof!(!x. (? y. (P(x, f(g(y), h(y))))))),
         );
         assert_debug_string!(
-            "('sk#0 = 'sk#1) & ('sk#1 = 'sk#2)",
+            "('c#0 = 'c#1) & ('c#1 = 'c#2)",
             snf(&fof!(? x, y, z. (((x) = (y)) & ((y) = (z))))),
         );
         assert_debug_string!(
-            "! y. (Q('sk#0, y) | P(sk#1(y), y, sk#2(y)))",
+            "! y. (Q('c#0, y) | P(f#0(y), y, f#1(y)))",
             snf(&fof!(? x. (! y. ((Q(x, y)) | (? x, z. (P(x, y, z))))))),
         );
         assert_debug_string!(
-            "! x. (! z. P(x, sk#0(x), z))",
+            "! x. (! z. P(x, f#0(x), z))",
             snf(&fof!(! x. (? y.( ! z. (P(x, y, z)))))),
         );
         assert_debug_string!(
-            "! x. (R(g(x)) | R(x, sk#0(x)))",
+            "! x. (R(g(x)) | R(x, f#0(x)))",
             snf(&fof!(! x. ((R(g(x))) | (? y. (R(x, y)))))),
         );
         assert_debug_string!(
-            "! y. (! z. (! v. P('sk#0, y, z, sk#1(y, z), v, sk#2(y, z, v))))",
+            "! y. (! z. (! v. P('c#0, y, z, f#0(y, z), v, f#1(y, z, v))))",
             snf(&fof!(? x. (! y. (! z. (? u. (! v. (? w. (P(x, y, z, u, v, w))))))))),
         );
         {
-            let mut generator = Generator::new().set_prefix("sk#");
-            assert_debug_string!("P('sk#0)", snf_with(&fof!(? x. (P(x))), &mut generator));
-            assert_debug_string!("Q('sk#1)", snf_with(&fof!(? x. (Q(x))), &mut generator));
+            let mut c_counter = 0;
+            let mut f_counter = 0;
+
+            let mut const_generator = || {
+                let c_name = format!("c#{}", c_counter);
+                c_counter += 1;
+                c_name.into()
+            };
+            let mut fn_generator = || {
+                let f_name = format!("f#{}", f_counter);
+                f_counter += 1;
+                f_name.into()
+            };
+
+            assert_debug_string!(
+                "P('c#0)",
+                snf_with(&fof!(? x. (P(x))), &mut const_generator, &mut fn_generator)
+            );
+            assert_debug_string!(
+                "Q('c#1)",
+                snf_with(&fof!(? x. (Q(x))), &mut const_generator, &mut fn_generator)
+            );
         }
     }
 }

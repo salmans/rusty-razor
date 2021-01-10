@@ -15,7 +15,6 @@ impl Relational {
     /// ```rust
     /// use razor_fol::syntax::FOF;
     /// use razor_fol::v;
-    /// use razor_fol::transform::RelationalConfig;
     ///
     /// let fof = "R(x, y) -> P(x) & Q(y)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();

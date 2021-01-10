@@ -2,10 +2,9 @@
 use super::PcfSet;
 use crate::syntax::{
     formula::*,
-    symbol::Generator,
     term::Complex,
     term::{Renaming, Substitution},
-    Error, Formula, Pred, Sig, Term, FOF, V,
+    Error, Formula, Pred, Sig, Term, C, F, FOF, V,
 };
 use itertools::Itertools;
 use std::{collections::HashMap, ops::Deref};
@@ -252,73 +251,25 @@ impl std::fmt::Display for Relational {
     }
 }
 
-/// Provides the relationalization algorithm through the [`transform`] method.
-///
-/// [`transform`]: Relational::transform()
-pub struct RelationalConfig {
-    // Is the [`Generator`] instance used to generate variable names used as placeholders
-    // in flattened formulae.
-    flattening_generator: Generator,
-
-    // Is the [`Generator`] instance used to create predicate symbols for functions.
-    function_predicate_generator: Generator,
-
-    // Is the [`Generator`] instance used to create predicate symbols for constants.
-    constant_predicate_generator: Generator,
-
-    // Maintains a list of generated existential variables during the transformation of
-    // the last formula.
-    generated_variables: Vec<V>,
-}
-
-impl RelationalConfig {
-    /// Use `generator` to generate flattening variable names.
-    pub fn set_flattening_generator(&mut self, generator: Generator) {
-        self.flattening_generator = generator;
-    }
-
-    /// Use `generator` to create function predicate names.
-    pub fn set_predicate_generator(&mut self, generator: Generator) {
-        self.function_predicate_generator = generator;
-    }
-
-    // Generates a new variable using the `flattening_generator` and keeps track of it in
-    // `generated_variables`.
-    fn generate_variable(&mut self) -> V {
-        let var = V(self.flattening_generator.generate_next());
-        self.generated_variables.push(var.clone());
-        var
-    }
-}
-
-impl Default for RelationalConfig {
-    /// Creates a new `RelationalConfig` instance with default generators and symbols:
-    ///   * The equality symbol is `=`.
-    ///   * Variables introduced by flattening are prefixed with `?`.
-    ///   * Function predicates are prefixed with `$`.    
-    fn default() -> Self {
-        Self {
-            flattening_generator: Generator::new().set_prefix("?"),
-            function_predicate_generator: Generator::new().set_prefix("$"),
-            constant_predicate_generator: Generator::new().set_prefix("@"),
-            generated_variables: Vec::new(),
-        }
-    }
-}
-
 // Recursively flattens a term and returns the resulting formula together with a placeholder variable
 // for the term. Nothing needs to be done if the input term is a variable.
-fn flatten_term(term: &Complex, relationalizer: &mut RelationalConfig) -> (Option<RelClause>, V) {
+fn flatten_term<VG, CG, FG>(
+    term: &Complex,
+    var_generator: &mut VG,
+    const_generator: &mut CG,
+    fn_generator: &mut FG,
+) -> (Option<RelClause>, V)
+where
+    VG: FnMut() -> V,
+    CG: FnMut(&C) -> Pred,
+    FG: FnMut(&F) -> Pred,
+{
     match term {
         Complex::Var { variable } => (None, variable.clone()),
         Complex::Const { constant } => {
-            let var = relationalizer.generate_variable();
+            let var = var_generator();
             let terms = vec![var.clone().into()];
-            let predicate = Pred(
-                relationalizer
-                    .constant_predicate_generator
-                    .symbol(constant.0.to_string()),
-            );
+            let predicate = const_generator(constant);
             let atom = Atom { predicate, terms };
             (Some(vec![atom.into()].into()), var)
         }
@@ -327,7 +278,8 @@ fn flatten_term(term: &Complex, relationalizer: &mut RelationalConfig) -> (Optio
             let mut terms = terms
                 .iter()
                 .map(|t| {
-                    let (clauses, var) = flatten_term(t, relationalizer);
+                    let (clauses, var) =
+                        flatten_term(t, var_generator, const_generator, fn_generator);
                     if let Some(cs) = clauses {
                         conjuncts.extend(cs.into_atomics());
                     }
@@ -335,14 +287,10 @@ fn flatten_term(term: &Complex, relationalizer: &mut RelationalConfig) -> (Optio
                 })
                 .collect::<Vec<Variable>>();
 
-            let var = relationalizer.generate_variable();
+            let var = var_generator();
             terms.push(var.clone().into());
 
-            let predicate = Pred(
-                relationalizer
-                    .function_predicate_generator
-                    .symbol(function.0.to_string()),
-            );
+            let predicate = fn_generator(function);
             let atom = Atom { predicate, terms };
 
             // !!! This is preserving the topological order among variables:
@@ -353,7 +301,17 @@ fn flatten_term(term: &Complex, relationalizer: &mut RelationalConfig) -> (Optio
 }
 
 // Applies top level flattening on the input formula.
-fn flatten_formula(clause_set: &PcfSet, relationalizer: &mut RelationalConfig) -> Relational {
+fn flatten_formula<VG, CG, FG>(
+    clause_set: &PcfSet,
+    var_generator: &mut VG,
+    const_generator: &mut CG,
+    fn_generator: &mut FG,
+) -> Relational
+where
+    VG: FnMut() -> V,
+    CG: FnMut(&C) -> Pred,
+    FG: FnMut(&F) -> Pred,
+{
     clause_set
         .iter()
         .map(|clause| {
@@ -366,7 +324,8 @@ fn flatten_formula(clause_set: &PcfSet, relationalizer: &mut RelationalConfig) -
                             .terms
                             .iter()
                             .map(|t| {
-                                let (clauses, var) = flatten_term(t, relationalizer);
+                                let (clauses, var) =
+                                    flatten_term(t, var_generator, const_generator, fn_generator);
                                 if let Some(cs) = clauses {
                                     conjuncts.extend(cs.into_atomics());
                                 }
@@ -386,13 +345,15 @@ fn flatten_formula(clause_set: &PcfSet, relationalizer: &mut RelationalConfig) -
                     }
                     Atomic::Equals(this) => {
                         let mut conjuncts = vec![];
-                        let (left_clauses, left_var) = flatten_term(&this.left, relationalizer);
+                        let (left_clauses, left_var) =
+                            flatten_term(&this.left, var_generator, const_generator, fn_generator);
                         if let Some(cs) = left_clauses {
                             conjuncts.extend(cs.into_atomics());
                         }
                         let left = left_var.into();
 
-                        let (right_clauses, right_var) = flatten_term(&this.right, relationalizer);
+                        let (right_clauses, right_var) =
+                            flatten_term(&this.right, var_generator, const_generator, fn_generator);
                         if let Some(cs) = right_clauses {
                             conjuncts.extend(cs.into_atomics());
                         }
@@ -413,7 +374,7 @@ fn flatten_formula(clause_set: &PcfSet, relationalizer: &mut RelationalConfig) -
 fn equation_rewrites<'a>(
     clause_set: &'a Relational,
     map: &mut HashMap<&'a V, &'a V>,
-    relationalizer: &mut RelationalConfig,
+    generated_variables: &mut Vec<V>,
 ) {
     clause_set.iter().for_each(|clause| {
         clause.iter().for_each(|atomic| match atomic {
@@ -421,8 +382,8 @@ fn equation_rewrites<'a>(
                 let left = &this.left;
                 let right = &this.right;
 
-                let l_generated = relationalizer.generated_variables.contains(left.symbol());
-                let r_generated = relationalizer.generated_variables.contains(right.symbol());
+                let l_generated = generated_variables.contains(left.symbol());
+                let r_generated = generated_variables.contains(right.symbol());
 
                 match (l_generated, r_generated) {
                     (false, true) => {
@@ -450,12 +411,9 @@ fn equation_rewrites<'a>(
 
 // Simplify tries to minimize the use of existential variables (generated by relationalize) by replacing
 // them with universal or other existential variables that are syntactically equal with them.
-fn simplify_equations(
-    clause_set: &Relational,
-    relationalizer: &mut RelationalConfig,
-) -> Relational {
+fn simplify_equations(clause_set: &Relational, generated_variables: &mut Vec<V>) -> Relational {
     let mut map = HashMap::new();
-    equation_rewrites(clause_set, &mut map, relationalizer);
+    equation_rewrites(clause_set, &mut map, generated_variables);
 
     let sub = |v: &V| {
         let variable = map.get(v).map(|&t| t.clone()).unwrap_or_else(|| v.clone());
@@ -468,21 +426,46 @@ impl PcfSet {
     /// Is similar to [`PcfSet::relational`] but uses a custom [`RelationalConfig`].
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::RelationalConfig;
+    /// # use razor_fol::syntax::{FOF, C, V, F};
     ///
     /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
     /// let gnf_head = gnfs[0].head();
-    /// let transformed = gnf_head.relational();
+    /// let mut var_counter = 0;
+    /// let mut var_generator = || {
+    ///    let name = var_counter.to_string();
+    ///    var_counter += 1;
+    ///    name.into()
+    /// };
+    /// let mut const_generator = |c: &C| c.0.to_uppercase().into();
+    /// let mut fn_generator = |f: &F| f.0.to_uppercase().into();    
+    /// let transformed = gnf_head.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
     /// assert_eq!(
-    ///     r"(($f(x, ?0) ∧ P(?0)) ∧ @c(?1)) ∧ Q(?1)",
+    ///     r"((F(x, 0) ∧ P(0)) ∧ C(1)) ∧ Q(1)",
     ///     transformed.to_string()
     /// );
     /// ```
-    pub fn relational_with(&self, relationalizer: &mut RelationalConfig) -> Relational {
-        let flattened = flatten_formula(self, relationalizer);
-        let simplified = simplify_equations(&flattened, relationalizer);
+    pub fn relational_with<VG, CG, FG>(
+        &self,
+        var_generator: &mut VG,
+        const_generator: &mut CG,
+        fn_generator: &mut FG,
+    ) -> Relational
+    where
+        VG: FnMut() -> V,
+        CG: FnMut(&C) -> Pred,
+        FG: FnMut(&F) -> Pred,
+    {
+        // keeping track of the generated variables to remove reflexive equations later on:
+        let mut generated_vars = Vec::new();
+        let mut var_generator_ex = || {
+            let v = var_generator();
+            generated_vars.push(v.clone());
+            v
+        };
+        let flattened = flatten_formula(self, &mut var_generator_ex, const_generator, fn_generator);
+        let simplified = simplify_equations(&flattened, &mut generated_vars);
+
         simplified
             .into_clauses()
             .into_iter()
@@ -522,7 +505,6 @@ impl PcfSet {
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::RelationalConfig;
     ///
     /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
@@ -534,7 +516,16 @@ impl PcfSet {
     /// );
     /// ```
     pub fn relational(&self) -> Relational {
-        self.relational_with(&mut RelationalConfig::default())
+        let mut var_counter = 0;
+        let mut var_generator = || {
+            let name = format!("?{}", var_counter);
+            var_counter += 1;
+            name.into()
+        };
+        let mut const_generator = |c: &C| format!("@{}", c.0).into();
+        let mut fn_generator = |f: &F| format!("${}", f.0).into();
+
+        self.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
     }
 }
 
@@ -552,9 +543,25 @@ mod tests {
     }
 
     fn flatten(fof: FOF) -> String {
+        let mut var_counter = 0;
+        let mut var_generator = || {
+            let name = format!("?{}", var_counter);
+            var_counter += 1;
+            name.into()
+        };
+        let mut const_generator = |c: &C| format!("@{}", c.0).into();
+        let mut fn_generator = |f: &F| format!("${}", f.0).into();
+
         let rels = clause_set(fof)
             .iter()
-            .map(|f| flatten_formula(f, &mut RelationalConfig::default()))
+            .map(|f| {
+                flatten_formula(
+                    f,
+                    &mut var_generator,
+                    &mut const_generator,
+                    &mut fn_generator,
+                )
+            })
             .map(FOF::from)
             .collect::<Vec<_>>();
         format!("{:?}", rels)

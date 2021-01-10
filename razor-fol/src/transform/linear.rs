@@ -1,10 +1,13 @@
 use super::Relational;
-use crate::syntax::{formula::*, symbol::Generator, V};
+use crate::syntax::{formula::*, V};
 use std::collections::HashMap;
 
 impl Relational {
-    pub fn linear_with(&self, config: &LinearConfig) -> Relational {
-        linearize(self, config)
+    pub fn linear_with<G>(&self, generator: &mut G) -> Relational
+    where
+        G: FnMut(&str, i32) -> V,
+    {
+        linearize(self, generator)
             .into_clauses()
             .into_iter()
             .map(|clause| {
@@ -27,7 +30,6 @@ impl Relational {
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::{RelationalConfig, LinearConfig};
     ///
     /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
@@ -40,41 +42,15 @@ impl Relational {
     /// );
     /// ```
     pub fn linear(&self) -> Relational {
-        self.linear_with(&LinearConfig::default())
+        let mut generator = |name: &str, count| format!("~{}:{}", name, count).into();
+        self.linear_with(&mut generator)
     }
 }
 
-/// Is used to expand implicit equations by replacing variables that appear in more than
-/// one position of a formula with freshly generated variables. The expansion algorithm
-/// is provided by the [`transform`] method.
-///
-/// [`transform`]: EqualityExpander::transform()
-pub struct LinearConfig {
-    // Is the [`Generator`] instance used to generate new variable names when variables
-    // appear in more than one position.
-    equality_generator: Generator,
-}
-
-impl LinearConfig {
-    /// Use `generator` to distinguish variables that appear in more than one positions.
-    pub fn set_equality_generator(&mut self, generator: Generator) {
-        self.equality_generator = generator;
-    }
-}
-
-impl Default for LinearConfig {
-    /// Creates a new `EqualityExpander` instance with default generators and symbols:
-    /// * The equality symbol is `=`.
-    /// * Variables appearing in more than one position are distinguished with `~` as the
-    /// prefix, followed by `:` and a unique index.
-    fn default() -> Self {
-        Self {
-            equality_generator: Generator::new().set_prefix("~").set_delimiter(":"),
-        }
-    }
-}
-
-fn linearize(rel: &Relational, config: &LinearConfig) -> Relational {
+fn linearize<G>(rel: &Relational, generator: &mut G) -> Relational
+where
+    G: FnMut(&str, i32) -> V,
+{
     let mut vars = HashMap::<V, i32>::new();
     rel.iter()
         .map(|clause| {
@@ -87,9 +63,7 @@ fn linearize(rel: &Relational, config: &LinearConfig) -> Relational {
                         for variable in &this.terms {
                             vars.entry(variable.symbol().clone())
                                 .and_modify(|count| {
-                                    let new_var = V(config
-                                        .equality_generator
-                                        .indexed_symbol(variable.0.to_string(), *count));
+                                    let new_var: V = generator(&variable.0, *count);
 
                                     let left = variable.clone();
                                     let right = new_var.clone().into();
@@ -122,10 +96,7 @@ fn linearize(rel: &Relational, config: &LinearConfig) -> Relational {
 
                         vars.entry(left.symbol().clone())
                             .and_modify(|count| {
-                                let new_var = V(config
-                                    .equality_generator
-                                    .indexed_symbol(left.to_string(), *count));
-
+                                let new_var = generator(&left.0, *count);
                                 let left = left.clone();
                                 let right = new_var.clone().into();
 
@@ -141,10 +112,7 @@ fn linearize(rel: &Relational, config: &LinearConfig) -> Relational {
 
                         vars.entry(right.symbol().clone())
                             .and_modify(|count| {
-                                let new_var = V(config
-                                    .equality_generator
-                                    .indexed_symbol(right.to_string(), *count));
-
+                                let new_var = generator(&right.0, *count);
                                 let left = right.clone();
                                 let right = new_var.clone().into();
 
