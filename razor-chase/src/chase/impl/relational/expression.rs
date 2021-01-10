@@ -8,9 +8,10 @@ use either::Either;
 use razor_fol::{
     syntax::{
         formula::{Atom, Atomic, Equals},
+        term::Variable,
         Formula,
     },
-    transform::{RelClause, Relational, Variable},
+    transform::{RelClause, Relational},
 };
 use std::collections::HashMap;
 

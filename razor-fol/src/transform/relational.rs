@@ -2,61 +2,13 @@
 use super::PcfSet;
 use crate::syntax::{
     formula::*,
-    term::Complex,
-    term::{Renaming, Substitution},
-    Const, Error, Formula, Func, Pred, Sig, Term, Var, FOF,
+    term::{Complex, Variable},
+    Const, Error, Formula, Func, Pred, Sig, Var, FOF,
 };
 use itertools::Itertools;
 use std::{collections::HashMap, ops::Deref};
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
-pub struct Variable(Var);
-
-impl Variable {
-    /// Returns the variable symbol of this variable.
-    #[inline(always)]
-    pub fn symbol(&self) -> &Var {
-        &self.0
-    }
-}
-
-impl Deref for Variable {
-    type Target = Var;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<Var> for Variable {
-    fn from(value: Var) -> Self {
-        Self(value)
-    }
-}
-
 type FlatAtom = Atomic<Variable>;
-
-impl Term for Variable {
-    fn signature(&self) -> Result<Sig, Error> {
-        Ok(Sig::new())
-    }
-
-    fn vars(&self) -> Vec<&Var> {
-        vec![&self.0]
-    }
-
-    fn transform(&self, f: &impl Fn(&Self) -> Self) -> Self {
-        f(self)
-    }
-
-    fn rename_vars(&self, renaming: &impl Renaming) -> Self {
-        renaming.apply(&self.0).clone().into()
-    }
-
-    fn substitute(&self, sub: &impl Substitution<Self>) -> Self {
-        sub.apply(&self.0).into()
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct RelClause(Vec<FlatAtom>);
@@ -417,7 +369,7 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut Vec<Var
 
     let sub = |v: &Var| {
         let variable = map.get(v).map(|&t| t.clone()).unwrap_or_else(|| v.clone());
-        Variable(variable)
+        Variable::from(variable)
     };
     clause_set.substitute(&sub)
 }

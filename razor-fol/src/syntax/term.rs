@@ -1,6 +1,6 @@
 /*! Defines the syntax for first-order terms. */
 use super::{formula::Equals, signature::FSig, Const, Error, Func, Sig, Var, FOF};
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, ops::Deref};
 
 /// Is the trait of types that act as terms.
 pub trait Term {
@@ -310,6 +310,53 @@ impl fmt::Display for Complex {
 impl fmt::Debug for Complex {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct Variable(Var);
+
+impl Variable {
+    /// Returns the variable symbol of this variable.
+    #[inline(always)]
+    pub fn symbol(&self) -> &Var {
+        &self.0
+    }
+}
+
+impl Deref for Variable {
+    type Target = Var;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<Var> for Variable {
+    fn from(value: Var) -> Self {
+        Self(value)
+    }
+}
+
+impl Term for Variable {
+    fn signature(&self) -> Result<Sig, Error> {
+        Ok(Sig::new())
+    }
+
+    fn vars(&self) -> Vec<&Var> {
+        vec![&self.0]
+    }
+
+    fn transform(&self, f: &impl Fn(&Self) -> Self) -> Self {
+        f(self)
+    }
+
+    fn rename_vars(&self, renaming: &impl Renaming) -> Self {
+        renaming.apply(&self.0).clone().into()
+    }
+
+    fn substitute(&self, sub: &impl Substitution<Self>) -> Self {
+        sub.apply(&self.0).into()
     }
 }
 

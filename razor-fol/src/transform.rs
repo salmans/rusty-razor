@@ -16,7 +16,7 @@ pub use dnf::DNF;
 pub use gnf::{PcfSet, GNF, PCF};
 pub use nnf::NNF;
 pub use pnf::PNF;
-pub use relational::{RelClause, Relational, Variable};
+pub use relational::{RelClause, Relational};
 pub use snf::SNF;
 
 /// Is the type of errors returned by syntactic transformations.
