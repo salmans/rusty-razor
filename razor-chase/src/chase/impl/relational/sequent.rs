@@ -155,8 +155,8 @@ fn relationalize(gnf: &PcfSet) -> Relational {
         var_counter += 1;
         name.into()
     };
-    let mut const_generator = |c: &C| format!("{}{}", CONSTANT_PREDICATE_PREFIX, c.0).into();
-    let mut fn_generator = |f: &F| format!("{}{}", FUNCTIONAL_PREDICATE_PREFIX, f.0).into();
+    let mut const_generator = |c: &C| constant_instance_name(c).into();
+    let mut fn_generator = |f: &F| function_instance_name(f).into();
 
     gnf.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
 }
@@ -187,18 +187,18 @@ fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
                         .map(|v| Attribute::try_from(v.symbol()))
                         .collect::<Result<Vec<_>, _>>()?;
 
-                    let symbol = if predicate.0 == DOMAIN {
+                    let symbol = if predicate.name() == DOMAIN {
                         Symbol::Domain
-                    } else if predicate.0.starts_with(CONSTANT_PREDICATE_PREFIX) {
-                        Symbol::Const(C(predicate.0[1..].to_string()))
-                    } else if predicate.0.starts_with(FUNCTIONAL_PREDICATE_PREFIX) {
+                    } else if predicate.name().starts_with(CONSTANT_PREDICATE_PREFIX) {
+                        Symbol::Const(C::from(&predicate.name()[1..]))
+                    } else if predicate.name().starts_with(FUNCTIONAL_PREDICATE_PREFIX) {
                         Symbol::Func {
-                            symbol: F(predicate.0[1..].to_string()),
+                            symbol: F::from(&predicate.name()[1..]),
                             arity: (terms.len() - 1) as u8,
                         }
                     } else {
                         Symbol::Pred {
-                            symbol: Pred(predicate.0.to_string()),
+                            symbol: Pred::from(predicate.name()),
                             arity: terms.len() as u8,
                         }
                     };

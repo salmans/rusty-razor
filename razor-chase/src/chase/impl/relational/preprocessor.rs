@@ -114,10 +114,10 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
     for f in sig.functions().values() {
         let left = {
             let xs = (0..f.arity)
-                .map(|n| Complex::from(V(format!("x{}", n))))
+                .map(|n| Complex::from(V::from(format!("x{}", n))))
                 .collect_vec();
             let ys = (0..f.arity)
-                .map(|n| Complex::from(V(format!("y{}", n))))
+                .map(|n| Complex::from(V::from(format!("y{}", n))))
                 .collect_vec();
 
             let f_xs: Atomic<_> = Equals {

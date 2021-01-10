@@ -6,7 +6,7 @@
 macro_rules! v_1 {
     ($v:ident) => {{
         let var = format!("{}`", stringify!($v));
-        $crate::syntax::V(var)
+        $crate::syntax::V::from(var)
     }};
 }
 
@@ -15,7 +15,7 @@ macro_rules! v_1 {
 macro_rules! v_2 {
     ($v:ident) => {{
         let var = format!("{}``", stringify!($v));
-        $crate::syntax::V(var)
+        $crate::syntax::V::from(var)
     }};
 }
 
@@ -24,7 +24,7 @@ macro_rules! v_2 {
 macro_rules! v_3 {
     ($v:ident) => {{
         let var = format!("{}```", stringify!($v));
-        $crate::syntax::V(var)
+        $crate::syntax::V::from(var)
     }};
 }
 

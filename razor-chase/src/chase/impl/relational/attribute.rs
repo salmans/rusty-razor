@@ -52,14 +52,14 @@ impl TryFrom<&syntax::V> for Attribute {
     type Error = Error;
 
     fn try_from(value: &syntax::V) -> Result<Self, Error> {
-        value.0.parse()
+        value.name().parse()
     }
 }
 
 impl From<&Attribute> for syntax::V {
     fn from(attr: &Attribute) -> Self {
         let name = &attr.name;
-        syntax::V(name.into())
+        syntax::V::from(name)
     }
 }
 

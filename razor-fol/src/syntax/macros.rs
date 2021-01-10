@@ -10,7 +10,7 @@
 ///
 /// let var = v!(v);
 ///
-/// assert_eq!(V("v".to_string()), var);
+/// assert_eq!(V::from("v"), var);
 /// ```
 #[macro_export]
 macro_rules! v {
@@ -29,7 +29,7 @@ macro_rules! v {
 ///
 /// let func = f!(f);
 ///
-/// assert_eq!(F("f".to_string()), func);
+/// assert_eq!(F::from("f"), func);
 /// ```
 #[macro_export]
 macro_rules! f {
@@ -48,7 +48,7 @@ macro_rules! f {
 ///
 /// let constant = c!(c);
 ///
-/// assert_eq!(C("c".to_string()), constant);
+/// assert_eq!(C::from("c"), constant);
 /// ```
 #[macro_export]
 macro_rules! c {
@@ -67,7 +67,7 @@ macro_rules! c {
 ///
 /// let pred = pred!(P);
 ///
-/// assert_eq!(Pred("P".to_string()), pred);
+/// assert_eq!(Pred::from("P"), pred);
 /// ```
 #[macro_export]
 macro_rules! pred {
@@ -249,7 +249,7 @@ macro_rules! fof {
     ($pred:ident ($($t:tt)*)) => {
         {
             let ts = $crate::terms!($($t)*);
-            $crate::syntax::Pred(stringify!($pred).to_string()).app(ts)
+            $crate::syntax::Pred::from(stringify!($pred)).app(ts)
         }
     };
     // Equality
@@ -377,7 +377,7 @@ macro_rules! fof {
     };
     (@forall ($($v:ident),+) ($($fmla:tt)*)) => {
         {
-            let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
+            let vs = vec![$($crate::syntax::V::from(stringify!($v)),)+];
             $crate::syntax::FOF::from(
                 $crate::syntax::formula::Forall {
                     variables: vs,
@@ -388,7 +388,7 @@ macro_rules! fof {
     };
     (@exists ($($v:ident),+) ($($fmla:tt)*)) => {
         {
-            let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
+            let vs = vec![$($crate::syntax::V::from(stringify!($v)),)+];
             $crate::syntax::FOF::from(
                 $crate::syntax::formula::Exists {
                     variables: vs,

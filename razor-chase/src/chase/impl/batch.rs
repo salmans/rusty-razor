@@ -180,7 +180,7 @@ fn make_observe_literal(
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
-                relation: Rel(this.predicate.0.clone()),
+                relation: Rel::from(this.predicate.name()),
                 terms,
             }
         }

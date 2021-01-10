@@ -437,8 +437,8 @@ impl PcfSet {
     ///    var_counter += 1;
     ///    name.into()
     /// };
-    /// let mut const_generator = |c: &C| c.0.to_uppercase().into();
-    /// let mut fn_generator = |f: &F| f.0.to_uppercase().into();    
+    /// let mut const_generator = |c: &C| c.name().to_uppercase().into();
+    /// let mut fn_generator = |f: &F| f.name().to_uppercase().into();    
     /// let transformed = gnf_head.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
     /// assert_eq!(
     ///     r"((F(x, 0) ∧ P(0)) ∧ C(1)) ∧ Q(1)",
@@ -522,8 +522,8 @@ impl PcfSet {
             var_counter += 1;
             name.into()
         };
-        let mut const_generator = |c: &C| format!("@{}", c.0).into();
-        let mut fn_generator = |f: &F| format!("${}", f.0).into();
+        let mut const_generator = |c: &C| format!("@{}", c.name()).into();
+        let mut fn_generator = |f: &F| format!("${}", f.name()).into();
 
         self.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
     }
@@ -549,8 +549,8 @@ mod tests {
             var_counter += 1;
             name.into()
         };
-        let mut const_generator = |c: &C| format!("@{}", c.0).into();
-        let mut fn_generator = |f: &F| format!("${}", f.0).into();
+        let mut const_generator = |c: &C| format!("@{}", c.name()).into();
+        let mut fn_generator = |f: &F| format!("${}", f.name()).into();
 
         let rels = clause_set(fof)
             .iter()

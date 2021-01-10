@@ -181,7 +181,7 @@ pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display {
 /// [`Fact`]: Observation::Fact
 /// [`Pred`]: razor_fol::syntax::Pred
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct Rel(pub String);
+pub struct Rel(String);
 
 impl Rel {
     /// Applies the receiver to a list of witness terms.
@@ -254,15 +254,9 @@ impl Rel {
     }
 }
 
-impl From<&str> for Rel {
-    fn from(s: &str) -> Self {
-        Rel(s.to_owned())
-    }
-}
-
-impl From<String> for Rel {
-    fn from(s: String) -> Self {
-        Rel(s)
+impl<S: Into<String>> From<S> for Rel {
+    fn from(s: S) -> Self {
+        Rel(s.into())
     }
 }
 
@@ -275,12 +269,6 @@ impl fmt::Display for Rel {
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
-    }
-}
-
-impl From<Pred> for Rel {
-    fn from(predicate: Pred) -> Self {
-        Rel(predicate.0)
     }
 }
 
@@ -744,7 +732,7 @@ mod test_chase {
 
     #[test]
     fn test_rel() {
-        assert_eq!(_R_(), R().into());
+        assert_eq!(_R_(), R().name().into());
         assert_eq!("R", _R_().to_string());
     }
 }

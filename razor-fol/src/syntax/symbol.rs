@@ -11,9 +11,15 @@ use std::fmt;
 
 /// Represents an uninterpreted function symbol with a given name.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct F(pub String);
+pub struct F(String);
 
 impl F {
+    /// Returns the function name.
+    #[inline(always)]
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
     /// Applies the receiver on a list of terms. The length of `terms` must be equal to
     /// the (assumed) arity of the function.
     ///
@@ -46,7 +52,15 @@ impl fmt::Debug for F {
 
 /// Represents a variable symbol with a given name.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct V(pub String);
+pub struct V(String);
+
+impl V {
+    /// Returns the variable name.
+    #[inline(always)]
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+}
 
 impl<S: Into<String>> From<S> for V {
     fn from(name: S) -> Self {
@@ -71,7 +85,15 @@ impl fmt::Debug for V {
 /// **Note**: Although it is possible to treat nullary functions as constants, we distinguish
 /// the two at a syntactic level.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct C(pub String);
+pub struct C(String);
+
+impl C {
+    /// Returns the constant name.
+    #[inline(always)]
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+}
 
 impl<S: Into<String>> From<S> for C {
     fn from(name: S) -> Self {
@@ -93,9 +115,15 @@ impl fmt::Debug for C {
 
 /// Represents a predicate symbol with a given name.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct Pred(pub String);
+pub struct Pred(String);
 
 impl Pred {
+    /// Returns the predicate name.
+    #[inline(always)]
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
     /// Applies the receiver on a list of arguments. The length of `terms` must be equal to
     /// the (assumed) arity of the predicate.
     ///

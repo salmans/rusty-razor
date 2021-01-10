@@ -136,7 +136,7 @@ impl<T: Term> Formula for Equals<T> {
         sig = sig.merge(self.left.signature()?)?;
         sig = sig.merge(self.right.signature()?)?;
         sig.add_predicate(PSig {
-            symbol: Pred(EQ_SYM.to_string()),
+            symbol: Pred::from(EQ_SYM),
             arity: 2,
         })?;
         Ok(sig)

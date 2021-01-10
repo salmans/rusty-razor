@@ -63,7 +63,7 @@ where
                         for variable in &this.terms {
                             vars.entry(variable.symbol().clone())
                                 .and_modify(|count| {
-                                    let new_var: V = generator(&variable.0, *count);
+                                    let new_var: V = generator(variable.name(), *count);
 
                                     let left = variable.clone();
                                     let right = new_var.clone().into();
@@ -91,12 +91,14 @@ where
                         let mut equations = Vec::<Atomic<_>>::new();
                         let left = &this.left;
                         let right = &this.right;
-                        let mut new_left = V("".into());
-                        let mut new_right = V("".into());
+
+                        // FIXME: get rid of initial variables with dummy names:
+                        let mut new_left = V::from("");
+                        let mut new_right = V::from("");
 
                         vars.entry(left.symbol().clone())
                             .and_modify(|count| {
-                                let new_var = generator(&left.0, *count);
+                                let new_var = generator(left.name(), *count);
                                 let left = left.clone();
                                 let right = new_var.clone().into();
 
@@ -112,7 +114,7 @@ where
 
                         vars.entry(right.symbol().clone())
                             .and_modify(|count| {
-                                let new_var = generator(&right.0, *count);
+                                let new_var = generator(right.name(), *count);
                                 let left = right.clone();
                                 let right = new_var.clone().into();
 

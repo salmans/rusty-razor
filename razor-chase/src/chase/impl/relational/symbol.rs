@@ -50,7 +50,7 @@ impl Symbol {
             Symbol::Pred { symbol, arity } => {
                 assert_eq!(args.len() as u8, *arity);
                 Some(
-                    Rel::from(symbol.clone())
+                    Rel::from(symbol.name())
                         .app(args.iter().map(|e| WitnessTerm::from(*e)).collect()),
                 )
             }

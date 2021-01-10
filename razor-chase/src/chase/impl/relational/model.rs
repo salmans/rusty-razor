@@ -331,7 +331,7 @@ fn relations_map(
         );
     }
     for p in sig.predicates().values() {
-        if p.symbol.0 == EQUALITY {
+        if p.symbol.name() == EQUALITY {
             continue; // Equality is a special case (below)
         }
         let name = predicate_instance_name(&p.symbol);

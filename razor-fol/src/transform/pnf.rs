@@ -165,9 +165,9 @@ impl From<&PNF> for FOF {
 // Appends a postfix to the input variable until the result is not no longer in the list of
 // no collision variables.
 fn rename(variable: &V, no_collision_variables: &[&V]) -> V {
-    let mut name = variable.0.clone();
-    let names: Vec<_> = no_collision_variables.iter().map(|v| &v.0).collect();
-    while names.contains(&&name) {
+    let mut name = variable.name().to_string();
+    let names: Vec<_> = no_collision_variables.iter().map(|v| v.name()).collect();
+    while names.contains(&name.as_str()) {
         name.push('`')
     }
     V::from(&name)
