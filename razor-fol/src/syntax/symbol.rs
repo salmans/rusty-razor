@@ -1,8 +1,9 @@
-/*! Defines the symbols of ['V'], ['C'], ['F'] and ['Pred'] for making terms and formulae.
+/*! Defines the symbols of ['Var'], ['Const'], ['Func'] and ['Pred'] for making terms
+and formulae.
 
-['V']: crate::syntax::V
-['C']: crate::syntax::C
-['F']: crate::syntax::F
+['Var']: crate::syntax::Var
+['Const']: crate::syntax::Const
+['Func']: crate::syntax::Func
 ['Pred']: crate::syntax::Pred
 */
 
@@ -11,9 +12,9 @@ use std::fmt;
 
 /// Represents an uninterpreted function symbol with a given name.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct F(String);
+pub struct Func(String);
 
-impl F {
+impl Func {
     /// Returns the function name.
     #[inline(always)]
     pub fn name(&self) -> &str {
@@ -23,28 +24,28 @@ impl F {
     /// Applies the receiver on a list of terms. The length of `terms` must be equal to
     /// the (assumed) arity of the function.
     ///
-    /// **Note**: the definition of [`F`] does not impose any restrictions on the
+    /// **Note**: the definition of [`Func`] does not impose any restrictions on the
     /// arity of function symbols. The user is expected to assume the arity of the function.
     ///
-    /// [`F`]: crate::syntax::F
+    /// [`Func`]: crate::syntax::Func
     pub fn app(self, args: Vec<Complex>) -> Complex {
         Complex::apply(self, args)
     }
 }
 
-impl<S: Into<String>> From<S> for F {
+impl<S: Into<String>> From<S> for Func {
     fn from(name: S) -> Self {
         Self(name.into())
     }
 }
 
-impl fmt::Display for F {
+impl fmt::Display for Func {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self.0)
     }
 }
 
-impl fmt::Debug for F {
+impl fmt::Debug for Func {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -52,9 +53,9 @@ impl fmt::Debug for F {
 
 /// Represents a variable symbol with a given name.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct V(String);
+pub struct Var(String);
 
-impl V {
+impl Var {
     /// Returns the variable name.
     #[inline(always)]
     pub fn name(&self) -> &str {
@@ -62,19 +63,19 @@ impl V {
     }
 }
 
-impl<S: Into<String>> From<S> for V {
+impl<S: Into<String>> From<S> for Var {
     fn from(name: S) -> Self {
         Self(name.into())
     }
 }
 
-impl fmt::Display for V {
+impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self.0)
     }
 }
 
-impl fmt::Debug for V {
+impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -85,9 +86,9 @@ impl fmt::Debug for V {
 /// **Note**: Although it is possible to treat nullary functions as constants, we distinguish
 /// the two at a syntactic level.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct C(String);
+pub struct Const(String);
 
-impl C {
+impl Const {
     /// Returns the constant name.
     #[inline(always)]
     pub fn name(&self) -> &str {
@@ -95,19 +96,19 @@ impl C {
     }
 }
 
-impl<S: Into<String>> From<S> for C {
+impl<S: Into<String>> From<S> for Const {
     fn from(name: S) -> Self {
         Self(name.into())
     }
 }
 
-impl fmt::Display for C {
+impl fmt::Display for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "'{}", self.0)
     }
 }
 
-impl fmt::Debug for C {
+impl fmt::Debug for Const {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }

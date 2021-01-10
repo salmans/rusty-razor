@@ -1,5 +1,5 @@
 use super::{RelClause, Relational};
-use crate::syntax::{formula::*, V};
+use crate::syntax::{formula::*, Var};
 
 impl Relational {
     /// Given a list of variables `range`, ensures that every variable in `range` appears at
@@ -23,7 +23,7 @@ impl Relational {
     /// let range_restricted = relational.range_restrict(&vec![v!(x), v!(z)], "RR");
     /// assert_eq!(r"(P(x) ∧ Q(y)) ∧ RR(z)", range_restricted.to_string());
     /// ```
-    pub fn range_restrict(&self, range: &[V], symbol: &str) -> Relational {
+    pub fn range_restrict(&self, range: &[Var], symbol: &str) -> Relational {
         self.iter()
             .map(|clause| {
                 let free = clause.free_vars();
@@ -39,7 +39,7 @@ impl Relational {
 
 // Is a helper for `range_restrict` to build range_restriction conjuncts.
 #[inline(always)]
-fn restrict(range: &[V], symbol: &str) -> RelClause {
+fn restrict(range: &[Var], symbol: &str) -> RelClause {
     let mut result = Vec::new();
     for v in range {
         result.push(
@@ -57,7 +57,7 @@ fn restrict(range: &[V], symbol: &str) -> RelClause {
 mod test {
     use crate::{
         fof,
-        syntax::{FOF, V},
+        syntax::{Var, FOF},
         transform::PcfSet,
         v,
     };
@@ -70,7 +70,7 @@ mod test {
             .collect()
     }
 
-    fn rr(fof: FOF, range: &[V]) -> String {
+    fn rr(fof: FOF, range: &[Var]) -> String {
         let rels = clause_set(fof)
             .iter()
             .map(|f| f.relational().range_restrict(range, "RR"))

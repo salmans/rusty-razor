@@ -1,5 +1,5 @@
 /// Defines a quantifier-free first-order formula of type [`QFF`].
-use super::{formula::*, term::Complex, Error, Sig, V};
+use super::{formula::*, term::Complex, Error, Sig, Var};
 
 /// Is the type of quantifier-free sub-formula of formulae types such as [`PNF`]
 /// and [`SNF`].
@@ -95,7 +95,7 @@ impl Formula for QFF {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             Self::Top => Vec::new(),
             Self::Bottom => Vec::new(),

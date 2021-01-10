@@ -2,7 +2,7 @@ use super::{expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::*, term::Complex, Sig, Theory, FOF, V},
+    syntax::{formula::*, term::Complex, Sig, Theory, Var, FOF},
     transform::{PcfSet, GNF, PCF},
 };
 
@@ -114,10 +114,10 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
     for f in sig.functions().values() {
         let left = {
             let xs = (0..f.arity)
-                .map(|n| Complex::from(V::from(format!("x{}", n))))
+                .map(|n| Complex::from(Var::from(format!("x{}", n))))
                 .collect_vec();
             let ys = (0..f.arity)
-                .map(|n| Complex::from(V::from(format!("y{}", n))))
+                .map(|n| Complex::from(Var::from(format!("y{}", n))))
                 .collect_vec();
 
             let f_xs: Atomic<_> = Equals {

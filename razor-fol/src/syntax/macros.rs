@@ -2,58 +2,58 @@
 
 /// Creates a [variable] from a given identifier.
 ///
-/// [variable]: crate::syntax::V
+/// [variable]: crate::syntax::Var
 /// **Example**:
 /// ```rust
-/// # use razor_fol::syntax::V;
+/// # use razor_fol::syntax::Var;
 /// use razor_fol::v;
 ///
 /// let var = v!(v);
 ///
-/// assert_eq!(V::from("v"), var);
+/// assert_eq!(Var::from("v"), var);
 /// ```
 #[macro_export]
 macro_rules! v {
     ($v:ident) => {
-        $crate::syntax::V::from(stringify!($v))
+        $crate::syntax::Var::from(stringify!($v))
     };
 }
 
 /// Creates a [function symbol] from a given identifier.
 ///
-/// [function symbol]: crate::syntax::F
+/// [function symbol]: crate::syntax::Func
 /// **Example**:
 /// ```rust
-/// # use razor_fol::syntax::F;
+/// # use razor_fol::syntax::Func;
 /// use razor_fol::f;
 ///
 /// let func = f!(f);
 ///
-/// assert_eq!(F::from("f"), func);
+/// assert_eq!(Func::from("f"), func);
 /// ```
 #[macro_export]
 macro_rules! f {
     ($f:ident) => {
-        $crate::syntax::F::from(stringify!($f))
+        $crate::syntax::Func::from(stringify!($f))
     };
 }
 
 /// Creates a [constant] from a given identifier.
 ///
-/// [constant]: crate::syntax::C
+/// [constant]: crate::syntax::Const
 /// **Example**:
 /// ```rust
-/// # use razor_fol::syntax::C;
+/// # use razor_fol::syntax::Const;
 /// use razor_fol::c;
 ///
 /// let constant = c!(c);
 ///
-/// assert_eq!(C::from("c"), constant);
+/// assert_eq!(Const::from("c"), constant);
 /// ```
 #[macro_export]
 macro_rules! c {
     ($c:ident) => {
-        $crate::syntax::C::from(stringify!($c))
+        $crate::syntax::Const::from(stringify!($c))
     };
 }
 
@@ -377,7 +377,7 @@ macro_rules! fof {
     };
     (@forall ($($v:ident),+) ($($fmla:tt)*)) => {
         {
-            let vs = vec![$($crate::syntax::V::from(stringify!($v)),)+];
+            let vs = vec![$($crate::syntax::Var::from(stringify!($v)),)+];
             $crate::syntax::FOF::from(
                 $crate::syntax::formula::Forall {
                     variables: vs,
@@ -388,7 +388,7 @@ macro_rules! fof {
     };
     (@exists ($($v:ident),+) ($($fmla:tt)*)) => {
         {
-            let vs = vec![$($crate::syntax::V::from(stringify!($v)),)+];
+            let vs = vec![$($crate::syntax::Var::from(stringify!($v)),)+];
             $crate::syntax::FOF::from(
                 $crate::syntax::formula::Exists {
                     variables: vs,

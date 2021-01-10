@@ -4,7 +4,7 @@
 [`PNF`]: crate::transform::PNF
 */
 use super::PNF;
-use crate::syntax::{formula::*, qff::QFF, term::Complex, C, F, FOF, V};
+use crate::syntax::{formula::*, qff::QFF, term::Complex, Const, Func, Var, FOF};
 use std::collections::HashMap;
 
 /// Represents a formula in Skolem Normal Form (SNF).
@@ -87,13 +87,13 @@ impl SNF {
     /// a `generator` function for creating fresh skolem functions.
     fn new<CG, FG>(
         pnf: PNF,
-        mut skolem_vars: Vec<V>,
+        mut skolem_vars: Vec<Var>,
         const_generator: &mut CG,
         fn_generator: &mut FG,
     ) -> Self
     where
-        CG: FnMut() -> C,
-        FG: FnMut() -> F,
+        CG: FnMut() -> Const,
+        FG: FnMut() -> Func,
     {
         match pnf {
             PNF::Forall(this) => {
@@ -106,7 +106,7 @@ impl SNF {
             }
             PNF::Exists(this) => {
                 let variables = this.variables;
-                let mut map: HashMap<&V, Complex> = HashMap::new();
+                let mut map: HashMap<&Var, Complex> = HashMap::new();
 
                 variables.iter().for_each(|v| {
                     if skolem_vars.is_empty() {
@@ -127,7 +127,7 @@ impl SNF {
 
     /// Creates a universally quantified [`SNF`].
     #[inline(always)]
-    fn forall(variables: Vec<V>, formula: Self) -> Self {
+    fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
 }
@@ -142,7 +142,7 @@ impl Formula for SNF {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             SNF::QFF(this) => this.free_vars(),
             SNF::Forall(this) => this.free_vars(),
@@ -212,12 +212,11 @@ impl PNF {
         self.snf_with(&mut const_generator, &mut fn_generator)
     }
 
-    /// Is similar to [`PNF::snf`] but uses an existing [`Generator`] to avoid collision
+    /// Is similar to [`PNF::snf`] but uses a custom closure to avoid collision
     /// when generating Skolem function names (including Skolem constants).
     ///
     ///
     /// [`PNF::snf`]: crate::transform::PNF::snf()
-    /// [`Generator`]: crate::syntax::symbol::Generator
     ///
     /// **Example**:
     /// ```rust
@@ -243,8 +242,8 @@ impl PNF {
     /// ```
     pub fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
     where
-        CG: FnMut() -> C,
-        FG: FnMut() -> F,
+        CG: FnMut() -> Const,
+        FG: FnMut() -> Func,
     {
         let free_vars = self.free_vars().into_iter().cloned().collect();
         SNF::new(self.clone(), free_vars, const_generator, fn_generator)
@@ -277,8 +276,8 @@ mod tests {
     }
     fn snf_with<CG, FG>(formula: &FOF, const_generator: &mut CG, fn_generator: &mut FG) -> FOF
     where
-        CG: FnMut() -> C,
-        FG: FnMut() -> F,
+        CG: FnMut() -> Const,
+        FG: FnMut() -> Func,
     {
         formula.pnf().snf_with(const_generator, fn_generator).into()
     }

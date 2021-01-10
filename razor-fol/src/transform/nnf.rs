@@ -6,7 +6,7 @@ converting a [`FOF`] to [`NNF`].
 use crate::syntax::{
     formula::{clause::Literal, *},
     term::Complex,
-    Error, Sig, FOF, V,
+    Error, Sig, Var, FOF,
 };
 
 /// Represents a formula in Negation Normal Form (NNF).
@@ -122,12 +122,12 @@ impl NNF {
     }
 
     #[inline(always)]
-    fn exists(variables: Vec<V>, formula: Self) -> Self {
+    fn exists(variables: Vec<Var>, formula: Self) -> Self {
         Exists { variables, formula }.into()
     }
 
     #[inline(always)]
-    fn forall(variables: Vec<V>, formula: Self) -> Self {
+    fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
 }
@@ -147,7 +147,7 @@ impl Formula for NNF {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             Self::Top => Vec::new(),
             Self::Bottom => Vec::new(),

@@ -9,7 +9,7 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::Atomic, Pred, C, F, FOF},
+    syntax::{formula::Atomic, Const, Func, Pred, FOF},
     transform::{PcfSet, Relational, GNF},
 };
 use std::convert::TryFrom;
@@ -155,8 +155,8 @@ fn relationalize(gnf: &PcfSet) -> Relational {
         var_counter += 1;
         name.into()
     };
-    let mut const_generator = |c: &C| constant_instance_name(c).into();
-    let mut fn_generator = |f: &F| function_instance_name(f).into();
+    let mut const_generator = |c: &Const| constant_instance_name(c).into();
+    let mut fn_generator = |f: &Func| function_instance_name(f).into();
 
     gnf.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
 }
@@ -190,10 +190,10 @@ fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
                     let symbol = if predicate.name() == DOMAIN {
                         Symbol::Domain
                     } else if predicate.name().starts_with(CONSTANT_PREDICATE_PREFIX) {
-                        Symbol::Const(C::from(&predicate.name()[1..]))
+                        Symbol::Const(Const::from(&predicate.name()[1..]))
                     } else if predicate.name().starts_with(FUNCTIONAL_PREDICATE_PREFIX) {
                         Symbol::Func {
-                            symbol: F::from(&predicate.name()[1..]),
+                            symbol: Func::from(&predicate.name()[1..]),
                             arity: (terms.len() - 1) as u8,
                         }
                     } else {

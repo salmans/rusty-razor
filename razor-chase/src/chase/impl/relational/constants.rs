@@ -23,13 +23,13 @@ pub(super) const EQUALITY: &str = razor_fol::syntax::EQ_SYM;
 
 // Creates the database instance name for the given constant.
 #[inline]
-pub(super) fn constant_instance_name(c: &syntax::C) -> String {
+pub(super) fn constant_instance_name(c: &syntax::Const) -> String {
     format!("@{}", c.name())
 }
 
 // Creates the database instance name for the given function symbol.
 #[inline]
-pub(super) fn function_instance_name(f: &syntax::F) -> String {
+pub(super) fn function_instance_name(f: &syntax::Func) -> String {
     format!("${}", f.name())
 }
 

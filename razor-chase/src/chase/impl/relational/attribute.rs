@@ -48,18 +48,18 @@ impl Attribute {
     }
 }
 
-impl TryFrom<&syntax::V> for Attribute {
+impl TryFrom<&syntax::Var> for Attribute {
     type Error = Error;
 
-    fn try_from(value: &syntax::V) -> Result<Self, Error> {
+    fn try_from(value: &syntax::Var) -> Result<Self, Error> {
         value.name().parse()
     }
 }
 
-impl From<&Attribute> for syntax::V {
+impl From<&Attribute> for syntax::Var {
     fn from(attr: &Attribute) -> Self {
         let name = &attr.name;
-        syntax::V::from(name)
+        syntax::Var::from(name)
     }
 }
 
@@ -157,8 +157,8 @@ impl TryFrom<&Relational> for AttributeList {
     }
 }
 
-impl From<&AttributeList> for Vec<syntax::V> {
+impl From<&AttributeList> for Vec<syntax::Var> {
     fn from(attrs: &AttributeList) -> Self {
-        attrs.iter().map(syntax::V::from).collect()
+        attrs.iter().map(syntax::Var::from).collect()
     }
 }

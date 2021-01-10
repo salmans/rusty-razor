@@ -90,7 +90,7 @@ impl FOF {
             Exists(this) => {
                 let formula = this.formula.simplify();
                 let free_vars = formula.free_vars();
-                let vs: Vec<V> = free_vars
+                let vs: Vec<Var> = free_vars
                     .into_iter()
                     .filter(|v| this.variables.contains(v))
                     .cloned()
@@ -104,7 +104,7 @@ impl FOF {
             Forall(this) => {
                 let formula = this.formula.simplify();
                 let free_vars = formula.free_vars();
-                let vs: Vec<V> = free_vars
+                let vs: Vec<Var> = free_vars
                     .into_iter()
                     .filter(|v| this.variables.contains(v))
                     .cloned()

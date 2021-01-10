@@ -1,5 +1,5 @@
 use super::{Atom, Atomic, Equals, Formula, Not};
-use crate::syntax::{Error, Sig, Term, V};
+use crate::syntax::{Error, Sig, Term, Var};
 use itertools::Itertools;
 use std::{collections::BTreeSet, hash::Hash, ops::Deref};
 
@@ -59,7 +59,7 @@ impl<T: Term> Formula for Literal<T> {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             Literal::Pos(this) => this.free_vars(),
             Literal::Neg(this) => this.free_vars(),
@@ -146,7 +146,7 @@ impl<T: Term + Ord> Formula for Clause<T> {
         )
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = Vec::new();
         for lit in &self.0 {
             vs.extend(lit.free_vars());
@@ -242,7 +242,7 @@ impl<T: Term + Ord> Formula for ClauseSet<T> {
         )
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = Vec::new();
         for clause in &self.0 {
             vs.extend(clause.free_vars());

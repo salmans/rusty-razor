@@ -11,7 +11,7 @@ mod theory;
 pub use fof::FOF;
 pub use formula::Formula;
 pub use signature::Sig;
-pub use symbol::{Pred, C, EQ_SYM, F, V};
+pub use symbol::{Const, Func, Pred, Var, EQ_SYM};
 pub use term::Term;
 pub use theory::Theory;
 use thiserror::Error;

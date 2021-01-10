@@ -15,7 +15,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{formula::Atomic, term::Complex, Theory, C, F, FOF, V};
+use razor_fol::syntax::{formula::Atomic, term::Complex, Const, Func, Theory, Var, FOF};
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
@@ -86,17 +86,18 @@ pub enum WitnessTerm {
     /// Wraps an instance of [`Element`], witnessing itself.
     Elem { element: Element },
 
-    /// Wraps an instance of [`C`] as a witness term.
+    /// Wraps an instance of [`Const`] as a witness term.
     ///
-    /// [`C`]: razor_fol::syntax::C
-    Const { constant: C },
+    /// [`Const`]: razor_fol::syntax::Const
+    Const { constant: Const },
 
-    /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
+    /// Corresponds to a composite witness term, made by applying an instance of [`Func`]
+    /// to a list of
     /// witness terms.
     ///
-    /// [`F`]: razor_fol::syntax::F
+    /// [`Func`]: razor_fol::syntax::Func
     App {
-        function: F,
+        function: Func,
         terms: Vec<WitnessTerm>,
     },
 }
@@ -104,7 +105,7 @@ pub enum WitnessTerm {
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    pub fn witness(term: &Complex, lookup: &impl Fn(&V) -> Element) -> WitnessTerm {
+    pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> WitnessTerm {
         match term {
             Complex::Const { constant } => WitnessTerm::Const {
                 constant: constant.clone(),
@@ -143,8 +144,8 @@ impl fmt::Display for WitnessTerm {
     }
 }
 
-impl From<C> for WitnessTerm {
-    fn from(constant: C) -> Self {
+impl From<Const> for WitnessTerm {
+    fn from(constant: Const) -> Self {
         WitnessTerm::Const { constant }
     }
 }
@@ -563,13 +564,13 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             // (notice the do-while pattern)
             while {
                 // construct a map from variables to elements
-                let mut assignment_map: HashMap<&V, Element> = HashMap::new();
+                let mut assignment_map: HashMap<&Var, Element> = HashMap::new();
                 for (i, item) in assignment.iter().enumerate().take(vars_size) {
                     assignment_map
                         .insert(vars.get(i).unwrap(), (*domain.get(*item).unwrap()).clone());
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
+                let assignment_func = |v: &Var| assignment_map.get(v).unwrap().clone();
 
                 // lift the variable assignments to literals (used to make observations)
                 let observe_literal = make_observe_literal(assignment_func);
@@ -664,7 +665,7 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
-    assignment_func: impl Fn(&V) -> Element,
+    assignment_func: impl Fn(&Var) -> Element,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {

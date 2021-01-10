@@ -10,7 +10,7 @@ use crate::syntax::{
         *,
     },
     term::Complex,
-    Error, Sig, Theory, FOF, V,
+    Error, Sig, Theory, Var, FOF,
 };
 use itertools::Itertools;
 use std::{collections::BTreeSet, ops::Deref};
@@ -29,7 +29,7 @@ impl PCF {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of [`PosLiteral`]s.
+    /// Consumes the receiver and returns its underlying list of atomic formulae.
     pub fn into_atomics(self) -> BTreeSet<PosLiteral> {
         self.0
     }
@@ -97,7 +97,7 @@ impl Formula for PCF {
         )
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.iter().flat_map(|lit| lit.free_vars()).collect()
     }
 
@@ -205,7 +205,7 @@ impl Formula for PcfSet {
         )
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.iter()
             .flat_map(|lit| lit.free_vars())
             .unique()
@@ -286,7 +286,7 @@ impl Formula for GNF {
         sig.merge(self.head().signature()?)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut b_vars = self.body.free_vars();
         b_vars.extend(self.head.free_vars());
         b_vars.into_iter().unique().collect()

@@ -5,7 +5,7 @@ pub mod clause;
 use super::{
     signature::PSig,
     term::{Renaming, Substitution},
-    Error, Pred, Sig, Term, EQ_SYM, V,
+    Error, Pred, Sig, Term, Var, EQ_SYM,
 };
 use itertools::Itertools;
 use std::{fmt, hash::Hash};
@@ -26,14 +26,14 @@ pub trait Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{V, FOF};
+    /// # use razor_fol::syntax::{Var, FOF};
     /// # use itertools::Itertools;
     /// use razor_fol::syntax::Formula;
     ///
     /// // `x`, `y` and `z` are variable symbols:
-    /// let x = V::from("x");
-    /// let y = V::from("y");
-    /// let z = V::from("z");
+    /// let x = Var::from("x");
+    /// let y = Var::from("y");
+    /// let z = Var::from("z");
     ///
     /// // (P(x) ∧ Q(x, f(g(x), y))) ∨ ('c = g(z))
     /// let formula: FOF = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
@@ -47,7 +47,7 @@ pub trait Formula {
     /// let formula: FOF = "exists x. P(x, y)".parse().unwrap();
     /// assert_eq!(vec![&y], formula.free_vars());
     /// ```    
-    fn free_vars(&self) -> Vec<&V>;
+    fn free_vars(&self) -> Vec<&Var>;
 
     /// Applies a transformation function `f` recursively on the terms of the receiver.
     ///
@@ -99,7 +99,7 @@ impl<T: Term> Formula for Atom<T> {
         Ok(sig)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.terms.iter().flat_map(|t| t.vars()).unique().collect()
     }
 
@@ -142,7 +142,7 @@ impl<T: Term> Formula for Equals<T> {
         Ok(sig)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = self.left.vars();
         vs.extend(self.right.vars());
         vs.into_iter().unique().collect()
@@ -176,7 +176,7 @@ impl<F: Formula> Formula for Not<F> {
         self.formula.signature()
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.formula.free_vars()
     }
 
@@ -210,7 +210,7 @@ impl<F: Formula> Formula for And<F> {
         self.left.signature()?.merge(self.right.signature()?)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = self.left.free_vars();
         vs.extend(self.right.free_vars());
         vs.into_iter().unique().collect()
@@ -247,7 +247,7 @@ impl<F: Formula> Formula for Or<F> {
         self.left.signature()?.merge(self.right.signature()?)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = self.left.free_vars();
         vs.extend(self.right.free_vars());
         vs.into_iter().unique().collect()
@@ -286,7 +286,7 @@ impl<F: Formula> Formula for Implies<F> {
             .merge(self.consequence.signature()?)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = self.premise.free_vars();
         vs.extend(self.consequence.free_vars());
         vs.into_iter().unique().collect()
@@ -323,7 +323,7 @@ impl<F: Formula> Formula for Iff<F> {
         self.left.signature()?.merge(self.right.signature()?)
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         let mut vs = self.left.free_vars();
         vs.extend(self.right.free_vars());
         vs.into_iter().unique().collect()
@@ -347,7 +347,7 @@ impl<F: Formula + fmt::Display> fmt::Display for Iff<F> {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Exists<F: Formula> {
     /// Is the list of variables bound by this quantifier.
-    pub variables: Vec<V>,
+    pub variables: Vec<Var>,
 
     /// Is the scope (formula) of the quantified formula.
     pub formula: F,
@@ -360,7 +360,7 @@ impl<F: Formula> Formula for Exists<F> {
         self.formula.signature()
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.formula
             .free_vars()
             .into_iter()
@@ -387,7 +387,7 @@ impl<F: Formula + fmt::Display> fmt::Display for Exists<F> {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Forall<F: Formula> {
     /// Is the list of variables bound by this quantifier.
-    pub variables: Vec<V>,
+    pub variables: Vec<Var>,
 
     /// Is the scope (formula) of the quantified formula.
     pub formula: F,
@@ -400,7 +400,7 @@ impl<F: Formula> Formula for Forall<F> {
         self.formula.signature()
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.formula
             .free_vars()
             .into_iter()
@@ -455,7 +455,7 @@ impl<T: Term> Formula for Atomic<T> {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             Atomic::Atom(this) => this.free_vars(),
             Atomic::Equals(this) => this.free_vars(),

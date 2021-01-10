@@ -11,7 +11,7 @@ use crate::syntax::{
         *,
     },
     term::Complex,
-    Error, Sig, FOF, V,
+    Error, Sig, Var, FOF,
 };
 use itertools::Itertools;
 use std::{collections::BTreeSet, ops::Deref};
@@ -102,7 +102,7 @@ impl Formula for CNF {
         self.0.signature()
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         self.0.free_vars()
     }
 

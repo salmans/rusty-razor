@@ -219,11 +219,11 @@ named!(p_upper_ident<Span, String>,
     )
 );
 
-named!(p_var<Span, V>,
-    map!(p_lower_ident, |v| V::from(&v))
+named!(p_var<Span, Var>,
+    map!(p_lower_ident, |v| Var::from(&v))
 );
 
-named!(p_vars<Span, Vec<V>>,
+named!(p_vars<Span, Vec<Var>>,
     terminated!(
         separated_nonempty_list!(
             tag!(COMMA),
@@ -233,19 +233,19 @@ named!(p_vars<Span, Vec<V>>,
     )
 );
 
-named!(p_const<Span, C>,
+named!(p_const<Span, Const>,
     map!(
         preceded!(
             tag!(APOSTROPHE),
             return_error!(ErrorKind::Custom(ERR_LOWER), p_lower_ident)
         ),
-        |c| C::from(&c)
+        |c| Const::from(&c)
     )
 );
 
-named!(p_func<Span, F>,
+named!(p_func<Span, Func>,
     map!(p_lower_ident,
-        |f| F::from(&f)
+        |f| Func::from(&f)
     )
 );
 
@@ -283,7 +283,7 @@ named!(p_term<Span, term::Complex>,
         map!(sp!(p_const), |c| c.into()) |
         map!( // composite term
             pair!(sp!(p_func), sp!(p_term_args)),
-            |(f, ts): (F, Vec<term::Complex>)| f.app(ts)
+            |(f, ts): (Func, Vec<term::Complex>)| f.app(ts)
         )
     )
 );

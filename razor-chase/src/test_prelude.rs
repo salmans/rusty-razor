@@ -1,7 +1,7 @@
 use crate::chase::{bounder::DomainSize, scheduler::FIFO, strategy::Linear};
 use crate::chase::{r#impl::basic, r#impl::reference, *};
 use itertools::Itertools;
-use razor_fol::syntax::{term::Complex, Pred, Theory, C, F, FOF, V};
+use razor_fol::syntax::{term::Complex, Const, Func, Pred, Theory, Var, FOF};
 use std::{fmt, fs::File, io::Read};
 
 pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {
@@ -9,113 +9,113 @@ pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {
 }
 
 // Variables
-pub fn _u() -> V {
-    V::from("u")
+pub fn _u() -> Var {
+    Var::from("u")
 }
 
-pub fn _v() -> V {
-    V::from("v")
+pub fn _v() -> Var {
+    Var::from("v")
 }
 
-pub fn _w() -> V {
-    V::from("w")
+pub fn _w() -> Var {
+    Var::from("w")
 }
 
-pub fn _x() -> V {
-    V::from("x")
+pub fn _x() -> Var {
+    Var::from("x")
 }
 
-pub fn _x_1() -> V {
-    V::from("x`")
+pub fn _x_1() -> Var {
+    Var::from("x`")
 }
 
-pub fn _y() -> V {
-    V::from("y")
+pub fn _y() -> Var {
+    Var::from("y")
 }
 
-pub fn _z() -> V {
-    V::from("z")
+pub fn _z() -> Var {
+    Var::from("z")
 }
 
 #[allow(dead_code)]
 pub fn u() -> Complex {
-    V::from("u").into()
+    Var::from("u").into()
 }
 
 #[allow(dead_code)]
 pub fn v() -> Complex {
-    V::from("v").into()
+    Var::from("v").into()
 }
 
 #[allow(dead_code)]
 pub fn w() -> Complex {
-    V::from("w").into()
+    Var::from("w").into()
 }
 
 #[allow(dead_code)]
 pub fn x() -> Complex {
-    V::from("x").into()
+    Var::from("x").into()
 }
 
 #[allow(dead_code)]
 pub fn x_1() -> Complex {
-    V::from("x`").into()
+    Var::from("x`").into()
 }
 
 #[allow(dead_code)]
 pub fn y() -> Complex {
-    V::from("y").into()
+    Var::from("y").into()
 }
 
 #[allow(dead_code)]
 pub fn z() -> Complex {
-    V::from("z").into()
+    Var::from("z").into()
 }
 
 // Functions
-pub fn f() -> F {
-    F::from("f")
+pub fn f() -> Func {
+    Func::from("f")
 }
 
-pub fn g() -> F {
-    F::from("g")
+pub fn g() -> Func {
+    Func::from("g")
 }
 
 #[allow(dead_code)]
-pub fn h() -> F {
-    F::from("h")
+pub fn h() -> Func {
+    Func::from("h")
 }
 
 // Constants
-pub fn _a() -> C {
-    C::from("a")
+pub fn _a() -> Const {
+    Const::from("a")
 }
 
-pub fn _b() -> C {
-    C::from("b")
+pub fn _b() -> Const {
+    Const::from("b")
 }
 
-pub fn _c() -> C {
-    C::from("c")
+pub fn _c() -> Const {
+    Const::from("c")
 }
 
-pub fn _d() -> C {
-    C::from("d")
+pub fn _d() -> Const {
+    Const::from("d")
 }
 
 #[allow(dead_code)]
 pub fn a() -> Complex {
-    C::from("a").into()
+    Const::from("a").into()
 }
 
 #[allow(dead_code)]
 pub fn b() -> Complex {
-    C::from("b").into()
+    Const::from("b").into()
 }
 
 #[allow(dead_code)]
 pub fn c() -> Complex {
-    C::from("c").into()
+    Const::from("c").into()
 }
 
 // Elements

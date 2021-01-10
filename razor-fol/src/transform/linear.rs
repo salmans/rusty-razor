@@ -1,11 +1,11 @@
 use super::Relational;
-use crate::syntax::{formula::*, V};
+use crate::syntax::{formula::*, Var};
 use std::collections::HashMap;
 
 impl Relational {
     pub fn linear_with<G>(&self, generator: &mut G) -> Relational
     where
-        G: FnMut(&str, i32) -> V,
+        G: FnMut(&str, i32) -> Var,
     {
         linearize(self, generator)
             .into_clauses()
@@ -49,9 +49,9 @@ impl Relational {
 
 fn linearize<G>(rel: &Relational, generator: &mut G) -> Relational
 where
-    G: FnMut(&str, i32) -> V,
+    G: FnMut(&str, i32) -> Var,
 {
-    let mut vars = HashMap::<V, i32>::new();
+    let mut vars = HashMap::<Var, i32>::new();
     rel.iter()
         .map(|clause| {
             clause
@@ -63,7 +63,7 @@ where
                         for variable in &this.terms {
                             vars.entry(variable.symbol().clone())
                                 .and_modify(|count| {
-                                    let new_var: V = generator(variable.name(), *count);
+                                    let new_var: Var = generator(variable.name(), *count);
 
                                     let left = variable.clone();
                                     let right = new_var.clone().into();
@@ -93,8 +93,8 @@ where
                         let right = &this.right;
 
                         // FIXME: get rid of initial variables with dummy names:
-                        let mut new_left = V::from("");
-                        let mut new_right = V::from("");
+                        let mut new_left = Var::from("");
+                        let mut new_right = Var::from("");
 
                         vars.entry(left.symbol().clone())
                             .and_modify(|count| {

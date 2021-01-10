@@ -3,7 +3,7 @@ a [`FOF`] to [`PNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
-use crate::syntax::{formula::*, qff::QFF, term::Complex, FOF, V};
+use crate::syntax::{formula::*, qff::QFF, term::Complex, Var, FOF};
 
 /// Represents a formula in Prenex Normal Form (PNF).
 ///
@@ -94,12 +94,12 @@ impl PNF {
     }
 
     #[inline(always)]
-    fn exists(variables: Vec<V>, formula: Self) -> Self {
+    fn exists(variables: Vec<Var>, formula: Self) -> Self {
         Exists { variables, formula }.into()
     }
 
     #[inline(always)]
-    fn forall(variables: Vec<V>, formula: Self) -> Self {
+    fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
 }
@@ -115,7 +115,7 @@ impl Formula for PNF {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             PNF::QFF(this) => this.free_vars(),
             PNF::Exists(this) => this.free_vars(),
@@ -164,22 +164,22 @@ impl From<&PNF> for FOF {
 
 // Appends a postfix to the input variable until the result is not no longer in the list of
 // no collision variables.
-fn rename(variable: &V, no_collision_variables: &[&V]) -> V {
+fn rename(variable: &Var, no_collision_variables: &[&Var]) -> Var {
     let mut name = variable.name().to_string();
     let names: Vec<_> = no_collision_variables.iter().map(|v| v.name()).collect();
     while names.contains(&name.as_str()) {
         name.push('`')
     }
-    V::from(&name)
+    Var::from(&name)
 }
 
 // helper for transforming formulae with binary operands
 #[inline]
-fn binary_helper(vars: &[V], formula: &PNF, other: &PNF) -> (Vec<V>, PNF) {
+fn binary_helper(vars: &[Var], formula: &PNF, other: &PNF) -> (Vec<Var>, PNF) {
     let formula_vars = formula.free_vars();
     let other_vars = other.free_vars();
 
-    let intersect: Vec<&V> = vars.iter().filter(|v| other_vars.contains(v)).collect();
+    let intersect: Vec<&Var> = vars.iter().filter(|v| other_vars.contains(v)).collect();
     let union = {
         let mut union = Vec::new();
         union.extend(vars.iter());
@@ -188,14 +188,14 @@ fn binary_helper(vars: &[V], formula: &PNF, other: &PNF) -> (Vec<V>, PNF) {
         union
     };
 
-    let renaming = |v: &V| {
+    let renaming = |v: &Var| {
         if intersect.contains(&v) {
             rename(v, &union)
         } else {
             v.clone()
         }
     };
-    let vars: Vec<V> = vars.iter().map(&renaming).collect();
+    let vars: Vec<Var> = vars.iter().map(&renaming).collect();
     let fmla = formula.rename_vars(&renaming);
 
     (vars, fmla)

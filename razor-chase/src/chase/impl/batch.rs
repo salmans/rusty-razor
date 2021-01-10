@@ -25,7 +25,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{formula::Atomic, V};
+use razor_fol::syntax::{formula::Atomic, Var};
 use std::{collections::HashMap, iter};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
@@ -61,13 +61,13 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             // (notice the do-while pattern)
             while {
                 // construct a map from variables to elements
-                let mut assignment_map: HashMap<&V, Element> = HashMap::new();
+                let mut assignment_map: HashMap<&Var, Element> = HashMap::new();
                 for (i, item) in assignment.iter().enumerate() {
                     assignment_map
                         .insert(vars.get(i).unwrap(), (*domain.get(*item).unwrap()).clone());
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
+                let assignment_func = |v: &Var| assignment_map.get(v).unwrap().clone();
 
                 // lift the variable assignments to literals (used to make observations)
                 let observe_literal = make_observe_literal(assignment_func);
@@ -170,7 +170,7 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
-    assignment_func: impl Fn(&V) -> Element,
+    assignment_func: impl Fn(&Var) -> Element,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {

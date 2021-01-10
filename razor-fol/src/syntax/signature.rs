@@ -2,7 +2,7 @@
 
 ['Sig']: crate::syntax::Sig
 */
-use super::{Error, Pred, C, F};
+use super::{Const, Error, Func, Pred};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -12,7 +12,7 @@ use std::{
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FSig {
     /// Is the function symbol.
-    pub symbol: F,
+    pub symbol: Func,
 
     /// Is the arity of the function.
     pub arity: u8,
@@ -44,10 +44,10 @@ impl fmt::Display for PSig {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Sig {
     /// Is the constant symbols in a theory.
-    constants: HashSet<C>,
+    constants: HashSet<Const>,
 
     /// Is the signature of functions in a theory.
-    functions: HashMap<F, FSig>,
+    functions: HashMap<Func, FSig>,
 
     /// Is the signature of predicates in a theory.
     predicates: HashMap<Pred, PSig>,
@@ -76,7 +76,7 @@ impl Sig {
     }
 
     /// Inserts a new constant in the receiver signature.
-    pub(crate) fn add_constant(&mut self, constant: C) {
+    pub(crate) fn add_constant(&mut self, constant: Const) {
         self.constants.insert(constant);
     }
 
@@ -126,12 +126,12 @@ impl Sig {
     }
 
     /// returns the constants of this signature.
-    pub fn constants(&self) -> &HashSet<C> {
+    pub fn constants(&self) -> &HashSet<Const> {
         &self.constants
     }
 
     /// Returns the function of this signature.
-    pub fn functions(&self) -> &HashMap<F, FSig> {
+    pub fn functions(&self) -> &HashMap<Func, FSig> {
         &self.functions
     }
 
@@ -166,7 +166,7 @@ mod tests {
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "P('c)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -177,7 +177,7 @@ mod tests {
                 arity: 2,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "'c = 'c".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -189,11 +189,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "P(f(x, 'c))".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -205,17 +205,17 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 2,
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("g"),
+                symbol: Func::from("g"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
-            sig.add_constant(C::from("d"));
+            sig.add_constant(Const::from("c"));
+            sig.add_constant(Const::from("d"));
             let formula = "P(f(x, 'c), 'd, f(g(x), y))".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -227,11 +227,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "~P(f('c), y)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -248,11 +248,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "P(f(x), y) & Q('c)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -269,11 +269,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "P(f(x), y) | Q('c)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -290,11 +290,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "P(f(x), y) -> Q('c)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -311,11 +311,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "P(f(x), y) <=> Q('c)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -327,11 +327,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "!x. P(f('c), y)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -343,11 +343,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formula = "?x. P(f('c), y)".parse::<FOF>().unwrap();
             assert_eq!(sig, formula.signature().unwrap());
         }
@@ -384,17 +384,17 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("g"),
+                symbol: Func::from("g"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
-            sig.add_constant(C::from("d"));
+            sig.add_constant(Const::from("c"));
+            sig.add_constant(Const::from("d"));
             let formulae = vec![
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "Q(g('d), z)".parse::<FOF>().unwrap(),
@@ -419,11 +419,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formulae = vec![
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c), y)".parse::<FOF>().unwrap(),
@@ -448,11 +448,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formulae = vec![
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c, d), y)".parse::<FOF>().unwrap(),
@@ -474,11 +474,11 @@ mod tests {
             })
             .unwrap();
             sig.add_function(FSig {
-                symbol: F::from("f"),
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C::from("c"));
+            sig.add_constant(Const::from("c"));
             let formulae = vec![
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c), y, z)".parse::<FOF>().unwrap(),

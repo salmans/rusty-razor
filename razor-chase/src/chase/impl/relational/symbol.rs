@@ -6,10 +6,10 @@ use razor_fol::syntax;
 #[derive(Hash, PartialEq, Eq, Clone, PartialOrd, Ord, Debug)]
 pub(super) enum Symbol {
     /// Constant symbol
-    Const(syntax::C),
+    Const(syntax::Const),
 
     /// Function symbol
-    Func { symbol: syntax::F, arity: u8 },
+    Func { symbol: syntax::Func, arity: u8 },
 
     /// Predicate symbol
     Pred { symbol: syntax::Pred, arity: u8 },

@@ -1,5 +1,5 @@
 /*! Defines the syntax of first-order formulae with equality.*/
-use super::V;
+use super::Var;
 use super::{formula::*, qff::QFF, term::Complex, Sig};
 use itertools::Itertools;
 use std::fmt;
@@ -141,14 +141,14 @@ impl FOF {
     /// Returns an existentially quantified first-order formula with the given
     /// `variables` and `formula`.
     #[inline(always)]
-    pub fn exists(variables: Vec<V>, formula: Self) -> Self {
+    pub fn exists(variables: Vec<Var>, formula: Self) -> Self {
         Exists { variables, formula }.into()
     }
 
     /// Returns a universally quantified first-order formula with the given
     /// `variables` and `formula`.
     #[inline(always)]
-    pub fn forall(variables: Vec<V>, formula: Self) -> Self {
+    pub fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
 
@@ -212,7 +212,7 @@ impl Formula for FOF {
         }
     }
 
-    fn free_vars(&self) -> Vec<&V> {
+    fn free_vars(&self) -> Vec<&Var> {
         match self {
             Self::Top => Vec::new(),
             Self::Bottom => Vec::new(),
@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn free_vars_top() {
-        let expected: Vec<&V> = vec![];
+        let expected: Vec<&Var> = vec![];
         assert_eq!(expected, Top.free_vars());
     }
 
@@ -377,7 +377,7 @@ mod tests {
 
     #[test]
     fn free_vars_bottom() {
-        let expected: Vec<&V> = vec![];
+        let expected: Vec<&Var> = vec![];
         assert_eq_sorted_vecs!(&expected, &Bottom.free_vars());
     }
 
@@ -397,7 +397,7 @@ mod tests {
     #[test]
     fn test_atom_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(R()).free_vars());
         }
         {
@@ -471,11 +471,11 @@ mod tests {
     #[test]
     fn test_not_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(~(R())).free_vars());
         }
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(~(~(R()))).free_vars());
         }
         {
@@ -520,7 +520,7 @@ mod tests {
     #[test]
     fn test_and_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) & (Q())).free_vars());
         }
         {
@@ -558,7 +558,7 @@ mod tests {
     #[test]
     fn test_or_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) | (Q())).free_vars());
         }
         {
@@ -596,7 +596,7 @@ mod tests {
     #[test]
     fn test_implies_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) -> (Q())).free_vars());
         }
         {
@@ -634,7 +634,7 @@ mod tests {
     #[test]
     fn test_iff_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) <=> (Q())).free_vars());
         }
         {
@@ -673,11 +673,11 @@ mod tests {
     #[test]
     fn test_exists_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(? x. (P(x))).free_vars());
         }
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(? x, y. (P(x, y))).free_vars());
         }
         {
@@ -730,11 +730,11 @@ mod tests {
     #[test]
     fn test_forall_free_vars() {
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(! x. (P(x))).free_vars());
         }
         {
-            let expected: Vec<&V> = vec![];
+            let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(! x, y. (P(x, y))).free_vars());
         }
         {

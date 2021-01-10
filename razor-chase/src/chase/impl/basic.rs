@@ -43,22 +43,23 @@ pub enum WitnessTerm {
     /// [`E`]: crate::chase::E
     Elem { element: E },
 
-    /// Wraps an instance of [`C`] as a witness term.
+    /// Wraps an instance of [`Const`] as a witness term.
     ///
-    /// [`C`]: razor_fol::syntax::C
-    Const { constant: C },
+    /// [`Const`]: razor_fol::syntax::Const
+    Const { constant: Const },
 
-    /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
+    /// Corresponds to a composite witness term, made by applying an instance of [`Func`]
+    /// to a list of
     /// witness terms.
     ///
-    /// [`F`]: razor_fol::syntax::F
-    App { function: F, terms: Vec<Self> },
+    /// [`Func`]: razor_fol::syntax::Func
+    App { function: Func, terms: Vec<Self> },
 }
 
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    fn witness(term: &Complex, assign: &impl Fn(&V) -> E) -> Self {
+    fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
         match term {
             Complex::Const { constant } => Self::Const {
                 constant: constant.clone(),
@@ -77,7 +78,7 @@ impl WitnessTerm {
     }
 
     /// Builds a term by applying `function` on `args` as arguments.
-    pub fn apply(function: F, terms: Vec<Self>) -> Self {
+    pub fn apply(function: Func, terms: Vec<Self>) -> Self {
         WitnessTerm::App { function, terms }
     }
 }
@@ -105,14 +106,14 @@ impl fmt::Debug for WitnessTerm {
     }
 }
 
-impl From<C> for WitnessTerm {
-    fn from(constant: C) -> Self {
+impl From<Const> for WitnessTerm {
+    fn from(constant: Const) -> Self {
         Self::Const { constant }
     }
 }
 
-impl From<&C> for WitnessTerm {
-    fn from(constant: &C) -> Self {
+impl From<&Const> for WitnessTerm {
+    fn from(constant: &Const) -> Self {
         Self::from(constant.clone())
     }
 }
@@ -499,7 +500,7 @@ impl fmt::Display for Model {
 #[derive(Clone)]
 pub struct Sequent {
     /// Is the list of free variables in the sequent and is used for memoization.
-    pub free_vars: Vec<V>,
+    pub free_vars: Vec<Var>,
 
     /// Represents the body of the sequent as a list of [`Literal`]s. The literals in
     /// `body_literals` are assumed to be conjoined.
@@ -525,7 +526,7 @@ impl From<&GNF> for Sequent {
     fn from(value: &GNF) -> Self {
         let body = value.body();
         let head = value.head();
-        let free_vars: Vec<V> = value.free_vars().into_iter().cloned().collect();
+        let free_vars: Vec<Var> = value.free_vars().into_iter().cloned().collect();
         let body_fof: FOF = FOF::from(body);
         let head_fof: FOF = FOF::from(head);
 
@@ -630,12 +631,12 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             // (notice the do-while pattern)
             while {
                 // construct a map from variables to elements
-                let mut assignment_map: HashMap<&V, E> = HashMap::new();
+                let mut assignment_map: HashMap<&Var, E> = HashMap::new();
                 for (i, item) in assignment.iter().enumerate().take(vars_size) {
                     assignment_map.insert(vars.get(i).unwrap(), *(*domain.get(*item).unwrap()));
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| *assignment_map.get(v).unwrap();
+                let assignment_func = |v: &Var| *assignment_map.get(v).unwrap();
 
                 // lift the variable assignments to literals (used to create observations)
                 let observe_literal = make_observe_literal(assignment_func);
@@ -728,7 +729,7 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
-    assignment_func: impl Fn(&V) -> E,
+    assignment_func: impl Fn(&Var) -> E,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
