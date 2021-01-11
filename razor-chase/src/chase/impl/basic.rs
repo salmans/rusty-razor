@@ -18,18 +18,9 @@ use std::{
     collections::{HashMap, HashSet},
     fmt, iter,
 };
-use thiserror::Error;
 
 // Is a positive literal apearing in the body and the head of sequents
 pub type Literal = Atomic<Complex>;
-
-/// Is the type of errors arising from inconsistencies in the syntax of formulae.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Is returned when a sequent cannot be constructed from a formula.
-    #[error("cannot build sequent from formula `{}`", .formula.to_string())]
-    BadSequentFormula { formula: FOF },
-}
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
 /// [`E`].

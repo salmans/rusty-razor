@@ -44,31 +44,9 @@ pub enum Error {
         source: codd::Error,
     },
 
-    /// Is a wrapper around the underlying formula transformation error.
-    #[error("syntactic transformation error")]
-    TransformError {
-        #[from]
-        source: razor_fol::transform::Error,
-    },
-
     /// Is an error returned when a witness term cannot be constructed.
     #[error("cannot create witness term for symbol `{symbol:?}`")]
     BadWitnessTerm { symbol: String },
-
-    /// Is an error reeturned when a flat term is expected but a non-flat term is found.
-    #[error("expecting flat term, found `{}`", .term.to_string())]
-    BadFlatTerm {
-        term: razor_fol::syntax::term::Complex,
-    },
-
-    /// Is an error returned when a relational formula is expected but a non-relational
-    /// formula is found.
-    #[error("expecting relational formula, found `{}`", .formula.to_string())]
-    BadRelationalFormula { formula: razor_fol::syntax::FOF },
-
-    /// Is an error returned when a sequent cannot be constructed for a formula.
-    #[error("cannot build sequent from formula `{}`", .formula.to_string())]
-    BadSequentFormula { formula: razor_fol::syntax::FOF },
 
     /// Is an error returned when a relational attribute cannot be constructed.
     #[error("invalid attribute name `{name:?}`")]
