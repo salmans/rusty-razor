@@ -13,8 +13,7 @@ impl Relational {
     ///
     /// **Example**:
     /// ```rust
-    /// use razor_fol::syntax::FOF;
-    /// use razor_fol::v;
+    /// use razor_fol::{syntax::FOF, transform::ToGNF, v};
     ///
     /// let fof = "R(x, y) -> P(x) & Q(y)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
@@ -58,12 +57,14 @@ mod test {
     use crate::{
         fof,
         syntax::{Var, FOF},
-        transform::PcfSet,
+        transform::PCFSet,
         v,
     };
 
     // Assumes the input in GNF
-    fn clause_set(fof: FOF) -> Vec<PcfSet> {
+    fn clause_set(fof: FOF) -> Vec<PCFSet> {
+        use crate::transform::ToGNF;
+
         fof.gnf()
             .into_iter()
             .map(|f| f.into_body_and_head().1)

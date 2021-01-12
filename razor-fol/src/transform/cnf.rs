@@ -4,7 +4,7 @@ converting [`SNF`] to [`CNF`].
 [`SNF`]: crate::transform::SNF
  */
 
-use super::{PNF, SNF};
+use super::{ToSNF, SNF};
 use crate::syntax::{
     formula::{
         clause::{Clause, ClauseSet, Literal},
@@ -30,6 +30,44 @@ pub struct CNF(CnfClauseSet);
 impl From<CnfClauseSet> for CNF {
     fn from(value: CnfClauseSet) -> Self {
         Self(value)
+    }
+}
+
+pub trait ToCNF: Formula {
+    /// Transform the receiver formula to a Conjunctive Normal Form (CNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToCNF;
+    ///
+    /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
+    /// let cnf = formula.cnf();
+    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", cnf.to_string());
+    /// ```
+    fn cnf(&self) -> CNF;
+}
+
+impl ToCNF for SNF {
+    fn cnf(&self) -> CNF {
+        use super::ToNNF;
+
+        // Compromising type safety to avoid implementing a number of
+        // types arising from pairwise combinations of PNF, SNF and NNF:
+        let nnf = FOF::from(self.clone()).nnf();
+        cnf(distribute_or(&nnf.into()))
+    }
+}
+
+impl<T: ToSNF> ToCNF for T {
+    fn cnf(&self) -> CNF {
+        self.snf().cnf()
+    }
+}
+
+impl<T: ToCNF> From<T> for CNF {
+    fn from(value: T) -> Self {
+        value.cnf()
     }
 }
 
@@ -83,15 +121,6 @@ impl std::fmt::Display for CNF {
 impl Default for CNF {
     fn default() -> Self {
         Self::from(ClauseSet::<_>::default())
-    }
-}
-
-impl From<&SNF> for CNF {
-    fn from(value: &SNF) -> Self {
-        // Compromising type safety to avoid implementing a number of
-        // types arising from pairwise combinations of PNF, SNF and NNF:
-        let nnf = FOF::from(value.clone()).nnf();
-        cnf(distribute_or(&nnf.into()))
     }
 }
 
@@ -210,61 +239,13 @@ fn cnf(formula: FOF) -> CNF {
     }
 }
 
-impl SNF {
-    /// Transform the receiver SNF to a Conjunctive Normal Form (CNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
-    /// let snf = formula.pnf().snf();
-    /// let cnf = snf.cnf();
-    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", cnf.to_string());
-    /// ```
-    pub fn cnf(&self) -> CNF {
-        self.into()
-    }
-}
-
-impl PNF {
-    /// Transform the receiver PNF to a Conjunctive Normal Form (CNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
-    /// let pnf = formula.pnf();
-    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", pnf.cnf().to_string());
-    /// ```
-    pub fn cnf(&self) -> CNF {
-        self.snf().cnf()
-    }
-}
-
-impl FOF {
-    /// Transform the receiver FOF to a Conjunctive Normal Form (CNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let fof: FOF = "P(x) <=> Q(y)".parse().unwrap();
-    /// assert_eq!("(P(x) ∨ (¬Q(y))) ∧ (Q(y) ∨ (¬P(x)))", fof.cnf().to_string());
-    /// ```    
-    pub fn cnf(&self) -> CNF {
-        self.pnf().snf().cnf()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::assert_debug_string;
 
     fn cnf(formula: &FOF) -> FOF {
-        formula.pnf().snf().cnf().into()
+        formula.snf().cnf().into()
     }
 
     #[test]

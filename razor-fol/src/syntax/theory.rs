@@ -1,7 +1,7 @@
 /*! Defines theories of formulae. */
 
 use super::{Error, Formula, Sig};
-use std::{convert::TryFrom, fmt};
+use std::{convert::TryFrom, fmt, ops::Deref};
 
 /// is a first-order theory, containing a set of first-order formulae.
 #[derive(Clone)]
@@ -55,6 +55,14 @@ impl<T: Formula> TryFrom<Vec<T>> for Theory<T> {
             signature,
             formulae,
         })
+    }
+}
+
+impl<T: Formula> Deref for Theory<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.formulae
     }
 }
 

@@ -4,7 +4,7 @@ converting [`SNF`] to [`DNF`].
 [`SNF`]: crate::transform::SNF
  */
 
-use super::{PNF, SNF};
+use super::{ToSNF, SNF};
 use crate::syntax::{
     formula::{
         clause::{Clause, ClauseSet, Literal},
@@ -30,6 +30,48 @@ pub struct DNF(DnfClauseSet);
 impl From<DnfClauseSet> for DNF {
     fn from(value: DnfClauseSet) -> Self {
         DNF(value)
+    }
+}
+
+pub trait ToDNF: Formula {
+    /// Transform the receiver formula to a Disjunctive Normal Form (DNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToDNF;
+    ///
+    /// let formula: FOF = "P(x) iff Q(y)".parse().unwrap();
+    /// let dnf = formula.dnf();
+    ///
+    /// assert_eq!(
+    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
+    ///    dnf.to_string()
+    /// );
+    /// ```    
+    fn dnf(&self) -> DNF;
+}
+
+impl ToDNF for SNF {
+    fn dnf(&self) -> DNF {
+        use super::ToNNF;
+
+        // Compromising type safety to avoid implementing a number of
+        // types arising from pairwise combinations of PNF, SNF and NNF:
+        let nnf = FOF::from(self.clone()).nnf();
+        dnf(distribute_and(&nnf.into()))
+    }
+}
+
+impl<T: ToSNF> ToDNF for T {
+    fn dnf(&self) -> DNF {
+        self.snf().dnf()
+    }
+}
+
+impl<T: ToDNF> From<T> for DNF {
+    fn from(value: T) -> Self {
+        value.dnf()
     }
 }
 
@@ -83,15 +125,6 @@ impl std::fmt::Display for DNF {
 impl Default for DNF {
     fn default() -> Self {
         DNF::from(ClauseSet::<_>::default())
-    }
-}
-
-impl From<&SNF> for DNF {
-    fn from(value: &SNF) -> Self {
-        // Compromising type safety to avoid implementing a number of
-        // types arising from pairwise combinations of PNF, SNF and NNF:
-        let nnf = FOF::from(value.clone()).nnf();
-        dnf(distribute_and(&nnf.into()))
     }
 }
 
@@ -208,73 +241,13 @@ fn dnf(formula: FOF) -> DNF {
     }
 }
 
-impl SNF {
-    /// Transform the receiver SNF to a Disjunctive Normal Form (DNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "P(x) iff Q(y)".parse().unwrap();
-    /// let snf = formula.pnf().snf();
-    /// let dnf = snf.dnf();
-    ///
-    /// assert_eq!(
-    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
-    ///    dnf.to_string()
-    /// );
-    /// ```
-    pub fn dnf(&self) -> DNF {
-        self.into()
-    }
-}
-
-impl PNF {
-    /// Transform the receiver PNF to a Disjunctive Normal Form (DNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "P(x) iff Q(y)".parse().unwrap();
-    /// let pnf = formula.pnf();
-    ///
-    /// assert_eq!(
-    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
-    ///    pnf.dnf().to_string()
-    /// );
-    /// ```
-    pub fn dnf(&self) -> DNF {
-        self.snf().dnf()
-    }
-}
-
-impl FOF {
-    /// Transform the receiver FOF to a Disjunctive Normal Form (DNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let fof: FOF = "P(x) iff Q(y)".parse().unwrap();
-    ///
-    /// assert_eq!(
-    ///    "(((P(x) ∧ Q(y)) ∨ (P(x) ∧ (¬P(x)))) ∨ (Q(y) ∧ (¬Q(y)))) ∨ ((¬P(x)) ∧ (¬Q(y)))",
-    ///    fof.dnf().to_string()
-    /// );
-    /// ```
-    pub fn dnf(&self) -> DNF {
-        self.pnf().snf().dnf()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::assert_debug_string;
 
     fn dnf(formula: &FOF) -> FOF {
-        formula.pnf().snf().dnf().into()
+        formula.snf().dnf().into()
     }
 
     #[test]

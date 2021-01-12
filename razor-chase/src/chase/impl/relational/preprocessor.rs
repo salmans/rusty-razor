@@ -3,7 +3,7 @@ use crate::chase::PreProcessorEx;
 use itertools::Itertools;
 use razor_fol::{
     syntax::{formula::*, term::Complex, Sig, Theory, Var, FOF},
-    transform::{PcfSet, GNF, PCF},
+    transform::{PCFSet, GNF, PCF},
 };
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
@@ -72,7 +72,7 @@ fn equality_axioms() -> Vec<GNF> {
     }
     .into();
 
-    let transitive: GNF = (PCF::from(vec![x_y, y_z]), PcfSet::from(PCF::from(x_z))).into();
+    let transitive: GNF = (PCF::from(vec![x_y, y_z]), PCFSet::from(PCF::from(x_z))).into();
 
     vec![
         // reflexive (not needed - automatically added for new elements):
@@ -107,7 +107,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PcfSet::from(PCF::from(x_y))).into();
+        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PCFSet::from(PCF::from(x_y))).into();
         result.push(gnf);
     }
 
@@ -148,7 +148,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(left), PcfSet::from(PCF::from(right))).into();
+        let gnf: GNF = (PCF::from(left), PCFSet::from(PCF::from(right))).into();
         result.push(gnf);
     }
 

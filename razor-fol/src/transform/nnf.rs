@@ -91,9 +91,31 @@ impl From<Literal<Complex>> for NNF {
     }
 }
 
-impl From<&FOF> for NNF {
-    fn from(value: &FOF) -> Self {
-        nnf(value)
+pub trait ToNNF: Formula {
+    /// Transforms the receiver formula to a Negation Normal Form (NNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToNNF;
+    ///
+    /// let formula: FOF = "not (P(x) iff Q(y))".parse().unwrap();
+    /// let nnf = formula.nnf();
+    ///
+    /// assert_eq!("(P(x) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ Q(y))", nnf.to_string());
+    /// ```
+    fn nnf(&self) -> NNF;
+}
+
+impl ToNNF for FOF {
+    fn nnf(&self) -> NNF {
+        nnf(self)
+    }
+}
+
+impl<T: ToNNF> From<T> for NNF {
+    fn from(value: T) -> Self {
+        value.nnf()
     }
 }
 
@@ -250,23 +272,6 @@ fn nnf(fmla: &FOF) -> NNF {
         }
         FOF::Exists(this) => NNF::exists(this.variables.clone(), nnf(&this.formula)),
         FOF::Forall(this) => NNF::forall(this.variables.clone(), nnf(&this.formula)),
-    }
-}
-
-impl FOF {
-    /// Transforms the receiver first-order formula to a Negation Normal Form (NNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "not (P(x) iff Q(y))".parse().unwrap();
-    /// let nnf = formula.nnf();
-    ///
-    /// assert_eq!("(P(x) ∧ (¬Q(y))) ∨ ((¬P(x)) ∧ Q(y))", nnf.to_string());
-    /// ```
-    pub fn nnf(&self) -> NNF {
-        self.into()
     }
 }
 

@@ -10,7 +10,7 @@ use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
     syntax::{formula::Atomic, Const, Func, Pred, FOF},
-    transform::{PcfSet, Relational, GNF},
+    transform::{PCFSet, Relational, GNF},
 };
 use std::convert::TryFrom;
 
@@ -148,7 +148,7 @@ impl SequentTrait for Sequent {
 }
 
 // Relationalizes `formula` if possible; otherwise.
-fn relationalize(gnf: &PcfSet) -> Relational {
+fn relationalize(gnf: &PCFSet) -> Relational {
     let mut var_counter = 0;
     let mut var_generator = || {
         let name = format!("{}{}", EXISTENTIAL_PREFIX, var_counter);

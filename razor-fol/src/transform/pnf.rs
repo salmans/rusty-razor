@@ -81,9 +81,31 @@ impl From<QFF> for PNF {
     }
 }
 
-impl From<&FOF> for PNF {
-    fn from(value: &FOF) -> Self {
-        pnf(value)
+pub trait ToPNF: Formula {
+    /// Transforms the receiver formula to a Prenex Normal Form (PNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToPNF;    
+    ///
+    /// let formula: FOF = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
+    /// let pnf = formula.pnf();
+    ///
+    /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", pnf.to_string());
+    /// ```
+    fn pnf(&self) -> PNF;
+}
+
+impl ToPNF for FOF {
+    fn pnf(&self) -> PNF {
+        pnf(self)
+    }
+}
+
+impl<T: ToPNF> From<T> for PNF {
+    fn from(value: T) -> Self {
+        value.pnf()
     }
 }
 
@@ -321,23 +343,6 @@ fn pnf(formula: &FOF) -> PNF {
         }
         FOF::Exists(this) => PNF::exists(this.variables.clone(), pnf(&this.formula)),
         FOF::Forall(this) => PNF::forall(this.variables.clone(), pnf(&this.formula)),
-    }
-}
-
-impl FOF {
-    /// Transforms the receiver first-order formula to a Prenex Normal Form (PNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
-    /// let pnf = formula.pnf();
-    ///
-    /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", pnf.to_string());
-    /// ```
-    pub fn pnf(&self) -> PNF {
-        self.into()
     }
 }
 

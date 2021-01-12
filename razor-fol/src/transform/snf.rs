@@ -3,7 +3,7 @@
 
 [`PNF`]: crate::transform::PNF
 */
-use super::PNF;
+use super::{ToPNF, PNF};
 use crate::syntax::{formula::*, qff::QFF, term::Complex, Const, Func, Var, FOF};
 use std::collections::HashMap;
 
@@ -76,8 +76,93 @@ impl From<QFF> for SNF {
     }
 }
 
-impl From<&PNF> for SNF {
-    fn from(value: &PNF) -> Self {
+pub trait ToSNF: Formula {
+    /// Is similar to [`PNF::snf`] but uses a custom closure to avoid collision
+    /// when generating Skolem function names (including Skolem constants).
+    ///
+    ///
+    /// [`PNF::snf`]: crate::transform::PNF::snf()
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToSNF;
+    ///
+    /// let mut c_counter = 0;
+    /// let mut f_counter = 0;
+    /// let mut const_generator = || {
+    ///     let c = c_counter;
+    ///     c_counter += 1;
+    ///     format!("skolem_const{}", c).into()
+    /// };
+    /// let mut fn_generator = || {
+    ///     let c = f_counter;
+    ///     f_counter += 1;
+    ///     format!("skolem_fn{}", c).into()
+    /// };    
+    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
+    /// let snf = formula.snf_with(&mut const_generator, &mut fn_generator);
+    ///
+    /// assert_eq!("P(x, skolem_fn0(x))", snf.to_string());
+    /// ```    
+    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+    where
+        CG: FnMut() -> Const,
+        FG: FnMut() -> Func;
+
+    /// Transforms the receiver formula to a Skolem Normal Form (SNF).
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToSNF;
+    ///
+    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
+    /// let snf = formula.snf();
+    ///
+    /// assert_eq!("P(x, f#0(x))", snf.to_string());
+    /// ```    
+    fn snf(&self) -> SNF {
+        let mut c_counter = 0;
+        let mut f_counter = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        self.snf_with(&mut const_generator, &mut fn_generator)
+    }
+}
+
+impl ToSNF for PNF {
+    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+    where
+        CG: FnMut() -> Const,
+        FG: FnMut() -> Func,
+    {
+        let free_vars = self.free_vars().into_iter().cloned().collect();
+        SNF::new(self.clone(), free_vars, const_generator, fn_generator)
+    }
+}
+
+impl<T: ToPNF> ToSNF for T {
+    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+    where
+        CG: FnMut() -> Const,
+        FG: FnMut() -> Func,
+    {
+        self.pnf().snf_with(const_generator, fn_generator)
+    }
+}
+
+impl<T: ToSNF> From<T> for SNF {
+    fn from(value: T) -> Self {
         value.snf()
     }
 }
@@ -182,94 +267,10 @@ impl From<&SNF> for FOF {
     }
 }
 
-impl PNF {
-    /// Transforms the receiver PNF to a Skolem Normal Form (SNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
-    /// let pnf = formula.pnf();
-    /// let snf = pnf.snf();
-    ///
-    /// assert_eq!("P(x, f#0(x))", snf.to_string());
-    /// ```
-    pub fn snf(&self) -> SNF {
-        let mut c_counter = 0;
-        let mut f_counter = 0;
-        let mut const_generator = || {
-            let name = format!("c#{}", c_counter);
-            c_counter += 1;
-            name.into()
-        };
-        let mut fn_generator = || {
-            let name = format!("f#{}", f_counter);
-            f_counter += 1;
-            name.into()
-        };
-
-        self.snf_with(&mut const_generator, &mut fn_generator)
-    }
-
-    /// Is similar to [`PNF::snf`] but uses a custom closure to avoid collision
-    /// when generating Skolem function names (including Skolem constants).
-    ///
-    ///
-    /// [`PNF::snf`]: crate::transform::PNF::snf()
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let mut c_counter = 0;
-    /// let mut f_counter = 0;
-    /// let mut const_generator = || {
-    ///     let c = c_counter;
-    ///     c_counter += 1;
-    ///     format!("skolem_const{}", c).into()
-    /// };
-    /// let mut fn_generator = || {
-    ///     let c = f_counter;
-    ///     f_counter += 1;
-    ///     format!("skolem_fn{}", c).into()
-    /// };    
-    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
-    /// let pnf = formula.pnf();
-    /// let snf = pnf.snf_with(&mut const_generator, &mut fn_generator);
-    ///
-    /// assert_eq!("P(x, skolem_fn0(x))", snf.to_string());
-    /// ```
-    pub fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
-    where
-        CG: FnMut() -> Const,
-        FG: FnMut() -> Func,
-    {
-        let free_vars = self.free_vars().into_iter().cloned().collect();
-        SNF::new(self.clone(), free_vars, const_generator, fn_generator)
-    }
-}
-
-impl FOF {
-    /// Transforms the receiver FOF to a Skolem Normal Form (SNF).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    ///
-    /// let fof: FOF = "∃ y. P(x, y)".parse().unwrap();
-    ///
-    /// assert_eq!("P(x, f#0(x))", fof.snf().to_string());
-    /// ```
-    pub fn snf(&self) -> SNF {
-        self.pnf().snf()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{assert_debug_string, fof};
+    use crate::{assert_debug_string, fof, transform::ToPNF};
 
     fn snf(formula: &FOF) -> FOF {
         formula.pnf().snf().into()

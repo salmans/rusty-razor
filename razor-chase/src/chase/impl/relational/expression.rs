@@ -476,7 +476,7 @@ mod tests {
     use super::*;
     use crate::chase::E;
     use codd::{query, Database, Tuples};
-    use razor_fol::{fof, syntax::FOF, v};
+    use razor_fol::{fof, syntax::FOF, transform::ToGNF, v};
     use std::convert::TryFrom;
 
     macro_rules! atts {
