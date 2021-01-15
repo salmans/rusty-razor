@@ -93,8 +93,14 @@ impl FromStr for Attribute {
 pub(super) struct AttributeList(Vec<Attribute>);
 
 impl AttributeList {
+    /// Creates a new instance from an iterator of [`Attribute`]s.
     pub fn new<I: IntoIterator<Item = Attribute>>(attributes: I) -> Self {
         Self(attributes.into_iter().map(Into::into).collect())
+    }
+
+    /// Creates an empty list of attributes.
+    pub fn empty() -> Self {
+        Self::new(vec![])
     }
 
     /// Returns the set union of the attributes in the receiver and those in `other`.

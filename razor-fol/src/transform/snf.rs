@@ -77,11 +77,8 @@ impl From<QFF> for SNF {
 }
 
 pub trait ToSNF: Formula {
-    /// Is similar to [`PNF::snf`] but uses a custom closure to avoid collision
+    /// Is similar to [`ToSNF::snf`] but uses a custom closure to avoid collision
     /// when generating Skolem function names (including Skolem constants).
-    ///
-    ///
-    /// [`PNF::snf`]: crate::transform::PNF::snf()
     ///
     /// **Example**:
     /// ```rust

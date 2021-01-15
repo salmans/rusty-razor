@@ -1,7 +1,7 @@
 //! Provides a "basic" implementation of the Chase.
 //!
-//! This implementation is used as a reference for the correctness of other implementations of the
-//! [Chase].
+//! This implementation is used as a reference for the correctness of other implementations
+//! of the [Chase].
 //!
 //! **Note**: The performance of `chase::impl::basic` is not a concern.
 //!
@@ -19,7 +19,7 @@ use std::{
     fmt, iter,
 };
 
-// Is a positive literal apearing in the body and the head of sequents
+// Is a *positive* literal apearing in the body and the head of sequents
 pub type Literal = Atomic<Complex>;
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
@@ -486,7 +486,7 @@ impl fmt::Display for Model {
     }
 }
 
-/// Is represented by a list of [`Atomic`]s in the body and a list of list of `Atomic`s in the
+/// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
 /// head.
 #[derive(Clone)]
 pub struct Sequent {
@@ -498,7 +498,7 @@ pub struct Sequent {
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub body: Vec<Atomic<Complex>>,
+    pub body: Vec<Literal>,
 
     /// Represents the head of the sequent as a list of list of [`Literal`]s. The literals in
     /// each sublist of `head_literals` are assumed to be conjoined where the sublists are
@@ -506,7 +506,7 @@ pub struct Sequent {
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub head: Vec<Vec<Atomic<Complex>>>,
+    pub head: Vec<Vec<Literal>>,
 
     // other fields:
     body_fof: FOF,
@@ -514,25 +514,23 @@ pub struct Sequent {
 }
 
 impl From<&GNF> for Sequent {
-    fn from(value: &GNF) -> Self {
-        let body = value.body();
-        let head = value.head();
-        let free_vars: Vec<Var> = value.free_vars().into_iter().cloned().collect();
-        let body_fof: FOF = FOF::from(body);
-        let head_fof: FOF = FOF::from(head);
+    fn from(gnf: &GNF) -> Self {
+        let gnf_body = gnf.body();
+        let gnf_head = gnf.head();
+        let free_vars = gnf.free_vars().into_iter().cloned().collect();
 
-        let body = body.iter().cloned().collect_vec();
-        let head = head
+        let body = gnf_body.iter().cloned().collect();
+        let head = gnf_head
             .iter()
-            .map(|h| h.iter().cloned().collect_vec())
-            .collect_vec();
+            .map(|h| h.iter().cloned().collect())
+            .collect();
 
         Self {
             free_vars,
             body,
             head,
-            body_fof,
-            head_fof,
+            body_fof: gnf_body.into(),
+            head_fof: gnf_head.into(),
         }
     }
 }
@@ -1048,22 +1046,23 @@ mod test_basic {
             sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
+            // Note: only range restricted geometric formulae get compressed
             "[[P(x), Q(x)] -> [[Q(y)]]]",
             sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[[P(x), Q(x)] -> [[Q(x)], [R(z)]], [P(x), Q(x)] -> [[Q(x)], [S(z)]]]",
+            "[[P(x, z), Q(x)] -> [[Q(x)], [R(z), S(z)]]]",
             sequents(
-                "P(x) & Q(x) -> Q(x) | (R(z) & S(z))"
+                "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
                     .parse::<FOF>()
                     .unwrap()
                     .gnf(),
             ),
         );
         assert_debug_string(
-            "[[] -> [[P(x)], [P(y)], [P(z)]], [] -> [[P(x)], [P(y)], [Q(z)]], [] -> [[P(x)], [P(z)], [Q(y)]], [] -> [[P(x)], [Q(y)], [Q(z)]], [] -> [[P(y)], [P(z)], [Q(x)]], [] -> [[P(y)], [Q(x)], [Q(z)]], [] -> [[P(z)], [Q(x)], [Q(y)]], [] -> [[Q(x)], [Q(y)], [Q(z)]]]",
+            "[[D(x, y, z)] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]]",
             sequents(
-                "true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
+                "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
                     .parse::<FOF>()
                     .unwrap()
                     .gnf(),
@@ -1386,13 +1385,349 @@ mod test_basic {
             )))
         );
         assert_eq!(
-"Domain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1112(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1121(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1122(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1211(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1212(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1221(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1222(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2111(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2112(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2121(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2122(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2211(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2212(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2221(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4}\nFacts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2222(e#4)>\n\'c#0 -> e#0\nf#0[e#0] -> e#1\nf#0[e#1] -> e#2\nf#0[e#2] -> e#3\nf#0[e#3] -> e#4",            
+            "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1112(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1121(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1122(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1211(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1212(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1221(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1222(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2111(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2112(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2121(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2122(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2211(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2212(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2221(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2222(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy35.raz"
             )))
         );
-        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#0[e#2, e#3] -> e#4\nf#1[e#2, e#3] -> e#5\nf#0[e#4, e#5] -> e#6\nf#1[e#4, e#5] -> e#7\nf#0[e#6, e#7] -> e#8\nf#1[e#6, e#7] -> e#9",
-            print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy36.raz"))));
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\
+\'c#0 -> e#0\n\
+\'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy36.raz"
+            )))
+        );
         assert_eq!(
             "",
             print_basic_models(solve_basic(&read_theory_from_file(

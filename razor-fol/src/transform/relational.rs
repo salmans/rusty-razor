@@ -373,9 +373,8 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut Vec<Var
     };
     clause_set.substitute(&sub)
 }
-
 impl PCFSet {
-    /// Is similar to [`PcfSet::relational`] but uses custom closures for generating symbols.
+    /// Is similar to [`PCFSet::relational`] but uses custom closures for generating symbols.
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::{FOF, Const, Var, Func};

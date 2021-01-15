@@ -9,11 +9,16 @@ use razor_fol::{
     syntax::{
         formula::{Atom, Atomic, Equals},
         term::Variable,
-        Formula,
+        Formula, EQ_SYM,
     },
     transform::{RelClause, Relational},
 };
 use std::collections::HashMap;
+
+// Internal types for iterating over a formula of type `Relational`
+type Literal = Atomic<Variable>;
+type Clause<'a> = &'a [Literal];
+type ClauseSet<'a> = &'a [Clause<'a>];
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 struct RawJoin {
@@ -28,7 +33,7 @@ struct RawUnion {
     right: RawExpression,
 }
 
-/// Represents the recursive structure of a relation expression as it is constructed.
+// Represents the recursive structure of a relation expression as it is constructed.
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 enum RawExpression {
     Full,
@@ -60,7 +65,7 @@ impl RawExpression {
     }
 }
 
-/// Is the trait of objects that map a tuple to another.
+// Is the trait of objects that map a tuple to another.
 trait TupleMap: FnMut(&Tuple) -> Tuple + 'static {}
 impl<F: FnMut(&Tuple) -> Tuple + 'static> TupleMap for F {}
 
@@ -77,24 +82,25 @@ impl AttributeList {
     }
 }
 
-/// Represents a relational expression of type `Mono<Tuple>` while the expression
-/// is being constructed.
+// Represents a relational expression of type `Mono<Tuple>` while the expression
+// is being constructed.
 struct SubExpression {
-    /// Is the attributes associated to this expression.
+    // Is the attributes associated to this expression.
     attributes: AttributeList,
 
-    /// Maps a tuple of `expression` to the keys that are used to join this subexpression with
-    /// another subexpression at the upper level of the expression tree.
+    // Maps a tuple of `expression` to the keys that are used to join this subexpression with
+    // another subexpression at the upper level of the expression tree.
     join_key: Box<dyn TupleMap>,
 
-    /// Is the (sub)expression in the context of a larger expression.
+    // Is the (sub)expression in the context of a larger expression.
     expression: Mono<Tuple>,
 
-    /// Returns a "raw" representation of the sub-expression, which can identify the sub-exprewssion.
+    // Returns a "raw" representation of the sub-expression, which can identify the sub-exprewssion.
     raw: RawExpression,
 }
 
 impl SubExpression {
+    // Creates a new subexpression instance.
     fn new(
         attributes: AttributeList,
         join_key: impl TupleMap,
@@ -109,7 +115,27 @@ impl SubExpression {
         }
     }
 
-    /// Returns the receiver's `expression`.
+    // Creates an instance corresponding to a full subexpression (logical truth).
+    fn full() -> Self {
+        Self::new(
+            AttributeList::empty(),
+            |_: &Tuple| unreachable!(),
+            Mono::from(Singleton::new(vec![])),
+            RawExpression::Full,
+        )
+    }
+
+    // Creates an instance corresponding to an empty subexpression (logical falsehood).
+    fn empty() -> Self {
+        Self::new(
+            AttributeList::empty(),
+            |_: &Tuple| unreachable!(),
+            Mono::from(Empty::new()),
+            RawExpression::Empty,
+        )
+    }
+
+    // Returns the receiver's `expression`.
     fn expression(&self) -> &Mono<Tuple> {
         &self.expression
     }
@@ -129,8 +155,8 @@ impl SubExpression {
     }
 }
 
-/// Converts compatible relationalized first-order formulae to relational expressions
-/// in `codd`.
+/// Converts compatible relationalized first-order formulae of type [`Relational`] to
+/// relational query expressions in `codd`.
 pub(super) struct Convertor<'d> {
     views: HashMap<RawExpression, Mono<Tuple>>,
     database: Option<&'d mut codd::Database>,
@@ -159,11 +185,17 @@ impl<'d> Convertor<'d> {
     /// relational expression attributes.
     pub fn convert(
         &mut self,
-        rel: Relational,
+        rel: &Relational,
         attributes: &AttributeList,
     ) -> Result<Mono<Tuple>, Error> {
-        self.relational(rel, &AttributeList::new(vec![]), attributes)
-            .map(SubExpression::into_expression)
+        use itertools::Itertools;
+
+        self.clause_set(
+            &rel.iter().map(RelClause::atomics).collect_vec(),
+            &AttributeList::new(vec![]),
+            attributes,
+        )
+        .map(SubExpression::into_expression)
     }
 
     /// Memoizes `sub_expr` if the receiver is a memoizing instance.
@@ -182,7 +214,7 @@ impl<'d> Convertor<'d> {
 
     fn atomic(
         &mut self,
-        atomic: Atomic<Variable>,
+        atomic: &Literal,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
@@ -192,276 +224,216 @@ impl<'d> Convertor<'d> {
         }
     }
 
-    /// Creates a relational expression (projection over an instance) for a predicate `pred` applied
-    /// to a list of variables `vars`. `key_attrs` is the expected key attributes for joining the
-    /// resulting subexpression with the subexpression at the upper level in the expression tree.
-    /// `attrs` is the expected attributes of the resulting subexpression.
+    // Creates a relational expression (projection over an instance) for an [`Atom`].
+    // `key_attrs` is the expected key attributes for joining the resulting subexpression
+    // with the subexpression at the upper level in the expression tree.
+    // `attrs` is the expected attributes of the resulting subexpression.
     fn atom(
         &mut self,
-        atom: Atom<Variable>,
+        atom: &Atom<Variable>,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
-        use std::convert::TryFrom;
+        let (expr_attrs, expr_indices) = attributes_and_indices(attrs, &atom.terms)?;
 
-        let vars = atom
-            .terms
-            .iter()
-            .map(|t| Attribute::try_from(t.symbol()))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut expr_attrs = Vec::new(); // attributes of the resulting expression
-        let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
+        let to_project = attrs.len() != atom.terms.len()
+            || expr_indices
+                .iter()
+                .zip(0..atom.terms.len())
+                .any(|(x, y)| *x != y);
 
-        for attr in attrs.iter() {
-            let mut vars_iter = vars.iter();
-            if let Some(p) = vars_iter.position(|item| item == attr) {
-                expr_indices.push(p);
-                expr_attrs.push(attr.clone());
-            }
-        }
-
-        let is_projected = attrs.len() != vars.len()
-            || expr_indices.iter().zip(0..vars.len()).any(|(x, y)| *x != y);
-
-        // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
+        // The db instance containing tuples of `pred` is identified by `pred.to_string()`:
         let instance: Mono<Tuple> = Relation::new(&atom.predicate.to_string()).into();
-        let expr_attrs = AttributeList::new(expr_attrs);
 
         // `join_key` transforms a tuple to its expected keys:
         let key = expr_attrs.project(&key_attrs);
 
-        let raw = if is_projected {
-            RawExpression::Project {
-                expression: RawExpression::Relation(atom.predicate.to_string()).boxed(),
+        let relation = RawExpression::Relation(atom.predicate.to_string());
+        let result = if to_project {
+            let raw = RawExpression::Project {
+                expression: relation.boxed(),
                 indices: expr_indices.iter().map(|&i| i as u8).collect(),
-            }
-        } else {
-            RawExpression::Relation(atom.predicate.to_string())
-        };
-
-        // optimize identity projection:
-        let expr = if is_projected {
+            };
             // Project only the expected attributes of the instance:
-            instance
+            let expr = instance
                 .builder()
                 .project(move |p| expr_indices.iter().map(|i| p[*i]).collect())
                 .build()
-                .into()
-        } else {
-            instance
-        };
-
-        let mut result = SubExpression::new(expr_attrs, key, expr, raw);
-        if matches!(result.raw(), RawExpression::Project {..}) {
+                .into();
+            let mut result = SubExpression::new(expr_attrs, key, expr, raw);
             self.memoize(&mut result)?;
-        }
+            result
+        } else {
+            // optimizing identity projection:
+            SubExpression::new(expr_attrs, key, instance, relation)
+        };
 
         Ok(result)
     }
 
+    // Similar to `Convertor::atom()` but works for positive equality literals of type `Equals`.
     fn equals(
         &mut self,
-        equals: Equals<Variable>,
+        equals: &Equals<Variable>,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
-        use std::convert::TryFrom;
+        // `equals.left` is at index 0 and `equals.right` at index 1:
+        let (expr_attrs, expr_indices) =
+            attributes_and_indices(attrs, &vec![equals.left.clone(), equals.right.clone()])?;
 
-        let left = Attribute::try_from(equals.left.symbol())?;
-        let right = Attribute::try_from(equals.right.symbol())?;
+        let to_project = attrs.len() != 2 || expr_indices != [0, 1];
 
-        let mut expr_attrs = Vec::new(); // attributes of the resulting expression
-        let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
-
-        for attr in attrs.iter() {
-            if attr == &left {
-                expr_indices.push(0);
-                expr_attrs.push(attr.clone());
-            } else if attr == &right {
-                expr_indices.push(1);
-                expr_attrs.push(attr.clone());
-            }
-        }
-
-        let is_projected = attrs.len() != 2 || expr_indices != [0, 1];
-
-        // The database instance containing tuples of `pred` is identified by `pred.to_string()`:
-        let instance: Mono<Tuple> = Relation::new("=").into(); // FIXME
-        let expr_attrs = AttributeList::new(expr_attrs);
+        let instance: Mono<Tuple> = Relation::new(EQ_SYM).into();
 
         // `join_key` transforms a tuple to its expected keys:
         let key = expr_attrs.project(&key_attrs);
 
-        let raw = if is_projected {
-            RawExpression::Project {
-                expression: RawExpression::Relation("=".into()).boxed(), // FIXME
+        let relation = RawExpression::Relation(EQ_SYM.into());
+        let result = if to_project {
+            let raw = RawExpression::Project {
+                expression: relation.boxed(),
                 indices: expr_indices.iter().map(|&i| i as u8).collect(),
-            }
-        } else {
-            RawExpression::Relation("=".into()) // FIXME
-        };
-
-        // optimize identity projection:
-        let expr = if is_projected {
+            };
             // Project only the expected attributes of the instance:
-            instance
+            let expr = instance
                 .builder()
                 .project(move |p| expr_indices.iter().map(|i| p[*i]).collect())
                 .build()
-                .into()
-        } else {
-            instance
-        };
-
-        let mut result = SubExpression::new(expr_attrs, key, expr, raw);
-        if matches!(result.raw(), RawExpression::Project {..}) {
+                .into();
+            let mut result = SubExpression::new(expr_attrs, key, expr, raw);
             self.memoize(&mut result)?;
-        }
+            result
+        } else {
+            // optimizing identity projection:
+            SubExpression::new(expr_attrs, key, instance, relation)
+        };
 
         Ok(result)
     }
 
-    /// Creates a join expression for the conjunction of `left` and `right`.
-    /// `key_attrs` is the expected key attributes for joining the
-    /// resulting subexpression with the subexpression at the upper level in the expression tree.
-    /// `attrs` is the expected attributes of the resulting subexpression.
+    // Creates nested relational join expressions for a relational clause, corresponding to
+    // conjunction of positive literals.
+    // `key_attrs` is the expected key attributes for joining the resulting subexpression
+    // with the subexpression at the upper level in the expression tree.
+    // `attrs` is the expected attributes of the resulting subexpression.
     fn clause(
         &mut self,
-        clause: RelClause,
+        clause: Clause,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
         use std::convert::TryFrom;
 
-        let mut atoms = clause.into_atomics();
-        if atoms.len() == 0 {
-            return Ok(SubExpression::new(
-                AttributeList::new(vec![]),
-                |t: &Tuple| t.clone(),
-                Mono::from(Singleton::new(vec![])),
-                RawExpression::Full,
-            ));
-        } else if atoms.len() == 1 {
-            return self.atomic(atoms.remove(0), key_attrs, attrs);
-        }
+        match clause {
+            [] => Ok(SubExpression::full()),
+            [atomic] => self.atomic(atomic, key_attrs, attrs),
+            [first, rest @ ..] => {
+                let left_attrs = AttributeList::new(
+                    first
+                        .free_vars()
+                        .into_iter()
+                        .map(Attribute::try_from)
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
+                let right_attrs = AttributeList::new(
+                    rest.iter()
+                        .flat_map(|v| v.free_vars())
+                        .into_iter()
+                        .map(Attribute::try_from)
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
 
-        let left: RelClause = atoms.remove(0).into();
-        let right: RelClause = atoms.into();
+                let common_attrs = left_attrs.intersect(&right_attrs); // join key attributes of left and right
+                let left_sub = self.atomic(first, &common_attrs, &attrs.union(&right_attrs))?;
+                let right_sub =
+                    self.clause(rest, &common_attrs, &attrs.union(&left_sub.attributes))?;
 
-        let left_attrs = AttributeList::new(
-            left.free_vars()
-                .into_iter()
-                .map(Attribute::try_from)
-                .collect::<Result<Vec<_>, _>>()?,
-        );
-        let right_attrs = AttributeList::new(
-            right
-                .free_vars()
-                .into_iter()
-                .map(Attribute::try_from)
-                .collect::<Result<Vec<_>, _>>()?,
-        );
+                let mut expr_attrs = Vec::new(); // attributes of the resulting expression
+                let mut expr_indices = Vec::new(); // indices of those attributes
 
-        let common_vars = left_attrs.intersect(&right_attrs); // join key attributes of left and right
-        let left_sub = self.clause(left, &common_vars, &attrs.union(&right_attrs))?;
-        let right_sub = self.clause(right, &common_vars, &attrs.union(&left_sub.attributes))?;
+                for attr in attrs.iter() {
+                    let mut left_iter = left_sub.attributes.iter();
+                    let mut right_iter = right_sub.attributes.iter();
 
-        let mut expr_attrs = Vec::new(); // attributes of the resulting expression
-        let mut expr_indices = Vec::new(); // indices of those attributes
+                    // Is an expected attribute in the left or the right expression?
+                    if let Some(p) = left_iter.position(|item| item == attr) {
+                        expr_indices.push(Either::Left(p));
+                        expr_attrs.push(attr.clone());
+                    } else if let Some(p) = right_iter.position(|item| item == attr) {
+                        expr_indices.push(Either::Right(p));
+                        expr_attrs.push(attr.clone());
+                    }
+                }
 
-        for v in attrs.iter() {
-            let mut left_iter = left_sub.attributes.iter();
-            let mut right_iter = right_sub.attributes.iter();
+                let expr_attrs = AttributeList::new(expr_attrs);
+                let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
+                let raw = RawExpression::join(
+                    left_sub.raw,
+                    right_sub.raw,
+                    expr_indices.iter().map(|ei| ei.map(|i| i as u8)).collect(),
+                );
 
-            // Is an expected attribute in the left or the right expression?
-            if let Some(p) = left_iter.position(|item| item == v) {
-                expr_indices.push(Either::Left(p));
-                expr_attrs.push(v.clone());
-            } else if let Some(p) = right_iter.position(|item| item == v) {
-                expr_indices.push(Either::Right(p));
-                expr_attrs.push(v.clone());
+                let join = left_sub
+                    .expression
+                    .builder()
+                    .with_key(left_sub.join_key)
+                    .join(right_sub.expression.builder().with_key(right_sub.join_key))
+                    .on(move |_, l, r| {
+                        expr_indices
+                            .iter()
+                            .map(|i| i.either(|i| l[i], |i| r[i]))
+                            .collect()
+                    })
+                    .build();
+
+                let mut result = SubExpression::new(expr_attrs, join_key, join.into(), raw);
+                self.memoize(&mut result)?;
+
+                Ok(result)
             }
         }
-
-        let expr_attrs = AttributeList::new(expr_attrs);
-        let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
-        let raw = RawExpression::join(
-            left_sub.raw,
-            right_sub.raw,
-            expr_indices.iter().map(|ei| ei.map(|i| i as u8)).collect(),
-        );
-
-        let left_key = left_sub.join_key;
-        let left_exp = left_sub.expression;
-
-        let right_key = right_sub.join_key;
-        let right_exp = right_sub.expression;
-
-        let join = left_exp
-            .builder()
-            .with_key(left_key)
-            .join(right_exp.builder().with_key(right_key))
-            .on(move |_, l, r| {
-                expr_indices
-                    .iter()
-                    .map(|i| i.either(|i| l[i], |i| r[i]))
-                    .collect()
-            })
-            .build();
-
-        let mut result = SubExpression::new(expr_attrs, join_key, join.into(), raw);
-        self.memoize(&mut result)?;
-
-        Ok(result)
     }
 
-    /// Creates a union expression for the disjunction of `left` and `right`.
-    /// `key_attrs` is the expected key attributes for joining the
-    /// resulting subexpression with the subexpression at the upper level in the expression tree.
-    /// `attrs` is the expected attributes of the resulting subexpression.
-    fn relational(
+    // Creates nested relational union expressions for a relational clause set, corresponding to
+    // disjunction of positive relational clauses.
+    // `key_attrs` is the expected key attributes for joining the resulting subexpression with
+    // the subexpression at the upper level in the expression tree.
+    // `attrs` is the expected attributes of the resulting subexpression.
+    fn clause_set(
         &mut self,
-        rel: Relational,
+        clause_set: ClauseSet,
         key_attrs: &AttributeList,
         attrs: &AttributeList,
     ) -> Result<SubExpression, Error> {
-        let mut clauses = rel.into_clauses();
-        if clauses.len() == 0 {
-            return Ok(SubExpression::new(
-                AttributeList::new(vec![]),
-                |t: &Tuple| t.clone(),
-                Mono::from(Empty::new()),
-                RawExpression::Empty,
-            ));
-        } else if clauses.len() == 1 {
-            return self.clause(clauses.remove(0), key_attrs, attrs);
+        match clause_set {
+            [] => Ok(SubExpression::empty()),
+            [clause] => self.clause(&clause, key_attrs, attrs),
+            [first, rest @ ..] => {
+                // Disjuctions simply hope that left and right have the same attributes:
+                let left_exp = self.clause(first, key_attrs, attrs)?;
+                let right_exp = self.clause_set(rest, key_attrs, attrs)?;
+
+                assert_eq!(left_exp.attributes, right_exp.attributes);
+
+                let union = left_exp
+                    .expression
+                    .builder()
+                    .union(right_exp.expression)
+                    .build();
+                let raw = RawExpression::union(left_exp.raw, right_exp.raw);
+
+                let mut result = SubExpression::new(
+                    left_exp.attributes,
+                    left_exp.join_key, // irrelevant
+                    Mono::from(union),
+                    raw,
+                );
+                self.memoize(&mut result)?;
+
+                Ok(result)
+            }
         }
-
-        let left: Relational = clauses.remove(0).into();
-        let right: Relational = clauses.into();
-
-        // Disjuctions simply hope that left and right have the same attributes:
-        let left_exp = self.relational(left, key_attrs, attrs)?;
-        let right_exp = self.relational(right, key_attrs, attrs)?;
-
-        assert_eq!(left_exp.attributes, right_exp.attributes);
-
-        let union = left_exp
-            .expression
-            .builder()
-            .union(right_exp.expression)
-            .build();
-        let raw = RawExpression::union(left_exp.raw, right_exp.raw);
-
-        let mut result = SubExpression::new(
-            left_exp.attributes,
-            left_exp.join_key, // irrelevant
-            Mono::from(union),
-            raw,
-        );
-        self.memoize(&mut result)?;
-
-        Ok(result)
     }
 }
 
@@ -471,11 +443,40 @@ impl<'d> Default for Convertor<'d> {
     }
 }
 
+// Converts a slice of `Variable`s to attributes where they overlap with a `target` list
+// of attributes and returns the resulting `AttributeList` together with the indices of
+// the matching variables.
+fn attributes_and_indices(
+    target: &AttributeList,
+    vars: &[Variable],
+) -> Result<(AttributeList, Vec<usize>), Error> {
+    use std::convert::TryFrom;
+
+    let var_attrs = vars
+        .iter()
+        .map(|t| Attribute::try_from(t.symbol()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut expr_attrs = Vec::new(); // attributes of the resulting expression
+    let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
+
+    target.iter().for_each(|attr| {
+        let mut vars_iter = var_attrs.iter();
+        if let Some(p) = vars_iter.position(|item| item == attr) {
+            expr_indices.push(p);
+            expr_attrs.push(attr.clone());
+        }
+    });
+
+    Ok((AttributeList::new(expr_attrs), expr_indices))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::chase::E;
     use codd::{query, Database, Tuples};
+    use itertools::Itertools;
     use razor_fol::{fof, syntax::FOF, transform::ToGNF, v};
     use std::convert::TryFrom;
 
@@ -491,12 +492,12 @@ mod tests {
             let mut db = setup_database().unwrap();
             let mut convertor = Convertor::new();
             let mut memo = Convertor::memoizing(&mut db);
-            let original = convertor.convert(relational_head($fmla), &$atts).unwrap();
-            let memoized = memo.convert(relational_head($fmla), &$atts).unwrap();
+            let original = convertor.convert(&relational_head($fmla), &$atts).unwrap();
+            let memoized = memo.convert(&relational_head($fmla), &$atts).unwrap();
 
             if $is_memoized {
                 assert!(matches!(memoized, Mono::View(_)));
-                let rememoized = memo.convert(relational_head($fmla), &$atts).unwrap();
+                let rememoized = memo.convert(&relational_head($fmla), &$atts).unwrap();
                 match (&memoized, &rememoized) {
                     (Mono::View(ref v1), Mono::View(ref v2)) => {
                         assert_eq!(format!("{:?}", v1), format!("{:?}", v2))
@@ -538,12 +539,11 @@ mod tests {
         {
             let formula = fof!(P(x));
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![]),
-                    &atts!(vec![v!(x)]),
-                )
+                .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x)]))
                 .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
@@ -557,12 +557,11 @@ mod tests {
         {
             let formula = fof!(P(x));
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![v!(x)]),
-                    &atts!(vec![v!(x)]),
-                )
+                .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
                 .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
@@ -576,9 +575,12 @@ mod tests {
         {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
+                .clause_set(
+                    &clauses,
                     &AttributeList::new(vec![]),
                     &atts!(vec![v!(x), v!(y)]),
                 )
@@ -599,9 +601,12 @@ mod tests {
         {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
+                .clause_set(
+                    &clauses,
                     &atts!(vec![v!(x), v!(y)]),
                     &atts!(vec![v!(y), v!(x)]),
                 )
@@ -622,12 +627,11 @@ mod tests {
         {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![v!(x)]),
-                    &atts!(vec![v!(x), v!(x)]),
-                )
+                .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x), v!(x)]))
                 .unwrap();
             let tuples = db.evaluate(&result.expression).unwrap();
 
@@ -658,12 +662,11 @@ mod tests {
         {
             let formula = fof!({D(x, y, z)} -> {[P(x)] & [R(y, z)]});
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![]),
-                    &atts!(vec![v!(x), v!(y), v!(z)]),
-                )
+                .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x), v!(y), v!(z)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -686,12 +689,11 @@ mod tests {
         {
             let formula = fof!({D(x, y)} -> {[P(x)] & [R(y, x)]});
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![]),
-                    &atts!(vec![v!(x), v!(y)]),
-                )
+                .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -701,12 +703,11 @@ mod tests {
         {
             let formula = fof!({D(x, y)} -> {[P(x)] & [R(x, y)]});
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![v!(y)]),
-                    &atts!(vec![v!(x), v!(y)]),
-                )
+                .clause_set(&clauses, &atts!(vec![v!(y)]), &atts!(vec![v!(x), v!(y)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -719,12 +720,11 @@ mod tests {
         {
             let formula = fof!({D(x, y, z)} -> {[P(x)] & [Q(y, z)]});
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![v!(x), v!(y)]),
-                    &atts!([v!(y), v!(x)]),
-                )
+                .clause_set(&clauses, &atts!(vec![v!(x), v!(y)]), &atts!([v!(y), v!(x)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -747,9 +747,12 @@ mod tests {
         {
             let formula = fof!({D(x, y, z)} -> {[P(x)] & [Q(y, z)]});
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
+                .clause_set(
+                    &clauses,
                     &atts!(vec![v!(y), v!(x)]),
                     &atts!(vec![v!(x), v!(y)]),
                 )
@@ -795,12 +798,11 @@ mod tests {
         {
             let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![]),
-                    &atts!(vec![v!(x), v!(y)]),
-                )
+                .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -821,12 +823,11 @@ mod tests {
         {
             let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![]),
-                    &atts!(vec![v!(y)]),
-                )
+                .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(y)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -859,12 +860,11 @@ mod tests {
         {
             let formula = fof!([D(x)] -> [{ [P(x)] & [P(x)] } & { P(x) }]);
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![v!(x)]),
-                    &atts!(vec![v!(x)]),
-                )
+                .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -877,12 +877,11 @@ mod tests {
         {
             let formula = fof!([D(x, y)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }]);
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
-                    &atts!(vec![v!(x)]),
-                    &atts!(vec![v!(x)]),
-                )
+                .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
                 .unwrap();
 
             let tuples = db.evaluate(&result.expression).unwrap();
@@ -895,9 +894,12 @@ mod tests {
         {
             let formula = fof!([D(x, y, z)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }]);
             let mut convertor = Convertor::new();
+            let relational = relational_head(formula);
+            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+
             let result = convertor
-                .relational(
-                    relational_head(formula),
+                .clause_set(
+                    &clauses,
                     &atts!(vec![v!(z)]),
                     &atts!(vec![v!(y), v!(x), v!(z)]),
                 )

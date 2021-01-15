@@ -116,8 +116,8 @@ impl Sequent {
                 .collect()
         };
 
-        let body_expr = convertor.convert(body_rr, &body_attrs)?;
-        let head_expr = convertor.convert(head_rr, &body_attrs)?;
+        let body_expr = convertor.convert(&body_rr, &body_attrs)?;
+        let head_expr = convertor.convert(&head_rr, &body_attrs)?;
 
         let expression = match &branches[..] {
             [] => body_expr, // Bottom

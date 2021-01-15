@@ -73,13 +73,12 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> =
-                    sequent.body.iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                let body = sequent.body.iter().map(&observe_literal).collect_vec();
+                let head = sequent
                     .head
                     .iter()
-                    .map(|l| l.iter().map(&observe_literal).collect())
-                    .collect();
+                    .map(|l| l.iter().map(&observe_literal).collect_vec())
+                    .collect_vec();
 
                 // if all body observations are true in the model but not all the head observations
                 // are true, extend the model:
