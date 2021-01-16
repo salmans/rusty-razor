@@ -1,5 +1,5 @@
 /*! Implements a relationalization algorithm for formulae.*/
-use super::PCFSet;
+use super::{PCFSet, PCF};
 use crate::syntax::{
     formula::*,
     term::{Complex, Variable},
@@ -156,6 +156,170 @@ impl Default for Relational {
     }
 }
 
+pub trait ToRelational: Formula {
+    /// Is similar to [`PCFSet::relational`] but uses custom closures for generating symbols.
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::{FOF, Const, Var, Func};
+    /// use razor_fol::transform::{ToGNF, ToRelational};
+    ///
+    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
+    /// let gnfs = fof.gnf();
+    /// let gnf_head = gnfs[0].head();
+    /// let mut var_counter = 0;
+    /// let mut var_generator = || {
+    ///    let name = var_counter.to_string();
+    ///    var_counter += 1;
+    ///    name.into()
+    /// };
+    /// let mut const_generator = |c: &Const| c.name().to_uppercase().into();
+    /// let mut fn_generator = |f: &Func| f.name().to_uppercase().into();    
+    /// let transformed = gnf_head.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
+    /// assert_eq!(
+    ///     r"((F(x, 0) ∧ P(0)) ∧ C(1)) ∧ Q(1)",
+    ///     transformed.to_string()
+    /// );
+    /// ```
+    fn relational_with<VG, CG, FG>(
+        &self,
+        var_generator: &mut VG,
+        const_generator: &mut CG,
+        fn_generator: &mut FG,
+    ) -> Relational
+    where
+        VG: FnMut() -> Var,
+        CG: FnMut(&Const) -> Pred,
+        FG: FnMut(&Func) -> Pred;
+
+    /// Applies the relationalization algorithm on the receiver and returns a relational formula.    
+    ///
+    /// **Note:**
+    /// The underlying algorithm works on input first-order formulae that are negation and quantifier-free:
+    /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. This requirement is satisfied by an instance
+    /// of PcfSet, which represents a Disjunctive Normal Form over positive literals.
+    /// Relationalization consists of applying the following rewrites on the input formula:
+    ///   * A constant `'c` rewrites to a predicate `C(x)`.
+    ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
+    /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
+    ///   * An equation `v = y` rewrites to an atomic formula `=(x, y)`.
+    ///
+    /// In the resulting formula, the new (placeholder) variables are sorted topologically from
+    /// left to right where the ordering relation is the dependency between the new variables.
+    /// A varialbe `v` depends on a variable `y` if and only if for a new function predicate, namely `F`,
+    /// `F(..., y,..., v)` is a conjunct in the formula (i.e., the result of the
+    /// function replaced by `F`, applied to its arguments, depends on `y`).
+    ///
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::{ToGNF, ToRelational};
+    ///
+    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
+    /// let gnfs = fof.gnf();
+    /// let gnf_head = gnfs[0].head();
+    /// let transformed = gnf_head.relational();
+    /// assert_eq!(
+    ///     r"(($f(x, ?0) ∧ P(?0)) ∧ @c(?1)) ∧ Q(?1)",
+    ///     transformed.to_string()
+    /// );
+    /// ```
+    fn relational(&self) -> Relational {
+        let mut var_counter = 0;
+        let mut var_generator = || {
+            let name = format!("?{}", var_counter);
+            var_counter += 1;
+            name.into()
+        };
+        let mut const_generator = |c: &Const| format!("@{}", c.name()).into();
+        let mut fn_generator = |f: &Func| format!("${}", f.name()).into();
+
+        self.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
+    }
+}
+
+impl ToRelational for PCF {
+    fn relational_with<VG, CG, FG>(
+        &self,
+        var_generator: &mut VG,
+        const_generator: &mut CG,
+        fn_generator: &mut FG,
+    ) -> Relational
+    where
+        VG: FnMut() -> Var,
+        CG: FnMut(&Const) -> Pred,
+        FG: FnMut(&Func) -> Pred,
+    {
+        // keeping track of the generated variables to remove reflexive equations later on:
+        let mut generated_vars = Vec::new();
+        let mut var_generator_ex = || {
+            let v = var_generator();
+            generated_vars.push(v.clone());
+            v
+        };
+        let flattened = flatten_clause(self, &mut var_generator_ex, const_generator, fn_generator);
+        let relational: Relational = flattened.into();
+        let simplified = simplify_equations(&relational, &mut generated_vars);
+
+        simplified
+            .into_clauses()
+            .into_iter()
+            .map(|clause| {
+                clause
+                    .into_atomics()
+                    .into_iter()
+                    // remove reflexive equations:
+                    .filter(|atomic| match atomic {
+                        Atomic::Equals(this) => this.left != this.right,
+                        _ => true,
+                    })
+                    .into()
+            })
+            .into()
+    }
+}
+
+impl ToRelational for PCFSet {
+    fn relational_with<VG, CG, FG>(
+        &self,
+        var_generator: &mut VG,
+        const_generator: &mut CG,
+        fn_generator: &mut FG,
+    ) -> Relational
+    where
+        VG: FnMut() -> Var,
+        CG: FnMut(&Const) -> Pred,
+        FG: FnMut(&Func) -> Pred,
+    {
+        // keeping track of the generated variables to remove reflexive equations later on:
+        let mut generated_vars = Vec::new();
+        let mut var_generator_ex = || {
+            let v = var_generator();
+            generated_vars.push(v.clone());
+            v
+        };
+        let flattened =
+            flatten_clause_set(self, &mut var_generator_ex, const_generator, fn_generator);
+        let simplified = simplify_equations(&flattened, &mut generated_vars);
+
+        simplified
+            .into_clauses()
+            .into_iter()
+            .map(|clause| {
+                clause
+                    .into_atomics()
+                    .into_iter()
+                    // remove reflexive equations:
+                    .filter(|atomic| match atomic {
+                        Atomic::Equals(this) => this.left != this.right,
+                        _ => true,
+                    })
+                    .into()
+            })
+            .into()
+    }
+}
+
 impl Formula for Relational {
     type Term = Variable;
 
@@ -252,8 +416,8 @@ where
     }
 }
 
-// Applies top level flattening on the input formula.
-fn flatten_formula<VG, CG, FG>(
+// Applies top level flattening on the input clause set of type `PCFSet`.
+fn flatten_clause_set<VG, CG, FG>(
     clause_set: &PCFSet,
     var_generator: &mut VG,
     const_generator: &mut CG,
@@ -266,57 +430,70 @@ where
 {
     clause_set
         .iter()
-        .map(|clause| {
-            clause
-                .iter()
-                .flat_map(|lit| match lit {
-                    Atomic::Atom(this) => {
-                        let mut conjuncts = Vec::new();
-                        let terms = this
-                            .terms
-                            .iter()
-                            .map(|t| {
-                                let (clauses, var) =
-                                    flatten_term(t, var_generator, const_generator, fn_generator);
-                                if let Some(cs) = clauses {
-                                    conjuncts.extend(cs.into_atomics());
-                                }
-                                var.into()
-                            })
-                            .collect::<Vec<Variable>>();
+        .map(|clause| flatten_clause(clause, var_generator, const_generator, fn_generator))
+        .into()
+}
 
-                        let atom = Atom {
-                            predicate: this.predicate.clone(),
-                            terms,
-                        }
-                        .into();
-
-                        // !!! Preserving the topological order among variables:
-                        conjuncts.push(atom);
-                        conjuncts
-                    }
-                    Atomic::Equals(this) => {
-                        let mut conjuncts = vec![];
-                        let (left_clauses, left_var) =
-                            flatten_term(&this.left, var_generator, const_generator, fn_generator);
-                        if let Some(cs) = left_clauses {
+// Applies top level flattening on the input clause set.
+fn flatten_clause<VG, CG, FG>(
+    clause: &PCF,
+    var_generator: &mut VG,
+    const_generator: &mut CG,
+    fn_generator: &mut FG,
+) -> RelClause
+where
+    VG: FnMut() -> Var,
+    CG: FnMut(&Const) -> Pred,
+    FG: FnMut(&Func) -> Pred,
+{
+    clause
+        .iter()
+        .flat_map(|lit| match lit {
+            Atomic::Atom(this) => {
+                let mut conjuncts = Vec::new();
+                let terms = this
+                    .terms
+                    .iter()
+                    .map(|t| {
+                        let (clauses, var) =
+                            flatten_term(t, var_generator, const_generator, fn_generator);
+                        if let Some(cs) = clauses {
                             conjuncts.extend(cs.into_atomics());
                         }
-                        let left = left_var.into();
+                        var.into()
+                    })
+                    .collect::<Vec<Variable>>();
 
-                        let (right_clauses, right_var) =
-                            flatten_term(&this.right, var_generator, const_generator, fn_generator);
-                        if let Some(cs) = right_clauses {
-                            conjuncts.extend(cs.into_atomics());
-                        }
-                        let right = right_var.into();
-                        let equals = Equals { left, right }.into();
+                let atom = Atom {
+                    predicate: this.predicate.clone(),
+                    terms,
+                }
+                .into();
 
-                        conjuncts.push(equals);
-                        conjuncts
-                    }
-                })
-                .into()
+                // !!! Preserving the topological order among variables:
+                conjuncts.push(atom);
+                conjuncts
+            }
+            Atomic::Equals(this) => {
+                let mut conjuncts = vec![];
+                let (left_clauses, left_var) =
+                    flatten_term(&this.left, var_generator, const_generator, fn_generator);
+                if let Some(cs) = left_clauses {
+                    conjuncts.extend(cs.into_atomics());
+                }
+                let left = left_var.into();
+
+                let (right_clauses, right_var) =
+                    flatten_term(&this.right, var_generator, const_generator, fn_generator);
+                if let Some(cs) = right_clauses {
+                    conjuncts.extend(cs.into_atomics());
+                }
+                let right = right_var.into();
+                let equals = Equals { left, right }.into();
+
+                conjuncts.push(equals);
+                conjuncts
+            }
         })
         .into()
 }
@@ -373,114 +550,6 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut Vec<Var
     };
     clause_set.substitute(&sub)
 }
-impl PCFSet {
-    /// Is similar to [`PCFSet::relational`] but uses custom closures for generating symbols.
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::{FOF, Const, Var, Func};
-    /// use razor_fol::transform::ToGNF;
-    ///
-    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnfs = fof.gnf();
-    /// let gnf_head = gnfs[0].head();
-    /// let mut var_counter = 0;
-    /// let mut var_generator = || {
-    ///    let name = var_counter.to_string();
-    ///    var_counter += 1;
-    ///    name.into()
-    /// };
-    /// let mut const_generator = |c: &Const| c.name().to_uppercase().into();
-    /// let mut fn_generator = |f: &Func| f.name().to_uppercase().into();    
-    /// let transformed = gnf_head.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
-    /// assert_eq!(
-    ///     r"((F(x, 0) ∧ P(0)) ∧ C(1)) ∧ Q(1)",
-    ///     transformed.to_string()
-    /// );
-    /// ```
-    pub fn relational_with<VG, CG, FG>(
-        &self,
-        var_generator: &mut VG,
-        const_generator: &mut CG,
-        fn_generator: &mut FG,
-    ) -> Relational
-    where
-        VG: FnMut() -> Var,
-        CG: FnMut(&Const) -> Pred,
-        FG: FnMut(&Func) -> Pred,
-    {
-        // keeping track of the generated variables to remove reflexive equations later on:
-        let mut generated_vars = Vec::new();
-        let mut var_generator_ex = || {
-            let v = var_generator();
-            generated_vars.push(v.clone());
-            v
-        };
-        let flattened = flatten_formula(self, &mut var_generator_ex, const_generator, fn_generator);
-        let simplified = simplify_equations(&flattened, &mut generated_vars);
-
-        simplified
-            .into_clauses()
-            .into_iter()
-            .map(|clause| {
-                clause
-                    .into_atomics()
-                    .into_iter()
-                    // remove reflexive equations:
-                    .filter(|atomic| match atomic {
-                        Atomic::Equals(this) => this.left != this.right,
-                        _ => true,
-                    })
-                    .into()
-            })
-            .into()
-    }
-
-    /// Applies the relationalization algorithm on the receiver and returns a relational formula.    
-    ///
-    /// **Note:**
-    /// The underlying algorithm works on input first-order formulae that are negation and quantifier-free:
-    /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. This requirement is satisfied by an instance
-    /// of PcfSet, which represents a Disjunctive Normal Form over positive literals.
-    /// Relationalization consists of applying the following rewrites on the input formula:
-    ///   * A constant `'c` rewrites to a predicate `C(x)`.
-    ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
-    /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
-    ///   * An equation `v = y` rewrites to an atomic formula `=(x, y)`.
-    ///
-    /// In the resulting formula, the new (placeholder) variables are sorted topologically from
-    /// left to right where the ordering relation is the dependency between the new variables.
-    /// A varialbe `v` depends on a variable `y` if and only if for a new function predicate, namely `F`,
-    /// `F(..., y,..., v)` is a conjunct in the formula (i.e., the result of the
-    /// function replaced by `F`, applied to its arguments, depends on `y`).
-    ///
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToGNF;
-    ///
-    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnfs = fof.gnf();
-    /// let gnf_head = gnfs[0].head();
-    /// let transformed = gnf_head.relational();
-    /// assert_eq!(
-    ///     r"(($f(x, ?0) ∧ P(?0)) ∧ @c(?1)) ∧ Q(?1)",
-    ///     transformed.to_string()
-    /// );
-    /// ```
-    pub fn relational(&self) -> Relational {
-        let mut var_counter = 0;
-        let mut var_generator = || {
-            let name = format!("?{}", var_counter);
-            var_counter += 1;
-            name.into()
-        };
-        let mut const_generator = |c: &Const| format!("@{}", c.name()).into();
-        let mut fn_generator = |f: &Func| format!("${}", f.name()).into();
-
-        self.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -510,7 +579,7 @@ mod tests {
         let rels = clause_set(fof)
             .iter()
             .map(|f| {
-                flatten_formula(
+                flatten_clause_set(
                     f,
                     &mut var_generator,
                     &mut const_generator,

@@ -9,8 +9,8 @@ use crate::chase::SequentTrait;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::Atomic, Const, Func, Pred, FOF},
-    transform::{PCFSet, Relational, GNF},
+    syntax::{formula::Atomic, Const, Func, Pred, Var, FOF},
+    transform::{Relational, ToRelational, GNF},
 };
 use std::convert::TryFrom;
 
@@ -92,8 +92,16 @@ impl Sequent {
 
     pub(super) fn new(gnf: &GNF, convertor: &mut Convertor) -> Result<Self, Error> {
         // relationalize and expand equalities of `body` and `head`:
-        let body_er = linearize(&relationalize(&vec![gnf.body().clone()].into()));
-        let head_r = relationalize(gnf.head());
+        let body_er = linearize(&gnf.body().relational_with(
+            &mut make_var_generator(),
+            &mut make_const_generator(),
+            &mut make_fn_generator(),
+        ));
+        let head_r = gnf.head().relational_with(
+            &mut make_var_generator(),
+            &mut make_const_generator(),
+            &mut make_fn_generator(),
+        );
         let branches = build_branches(&head_r)?; // relationalized right is enough for building branches
         let head_er = linearize(&head_r);
 
@@ -147,18 +155,22 @@ impl SequentTrait for Sequent {
     }
 }
 
-// Relationalizes `formula` if possible; otherwise.
-fn relationalize(gnf: &PCFSet) -> Relational {
+// functions to generate symbols for relationalization:
+fn make_var_generator() -> impl FnMut() -> Var {
     let mut var_counter = 0;
-    let mut var_generator = || {
+    move || {
         let name = format!("{}{}", EXISTENTIAL_PREFIX, var_counter);
         var_counter += 1;
         name.into()
-    };
-    let mut const_generator = |c: &Const| constant_instance_name(c).into();
-    let mut fn_generator = |f: &Func| function_instance_name(f).into();
+    }
+}
 
-    gnf.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
+fn make_const_generator() -> impl FnMut(&Const) -> Pred {
+    |c: &Const| constant_instance_name(c).into()
+}
+
+fn make_fn_generator() -> impl FnMut(&Func) -> Pred {
+    |f: &Func| function_instance_name(f).into()
 }
 
 // Makes the implicit equalities in `formula` explicit by creating new equations for

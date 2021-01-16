@@ -13,7 +13,7 @@ impl Relational {
     ///
     /// **Example**:
     /// ```rust
-    /// use razor_fol::{syntax::FOF, transform::ToGNF, v};
+    /// use razor_fol::{syntax::FOF, transform::{ToGNF, ToRelational}, v};
     ///
     /// let fof = "R(x, y) -> P(x) & Q(y)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
@@ -72,6 +72,8 @@ mod test {
     }
 
     fn rr(fof: FOF, range: &[Var]) -> String {
+        use crate::transform::ToRelational;
+
         let rels = clause_set(fof)
             .iter()
             .map(|f| f.relational().range_restrict(range, "RR"))

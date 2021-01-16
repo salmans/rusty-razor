@@ -529,6 +529,8 @@ mod tests {
 
     // Assumes the input in GNF
     fn relational_head(fof: FOF) -> Relational {
+        use razor_fol::transform::ToRelational;
+
         let mut gnf = fof.gnf();
         gnf.remove(0).into_body_and_head().1.relational()
     }

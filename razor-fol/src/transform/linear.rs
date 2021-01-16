@@ -30,7 +30,7 @@ impl Relational {
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToGNF;
+    /// use razor_fol::transform::{ToGNF, ToRelational};
     ///
     /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
@@ -159,6 +159,8 @@ mod tests {
     }
 
     fn linear(fof: FOF) -> String {
+        use crate::transform::ToRelational;
+
         let rels = clause_set(fof)
             .iter()
             .map(|f| f.relational().linear())

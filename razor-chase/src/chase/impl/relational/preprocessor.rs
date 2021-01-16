@@ -54,33 +54,15 @@ impl PreProcessorEx for PreProcessor {
 }
 
 fn equality_axioms() -> Vec<GNF> {
-    use razor_fol::term;
+    use razor_fol::{fof, transform::ToGNF};
 
-    let x_y: Atomic<_> = Equals {
-        left: term!(x),
-        right: term!(y),
-    }
-    .into();
-    let y_z: Atomic<_> = Equals {
-        left: term!(y),
-        right: term!(z),
-    }
-    .into();
-    let x_z: Atomic<_> = Equals {
-        left: term!(y),
-        right: term!(z),
-    }
-    .into();
+    // reflexive (not needed - automatically added for new elements):
+    // fof!(['|'] -> [(x) = (x)]),
+    // symmetric (not needed):
+    // fof!([(x) = (y)] -> [(y) = (x)]),
 
-    let transitive: GNF = (PCF::from(vec![x_y, y_z]), PCFSet::from(PCF::from(x_z))).into();
-
-    vec![
-        // reflexive (not needed - automatically added for new elements):
-        // fof!(['|'] -> [(x) = (x)]),
-        // symmetric (not needed):
-        // fof!([(x) = (y)] -> [(y) = (x)]),
-        transitive,
-    ]
+    // transitive:
+    fof!({[(x) = (y)] & [(y) = (z)]} -> {(x) = (z)}).gnf()
 }
 
 // Function integrity axioms in the form of:
