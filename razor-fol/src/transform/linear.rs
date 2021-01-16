@@ -5,7 +5,7 @@ use std::collections::HashMap;
 impl Relational {
     pub fn linear_with<G>(&self, generator: &mut G) -> Relational
     where
-        G: FnMut(&str, i32) -> Var,
+        G: FnMut(&str, u32) -> Var,
     {
         linearize(self, generator)
             .into_clauses()
@@ -50,9 +50,9 @@ impl Relational {
 
 fn linearize<G>(rel: &Relational, generator: &mut G) -> Relational
 where
-    G: FnMut(&str, i32) -> Var,
+    G: FnMut(&str, u32) -> Var,
 {
-    let mut vars = HashMap::<Var, i32>::new();
+    let mut vars = HashMap::<Var, u32>::new();
     rel.iter()
         .map(|clause| {
             clause

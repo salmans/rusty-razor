@@ -92,27 +92,31 @@ impl Sequent {
 
     pub(super) fn new(gnf: &GNF, convertor: &mut Convertor) -> Result<Self, Error> {
         // relationalize and expand equalities of `body` and `head`:
-        let body_er = linearize(&gnf.body().relational_with(
-            &mut make_var_generator(),
-            &mut make_const_generator(),
-            &mut make_fn_generator(),
-        ));
-        let head_r = gnf.head().relational_with(
+        let body_linear = gnf
+            .body()
+            .relational_with(
+                &mut make_var_generator(),
+                &mut make_const_generator(),
+                &mut make_fn_generator(),
+            )
+            .linear_with(&mut make_linear_generator());
+        let head_relational = gnf.head().relational_with(
             &mut make_var_generator(),
             &mut make_const_generator(),
             &mut make_fn_generator(),
         );
-        let branches = build_branches(&head_r)?; // relationalized right is enough for building branches
-        let head_er = linearize(&head_r);
+        let branches = build_branches(&head_relational)?; // relationalized right is enough for building branches
+        let head_linear = head_relational.linear_with(&mut make_linear_generator());
 
-        let head_attrs = AttributeList::try_from(&head_er)?.universals();
-        let range = Vec::from(&head_attrs);
+        let head_attributes = AttributeList::try_from(&head_linear)?.universals();
+        let range = Vec::from(&head_attributes);
 
         // apply range restriction:
-        let body_rr = body_er.range_restrict(&&range, DOMAIN);
-        let head_rr = head_er.range_restrict(&range, DOMAIN);
+        let body_range_restricted = body_linear.range_restrict(&&range, DOMAIN);
+        let head_range_restricted = head_linear.range_restrict(&range, DOMAIN);
 
-        let body_attrs = AttributeList::try_from(&body_rr)?.intersect(&head_attrs);
+        let body_attributes =
+            AttributeList::try_from(&body_range_restricted)?.intersect(&head_attributes);
 
         let branches = if branches.iter().any(|branch| branch.is_empty()) {
             vec![vec![]] // logically the right is true
@@ -124,20 +128,22 @@ impl Sequent {
                 .collect()
         };
 
-        let body_expr = convertor.convert(&body_rr, &body_attrs)?;
-        let head_expr = convertor.convert(&head_rr, &body_attrs)?;
+        let body_expression = convertor.convert(&body_range_restricted, &body_attributes)?;
+        let head_expression = convertor.convert(&head_range_restricted, &body_attributes)?;
 
         let expression = match &branches[..] {
-            [] => body_expr, // Bottom
+            [] => body_expression, // Bottom
             _ => match &branches[0][..] {
                 [] => rel_exp::Mono::from(rel_exp::Empty::new()), // Top
-                _ => rel_exp::Mono::from(rel_exp::Difference::new(body_expr, head_expr)), // Other
+                _ => {
+                    rel_exp::Mono::from(rel_exp::Difference::new(body_expression, head_expression))
+                } // Other
             },
         };
 
         Ok(Self {
             branches,
-            attributes: body_attrs,
+            attributes: body_attributes,
             expression,
             body_formula: gnf.body().into(),
             head_formula: gnf.head().into(),
@@ -173,12 +179,8 @@ fn make_fn_generator() -> impl FnMut(&Func) -> Pred {
     |f: &Func| function_instance_name(f).into()
 }
 
-// Makes the implicit equalities in `formula` explicit by creating new equations for
-// variables that appear in more than one position.
-fn linearize(formula: &Relational) -> Relational {
-    let mut generator =
-        |name: &str, count| format!("{}{}{}{}", EQUATIONAL_PREFIX, name, SEPERATOR, count).into();
-    formula.linear_with(&mut generator)
+fn make_linear_generator() -> impl FnMut(&str, u32) -> Var {
+    |name: &str, count| format!("{}{}{}{}", EQUATIONAL_PREFIX, name, SEPERATOR, count).into()
 }
 
 fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
