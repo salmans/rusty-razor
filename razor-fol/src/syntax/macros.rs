@@ -166,7 +166,7 @@ macro_rules! terms {
     };
 }
 
-/// Parses the input tokens as a [first-order formula].
+/// Parses the input tokens as an [`FOF`].
 ///
 /// **Note:**
 /// The syntax of the input to this macro resembles the [compact] variation of Razor's texual
@@ -181,7 +181,7 @@ macro_rules! terms {
 /// 2. Unlike the textual form where constants are preceded by `'`, in the macro input,
 /// constants are preceded by `@`.
 ///
-/// [first-order formula]: crate::syntax::FOF
+/// [`FOF`]: crate::syntax::FOF
 /// [compact]: https://salmans.github.io/rusty-razor/syntax/variations.html
 /// **Example**:
 /// ```rust

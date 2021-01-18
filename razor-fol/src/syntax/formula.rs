@@ -73,7 +73,7 @@ pub trait Formula {
     /// ```    
     fn free_vars(&self) -> Vec<&Var>;
 
-    /// Applies a transformation function `f` recursively on the terms of the receiver.
+    /// Recursively applies a transformation function `f` on the terms of the receiver.
     fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self;
 
     /// Recursively applies a [`Renaming`] on the variable terms of the receiver.
@@ -114,16 +114,15 @@ impl<T: Term> Formula for Atom<T> {
 
     fn signature(&self) -> Result<Sig, Error> {
         let mut sig = Sig::new();
-        let terms = &self.terms;
 
-        for t in terms {
+        for t in &self.terms {
             sig = sig.merge(t.signature()?)?;
         }
-
         sig.add_predicate(PSig {
             symbol: self.predicate.clone(),
-            arity: terms.len() as u8,
+            arity: self.terms.len() as u8,
         })?;
+
         Ok(sig)
     }
 
@@ -147,7 +146,7 @@ impl<T: Term> FormulaEx for Atom<T> {
 
 impl<T: Term + fmt::Display> fmt::Display for Atom<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ts = self.terms.iter().map(|t| format!("{}", t)).collect_vec();
+        let ts = self.terms.iter().map(|t| t.to_string()).collect_vec();
         write!(f, "{}({})", self.predicate.to_string(), ts.join(", "))
     }
 }
@@ -1094,13 +1093,24 @@ mod tests {
     fn or_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
-            assert_eq_sorted_vecs!(expected, fof!((P()) | (Q())).free_vars());
+            assert_eq_sorted_vecs!(
+                expected,
+                Or {
+                    left: fof!(P()),
+                    right: fof!(Q())
+                }
+                .free_vars()
+            );
         }
         {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                fof!({ P(z, y) } | { (x) = (y) }).free_vars(),
+                Or {
+                    left: fof!(P(z, y)),
+                    right: fof!((x) = (y))
+                }
+                .free_vars(),
             );
         }
     }
@@ -1163,13 +1173,24 @@ mod tests {
     fn implies_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
-            assert_eq_sorted_vecs!(expected, fof!((P()) -> (Q())).free_vars());
+            assert_eq_sorted_vecs!(
+                expected,
+                Implies {
+                    premise: fof!(P()),
+                    consequence: fof!(Q())
+                }
+                .free_vars()
+            );
         }
         {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                fof!({P(z, y)} -> {(x) = (y)}).free_vars(),
+                Implies {
+                    premise: fof!(P(z, y)),
+                    consequence: fof!((x) = (y))
+                }
+                .free_vars(),
             );
         }
     }
