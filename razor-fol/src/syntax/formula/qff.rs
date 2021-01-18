@@ -1,5 +1,6 @@
 /// Defines a quantifier-free first-order formula of type [`QFF`].
-use super::{formula::*, term::Complex, Error, Sig, Var};
+use super::{Error, Sig, Var, *};
+use crate::syntax::term::Complex;
 use std::fmt;
 
 /// Is the type of quantifier-free sub-formula of formulae types such as [`PNF`]

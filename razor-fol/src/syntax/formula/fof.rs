@@ -1,6 +1,6 @@
 /*! Defines the syntax of first-order formulae with equality.*/
-use super::Var;
-use super::{formula::*, qff::QFF, term::Complex, Sig};
+use super::{qff::QFF, Sig, Var, *};
+use crate::syntax::term::Complex;
 use std::fmt;
 
 /// Is an abstract syntax tree (AST) for first-order formulae.

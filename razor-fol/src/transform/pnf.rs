@@ -3,7 +3,7 @@ a [`FOF`] to [`PNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
-use crate::syntax::{formula::*, qff::QFF, term::Complex, Var, FOF};
+use crate::syntax::{formula::qff::QFF, formula::*, term::Complex, Var, FOF};
 
 /// Represents a formula in Prenex Normal Form (PNF).
 ///

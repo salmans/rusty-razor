@@ -1,6 +1,8 @@
 /*! Introduces an abstraction for formulae and various generic types as building blocks
 of formula types.*/
 pub mod clause;
+pub mod fof;
+pub mod qff;
 
 use super::{
     signature::PSig,

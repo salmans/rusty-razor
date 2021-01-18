@@ -4,7 +4,7 @@
 [`PNF`]: crate::transform::PNF
 */
 use super::{ToPNF, PNF};
-use crate::syntax::{formula::*, qff::QFF, term::Complex, Const, Func, Var, FOF};
+use crate::syntax::{formula::qff::QFF, formula::*, term::Complex, Const, Func, Var, FOF};
 use std::collections::HashMap;
 
 /// Represents a formula in Skolem Normal Form (SNF).

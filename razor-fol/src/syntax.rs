@@ -1,14 +1,12 @@
 /*! Defines an abstract syntax tree (AST) for first-order terms and formulae with equality. */
-mod fof;
 pub mod formula;
 mod macros;
-pub mod qff;
 mod signature;
 pub mod symbol;
 pub mod term;
 mod theory;
 
-pub use fof::FOF;
+pub use formula::fof::FOF;
 pub use formula::Formula;
 pub use signature::Sig;
 pub use symbol::{Const, Func, Pred, Var, EQ_SYM};
