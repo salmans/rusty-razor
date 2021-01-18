@@ -8,7 +8,7 @@ use std::fmt;
 ///
 /// [`PNF`]: crate::transform::PNF
 /// [`SNF`]: crate::transform::SNF
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub enum QFF {
     /// Is logical top (⊤) or truth.
     Top,
@@ -254,6 +254,29 @@ mod tests {
     }
 
     #[test]
+    fn atom_transform() {
+        let formula: QFF = Atom {
+            predicate: "P".into(),
+            terms: vec![term!(f(x)), term!(y)],
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(Atom {
+                predicate: "P".into(),
+                terms: vec![term!(z), term!(y)],
+            }),
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn atom_signature() {
         {
             let mut sig = Sig::new();
@@ -365,6 +388,29 @@ mod tests {
     }
 
     #[test]
+    fn equals_transform() {
+        let formula: QFF = Equals {
+            left: term!(f(x)),
+            right: term!(y),
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(Equals {
+                left: term!(z),
+                right: term!(y),
+            }),
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn equals_signature() {
         {
             let mut sig = Sig::new();
@@ -453,6 +499,35 @@ mod tests {
     }
 
     #[test]
+    fn not_transform() {
+        let formula: QFF = Not {
+            formula: Atom {
+                predicate: "R".into(),
+                terms: vec![term!(f(x)), term!(y)],
+            }
+            .into(),
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(Not {
+                formula: Atom {
+                    predicate: "R".into(),
+                    terms: vec![term!(z), term!(y)],
+                }
+                .into()
+            }),
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn not_signature() {
         let mut sig = Sig::new();
         sig.add_predicate(PSig {
@@ -537,6 +612,45 @@ mod tests {
                 .free_vars(),
             );
         }
+    }
+
+    #[test]
+    fn and_transform() {
+        let formula: QFF = And {
+            left: Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x))],
+            }
+            .into(),
+            right: Atom {
+                predicate: "Q".into(),
+                terms: vec![term!(y)],
+            }
+            .into(),
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(And {
+                left: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(z)],
+                }
+                .into(),
+                right: Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(y)],
+                }
+                .into(),
+            }),
+            formula.transform(&f)
+        );
     }
 
     #[test]
@@ -671,6 +785,45 @@ mod tests {
     }
 
     #[test]
+    fn or_transform() {
+        let formula: QFF = Or {
+            left: Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x))],
+            }
+            .into(),
+            right: Atom {
+                predicate: "Q".into(),
+                terms: vec![term!(y)],
+            }
+            .into(),
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(Or {
+                left: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(z)],
+                }
+                .into(),
+                right: Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(y)],
+                }
+                .into(),
+            }),
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn or_signature() {
         {
             let mut sig = Sig::new();
@@ -802,6 +955,45 @@ mod tests {
     }
 
     #[test]
+    fn implies_transform() {
+        let formula: QFF = Implies {
+            premise: Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x))],
+            }
+            .into(),
+            consequence: Atom {
+                predicate: "Q".into(),
+                terms: vec![term!(y)],
+            }
+            .into(),
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(Implies {
+                premise: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(z)],
+                }
+                .into(),
+                consequence: Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(y)],
+                }
+                .into(),
+            }),
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn implies_signature() {
         {
             let mut sig = Sig::new();
@@ -930,6 +1122,45 @@ mod tests {
                 .free_vars(),
             );
         }
+    }
+
+    #[test]
+    fn iff_transform() {
+        let formula: QFF = Iff {
+            left: Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x))],
+            }
+            .into(),
+            right: Atom {
+                predicate: "Q".into(),
+                terms: vec![term!(y)],
+            }
+            .into(),
+        }
+        .into();
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            QFF::from(Iff {
+                left: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(z)],
+                }
+                .into(),
+                right: Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(y)],
+                }
+                .into(),
+            }),
+            formula.transform(&f)
+        );
     }
 
     #[test]

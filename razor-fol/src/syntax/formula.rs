@@ -75,7 +75,7 @@ pub trait Formula {
     /// ```    
     fn free_vars(&self) -> Vec<&Var>;
 
-    /// Recursively applies a transformation function `f` on the terms of the receiver.
+    /// Applies a transformation function `f` on the terms of the receiver.
     fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self;
 
     /// Recursively applies a [`Renaming`] on the variable terms of the receiver.
@@ -799,6 +799,28 @@ mod tests {
     }
 
     #[test]
+    fn atom_transform() {
+        let formula = Atom {
+            predicate: "P".into(),
+            terms: vec![term!(f(x)), term!(y)],
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Atom {
+                predicate: "P".into(),
+                terms: vec![term!(z), term!(y)],
+            },
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn atom_signature() {
         {
             let mut sig = Sig::new();
@@ -906,6 +928,28 @@ mod tests {
     }
 
     #[test]
+    fn equals_transform() {
+        let formula = Equals {
+            left: term!(f(x)),
+            right: term!(y),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Equals {
+                left: term!(z),
+                right: term!(y),
+            },
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn equals_signature() {
         {
             let mut sig = Sig::new();
@@ -980,6 +1024,26 @@ mod tests {
     }
 
     #[test]
+    fn not_transform() {
+        let formula = Not {
+            formula: fof!(R(f(x), y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Not {
+                formula: fof!(R(z, y)),
+            },
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn not_signature() {
         let mut sig = Sig::new();
         sig.add_predicate(PSig {
@@ -1035,6 +1099,28 @@ mod tests {
                 .free_vars(),
             );
         }
+    }
+
+    #[test]
+    fn and_transform() {
+        let formula = And {
+            left: fof!(P(f(x))),
+            right: fof!(Q(y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            And {
+                left: fof!(P(z)),
+                right: fof!(Q(y)),
+            },
+            formula.transform(&f)
+        );
     }
 
     #[test]
@@ -1118,6 +1204,28 @@ mod tests {
     }
 
     #[test]
+    fn or_transform() {
+        let formula = Or {
+            left: fof!(P(f(x))),
+            right: fof!(Q(y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Or {
+                left: fof!(P(z)),
+                right: fof!(Q(y)),
+            },
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn or_signature() {
         {
             let mut sig = Sig::new();
@@ -1195,6 +1303,28 @@ mod tests {
                 .free_vars(),
             );
         }
+    }
+
+    #[test]
+    fn implies_transform() {
+        let formula = Implies {
+            premise: fof!(P(f(x))),
+            consequence: fof!(Q(y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Implies {
+                premise: fof!(P(z)),
+                consequence: fof!(Q(y)),
+            },
+            formula.transform(&f)
+        );
     }
 
     #[test]
@@ -1278,6 +1408,28 @@ mod tests {
     }
 
     #[test]
+    fn iff_transform() {
+        let formula = Iff {
+            left: fof!(P(f(x))),
+            right: fof!(Q(y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Iff {
+                left: fof!(P(z)),
+                right: fof!(Q(y)),
+            },
+            formula.transform(&f)
+        );
+    }
+
+    #[test]
     fn iff_signature() {
         {
             let mut sig = Sig::new();
@@ -1336,6 +1488,28 @@ mod tests {
                 formula: fof!(P(x, y)),
             }
             .to_string()
+        );
+    }
+
+    #[test]
+    fn exists_transform() {
+        let formula = Exists {
+            variables: vec![v!(x)],
+            formula: fof!(Q(f(x), y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Exists {
+                variables: vec![v!(x)],
+                formula: fof!(Q(z, y)),
+            },
+            formula.transform(&f)
         );
     }
 
@@ -1496,6 +1670,28 @@ mod tests {
                 .free_vars(),
             );
         }
+    }
+
+    #[test]
+    fn forall_transform() {
+        let formula = Forall {
+            variables: vec![v!(x)],
+            formula: fof!(Q(f(x), y)),
+        };
+        let f = |t: &Complex| {
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
+            }
+        };
+        assert_eq!(
+            Forall {
+                variables: vec![v!(x)],
+                formula: fof!(Q(z, y)),
+            },
+            formula.transform(&f)
+        );
     }
 
     #[test]

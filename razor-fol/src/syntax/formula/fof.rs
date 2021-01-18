@@ -230,21 +230,15 @@ impl Formula for FOF {
     fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             FOF::Top | FOF::Bottom => self.clone(),
-            FOF::Atom(this) => this
-                .predicate
-                .clone()
-                .app(this.terms.iter().map(f).collect()),
-            FOF::Equals(this) => f(&this.left).equals(f(&this.right)),
-            FOF::Not(this) => FOF::not(this.formula.transform(f)),
-            FOF::And(this) => this.left.transform(f).and(this.right.transform(f)),
-            FOF::Or(this) => this.left.transform(f).or(this.right.transform(f)),
-            FOF::Implies(this) => this
-                .premise
-                .transform(f)
-                .implies(this.consequence.transform(f)),
-            FOF::Iff(this) => this.left.transform(f).iff(this.right.transform(f)),
-            FOF::Exists(this) => FOF::exists(this.variables.clone(), this.formula.transform(f)),
-            FOF::Forall(this) => FOF::forall(this.variables.clone(), this.formula.transform(f)),
+            FOF::Atom(this) => this.transform(f).into(),
+            FOF::Equals(this) => this.transform(f).into(),
+            FOF::Not(this) => this.transform(f).into(),
+            FOF::And(this) => this.transform(f).into(),
+            FOF::Or(this) => this.transform(f).into(),
+            FOF::Implies(this) => this.transform(f).into(),
+            FOF::Iff(this) => this.transform(f).into(),
+            FOF::Exists(this) => this.transform(f).into(),
+            FOF::Forall(this) => this.transform(f).into(),
         }
     }
 }
