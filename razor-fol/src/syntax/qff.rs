@@ -1,12 +1,13 @@
 /// Defines a quantifier-free first-order formula of type [`QFF`].
 use super::{formula::*, term::Complex, Error, Sig, Var};
+use std::fmt;
 
 /// Is the type of quantifier-free sub-formula of formulae types such as [`PNF`]
 /// and [`SNF`].
 ///
 /// [`PNF`]: crate::transform::PNF
 /// [`SNF`]: crate::transform::SNF
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum QFF {
     /// Is logical top (⊤) or truth.
     Top,
@@ -119,6 +120,54 @@ impl Formula for QFF {
             QFF::Or(this) => this.transform(f).into(),
             QFF::Implies(this) => this.transform(f).into(),
             QFF::Iff(this) => this.transform(f).into(),
+        }
+    }
+}
+
+impl FormulaEx for QFF {
+    fn precedence(&self) -> u8 {
+        match self {
+            QFF::Top => PRECEDENCE_ATOM,
+            QFF::Bottom => PRECEDENCE_ATOM,
+            QFF::Atom(this) => this.precedence(),
+            QFF::Equals(this) => this.precedence(),
+            QFF::Not(this) => this.precedence(),
+            QFF::And(this) => this.precedence(),
+            QFF::Or(this) => this.precedence(),
+            QFF::Implies(this) => this.precedence(),
+            QFF::Iff(this) => this.precedence(),
+        }
+    }
+}
+
+impl fmt::Display for QFF {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Self::Top => write!(f, "⊤"),
+            Self::Bottom => write!(f, "⟘"),
+            Self::Atom(this) => this.fmt(f),
+            Self::Equals(this) => this.fmt(f),
+            Self::Not(this) => this.fmt(f),
+            Self::And(this) => this.fmt(f),
+            Self::Or(this) => this.fmt(f),
+            Self::Implies(this) => this.fmt(f),
+            Self::Iff(this) => this.fmt(f),
+        }
+    }
+}
+
+impl fmt::Debug for QFF {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match self {
+            Self::Top => write!(f, "⊤"),
+            Self::Bottom => write!(f, "⟘"),
+            Self::Atom(this) => this.fmt(f),
+            Self::Equals(this) => this.fmt(f),
+            Self::Not(this) => this.fmt(f),
+            Self::And(this) => this.fmt(f),
+            Self::Or(this) => this.fmt(f),
+            Self::Implies(this) => this.fmt(f),
+            Self::Iff(this) => this.fmt(f),
         }
     }
 }

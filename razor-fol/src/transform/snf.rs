@@ -243,6 +243,15 @@ impl Formula for SNF {
     }
 }
 
+impl FormulaEx for SNF {
+    fn precedence(&self) -> u8 {
+        match self {
+            SNF::QFF(this) => this.precedence(),
+            SNF::Forall(this) => this.precedence(),
+        }
+    }
+}
+
 impl std::fmt::Display for SNF {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         FOF::from(self).fmt(f)
@@ -291,7 +300,7 @@ mod tests {
             snf(&fof!(!x. (? y. (P(x, f(g(y), h(y))))))),
         );
         assert_debug_string!(
-            "('c#0 = 'c#1) & ('c#1 = 'c#2)",
+            "'c#0 = 'c#1 & 'c#1 = 'c#2",
             snf(&fof!(? x, y, z. (((x) = (y)) & ((y) = (z))))),
         );
         assert_debug_string!(

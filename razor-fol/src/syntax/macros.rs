@@ -213,7 +213,7 @@ macro_rules! terms {
 ///
 /// // disjunction:
 /// let f_or = fof!({(x) = (y)} | {P(@a)});
-/// assert_eq!(r"(x = y) ∨ P('a)", f_or.to_string());
+/// assert_eq!(r"x = y ∨ P('a)", f_or.to_string());
 ///
 /// // implication:
 /// let f_impl = fof!([P(x)] -> [_|_]);
@@ -221,7 +221,7 @@ macro_rules! terms {
 ///
 /// // bi-implication:
 /// let f_iff = fof!({P(x, y)} <=> {(x) = (y)});
-/// assert_eq!(r"P(x, y) ⇔ (x = y)", f_iff.to_string());
+/// assert_eq!(r"P(x, y) ⇔ x = y", f_iff.to_string());
 ///
 /// // existential quantifier:
 /// let f_ex = fof!(?x, y. (P(x, y)));

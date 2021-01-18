@@ -309,7 +309,14 @@ impl fmt::Display for Complex {
 
 impl fmt::Debug for Complex {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        match self {
+            Self::Var { variable } => write!(f, "{}", variable),
+            Self::Const { constant } => write!(f, "{}", constant),
+            Self::App { function, terms } => {
+                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+                write!(f, "{}({})", function, ts.join(", "))
+            }
+        }
     }
 }
 

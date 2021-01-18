@@ -94,9 +94,9 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let expected = "∀ x. (x = x)\n\
-            ∀ x, y. ((x = y) → (y = x))\n\
-            ∀ x, y, z. (((x = y) ∧ (y = z)) → (x = z))";
+        let expected = "∀ x. x = x\n\
+            ∀ x, y. (x = y → y = x)\n\
+            ∀ x, y, z. ((x = y ∧ y = z) → x = z)";
 
         let theory = Theory::try_from(formulae).unwrap();
         assert_eq!(expected, &theory.to_string());

@@ -343,7 +343,7 @@ mod tests {
         }
         {
             let formula: FOF = "!x, y, z. ?z. P(x) | w = x".parse().unwrap();
-            assert_debug_string!("! x. (P(x) | (w = x))", formula.simplify());
+            assert_debug_string!("! x. (P(x) | w = x)", formula.simplify());
         }
         {
             let formula: FOF = "(P(x) | false) | (P(x) | true)".parse().unwrap();

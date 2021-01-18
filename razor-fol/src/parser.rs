@@ -994,23 +994,23 @@ mod test_parser {
             "",
         );
         success_to_string(p_formula, "not true", "¬⊤", "");
-        success_to_string(p_formula, "not true -> false", "(¬⊤) → ⟘", "");
+        success_to_string(p_formula, "not true -> false", "¬⊤ → ⟘", "");
         success_to_string(p_formula, "~x=y", "¬(x = y)", "");
-        success_to_string(p_formula, "true -> not false", "⊤ → (¬⟘)", "");
-        success_to_string(p_formula, "not P(x, y) or Q(z)", "(¬P(x, y)) ∨ Q(z)", "");
-        success_to_string(p_formula, "not P(x, y) and Q(z)", "(¬P(x, y)) ∧ Q(z)", "");
+        success_to_string(p_formula, "true -> not false", "⊤ → ¬⟘", "");
+        success_to_string(p_formula, "not P(x, y) or Q(z)", "¬P(x, y) ∨ Q(z)", "");
+        success_to_string(p_formula, "not P(x, y) and Q(z)", "¬P(x, y) ∧ Q(z)", "");
         success_to_string(p_formula, "not not R(x)", "¬(¬R(x))", "");
         success_to_string(
             p_formula,
             "not not not not not R(x) and S(y)",
-            "(¬(¬(¬(¬(¬R(x)))))) ∧ S(y)",
+            "¬(¬(¬(¬(¬R(x))))) ∧ S(y)",
             "",
         );
         success_to_string(p_formula, "not exists y . Q(y)", "¬(∃ y. Q(y))", "");
         success_to_string(
             p_formula,
             "exists x . not exists y . Q(y)",
-            "∃ x. (¬(∃ y. Q(y)))",
+            "∃ x. ¬(∃ y. Q(y))",
             "",
         );
         success_to_string(p_formula, "Q(y) & ! x. P(x)", "Q(y) ∧ (∀ x. P(x))", "");
@@ -1019,37 +1019,37 @@ mod test_parser {
         success_to_string(
             p_formula,
             "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies false)",
-            "P(x) → (Q(y) ∧ (∃ z. ((f(z) = g(f(z))) ∨ (∀ y, z. (S(y, z) → ⟘)))))",
+            "P(x) → (Q(y) ∧ (∃ z. (f(z) = g(f(z)) ∨ (∀ y, z. (S(y, z) → ⟘)))))",
             "",
         );
         success_to_string(
             p_formula,
             "not forall x, y . P(x) and Q(y) implies h(z) = z",
-            "¬(∀ x, y. ((P(x) ∧ Q(y)) → (h(z) = z)))",
+            "¬(∀ x, y. ((P(x) ∧ Q(y)) → h(z) = z))",
             "",
         );
         success_to_string(
             p_formula,
-            "∀ x. ∃ y. ((x = y) ∧ ¬P(y)) ∨ (Q(x) → R(y))",
-            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            "∀ x. ∃ y. (x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))",
+            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
             "",
         );
         success_to_string(
             p_formula,
-            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
-            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            "∀ x. (∃ y. ((x = y ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
             "",
         );
         success_to_string(
             p_formula,
-            "! x. ? y. ((x = y) & ~P(y)) | (Q(x) -> R(y))",
-            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            "! x. ? y. (x = y & ~P(y)) | (Q(x) -> R(y))",
+            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
             "",
         );
         success_to_string(
             p_formula,
-            "! x. (? y. (((x = y) & (~P(y))) | (Q(x) -> R(y))))",
-            "∀ x. (∃ y. (((x = y) ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
+            "! x. (? y. ((x = y & (~P(y))) | (Q(x) -> R(y))))",
+            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
             "",
         );
     }

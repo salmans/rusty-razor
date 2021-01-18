@@ -38,7 +38,7 @@ impl Relational {
     /// let relational = gnf_head.relational();
     /// let linear = relational.linear();
     /// assert_eq!(    
-    ///     r"(((($f(x, ?0) ∧ (?0 = ~?0:0)) ∧ P(~?0:0)) ∧ @c(?1)) ∧ (?1 = ~?1:0)) ∧ Q(~?1:0)",
+    ///     r"(((($f(x, ?0) ∧ ?0 = ~?0:0) ∧ P(~?0:0)) ∧ @c(?1)) ∧ ?1 = ~?1:0) ∧ Q(~?1:0)",
     ///     linear.to_string()
     /// );
     /// ```
@@ -179,37 +179,37 @@ mod tests {
         assert_eq!("[false]", linear(fof!(_|_)));
         assert_eq!("[P()]", linear(fof!(P())));
         assert_eq!("[P(x, y)]", linear(fof!(P(x, y))));
-        assert_eq!("[(x = ~x:0) & P(x, ~x:0)]", linear(fof!(P(x, x))));
+        assert_eq!("[x = ~x:0 & P(x, ~x:0)]", linear(fof!(P(x, x))));
         assert_eq!(
-            "[(P(x, y) & (x = ~x:0)) & Q(~x:0)]",
+            "[(P(x, y) & x = ~x:0) & Q(~x:0)]",
             linear(fof!({P(x, y)} -> {[P(x, y)] & [Q(x)]}))
         );
         assert_eq!(
-            "[((P(x, y) & (x = ~x:0)) & (y = ~y:0)) & Q(~x:0, ~y:0)]",
+            "[((P(x, y) & x = ~x:0) & y = ~y:0) & Q(~x:0, ~y:0)]",
             linear(fof!({P(x, y)} -> {[P(x, y)] & [Q(x, y)]}))
         );
         assert_eq!(
-            "[((P(x) & (x = ~x:0)) & (y = ~y:0)) & Q(y, ~x:0, ~y:0)]",
+            "[((P(x) & x = ~x:0) & y = ~y:0) & Q(y, ~x:0, ~y:0)]",
             linear(fof!({P(x, y)} -> {[P(x)] & [Q(y, x, y)]}))
         );
         assert_eq!(
-            "[(((P(x) & (x = ~x:0)) & Q(~x:0)) & (x = ~x:1)) & R(~x:1)]",
+            "[(((P(x) & x = ~x:0) & Q(~x:0)) & x = ~x:1) & R(~x:1)]",
             linear(fof!([P(x)] -> [{ [P(x)] & [Q(x)] } & { R(x) }]))
         );
         assert_eq!(
-            "[P(x, y) | ((x = ~x:0) & Q(~x:0))]",
+            "[P(x, y) | (x = ~x:0 & Q(~x:0))]",
             linear(fof!({P(x, y)} -> {[P(x, y)] | [Q(x)]}))
         );
         assert_eq!(
-            "[P(x, y) | (((x = ~x:0) & (y = ~y:0)) & Q(~x:0, ~y:0))]",
+            "[P(x, y) | ((x = ~x:0 & y = ~y:0) & Q(~x:0, ~y:0))]",
             linear(fof!({P(x, y)} -> {[P(x, y)] | [Q(x, y)]}))
         );
         assert_eq!(
-            "[P(x) | (((x = ~x:0) & (y = ~y:0)) & Q(y, ~x:0, ~y:0))]",
+            "[P(x) | ((x = ~x:0 & y = ~y:0) & Q(y, ~x:0, ~y:0))]",
             linear(fof!({P(x, y)} -> {[P(x)] | [Q(y, x, y)]}))
         );
         assert_eq!(
-            "[(P(x) | ((x = ~x:0) & Q(~x:0))) | ((x = ~x:1) & R(~x:1))]",
+            "[(P(x) | (x = ~x:0 & Q(~x:0))) | (x = ~x:1 & R(~x:1))]",
             linear(fof!([P(x)] -> [{ [P(x)] | [Q(x)] } | { R(x) }]))
         );
     }

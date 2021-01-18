@@ -1,7 +1,6 @@
 /*! Defines the syntax of first-order formulae with equality.*/
 use super::Var;
 use super::{formula::*, qff::QFF, term::Complex, Sig};
-use itertools::Itertools;
 use std::fmt;
 
 /// Is an abstract syntax tree (AST) for first-order formulae.
@@ -250,106 +249,56 @@ impl Formula for FOF {
     }
 }
 
-// used for pretty printing a formula
+impl FormulaEx for FOF {
+    fn precedence(&self) -> u8 {
+        match self {
+            FOF::Top => PRECEDENCE_ATOM,
+            FOF::Bottom => PRECEDENCE_ATOM,
+            FOF::Atom(this) => this.precedence(),
+            FOF::Equals(this) => this.precedence(),
+            FOF::Not(this) => this.precedence(),
+            FOF::And(this) => this.precedence(),
+            FOF::Or(this) => this.precedence(),
+            FOF::Implies(this) => this.precedence(),
+            FOF::Iff(this) => this.precedence(),
+            FOF::Exists(this) => this.precedence(),
+            FOF::Forall(this) => this.precedence(),
+        }
+    }
+}
+
 impl fmt::Display for FOF {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        fn parens(formula: &FOF) -> String {
-            match formula {
-                FOF::Top => formula.to_string(),
-                FOF::Bottom => formula.to_string(),
-                FOF::Atom { .. } => formula.to_string(),
-                _ => format!("({})", formula),
-            }
-        }
         match self {
             Self::Top => write!(f, "⊤"),
             Self::Bottom => write!(f, "⟘"),
             Self::Atom(this) => this.fmt(f),
             Self::Equals(this) => this.fmt(f),
-            Self::Not(this) => write!(f, "¬{}", parens(&this.formula)),
-            Self::And(this) => write!(f, "{} ∧ {}", parens(&this.left), parens(&this.right)),
-            Self::Or(this) => write!(f, "{} ∨ {}", parens(&this.left), parens(&this.right)),
-            Self::Implies(this) => {
-                write!(
-                    f,
-                    "{} → {}",
-                    parens(&this.premise),
-                    parens(&this.consequence)
-                )
-            }
-            Self::Iff(this) => write!(f, "{} ⇔ {}", parens(&this.left), parens(&this.right)),
-            Self::Exists(this) => {
-                let vs = this.variables.iter().map(|t| t.to_string()).collect_vec();
-                write!(f, "∃ {}. {}", vs.join(", "), parens(&this.formula))
-            }
-            Self::Forall(this) => {
-                let vs: Vec<_> = this.variables.iter().map(|t| t.to_string()).collect();
-                write!(f, "∀ {}. {}", vs.join(", "), parens(&this.formula))
-            }
+            Self::Not(this) => this.fmt(f),
+            Self::And(this) => this.fmt(f),
+            Self::Or(this) => this.fmt(f),
+            Self::Implies(this) => this.fmt(f),
+            Self::Iff(this) => this.fmt(f),
+            Self::Exists(this) => this.fmt(f),
+            Self::Forall(this) => this.fmt(f),
         }
     }
 }
 
-// contains no non-ascii characters
 impl fmt::Debug for FOF {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        // a helper for writing binary formulae:
-        fn write_binary(
-            left: &FOF,
-            right: &FOF,
-            symbol: &str,
-            f: &mut fmt::Formatter,
-        ) -> Result<(), fmt::Error> {
-            match left {
-                FOF::Top | FOF::Bottom | FOF::Atom { .. } => match right {
-                    FOF::Top | FOF::Bottom | FOF::Atom { .. } => {
-                        write!(f, "{:?} {} {:?}", left, symbol, right)
-                    }
-                    _ => write!(f, "{:?} {} ({:?})", left, symbol, right),
-                },
-                _ => match right {
-                    FOF::Top | FOF::Bottom | FOF::Atom { .. } => {
-                        write!(f, "({:?}) {} {:?}", left, symbol, right)
-                    }
-                    _ => write!(f, "({:?}) {} ({:?})", left, symbol, right),
-                },
-            }
-        }
-
         match self {
             Self::Top => write!(f, "true"),
             Self::Bottom => write!(f, "false"),
-            Self::Atom(this) => {
-                let ts = this.terms.iter().map(|t| t.to_string()).collect_vec();
-                write!(f, "{}({})", this.predicate.to_string(), ts.join(", "))
-            }
-            Self::Equals(this) => write!(f, "{} = {}", this.left, this.right),
-            Self::Not(this) => match this.formula {
-                Self::Top | Self::Bottom | Self::Atom { .. } => write!(f, "~{}", this.formula),
-                _ => write!(f, "~({:?})", this.formula),
-            },
-            Self::And(this) => write_binary(&this.left, &this.right, "&", f),
-            Self::Or(this) => write_binary(&this.left, &this.right, "|", f),
-            Self::Implies(this) => write_binary(&this.premise, &this.consequence, "->", f),
-            Self::Iff(this) => write_binary(&this.left, &this.right, "<=>", f),
-            Self::Exists(this) => {
-                let vs = this.variables.iter().map(|t| t.to_string()).collect_vec();
-                match this.formula {
-                    Self::Top | Self::Bottom | Self::Atom { .. } => {
-                        write!(f, "? {}. {:?}", vs.join(", "), this.formula)
-                    }
-                    _ => write!(f, "? {}. ({:?})", vs.join(", "), this.formula),
-                }
-            }
-            Self::Forall(this) => {
-                let vs = this.variables.iter().map(|t| t.to_string()).collect_vec();
-                match this.formula {
-                    Self::Top | Self::Bottom | Self::Atom { .. } => {
-                        write!(f, "! {}. {:?}", vs.join(", "), this.formula)
-                    }
-                    _ => write!(f, "! {}. ({:?})", vs.join(", "), this.formula),
-                }
-            }
+            Self::Atom(this) => this.fmt(f),
+            Self::Equals(this) => this.fmt(f),
+            Self::Not(this) => this.fmt(f),
+            Self::And(this) => this.fmt(f),
+            Self::Or(this) => this.fmt(f),
+            Self::Implies(this) => this.fmt(f),
+            Self::Iff(this) => this.fmt(f),
+            Self::Exists(this) => this.fmt(f),
+            Self::Forall(this) => this.fmt(f),
         }
     }
 }
@@ -357,45 +306,62 @@ impl fmt::Debug for FOF {
 #[cfg(test)]
 mod tests {
     use super::{FOF::*, *};
-    use crate::{assert_eq_sorted_vecs, fof, v};
+    use crate::{
+        assert_eq_sorted_vecs, fof,
+        syntax::{
+            signature::{FSig, PSig},
+            Const, Func, Pred, EQ_SYM,
+        },
+        v,
+    };
 
     #[test]
-    fn print_top() {
+    fn top_to_string() {
         assert_eq!("⊤", Top.to_string());
     }
 
     #[test]
-    fn free_vars_top() {
+    fn top_free_vars() {
         let expected: Vec<&Var> = vec![];
         assert_eq!(expected, Top.free_vars());
     }
 
     #[test]
-    fn print_bottom() {
+    fn top_signature() {
+        let expected = Sig::new();
+        assert_eq!(expected, Top.signature().unwrap());
+    }
+
+    #[test]
+    fn bottom_to_string() {
         assert_eq!("⟘", Bottom.to_string());
     }
 
     #[test]
-    fn free_vars_bottom() {
+    fn bottom_free_vars() {
         let expected: Vec<&Var> = vec![];
         assert_eq_sorted_vecs!(&expected, &Bottom.free_vars());
     }
 
     #[test]
-    fn test_atom_to_string() {
-        assert_eq!("R()", fof!(R()).to_string());
-        assert_eq!("R(x, y)", fof!(R(x, y)).to_string());
-        assert_eq!("R(g(x, y))", fof!(R(g(x, y))).to_string());
-        {
-            assert_eq!(
-                "R(f(f(f(f(f(f(x)))))))",
-                fof!(R(f(f(f(f(f(f(x)))))))).to_string()
-            );
-        }
+    fn bottom_signature() {
+        let expected = Sig::new();
+        assert_eq!(expected, Top.signature().unwrap());
     }
 
     #[test]
-    fn test_atom_free_vars() {
+    fn atom_to_string() {
+        assert_eq!("R()", fof!(R()).to_string());
+        assert_eq!("R(x, y)", fof!(R(x, y)).to_string());
+        assert_eq!("R(g(x, y))", fof!(R(g(x, y))).to_string());
+        assert_eq!(
+            "R(f(f(f(f(f(f(x)))))))",
+            fof!(R(f(f(f(f(f(f(x)))))))).to_string()
+        );
+    }
+
+    #[test]
+    fn atom_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(R()).free_vars());
@@ -424,12 +390,69 @@ mod tests {
     }
 
     #[test]
-    fn test_equals_to_string() {
+    fn atom_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!(P(@c));
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!(P(f(x, @c)));
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 3,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("g"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            sig.add_constant(Const::from("d"));
+            let formula = fof!(P(f(x, @c), @d, f(g(x), y)));
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = fof!(P(f(x), f(x, y)));
+            assert!(formula.signature().is_err());
+        }
+    }
+
+    #[test]
+    fn equals_to_string() {
         assert_eq!("x = y", fof!((x) = (y)).to_string());
     }
 
     #[test]
-    fn test_equals_free_vars() {
+    fn equals_free_vars() {
         {
             let expected = vec![v!(x), v!(y)];
             assert_eq_sorted_vecs!(
@@ -447,7 +470,26 @@ mod tests {
     }
 
     #[test]
-    fn test_not_to_string() {
+    fn equals_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from(EQ_SYM),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!((@c) = (@c));
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = fof!([f(x)] = [f(x, y)]);
+            assert!(formula.signature().is_err());
+        }
+    }
+
+    #[test]
+    fn not_to_string() {
         assert_eq!("¬R()", fof!(~(R())).to_string());
         assert_eq!("¬(¬R())", fof!(~(~(R()))).to_string());
         assert_eq!("¬(x = y)", fof!(~((x) = (y))).to_string());
@@ -455,7 +497,7 @@ mod tests {
         assert_eq!("¬(R(x, y) ∧ Q(z))", fof!(~{(R(x, y)) & (Q(z))}).to_string());
         assert_eq!("¬(R(x, y) ∨ Q(z))", fof!(~{(R(x, y)) | (Q(z))}).to_string(),);
         assert_eq!(
-            "¬(R(x, y) ∨ (¬Q(z)))",
+            "¬(R(x, y) ∨ ¬Q(z))",
             fof!(~{(R(x, y)) | (~(Q(z)))}).to_string(),
         );
         assert_eq!(
@@ -469,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn test_not_free_vars() {
+    fn not_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(~(R())).free_vars());
@@ -495,10 +537,28 @@ mod tests {
     }
 
     #[test]
-    fn test_and_to_string() {
+    fn not_signature() {
+        let mut sig = Sig::new();
+        sig.add_predicate(PSig {
+            symbol: Pred::from("P"),
+            arity: 2,
+        })
+        .unwrap();
+        sig.add_function(FSig {
+            symbol: Func::from("f"),
+            arity: 1,
+        })
+        .unwrap();
+        sig.add_constant(Const::from("c"));
+        let formula = fof!(~[P(f(@c), y)]);
+        assert_eq!(sig, formula.signature().unwrap());
+    }
+
+    #[test]
+    fn and_to_string() {
         assert_eq!("P() ∧ Q()", fof!((P()) & (Q())).to_string());
-        assert_eq!("P() ∧ (x = y)", fof!({ P() } & { (x) = (y) }).to_string());
-        assert_eq!("P() ∧ (¬Q())", fof!({P()} & {~(Q())}).to_string());
+        assert_eq!("P() ∧ x = y", fof!({ P() } & { (x) = (y) }).to_string());
+        assert_eq!("P() ∧ ¬Q()", fof!({P()} & {~(Q())}).to_string());
         assert_eq!(
             "P() ∧ (Q() ∧ R())",
             fof!({ P() } & { (Q()) & (R()) }).to_string()
@@ -518,7 +578,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_free_vars() {
+    fn and_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) & (Q())).free_vars());
@@ -533,10 +593,43 @@ mod tests {
     }
 
     #[test]
-    fn test_or_to_string() {
+    fn and_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("Q"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!([P(f(x), y)] & [Q(@c)]);
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = fof!([P(x)] & [P(x, y)]);
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula = fof!([P(f(x))] & [P(f(x, y))]);
+            assert!(formula.signature().is_err());
+        }
+    }
+
+    #[test]
+    fn or_to_string() {
         assert_eq!("P() ∨ Q()", fof!((P()) | (Q())).to_string());
-        assert_eq!("P() ∨ (x = y)", fof!({ P() } | { (x) = (y) }).to_string());
-        assert_eq!("P() ∨ (¬Q())", fof!({P()} | {~(Q())}).to_string());
+        assert_eq!("P() ∨ x = y", fof!({ P() } | { (x) = (y) }).to_string());
+        assert_eq!("P() ∨ ¬Q()", fof!({P()} | {~(Q())}).to_string());
         assert_eq!(
             "P() ∨ (Q() ∧ R())",
             fof!({ P() } | { (Q()) & (R()) }).to_string(),
@@ -556,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn test_or_free_vars() {
+    fn or_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) | (Q())).free_vars());
@@ -571,10 +664,43 @@ mod tests {
     }
 
     #[test]
-    fn test_implies_to_string() {
+    fn or_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("Q"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!([P(f(x), y)] | [Q(@c)]);
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = fof!([P(x)] | [P(x, y)]);
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula = fof!([P(f(x))] | [P(f(x, y))]);
+            assert!(formula.signature().is_err());
+        }
+    }
+
+    #[test]
+    fn implies_to_string() {
         assert_eq!("P() → Q()", fof!((P()) -> (Q())).to_string());
-        assert_eq!("P() → (x = y)", fof!({P()} -> {(x) = (y)}).to_string());
-        assert_eq!("P() → (¬Q())", fof!({P()} -> {~(Q())}).to_string());
+        assert_eq!("P() → x = y", fof!({P()} -> {(x) = (y)}).to_string());
+        assert_eq!("P() → ¬Q()", fof!({P()} -> {~(Q())}).to_string());
         assert_eq!(
             "P() → (Q() ∧ R())",
             fof!({P()} -> {(Q()) & (R())}).to_string(),
@@ -594,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn test_implies_free_vars() {
+    fn implies_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) -> (Q())).free_vars());
@@ -609,10 +735,43 @@ mod tests {
     }
 
     #[test]
-    fn test_iff_to_string() {
+    fn implies_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("Q"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!([P(f(x), y)] -> [Q(@c)]);
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = fof!([P(x)] -> [P(x, y)]);
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula = fof!([P(f(x))] -> [P(f(x, y))]);
+            assert!(formula.signature().is_err());
+        }
+    }
+
+    #[test]
+    fn iff_to_string() {
         assert_eq!("P() ⇔ Q()", fof!((P()) <=> (Q())).to_string());
-        assert_eq!("P() ⇔ (x = y)", fof!({P()} <=> {(x) = (y)}).to_string());
-        assert_eq!("P() ⇔ (¬Q())", fof!({P()} <=> {~(Q())}).to_string());
+        assert_eq!("P() ⇔ x = y", fof!({P()} <=> {(x) = (y)}).to_string());
+        assert_eq!("P() ⇔ ¬Q()", fof!({P()} <=> {~(Q())}).to_string());
         assert_eq!(
             "P() ⇔ (Q() ∧ R())",
             fof!({P()} <=> {(Q()) & (R())}).to_string(),
@@ -632,7 +791,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iff_free_vars() {
+    fn iff_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!((P()) <=> (Q())).free_vars());
@@ -647,11 +806,44 @@ mod tests {
     }
 
     #[test]
-    fn test_exists_to_string() {
+    fn iff_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("Q"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula = fof!([P(f(x), y)] <=> [Q(@c)]);
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = fof!([P(x)] <=> [P(x, y)]);
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula = fof!([P(f(x))] <=> [P(f(x, y))]);
+            assert!(formula.signature().is_err());
+        }
+    }
+
+    #[test]
+    fn exists_to_string() {
         assert_eq!("∃ x. P(x)", fof!(? x. (P(x))).to_string());
         assert_eq!("∃ x, y. P(x, y)", fof!(? x, y. (P(x, y))).to_string());
-        assert_eq!("∃ x, y. (x = y)", fof!(? x, y. ((x) = (y))).to_string());
-        assert_eq!("∃ x. (¬Q(x))", fof!(? x. (~(Q(x)))).to_string());
+        assert_eq!("∃ x, y. x = y", fof!(? x, y. ((x) = (y))).to_string());
+        assert_eq!("∃ x. ¬Q(x)", fof!(? x. (~(Q(x)))).to_string());
         assert_eq!(
             "∃ x. (Q(x) ∧ R(x))",
             fof!(? x. ((Q(x)) & (R(x)))).to_string()
@@ -671,7 +863,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exists_free_vars() {
+    fn exists_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(? x. (P(x))).free_vars());
@@ -704,11 +896,29 @@ mod tests {
     }
 
     #[test]
-    fn test_forall_to_string() {
+    fn exists_signature() {
+        let mut sig = Sig::new();
+        sig.add_predicate(PSig {
+            symbol: Pred::from("P"),
+            arity: 2,
+        })
+        .unwrap();
+        sig.add_function(FSig {
+            symbol: Func::from("f"),
+            arity: 1,
+        })
+        .unwrap();
+        sig.add_constant(Const::from("c"));
+        let formula = fof!(?x . [P(f(@c), y)]);
+        assert_eq!(sig, formula.signature().unwrap());
+    }
+
+    #[test]
+    fn forall_to_string() {
         assert_eq!("∀ x. P(x)", fof!(! x. (P(x))).to_string());
         assert_eq!("∀ x, y. P(x, y)", fof!(! x, y. (P(x, y))).to_string());
-        assert_eq!("∀ x, y. (x = y)", fof!(! x, y. ((x) = (y))).to_string());
-        assert_eq!("∀ x. (¬Q(x))", fof!(! x. (~(Q(x)))).to_string());
+        assert_eq!("∀ x, y. x = y", fof!(! x, y. ((x) = (y))).to_string());
+        assert_eq!("∀ x. ¬Q(x)", fof!(! x. (~(Q(x)))).to_string());
         assert_eq!(
             "∀ x. (Q(x) ∧ R(x))",
             fof!(! x. ((Q(x)) & (R(x)))).to_string()
@@ -728,7 +938,7 @@ mod tests {
     }
 
     #[test]
-    fn test_forall_free_vars() {
+    fn forall_free_vars() {
         {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(expected, fof!(! x. (P(x))).free_vars());
@@ -758,5 +968,23 @@ mod tests {
                 fof!(! x. ((Q(x, z)) & (R(x, y)))).free_vars()
             );
         }
+    }
+
+    #[test]
+    fn forall_signature() {
+        let mut sig = Sig::new();
+        sig.add_predicate(PSig {
+            symbol: Pred::from("P"),
+            arity: 2,
+        })
+        .unwrap();
+        sig.add_function(FSig {
+            symbol: Func::from("f"),
+            arity: 1,
+        })
+        .unwrap();
+        sig.add_constant(Const::from("c"));
+        let formula = fof!(!x . [P(f(@c), y)]);
+        assert_eq!(sig, formula.signature().unwrap());
     }
 }

@@ -161,7 +161,7 @@ impl SequentTrait for Sequent {
     }
 }
 
-// functions to generate symbols for relationalization:
+// functions to generate symbols for relationalization and linearization:
 fn make_var_generator() -> impl FnMut() -> Var {
     let mut var_counter = 0;
     move || {

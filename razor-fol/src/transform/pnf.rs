@@ -9,7 +9,7 @@ use crate::syntax::{formula::*, qff::QFF, term::Complex, Var, FOF};
 ///
 /// **Hint**: A PNF is a first-order formula with all quantifiers (existential and
 /// universal) and bound variables at the front, followed by a quantifier-free part.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum PNF {
     /// Is the quantifier-free portion of a [`PNF`].
     QFF(QFF),
@@ -158,6 +158,16 @@ impl Formula for PNF {
                 formula: this.formula.transform(f),
             }
             .into(),
+        }
+    }
+}
+
+impl FormulaEx for PNF {
+    fn precedence(&self) -> u8 {
+        match self {
+            PNF::QFF(this) => this.precedence(),
+            PNF::Exists(this) => this.precedence(),
+            PNF::Forall(this) => this.precedence(),
         }
     }
 }
@@ -396,16 +406,16 @@ mod tests {
         }
         {
             let formula: FOF = "? x. P(x) & ~Q(y) | R(z)".parse().unwrap();
-            assert_debug_string!("? x. ((P(x) & (~Q(y))) | R(z))", pnf(&formula));
+            assert_debug_string!("? x. ((P(x) & ~Q(y)) | R(z))", pnf(&formula));
         }
         {
             let formula: FOF = "! x. P(x) & ~Q(y) | R(z)".parse().unwrap();
-            assert_debug_string!("! x. ((P(x) & (~Q(y))) | R(z))", pnf(&formula));
+            assert_debug_string!("! x. ((P(x) & ~Q(y)) | R(z))", pnf(&formula));
         }
         // sanity checking:
         {
             let formula: FOF = "~? x. P(x)".parse().unwrap();
-            assert_debug_string!("! x. (~P(x))", pnf(&formula));
+            assert_debug_string!("! x. ~P(x)", pnf(&formula));
         }
         {
             let formula: FOF = "(! x. P(x)) & Q(y)".parse().unwrap();
@@ -932,11 +942,11 @@ mod tests {
         // multiple steps
         {
             let formula: FOF = "~~?x.P(x)".parse().unwrap();
-            assert_debug_string!("? x. (~(~P(x)))", pnf(&formula));
+            assert_debug_string!("? x. ~(~P(x))", pnf(&formula));
         }
         {
             let formula: FOF = "~~!x.P(x)".parse().unwrap();
-            assert_debug_string!("! x. (~(~P(x)))", pnf(&formula));
+            assert_debug_string!("! x. ~(~P(x))", pnf(&formula));
         }
         {
             let formula: FOF = "P(x) & ((! x. Q(x)) & R(x))".parse().unwrap();
@@ -981,7 +991,7 @@ mod tests {
         }
         {
             let formula: FOF = "!x. (P(x) -> ~(!y . (P(y) -> Q(x, y))))".parse().unwrap();
-            assert_debug_string!("! x. (? y. (P(x) -> (~(P(y) -> Q(x, y)))))", pnf(&formula));
+            assert_debug_string!("! x. (? y. (P(x) -> ~(P(y) -> Q(x, y))))", pnf(&formula));
         }
         {
             let formula: FOF = "(P() | ? x. Q(x)) -> !z. R(z)".parse().unwrap();
@@ -992,7 +1002,7 @@ mod tests {
                 .parse()
                 .unwrap();
             assert_debug_string!(
-                "! x. (? y. (! z. (! x`. (! w. ((Q(x) & (~R(x`))) | ((~Q(y)) -> R(y)))))))",
+                "! x. (? y. (! z. (! x`. (! w. ((Q(x) & ~R(x`)) | (~Q(y) -> R(y)))))))",
                 pnf(&formula),
             );
         }

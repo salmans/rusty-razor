@@ -617,11 +617,11 @@ mod tests {
         }
 
         assert_eq! {
-            "[@c(?0) & (x = ?0)]",
+            "[@c(?0) & x = ?0]",
             flatten(fof!((x) = (@c))),
         }
         assert_eq! {
-            "[(@c(?0) & @d(?1)) & (?0 = ?1)]",
+            "[(@c(?0) & @d(?1)) & ?0 = ?1]",
             flatten(fof!((@c) = (@d))),
         }
         assert_eq! {

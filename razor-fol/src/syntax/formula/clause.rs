@@ -1,4 +1,4 @@
-use super::{Atom, Atomic, Equals, Formula, Not};
+use super::{Atom, Atomic, Equals, Formula, FormulaEx, Not};
 use crate::syntax::{Error, Sig, Term, Var};
 use itertools::Itertools;
 use std::{collections::BTreeSet, hash::Hash, ops::Deref};
@@ -54,22 +54,27 @@ impl<T: Term> Formula for Literal<T> {
 
     fn signature(&self) -> Result<Sig, Error> {
         match self {
-            Literal::Pos(this) => this.signature(),
-            Literal::Neg(this) => this.signature(),
+            Literal::Pos(this) | Literal::Neg(this) => this.signature(),
         }
     }
 
     fn free_vars(&self) -> Vec<&Var> {
         match self {
-            Literal::Pos(this) => this.free_vars(),
-            Literal::Neg(this) => this.free_vars(),
+            Literal::Pos(this) | Literal::Neg(this) => this.free_vars(),
         }
     }
 
     fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
         match self {
-            Literal::Pos(this) => this.transform(f).into(),
-            Literal::Neg(this) => this.transform(f).into(),
+            Literal::Pos(this) | Literal::Neg(this) => this.transform(f).into(),
+        }
+    }
+}
+
+impl<T: Term> FormulaEx for Literal<T> {
+    fn precedence(&self) -> u8 {
+        match self {
+            Literal::Pos(this) | Literal::Neg(this) => this.precedence(),
         }
     }
 }

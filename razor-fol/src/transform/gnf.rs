@@ -473,7 +473,7 @@ mod tests {
         }
         {
             let formula: FOF = "x = y".parse().unwrap();
-            assert_debug_strings!("true -> (x = y)", gnf(&formula));
+            assert_debug_strings!("true -> x = y", gnf(&formula));
         }
         {
             let formula: FOF = "~P(x)".parse().unwrap();
