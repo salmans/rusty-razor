@@ -145,7 +145,7 @@ impl<T: Term + Ord> Formula for Clause<T> {
     type Term = T;
 
     fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
+        Sig::from_signatures(
             self.iter()
                 .map(|l| l.signature())
                 .collect::<Result<Vec<_>, _>>()?,
@@ -249,7 +249,7 @@ impl<T: Term + Ord> Formula for ClauseSet<T> {
     type Term = T;
 
     fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
+        Sig::from_signatures(
             self.iter()
                 .map(|c| c.signature())
                 .collect::<Result<Vec<_>, _>>()?,
@@ -275,7 +275,7 @@ mod tests {
     use crate::{
         assert_eq_sorted_vecs,
         syntax::{
-            signature::{FSig, PSig},
+            signature::{FuncSig, PredSig},
             term::Complex,
             Const, Func, Pred, Sig, EQ_SYM,
         },
@@ -440,12 +440,12 @@ mod tests {
     fn atomic_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 2,
             })
@@ -460,12 +460,12 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 2,
             })
@@ -500,7 +500,7 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from(EQ_SYM),
                 arity: 2,
             })
@@ -515,7 +515,7 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from(EQ_SYM),
                 arity: 2,
             })
@@ -689,17 +689,17 @@ mod tests {
             ]
             .into();
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -810,17 +810,17 @@ mod tests {
             ]
             .into();
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })

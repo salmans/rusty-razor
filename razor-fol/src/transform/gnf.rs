@@ -90,7 +90,7 @@ impl Formula for PCF {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
+        Sig::from_signatures(
             self.iter()
                 .map(|c| c.signature())
                 .collect::<Result<Vec<_>, _>>()?,
@@ -198,7 +198,7 @@ impl Formula for PCFSet {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
-        Sig::new_from_signatures(
+        Sig::from_signatures(
             self.iter()
                 .map(|c| c.signature())
                 .collect::<Result<Vec<_>, _>>()?,

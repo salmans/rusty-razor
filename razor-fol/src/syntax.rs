@@ -20,13 +20,13 @@ pub enum Error {
     /// Is returned when an unsupported operation is performed on an expression.
     #[error("inconsistent predicate in theory signature `{}` and `{}`", .this.to_string(), .other.to_string())]
     InconsistentPredSig {
-        this: signature::PSig,
-        other: signature::PSig,
+        this: signature::PredSig,
+        other: signature::PredSig,
     },
 
     #[error("inconsistent function in theory signature `{}` and `{}`", .this.to_string(), .other.to_string())]
     InconsistentFuncSig {
-        this: signature::FSig,
-        other: signature::FSig,
+        this: signature::FuncSig,
+        other: signature::FuncSig,
     },
 }

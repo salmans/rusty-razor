@@ -8,9 +8,9 @@ use std::{
     fmt,
 };
 
-/// Contains the signature information for a function.
+/// Contains the signature information for a [`Func`].
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct FSig {
+pub struct FuncSig {
     /// Is the function symbol.
     pub symbol: Func,
 
@@ -18,15 +18,15 @@ pub struct FSig {
     pub arity: u8,
 }
 
-impl fmt::Display for FSig {
+impl fmt::Display for FuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "predicate: {}, arity: {}", self.symbol, self.arity)
     }
 }
 
-/// Contains the signature information for a predicate.
+/// Contains the signature information for a [`Pred`].
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct PSig {
+pub struct PredSig {
     /// Is the predicate symbol.
     pub symbol: Pred,
 
@@ -34,7 +34,7 @@ pub struct PSig {
     pub arity: u8,
 }
 
-impl fmt::Display for PSig {
+impl fmt::Display for PredSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "function: {}, arity: {}", self.symbol, self.arity)
     }
@@ -47,10 +47,10 @@ pub struct Sig {
     constants: HashSet<Const>,
 
     /// Is the signature of functions.
-    functions: HashMap<String, FSig>,
+    functions: HashMap<String, FuncSig>,
 
     /// Is the signature of predicates.
-    predicates: HashMap<String, PSig>,
+    predicates: HashMap<String, PredSig>,
 }
 
 impl Sig {
@@ -64,7 +64,7 @@ impl Sig {
     }
 
     /// Creates a new signature by merging the items of an iterator over signatures.
-    pub(crate) fn new_from_signatures<I>(value: I) -> Result<Self, Error>
+    pub(crate) fn from_signatures<I>(value: I) -> Result<Self, Error>
     where
         I: IntoIterator<Item = Sig>,
     {
@@ -75,13 +75,13 @@ impl Sig {
         Ok(sig)
     }
 
-    /// Inserts a new constant in the receiver signature.
+    /// Inserts a new [`Const`] in the receiver signature.
     pub(crate) fn add_constant(&mut self, constant: Const) {
         self.constants.insert(constant);
     }
 
-    /// Adds the signature of a function to the reciever.
-    pub(crate) fn add_function(&mut self, function: FSig) -> Result<(), Error> {
+    /// Inserts the signature [`FuncSig`] of a function [`Func`] to the reciever.
+    pub(crate) fn add_function(&mut self, function: FuncSig) -> Result<(), Error> {
         if let Some(sig) = self.functions.get(function.symbol.name()) {
             if *sig != function {
                 return Err(Error::InconsistentFuncSig {
@@ -96,8 +96,8 @@ impl Sig {
         Ok(())
     }
 
-    /// Adds the signature of a predicate to the reciever.
-    pub(crate) fn add_predicate(&mut self, predicate: PSig) -> Result<(), Error> {
+    /// Inserts the signature [`PredSig`] of a predicate [`Pred`] to the reciever.
+    pub(crate) fn add_predicate(&mut self, predicate: PredSig) -> Result<(), Error> {
         if let Some(sig) = self.predicates.get(predicate.symbol.name()) {
             if *sig != predicate {
                 return Err(Error::InconsistentPredSig {
@@ -112,33 +112,37 @@ impl Sig {
         Ok(())
     }
 
-    /// Returns a signature that combines the receiver signature with the signature of `other`.
-    pub(crate) fn merge(mut self, other: Self) -> Result<Self, Error> {
+    /// Returns a signature that combines the receiver with of `other`.
+    pub(crate) fn merge(self, other: Self) -> Result<Self, Error> {
+        let mut sig = self;
+
         for c in other.constants {
-            self.add_constant(c);
+            sig.add_constant(c);
         }
         for f in other.functions.values() {
-            self.add_function(f.clone())?;
+            sig.add_function(f.clone())?;
         }
         for p in other.predicates.values() {
-            self.add_predicate(p.clone())?;
+            sig.add_predicate(p.clone())?;
         }
 
-        Ok(self)
+        Ok(sig)
     }
 
-    /// returns the constants of this signature.
+    /// Returns the set [`Const`]s in this signature.
     pub fn constants(&self) -> &HashSet<Const> {
         &self.constants
     }
 
-    /// Returns the function of this signature.
-    pub fn functions(&self) -> &HashMap<String, FSig> {
+    /// Returns the function signatures in the receiver in the form of a map from
+    /// function names to [`FuncSig`].
+    pub fn functions(&self) -> &HashMap<String, FuncSig> {
         &self.functions
     }
 
-    /// Returns the predicates of this signature.
-    pub fn predicates(&self) -> &HashMap<String, PSig> {
+    /// Returns the predicate signatures in the receiver in the form of a map from
+    /// predicate names to [`PredSig`].    
+    pub fn predicates(&self) -> &HashMap<String, PredSig> {
         &self.predicates
     }
 }
@@ -155,25 +159,175 @@ mod tests {
     use crate::syntax::{Formula, FOF};
 
     #[test]
-    fn test_new_from_signatures() {
+    fn test_merge() {
+        {
+            let sig = Sig::default();
+            let other = Sig::default();
+            assert_eq!(Sig::default(), sig.merge(other).unwrap());
+        }
+        {
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+            let other = Sig::default();
+
+            let expected = sig.clone();
+            assert_eq!(expected, sig.merge(other).unwrap());
+        }
+        {
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+
+            let mut other = Sig::default();
+            other
+                .add_predicate(PredSig {
+                    symbol: "Q".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            other
+                .add_function(FuncSig {
+                    symbol: "g".into(),
+                    arity: 3,
+                })
+                .unwrap();
+            other.add_constant("d".into());
+
+            let mut expected = Sig::default();
+            expected
+                .add_predicate(PredSig {
+                    symbol: "P".into(),
+                    arity: 1,
+                })
+                .unwrap();
+            expected
+                .add_function(FuncSig {
+                    symbol: "f".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            expected.add_constant("c".into());
+            expected
+                .add_predicate(PredSig {
+                    symbol: "Q".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            expected
+                .add_function(FuncSig {
+                    symbol: "g".into(),
+                    arity: 3,
+                })
+                .unwrap();
+            expected.add_constant("d".into());
+
+            assert_eq!(expected, sig.merge(other).unwrap());
+        }
+        {
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+
+            let other = sig.clone();
+            let expected = sig.clone();
+
+            assert_eq!(expected, sig.merge(other).unwrap());
+        }
+        {
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
+            })
+            .unwrap();
+
+            let mut other = Sig::default();
+            other
+                .add_predicate(PredSig {
+                    symbol: "P".into(),
+                    arity: 2,
+                })
+                .unwrap();
+
+            assert!(sig.merge(other).is_err());
+        }
+        {
+            let mut sig = Sig::default();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 1,
+            })
+            .unwrap();
+
+            let mut other = Sig::default();
+            other
+                .add_function(FuncSig {
+                    symbol: "f".into(),
+                    arity: 2,
+                })
+                .unwrap();
+
+            assert!(sig.merge(other).is_err());
+        }
+        {
+            let mut sig = Sig::default();
+            sig.add_constant("c".into());
+
+            let mut other = Sig::default();
+            other.add_constant("c".into());
+
+            assert!(sig.merge(other).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_from_signatures() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("g"),
                 arity: 1,
             })
@@ -186,7 +340,7 @@ mod tests {
             ];
             assert_eq!(
                 sig,
-                Sig::new_from_signatures(
+                Sig::from_signatures(
                     formulae
                         .iter()
                         .map(|f| f.signature())
@@ -198,12 +352,12 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -215,7 +369,7 @@ mod tests {
             ];
             assert_eq!(
                 sig,
-                Sig::new_from_signatures(
+                Sig::from_signatures(
                     formulae
                         .iter()
                         .map(|f| f.signature())
@@ -227,12 +381,12 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -242,7 +396,7 @@ mod tests {
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c, d), y)".parse::<FOF>().unwrap(),
             ];
-            assert!(Sig::new_from_signatures(
+            assert!(Sig::from_signatures(
                 formulae
                     .iter()
                     .map(|f| f.signature())
@@ -253,12 +407,12 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -268,7 +422,7 @@ mod tests {
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c), y, z)".parse::<FOF>().unwrap(),
             ];
-            assert!(Sig::new_from_signatures(
+            assert!(Sig::from_signatures(
                 formulae
                     .iter()
                     .map(|f| f.signature())

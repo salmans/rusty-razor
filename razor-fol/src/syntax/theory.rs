@@ -30,7 +30,7 @@ impl<T: Formula> Theory<T> {
         self.formulae.extend(iter);
 
         // recalculating the signature:
-        self.signature = Sig::new_from_signatures(
+        self.signature = Sig::from_signatures(
             self.formulae()
                 .iter()
                 .map(|f| f.signature())
@@ -44,7 +44,7 @@ impl<T: Formula> TryFrom<Vec<T>> for Theory<T> {
     type Error = Error;
 
     fn try_from(formulae: Vec<T>) -> Result<Self, Error> {
-        let signature = Sig::new_from_signatures(
+        let signature = Sig::from_signatures(
             formulae
                 .iter()
                 .map(|f| f.signature())
@@ -86,7 +86,7 @@ mod tests {
             fof!(!x, y, z. ((((x) = (y)) & ((y) = (z))) -> ((x) = (z)))),
         ];
 
-        let expected_sig = Sig::new_from_signatures(
+        let expected_sig = Sig::from_signatures(
             formulae
                 .iter()
                 .map(|f| f.signature())

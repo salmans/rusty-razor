@@ -1,5 +1,5 @@
 /*! Defines the syntax for first-order terms. */
-use super::{formula::Equals, signature::FSig, Const, Error, Func, Sig, Var, FOF};
+use super::{formula::Equals, signature::FuncSig, Const, Error, Func, Sig, Var, FOF};
 use std::{collections::HashMap, fmt, ops::Deref};
 
 /// Is the trait of types that act as terms.
@@ -224,7 +224,7 @@ impl Term for Complex {
                     sig = sig.merge(t.signature()?)?;
                 }
 
-                sig.add_function(FSig {
+                sig.add_function(FuncSig {
                     symbol: function.clone(),
                     arity: terms.len() as u8,
                 })?;

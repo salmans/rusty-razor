@@ -179,7 +179,7 @@ mod tests {
     use crate::{
         assert_eq_sorted_vecs,
         syntax::{
-            signature::{FSig, PSig},
+            signature::{FuncSig, PredSig},
             Const, Func, Pred, Sig, EQ_SYM,
         },
         term, v,
@@ -280,7 +280,7 @@ mod tests {
     fn atom_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 1,
             })
@@ -295,12 +295,12 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 2,
             })
@@ -315,17 +315,17 @@ mod tests {
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 3,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("g"),
                 arity: 1,
             })
@@ -422,7 +422,7 @@ mod tests {
     fn equals_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from(EQ_SYM),
                 arity: 2,
             })
@@ -546,12 +546,12 @@ mod tests {
     #[test]
     fn not_signature() {
         let mut sig = Sig::new();
-        sig.add_predicate(PSig {
+        sig.add_predicate(PredSig {
             symbol: Pred::from("P"),
             arity: 2,
         })
         .unwrap();
-        sig.add_function(FSig {
+        sig.add_function(FuncSig {
             symbol: Func::from("f"),
             arity: 1,
         })
@@ -673,17 +673,17 @@ mod tests {
     fn and_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -859,17 +859,17 @@ mod tests {
     fn or_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -1045,17 +1045,17 @@ mod tests {
     fn implies_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
@@ -1231,17 +1231,17 @@ mod tests {
     fn iff_signature() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
+            sig.add_predicate(PredSig {
                 symbol: Pred::from("Q"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
+            sig.add_function(FuncSig {
                 symbol: Func::from("f"),
                 arity: 1,
             })
