@@ -883,6 +883,13 @@ mod tests {
         {
             let formula = Atom {
                 predicate: "P".into(),
+                terms: vec![term!(f(x)), term!(f(y))],
+            };
+            assert!(formula.signature().is_ok());
+        }
+        {
+            let formula = Atom {
+                predicate: "P".into(),
                 terms: vec![term!(f(x)), term!(f(x, y))],
             };
             assert!(formula.signature().is_err());
@@ -964,6 +971,13 @@ mod tests {
                 right: term!(@c),
             };
             assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula = Equals {
+                left: term!(f(x)),
+                right: term!(f(y)),
+            };
+            assert!(formula.signature().is_ok());
         }
         {
             let formula = Equals {
@@ -1159,6 +1173,13 @@ mod tests {
         {
             let formula = And {
                 left: fof!(P(f(x))),
+                right: fof!(P(f(y))),
+            };
+            assert!(formula.signature().is_ok());
+        }
+        {
+            let formula = And {
+                left: fof!(P(f(x))),
                 right: fof!(P(f(x, y))),
             };
             assert!(formula.signature().is_err());
@@ -1257,6 +1278,13 @@ mod tests {
                 right: fof!(P(x, y)),
             };
             assert!(formula.signature().is_err());
+        }
+        {
+            let formula = Or {
+                left: fof!(P(f(x))),
+                right: fof!(P(f(y))),
+            };
+            assert!(formula.signature().is_ok());
         }
         {
             let formula = Or {
@@ -1363,6 +1391,13 @@ mod tests {
         {
             let formula = Implies {
                 premise: fof!(P(f(x))),
+                consequence: fof!(P(f(y))),
+            };
+            assert!(formula.signature().is_ok());
+        }
+        {
+            let formula = Implies {
+                premise: fof!(P(f(x))),
                 consequence: fof!(P(f(x, y))),
             };
             assert!(formula.signature().is_err());
@@ -1461,6 +1496,13 @@ mod tests {
                 right: fof!(P(x, y)),
             };
             assert!(formula.signature().is_err());
+        }
+        {
+            let formula = Iff {
+                left: fof!(P(f(x))),
+                right: fof!(P(f(y))),
+            };
+            assert!(formula.signature().is_ok());
         }
         {
             let formula = Iff {
@@ -1758,6 +1800,55 @@ mod tests {
                     right: term!(y),
                 })
                 .free_vars()
+            );
+        }
+    }
+
+    #[test]
+    fn atomic_transform() {
+        {
+            let formula: Atomic<_> = Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x)), term!(y)],
+            }
+            .into();
+            let f = |t: &Complex| {
+                {
+                    if t == &term!(f(x)) {
+                        term!(z)
+                    } else {
+                        t.clone()
+                    }
+                }
+                .into()
+            };
+            assert_eq!(
+                Atomic::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(z), term!(y)],
+                }),
+                formula.transform(&f)
+            );
+        }
+        {
+            let formula: Atomic<_> = Equals {
+                left: term!(f(x)),
+                right: term!(y),
+            }
+            .into();
+            let f = |t: &Complex| {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            };
+            assert_eq!(
+                Atomic::from(Equals {
+                    left: term!(z),
+                    right: term!(y),
+                }),
+                formula.transform(&f)
             );
         }
     }

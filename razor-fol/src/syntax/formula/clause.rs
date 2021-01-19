@@ -66,7 +66,8 @@ impl<T: Term> Formula for Literal<T> {
 
     fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
         match self {
-            Literal::Pos(this) | Literal::Neg(this) => this.transform(f).into(),
+            Literal::Pos(this) => Self::Pos(this.transform(f)),
+            Literal::Neg(this) => Self::Neg(this.transform(f)),
         }
     }
 }
@@ -174,7 +175,7 @@ impl<T: Term + Ord> Formula for Clause<T> {
 ///
 /// [`CNF`]: crate::transform::CNF
 /// [`DNF`]: crate::transform::DNF
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct ClauseSet<T: Term>(BTreeSet<Clause<T>>);
 
 impl<T: Term + Ord> From<Clause<T>> for ClauseSet<T> {
@@ -257,5 +258,539 @@ impl<T: Term + Ord> Formula for ClauseSet<T> {
 
     fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
         self.0.iter().map(|clause| clause.transform(f)).into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        assert_eq_sorted_vecs,
+        syntax::{
+            signature::{FSig, PSig},
+            term::Complex,
+            Const, Func, Pred, Sig, EQ_SYM,
+        },
+        term, v,
+    };
+
+    #[test]
+    fn literal_free_vars() {
+        {
+            let expected = vec![v!(x), v!(y)];
+            assert_eq_sorted_vecs!(
+                expected.iter().collect::<Vec<_>>(),
+                Literal::from(Atom {
+                    predicate: "R".into(),
+                    terms: vec![term!(x), term!(y)],
+                })
+                .free_vars()
+            );
+        }
+        {
+            let expected = vec![v!(x), v!(y)];
+            assert_eq_sorted_vecs!(
+                expected.iter().collect::<Vec<_>>(),
+                Literal::from(Equals {
+                    left: term!(x),
+                    right: term!(y),
+                })
+                .free_vars()
+            );
+        }
+        {
+            let expected = vec![v!(x), v!(y)];
+            assert_eq_sorted_vecs!(
+                expected.iter().collect::<Vec<_>>(),
+                Literal::from(Not {
+                    formula: Atom {
+                        predicate: "R".into(),
+                        terms: vec![term!(x), term!(y)],
+                    }
+                })
+                .free_vars()
+            );
+        }
+        {
+            let expected = vec![v!(x), v!(y)];
+            assert_eq_sorted_vecs!(
+                expected.iter().collect::<Vec<_>>(),
+                Literal::from(Not {
+                    formula: Equals {
+                        left: term!(x),
+                        right: term!(y),
+                    }
+                })
+                .free_vars()
+            );
+        }
+    }
+
+    #[test]
+    fn atomic_transform() {
+        {
+            let formula: Literal<_> = Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x)), term!(y)],
+            }
+            .into();
+            let f = |t: &Complex| {
+                {
+                    if t == &term!(f(x)) {
+                        term!(z)
+                    } else {
+                        t.clone()
+                    }
+                }
+                .into()
+            };
+            assert_eq!(
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(z), term!(y)],
+                }),
+                formula.transform(&f)
+            );
+        }
+        {
+            let formula: Literal<_> = Not {
+                formula: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x)), term!(y)],
+                },
+            }
+            .into();
+            let f = |t: &Complex| {
+                {
+                    if t == &term!(f(x)) {
+                        term!(z)
+                    } else {
+                        t.clone()
+                    }
+                }
+                .into()
+            };
+            assert_eq!(
+                Literal::from(Not {
+                    formula: Atom {
+                        predicate: "P".into(),
+                        terms: vec![term!(z), term!(y)],
+                    }
+                }),
+                formula.transform(&f)
+            );
+        }
+        {
+            let formula: Literal<_> = Equals {
+                left: term!(f(x)),
+                right: term!(y),
+            }
+            .into();
+            let f = |t: &Complex| {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            };
+            assert_eq!(
+                Literal::from(Equals {
+                    left: term!(z),
+                    right: term!(y),
+                }),
+                formula.transform(&f)
+            );
+        }
+        {
+            let formula: Literal<_> = Not {
+                formula: Equals {
+                    left: term!(f(x)),
+                    right: term!(y),
+                },
+            }
+            .into();
+            let f = |t: &Complex| {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            };
+            assert_eq!(
+                Literal::from(Not {
+                    formula: Equals {
+                        left: term!(z),
+                        right: term!(y),
+                    }
+                }),
+                formula.transform(&f)
+            );
+        }
+    }
+
+    #[test]
+    fn atomic_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula: Literal<_> = Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x, @c))],
+            }
+            .into();
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula: Literal<_> = Not {
+                formula: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x, @c))],
+                },
+            }
+            .into();
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula: Literal<_> = Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x)), term!(f(x, y))],
+            }
+            .into();
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula: Literal<_> = Not {
+                formula: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x)), term!(f(x, y))],
+                },
+            }
+            .into();
+            assert!(formula.signature().is_err());
+        }
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from(EQ_SYM),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula: Literal<_> = Equals {
+                left: term!(@c),
+                right: term!(@c),
+            }
+            .into();
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from(EQ_SYM),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+            let formula: Literal<_> = Not {
+                formula: Equals {
+                    left: term!(@c),
+                    right: term!(@c),
+                },
+            }
+            .into();
+            assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula: Literal<_> = Equals {
+                left: term!(f(x)),
+                right: term!(f(x, y)),
+            }
+            .into();
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula: Literal<_> = Not {
+                formula: Equals {
+                    left: term!(f(x)),
+                    right: term!(f(x, y)),
+                },
+            }
+            .into();
+            assert!(formula.signature().is_err());
+        }
+        {
+            let formula: Literal<_> = Not {
+                formula: Equals {
+                    left: term!(f(x)),
+                    right: term!(f(x)),
+                },
+            }
+            .into();
+            assert!(formula.signature().is_ok());
+        }
+    }
+
+    #[test]
+    fn clause_free_vars() {
+        let expected = vec![v!(x), v!(y)];
+        let clause: Clause<_> = vec![
+            Literal::from(Atom {
+                predicate: "P".into(),
+                terms: vec![term!(y)],
+            }),
+            Literal::from(Atom {
+                predicate: "Q".into(),
+                terms: vec![term!(x)],
+            }),
+        ]
+        .into();
+        assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), clause.free_vars());
+    }
+
+    #[test]
+    fn clause_transform() {
+        {
+            let clause: Clause<_> = vec![
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(y)],
+                }),
+                Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(f(x))],
+                }),
+            ]
+            .into();
+            let expected: Clause<_> = vec![
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(y)],
+                }),
+                Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(z)],
+                }),
+            ]
+            .into();
+
+            let f = |t: &Complex| {
+                {
+                    if t == &term!(f(x)) {
+                        term!(z)
+                    } else {
+                        t.clone()
+                    }
+                }
+                .into()
+            };
+            assert_eq!(expected, clause.transform(&f));
+        }
+    }
+
+    #[test]
+    fn clause_signature() {
+        {
+            let clause: Clause<_> = vec![
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(@c)), term!(y)],
+                }),
+                Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(f(x))],
+                }),
+            ]
+            .into();
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("Q"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+
+            assert_eq!(sig, clause.signature().unwrap());
+        }
+        {
+            let clause: Clause<_> = vec![
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(@c, y)), term!(y)],
+                }),
+                Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(f(x))],
+                }),
+            ]
+            .into();
+            assert!(clause.signature().is_err());
+        }
+        {
+            let clause: Clause<_> = vec![
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(@c))],
+                }),
+                Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }),
+            ]
+            .into();
+            assert!(clause.signature().is_ok());
+        }
+    }
+
+    #[test]
+    fn clause_set_free_vars() {
+        let expected = vec![v!(x), v!(y)];
+        let clause: ClauseSet<_> = vec![
+            Clause::from(Literal::from(Atom {
+                predicate: "P".into(),
+                terms: vec![term!(y)],
+            })),
+            Clause::from(Literal::from(Atom {
+                predicate: "Q".into(),
+                terms: vec![term!(x)],
+            })),
+        ]
+        .into();
+        assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), clause.free_vars());
+    }
+
+    #[test]
+    fn clause_set_transform() {
+        {
+            let clause_set: ClauseSet<_> = vec![
+                Clause::from(Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(y)],
+                })),
+                Clause::from(Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(f(x))],
+                })),
+            ]
+            .into();
+            let expected: ClauseSet<_> = vec![
+                Clause::from(Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(y)],
+                })),
+                Clause::from(Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(z)],
+                })),
+            ]
+            .into();
+
+            let f = |t: &Complex| {
+                {
+                    if t == &term!(f(x)) {
+                        term!(z)
+                    } else {
+                        t.clone()
+                    }
+                }
+                .into()
+            };
+            assert_eq!(expected, clause_set.transform(&f));
+        }
+    }
+
+    #[test]
+    fn clause_set_signature() {
+        {
+            let clause_set: ClauseSet<_> = vec![
+                Clause::from(Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(@c)), term!(y)],
+                })),
+                Clause::from(Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(f(x))],
+                })),
+            ]
+            .into();
+            let mut sig = Sig::new();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("P"),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PSig {
+                symbol: Pred::from("Q"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_function(FSig {
+                symbol: Func::from("f"),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant(Const::from("c"));
+
+            assert_eq!(sig, clause_set.signature().unwrap());
+        }
+        {
+            let clause_set: ClauseSet<_> = vec![
+                Clause::from(Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(@c, y)), term!(y)],
+                })),
+                Clause::from(Literal::from(Atom {
+                    predicate: "Q".into(),
+                    terms: vec![term!(f(x))],
+                })),
+            ]
+            .into();
+            assert!(clause_set.signature().is_err());
+        }
+        {
+            let clause_set: ClauseSet<_> = vec![
+                Clause::from(Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(@c))],
+                })),
+                Clause::from(Literal::from(Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                })),
+            ]
+            .into();
+            assert!(clause_set.signature().is_ok());
+        }
     }
 }

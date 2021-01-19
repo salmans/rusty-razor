@@ -347,6 +347,14 @@ mod tests {
             .into();
             assert!(formula.signature().is_err());
         }
+        {
+            let formula: QFF = Atom {
+                predicate: "P".into(),
+                terms: vec![term!(f(x)), term!(f(y))],
+            }
+            .into();
+            assert!(formula.signature().is_ok());
+        }
     }
 
     #[test]
@@ -426,6 +434,14 @@ mod tests {
             }
             .into();
             assert_eq!(sig, formula.signature().unwrap());
+        }
+        {
+            let formula: QFF = Equals {
+                left: term!(f(x)),
+                right: term!(f(y)),
+            }
+            .into();
+            assert!(formula.signature().is_ok());
         }
         {
             let formula: QFF = Equals {
@@ -713,6 +729,22 @@ mod tests {
                 .into(),
                 right: Atom {
                     predicate: "R".into(),
+                    terms: vec![term!(f(y))],
+                }
+                .into(),
+            }
+            .into();
+            assert!(formula.signature().is_ok());
+        }
+        {
+            let formula: QFF = And {
+                left: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+                right: Atom {
+                    predicate: "R".into(),
                     terms: vec![term!(f(x, y))],
                 }
                 .into(),
@@ -890,6 +922,22 @@ mod tests {
             .into();
             assert!(formula.signature().is_err());
         }
+        {
+            let formula: QFF = Or {
+                left: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+                right: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+            }
+            .into();
+            assert!(formula.signature().is_ok());
+        }
     }
 
     #[test]
@@ -1060,6 +1108,22 @@ mod tests {
             .into();
             assert!(formula.signature().is_err());
         }
+        {
+            let formula: QFF = Implies {
+                premise: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+                consequence: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+            }
+            .into();
+            assert!(formula.signature().is_ok());
+        }
     }
 
     #[test]
@@ -1229,6 +1293,22 @@ mod tests {
             }
             .into();
             assert!(formula.signature().is_err());
+        }
+        {
+            let formula: QFF = Iff {
+                left: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+                right: Atom {
+                    predicate: "P".into(),
+                    terms: vec![term!(f(x))],
+                }
+                .into(),
+            }
+            .into();
+            assert!(formula.signature().is_ok());
         }
     }
 }
