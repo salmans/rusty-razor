@@ -28,12 +28,12 @@ pub trait Term {
     /// ```
     fn vars(&self) -> Vec<&Var>;
 
-    /// Applies a transformation function `f` on recursively the subterms of the receiver.
+    /// Applies a transformation function `f` recursively on the subterms of the receiver.
     ///
     /// [`Term`]: crate::syntax::Term
     fn transform(&self, f: &impl Fn(&Self) -> Self) -> Self;
 
-    /// Applies a [`Renaming`] recursively on the variable terms of the receiver.
+    /// Applies a [`Renaming`] on the variable terms of the receiver.
     ///
     /// **Example**:
     /// ```rust
@@ -61,17 +61,17 @@ pub trait Term {
     ///
     /// let t = term!(f(x, z, g(x, y, x)));
     ///
-    /// let s = t.rename_vars(&renaming); // s = f(a, z, g(a, b, a))
+    /// let s = t.rename_var(&renaming); // s = f(a, z, g(a, b, a))
     /// assert_eq!("f(a, z, g(a, b, a))", s.to_string())
     /// ```
-    fn rename_vars(&self, renaming: &impl Renaming) -> Self
+    fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
     {
-        self.transform(&|t: &Self| t.rename_vars(renaming))
+        self.transform(&|t: &Self| t.rename_var(renaming))
     }
 
-    /// Applies a [`Substitution`] recursively on the variable subterms of the receiver.
+    /// Applies a [`Substitution`] on the variable subterms of the receiver.
     ///
     /// **Example**:
     /// ```rust
@@ -177,7 +177,8 @@ impl Renaming for HashMap<&Var, Var> {
     }
 }
 
-/// Represents a (complex) first-order term and consists of variables, constants and function applications.
+/// Represents a (complex) first-order term that consists of variables, constants and
+/// function applications.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Complex {
     /// Is a variable term, wrapping a [variable symbol].
@@ -207,7 +208,7 @@ impl Complex {
         .into()
     }
 
-    /// Builds a term by applying `function` on `args` as arguments.
+    /// Builds a complex term by applying `function` on `args` as arguments.
     pub fn apply(function: Func, terms: Vec<Self>) -> Self {
         Self::App { function, terms }
     }
@@ -223,7 +224,6 @@ impl Term for Complex {
                 for t in terms {
                     sig = sig.merge(t.signature()?)?;
                 }
-
                 sig.add_function(FuncSig {
                     symbol: function.clone(),
                     arity: terms.len() as u8,
@@ -253,12 +253,12 @@ impl Term for Complex {
         f(self)
     }
 
-    fn rename_vars(&self, renaming: &impl Renaming) -> Self {
+    fn rename_var(&self, renaming: &impl Renaming) -> Self {
         match self {
             Self::Const { .. } => self.clone(),
             Self::Var { variable: v } => Complex::from(renaming.apply(v)),
             Self::App { function, terms } => {
-                let terms = terms.iter().map(|t| t.rename_vars(renaming)).collect();
+                let terms = terms.iter().map(|t| t.rename_var(renaming)).collect();
                 function.clone().app(terms)
             }
         }
@@ -320,11 +320,12 @@ impl fmt::Debug for Complex {
     }
 }
 
+/// Is a flat [`Term`] type, consisting of variables only.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Variable(Var);
 
 impl Variable {
-    /// Returns the variable symbol of this variable.
+    /// Returns the variable symbol of this variable term.
     #[inline(always)]
     pub fn symbol(&self) -> &Var {
         &self.0
@@ -358,7 +359,7 @@ impl Term for Variable {
         f(self)
     }
 
-    fn rename_vars(&self, renaming: &impl Renaming) -> Self {
+    fn rename_var(&self, renaming: &impl Renaming) -> Self {
         renaming.apply(&self.0).clone().into()
     }
 
@@ -374,21 +375,21 @@ mod tests {
     use crate::{assert_eq_sorted_vecs, fof, term, v};
 
     #[test]
-    fn test_var_vars() {
+    fn var_vars() {
         let term = term!(x);
         let x = v!(x);
         assert_eq_sorted_vecs!(vec![&x], term.vars());
     }
 
     #[test]
-    fn test_const_vars() {
+    fn const_vars() {
         let expected: Vec<&Var> = Vec::new();
         let fmla = term!(@a);
         assert_eq_sorted_vecs!(expected, fmla.vars());
     }
 
     #[test]
-    fn test_app_to_string() {
+    fn app_to_string() {
         assert_eq!("f()", term!(f()).to_string());
         assert_eq!("f(x, y)", term!(f(x, y)).to_string());
         assert_eq!("f(g(x), y)", term!(f(g(x), y)).to_string());
@@ -399,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn test_app_vars() {
+    fn app_vars() {
         {
             let expected: Vec<&Var> = vec![];
             let fmla = term!(f());
@@ -433,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn test_substitution_map() {
+    fn substitution_map() {
         {
             let map: HashMap<&Var, Complex> = HashMap::new();
             assert_eq!(term!(x), term!(x).substitute(&map));
@@ -460,11 +461,11 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_term() {
-        assert_eq!(term!(x), term!(x).rename_vars(&|v: &Var| v.clone()));
+    fn rename_complex_term() {
+        assert_eq!(term!(x), term!(x).rename_var(&|v: &Var| v.clone()));
         assert_eq!(
             term!(y),
-            term!(x).rename_vars(&|v: &Var| {
+            term!(x).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -474,7 +475,7 @@ mod tests {
         );
         assert_eq!(
             term!(x),
-            term!(x).rename_vars(&|v: &Var| {
+            term!(x).rename_var(&|v: &Var| {
                 if *v == v!(y) {
                     v!(z)
                 } else {
@@ -484,7 +485,7 @@ mod tests {
         );
         assert_eq!(
             term!(f(y)),
-            term!(f(x)).rename_vars(&|v: &Var| {
+            term!(f(x)).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -494,7 +495,7 @@ mod tests {
         );
         assert_eq!(
             term!(f(x)),
-            term!(f(x)).rename_vars(&|v: &Var| {
+            term!(f(x)).rename_var(&|v: &Var| {
                 if *v == v!(z) {
                     v!(y)
                 } else {
@@ -504,7 +505,7 @@ mod tests {
         );
         assert_eq!(
             term!(f(z, z)),
-            term!(f(x, y)).rename_vars(&|v: &Var| {
+            term!(f(x, y)).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -516,7 +517,7 @@ mod tests {
         );
         assert_eq!(
             term!(f(y, g(y, h(z)))),
-            term!(f(x, g(x, h(y)))).rename_vars(&|v: &Var| {
+            term!(f(x, g(x, h(y)))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(y) {
@@ -529,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn test_substitute_term() {
+    fn substitute_complex_term() {
         assert_eq!(term!(x), term!(x).substitute(&|v: &Var| v.clone().into()));
         assert_eq!(
             term!(@a),
@@ -650,10 +651,56 @@ mod tests {
     }
 
     #[test]
+    fn variable_vars() {
+        let v = Variable("x".into());
+        assert_eq!(vec![&v!(x)], v.vars());
+    }
+
+    #[test]
+    fn variable_rename() {
+        {
+            let v = Variable("x".into());
+            let renaming = |v: &Var| if *v == v!(x) { v!(y) } else { v.clone() };
+            assert_eq!(Variable(v!(y)), v.rename_var(&renaming));
+        }
+        {
+            let v = Variable("x".into());
+            let renaming = |v: &Var| if *v == v!(z) { v!(y) } else { v.clone() };
+            assert_eq!(Variable(v!(x)), v.rename_var(&renaming));
+        }
+    }
+
+    #[test]
+    fn variable_substitute() {
+        {
+            let v = Variable("x".into());
+            let subs = |v: &Var| {
+                if *v == v!(x) {
+                    Variable("y".into())
+                } else {
+                    Variable(v.clone())
+                }
+            };
+            assert_eq!(Variable(v!(y)), v.substitute(&subs));
+        }
+        {
+            let v = Variable("x".into());
+            let subs = |v: &Var| {
+                if *v == v!(z) {
+                    Variable("y".into())
+                } else {
+                    Variable(v.clone())
+                }
+            };
+            assert_eq!(Variable(v!(x)), v.substitute(&subs));
+        }
+    }
+
+    #[test]
     fn test_rename_formula() {
         assert_eq!(
             FOF::Top,
-            FOF::Top.rename_vars(&|v: &Var| {
+            FOF::Top.rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -663,7 +710,7 @@ mod tests {
         );
         assert_eq!(
             FOF::Bottom,
-            FOF::Bottom.rename_vars(&|v: &Var| {
+            FOF::Bottom.rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -673,7 +720,7 @@ mod tests {
         );
         assert_eq!(
             fof!((z) = (z)),
-            fof!((x) = (y)).rename_vars(&|v: &Var| {
+            fof!((x) = (y)).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -685,7 +732,7 @@ mod tests {
         );
         assert_eq!(
             fof!(P(x)),
-            fof!(P(x)).rename_vars(&|v: &Var| {
+            fof!(P(x)).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(x)
                 } else {
@@ -695,7 +742,7 @@ mod tests {
         );
         assert_eq!(
             fof!(P(y)),
-            fof!(P(x)).rename_vars(&|v: &Var| {
+            fof!(P(x)).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -705,7 +752,7 @@ mod tests {
         );
         assert_eq!(
             fof!(P(y, z, y)),
-            fof!(P(x, y, x)).rename_vars(&|v: &Var| {
+            fof!(P(x, y, x)).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(y) {
@@ -717,7 +764,7 @@ mod tests {
         );
         assert_eq!(
             fof!(~(P(y, z, y))),
-            fof!(~(P(x, y, x))).rename_vars(&|v: &Var| {
+            fof!(~(P(x, y, x))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(y) {
@@ -729,7 +776,7 @@ mod tests {
         );
         assert_eq!(
             fof!((P(z)) & (Q(z))),
-            fof!((P(x)) & (Q(y))).rename_vars(&|v: &Var| {
+            fof!((P(x)) & (Q(y))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -741,7 +788,7 @@ mod tests {
         );
         assert_eq!(
             fof!((P(z)) | (Q(z))),
-            fof!((P(x)) | (Q(y))).rename_vars(&|v: &Var| {
+            fof!((P(x)) | (Q(y))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -753,7 +800,7 @@ mod tests {
         );
         assert_eq!(
             fof!((P(z)) -> (Q(z))),
-            fof!((P(x)) -> (Q(y))).rename_vars(&|v: &Var| {
+            fof!((P(x)) -> (Q(y))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -765,7 +812,7 @@ mod tests {
         );
         assert_eq!(
             fof!((P(z)) <=> (Q(z))),
-            fof!((P(x)) <=> (Q(y))).rename_vars(&|v: &Var| {
+            fof!((P(x)) <=> (Q(y))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(z)
                 } else if *v == v!(y) {
@@ -777,7 +824,7 @@ mod tests {
         );
         assert_eq!(
             fof!(? x, y. (P(y, y, y))),
-            fof!(? x, y. (P(x, y, z))).rename_vars(&|v: &Var| {
+            fof!(? x, y. (P(x, y, z))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(z) {
@@ -789,7 +836,7 @@ mod tests {
         );
         assert_eq!(
             fof!(! x, y. (P(y, y, y))),
-            fof!(! x, y. (P(x, y, z))).rename_vars(&|v: &Var| {
+            fof!(! x, y. (P(x, y, z))).rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else if *v == v!(z) {
@@ -801,7 +848,7 @@ mod tests {
         );
         assert_eq!(
             fof!(? x. ((!y. ((P(y)) | ((Q(z)) & (R(z))))) & (~((z) = (z))))),
-            fof!(? x. ((!y. ((P(x)) | ((Q(y)) & (R(z))))) & (~((y) = (y))))).rename_vars(
+            fof!(? x. ((!y. ((P(x)) | ((Q(y)) & (R(z))))) & (~((y) = (y))))).rename_var(
                 &|v: &Var| {
                     if *v == v!(x) {
                         v!(y)

@@ -79,11 +79,11 @@ pub trait Formula {
     fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self;
 
     /// Recursively applies a [`Renaming`] on the variable terms of the receiver.
-    fn rename_vars(&self, renaming: &impl Renaming) -> Self
+    fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
     {
-        self.transform(&|t: &Self::Term| t.rename_vars(renaming))
+        self.transform(&|t: &Self::Term| t.rename_var(renaming))
     }
 
     /// Recursively applies a [`Substitution`] on the variable terms of the receiver.

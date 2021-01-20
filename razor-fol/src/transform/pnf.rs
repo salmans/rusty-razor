@@ -228,7 +228,7 @@ fn binary_helper(vars: &[Var], formula: &PNF, other: &PNF) -> (Vec<Var>, PNF) {
         }
     };
     let vars: Vec<Var> = vars.iter().map(&renaming).collect();
-    let fmla = formula.rename_vars(&renaming);
+    let fmla = formula.rename_var(&renaming);
 
     (vars, fmla)
 }
