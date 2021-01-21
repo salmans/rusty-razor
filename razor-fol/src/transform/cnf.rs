@@ -241,7 +241,14 @@ fn cnf(formula: FOF) -> CNF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_debug_string;
+    use crate::{
+        assert_debug_string, assert_eq_sorted_vecs, fof,
+        syntax::{
+            signature::{FuncSig, PredSig},
+            EQ_SYM,
+        },
+        term, v,
+    };
 
     fn cnf(formula: &FOF) -> FOF {
         formula.snf().cnf().into()
@@ -416,6 +423,72 @@ mod tests {
                 .unwrap();
             assert_debug_string!(
         "(((P(f(x, y)) | ~P(x)) | ~P(y)) & (Q(x, f#0(x, y)) | ~P(x))) & (~P(x) | ~P(f#0(x, y)))", cnf(&formula));
+        }
+    }
+
+    #[test]
+    fn cnf_free_vars() {
+        {
+            let cnf = fof!('|').cnf();
+            assert_eq!(Vec::<&Var>::new(), cnf.free_vars());
+        }
+        {
+            let cnf = fof!({P(x, @c)} & {[Q(x)] & [ [Q(y)] | [R()] ]}).cnf();
+            assert_eq_sorted_vecs!(vec![v!(x), v!(y)].iter().collect_vec(), cnf.free_vars());
+        }
+    }
+
+    #[test]
+    fn cnf_transform() {
+        let cnf = fof!({ P(y, f(x)) } & { [Q(f(x))] & [[R(f(x))] | [R(y)]] }).cnf();
+        let f = |t: &Complex| {
+            {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            }
+            .into()
+        };
+        assert_eq!(
+            fof!({ [P(y, z)] & [Q(z)] } & { [R(y)] | [R(z)] }),
+            FOF::from(cnf.transform(&f))
+        );
+    }
+
+    #[test]
+    fn cnf_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: "Q".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: EQ_SYM.into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+
+            let cnf = fof!({P(f(x, @c))} & {[P(y)] & [[Q(x, x)] | [(x) = (y)]]}).cnf();
+            assert_eq!(sig, cnf.signature().unwrap());
+        }
+        {
+            let cnf = fof!({ P(x, x) } & { P(x) }).cnf();
+            assert!(cnf.signature().is_err());
         }
     }
 }
