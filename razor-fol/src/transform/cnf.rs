@@ -17,18 +17,18 @@ use itertools::Itertools;
 use std::{collections::BTreeSet, ops::Deref};
 
 // CNF clauses and clause sets are constructed over complex terms.
-type CnfClause = Clause<Complex>;
-type CnfClauseSet = ClauseSet<Complex>;
+type CNFClause = Clause<Complex>;
+type CNFClauseSet = ClauseSet<Complex>;
 
 /// Represents a formula in Conjunctive Normal Form (CNF).
 ///
 /// **Hint**: A CNF is a firsts-order formula that is a conjunction of zero or
 /// more [`Clause`]s where each clause is a disjunction of [`Literal`]s.
 #[derive(Clone, Debug)]
-pub struct CNF(CnfClauseSet);
+pub struct CNF(CNFClauseSet);
 
-impl From<CnfClauseSet> for CNF {
-    fn from(value: CnfClauseSet) -> Self {
+impl From<CNFClauseSet> for CNF {
+    fn from(value: CNFClauseSet) -> Self {
         Self(value)
     }
 }
@@ -73,17 +73,17 @@ impl<T: ToCNF> From<T> for CNF {
 
 impl CNF {
     /// Returns the clauses of the receiver CNF.
-    pub fn clauses(&self) -> &BTreeSet<CnfClause> {
+    #[inline(always)]
+    pub fn clauses(&self) -> &BTreeSet<CNFClause> {
         &self.0
     }
 
-    /// Consumes the receiver and returns the underlying clauses.
-    pub fn into_clauses(self) -> BTreeSet<CnfClause> {
+    /// Consumes the receiver and returns the underlying set of clauses.
+    pub fn into_clauses(self) -> BTreeSet<CNFClause> {
         self.0.into_clauses()
     }
 
-    #[inline(always)]
-    fn clause_to_fof(clause: CnfClause) -> FOF {
+    fn clause_to_fof(clause: CNFClause) -> FOF {
         clause
             .into_literals()
             .into_iter()
@@ -105,7 +105,7 @@ impl CNF {
 }
 
 impl Deref for CNF {
-    type Target = CnfClauseSet;
+    type Target = CNFClauseSet;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -187,7 +187,6 @@ fn distribute_or(formula: &FOF) -> FOF {
     }
 }
 
-// Eliminates the existential quantifiers of the input formula.
 fn cnf(formula: FOF) -> CNF {
     match formula {
         FOF::Top => CNF::default(),

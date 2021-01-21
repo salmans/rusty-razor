@@ -17,18 +17,18 @@ use itertools::Itertools;
 use std::{collections::BTreeSet, ops::Deref};
 
 // DNF clauses and clause sets are constructed over complex terms.
-type DnfClause = Clause<Complex>;
-type DnfClauseSet = ClauseSet<Complex>;
+type DNFClause = Clause<Complex>;
+type DNFClauseSet = ClauseSet<Complex>;
 
 /// Represents a formula in Disjunctive Normal Form (DNF).
 ///
 /// **Hint**: A DNF is a firsts-order formula that is a disjunction of zero or
 /// more [`Clause`]s where each clause is a conjunction of [`Literal`]s.
 #[derive(Clone)]
-pub struct DNF(DnfClauseSet);
+pub struct DNF(DNFClauseSet);
 
-impl From<DnfClauseSet> for DNF {
-    fn from(value: DnfClauseSet) -> Self {
+impl From<DNFClauseSet> for DNF {
+    fn from(value: DNFClauseSet) -> Self {
         DNF(value)
     }
 }
@@ -77,17 +77,17 @@ impl<T: ToDNF> From<T> for DNF {
 
 impl DNF {
     /// Returns the clauses of the receiver DNF.
-    pub fn clauses(&self) -> &BTreeSet<DnfClause> {
+    #[inline(always)]
+    pub fn clauses(&self) -> &BTreeSet<DNFClause> {
         &self.0
     }
 
     /// Consumes the receiver and returns the underlying clauses.
-    pub fn into_clauses(self) -> BTreeSet<DnfClause> {
+    pub fn into_clauses(self) -> BTreeSet<DNFClause> {
         self.0.into_clauses()
     }
 
-    #[inline(always)]
-    fn clause_to_fof(clause: DnfClause) -> FOF {
+    fn clause_to_fof(clause: DNFClause) -> FOF {
         clause
             .into_literals()
             .into_iter()
@@ -109,7 +109,7 @@ impl DNF {
 }
 
 impl Deref for DNF {
-    type Target = DnfClauseSet;
+    type Target = DNFClauseSet;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -189,7 +189,6 @@ fn distribute_and(formula: &FOF) -> FOF {
     }
 }
 
-// Eliminates the existential quantifiers of the input formula.
 fn dnf(formula: FOF) -> DNF {
     match formula {
         FOF::Top => ClauseSet::from(Clause::default()).into(),

@@ -1,7 +1,7 @@
 /*! Defines an abstract syntax tree (AST) for first-order terms and formulae with equality. */
 pub mod formula;
 mod macros;
-mod signature;
+pub mod signature;
 pub mod symbol;
 pub mod term;
 mod theory;
