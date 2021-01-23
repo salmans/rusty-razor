@@ -1,5 +1,5 @@
 /*! Defines formulae in Prenex Normal Form (PNF) and implements an algorithm for converting
-a [`FOF`] to [`PNF`].
+an [`FOF`] to a [`PNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
@@ -359,7 +359,14 @@ fn pnf(formula: &FOF) -> PNF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{assert_debug_string, fof, pred, term, v, v_1};
+    use crate::{
+        assert_debug_string, assert_eq_sorted_vecs, fof, pred,
+        syntax::{
+            signature::{FuncSig, PredSig, Sig},
+            EQ_SYM,
+        },
+        term, v, v_1,
+    };
 
     fn pnf(formula: &FOF) -> FOF {
         formula.pnf().into()
@@ -1013,6 +1020,83 @@ mod tests {
         {
             let formula: FOF = "!x. ((!y. P(x, y)) -> ?y. Q(x, y))".parse().unwrap();
             assert_debug_string!("! x. (? y. (? y`. (P(x, y) -> Q(x, y`))))", pnf(&formula));
+        }
+    }
+
+    #[test]
+    fn pnf_free_vars() {
+        {
+            let pnf = fof!('|').pnf();
+            assert_eq!(Vec::<&Var>::new(), pnf.free_vars());
+        }
+        {
+            let pnf = fof!(_|_).pnf();
+            assert_eq!(Vec::<&Var>::new(), pnf.free_vars());
+        }
+        {
+            let pnf =
+                fof!(!x . {? y . {[[P(x, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(x, z)}]]}}).pnf();
+            assert_eq_sorted_vecs!(
+                vec![v!(w), v!(z)].iter().collect::<Vec<_>>(),
+                pnf.free_vars()
+            );
+        }
+    }
+
+    #[test]
+    fn pnf_transform() {
+        let pnf =
+            fof!(!x . {? y . {[[P(f(x), y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(f(x), z)}]]}}).pnf();
+        let f = |t: &Complex| {
+            {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            }
+            .into()
+        };
+        assert_eq!(
+            fof!(!x . {? y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),
+            FOF::from(pnf.transform(&f))
+        );
+    }
+
+    #[test]
+    fn pnf_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: "Q".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: EQ_SYM.into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+
+            let pnf =
+                fof!(!x . {? y . {[[P(f(x), y)] & [Q(w)]] -> [[(@c) = (z)] | [~{P(f(x), z)}]]}})
+                    .pnf();
+            assert_eq!(sig, pnf.signature().unwrap());
+        }
+        {
+            let pnf = fof!(!y. { [P(x, y) ] & [ ~(P(x)) ]}).pnf();
+            assert!(pnf.signature().is_err());
         }
     }
 }

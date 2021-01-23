@@ -1,5 +1,5 @@
 /*! Defines formulae in Conjunctive Normal Form (CNF) and implements an algorithm for
-converting [`SNF`] to [`CNF`].
+converting an [`SNF`] to a [`CNF`].
 
 [`SNF`]: crate::transform::SNF
  */

@@ -1,5 +1,5 @@
 /*! Defines formulae in Geometric Normal Form (GNF) and implements an algorithm for
-converting [`CNF`] to [`GNF`].
+converting a [`CNF`] to a [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */

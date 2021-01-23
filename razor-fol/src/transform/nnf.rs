@@ -1,5 +1,5 @@
 /*! Defines formulae in Negation Normal Form (NNF) and implements an algorithm for
-converting a [`FOF`] to [`NNF`].
+converting an [`FOF`] to an [`NNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
@@ -11,14 +11,14 @@ use crate::syntax::{
 
 /// Represents a formula in Negation Normal Form (NNF).
 ///
-/// **Hint**: An NNF is a formula where negation is only applied to its atomic (including
+/// **Hint**: An NNF is a formula where negation is applied only to its atomic (including
 /// equations) sub-formulae.
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub enum NNF {
-    /// Is logical top (⊤) or truth.    
+    /// Is the logical top (⊤) or truth.
     Top,
 
-    /// Is logical bottom (⟘) or falsehood.    
+    /// Is the logical bottom (⟘) or falsehood.    
     Bottom,
 
     /// Is a literal, wrapping a [`Literal`].
@@ -292,7 +292,14 @@ fn nnf(fmla: &FOF) -> NNF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_debug_string;
+    use crate::{
+        assert_debug_string, assert_eq_sorted_vecs, fof,
+        syntax::{
+            signature::{FuncSig, PredSig},
+            EQ_SYM,
+        },
+        term, v,
+    };
 
     fn nnf(formula: &FOF) -> FOF {
         formula.nnf().into()
@@ -471,6 +478,77 @@ mod tests {
         {
             let formula: FOF = "~((?x. P(x)) & (!y. Q(y)))".parse().unwrap();
             assert_debug_string!("(! x. ~P(x)) | (? y. ~Q(y))", nnf(&formula));
+        }
+    }
+
+    #[test]
+    fn nnf_free_vars() {
+        {
+            let nnf = fof!('|').nnf();
+            assert_eq!(Vec::<&Var>::new(), nnf.free_vars());
+        }
+        {
+            let nnf = fof!({!x. {? y. {[P(x, y)] | [~(Q(z))]}}} & {[~(R(x, z))] | [R(@c)]}).nnf();
+            assert_eq_sorted_vecs!(
+                vec![v!(x), v!(z)].iter().collect::<Vec<_>>(),
+                nnf.free_vars()
+            );
+        }
+    }
+
+    #[test]
+    fn nnf_transform() {
+        let nnf = fof!({!x. {? y. {[P(f(x), y)] | [~(Q(z))]}}} & {[~(R(f(x), z))] | [R(@c)]}).nnf();
+        let f = |t: &Complex| {
+            {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            }
+            .into()
+        };
+        assert_eq!(
+            fof!({!x. {? y. {[P(z, y)] | [~(Q(z))]}}} & {[~(R(z, z))] | [R(@c)]}),
+            FOF::from(nnf.transform(&f))
+        );
+    }
+
+    #[test]
+    fn nnf_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: "Q".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: EQ_SYM.into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+
+            let nnf =
+                fof!({!x. {? y. {[P(f(x, y))] | [~(Q(z, z))]}}} & {[~(Q(f(x, y), @c))] | [(x) = (@c)]})
+                    .nnf();
+            assert_eq!(sig, nnf.signature().unwrap());
+        }
+        {
+            let nnf = fof!({ P(x, x) } & { ~(P(x)) }).nnf();
+            assert!(nnf.signature().is_err());
         }
     }
 }

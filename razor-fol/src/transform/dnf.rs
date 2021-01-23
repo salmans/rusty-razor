@@ -1,5 +1,5 @@
 /*! Defines formulae in Disjunctive Normal Form (DNF) and implements an algorithm for
-converting [`SNF`] to [`DNF`].
+converting an [`SNF`] to a [`DNF`].
 
 [`SNF`]: crate::transform::SNF
  */

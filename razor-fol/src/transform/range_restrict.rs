@@ -4,13 +4,12 @@ use crate::syntax::{formula::*, Var};
 impl Relational {
     /// Given a list of variables `range`, ensures that every variable in `range` appears at
     /// least once in the receiver. This is done by conjoining atomic formulae in the form
-    /// of `RR(v)` where `RR` is a "range restriction" predicate with `symbol` as the
-    /// predicate symbol. The transformation fails if the `formula` is not relationalized.
-    /// The underlying algorithm assumes that the input is negation and quantifier-free;
-    /// that is, `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives.
+    /// of `RR(v)` where `RR` is a "range-restriction" predicate with `symbol` as the
+    /// predicate symbol.
     ///
-    /// **Note**: the term "range restriction" is borrowed from the database literature.
-    ///
+    /// **Note**: the term "range-restricted" is borrowed from the [Alice's book] of
+    /// database literature.
+    ///    
     /// **Example**:
     /// ```rust
     /// use razor_fol::{syntax::FOF, transform::{ToGNF, ToRelational}, v};
@@ -22,6 +21,8 @@ impl Relational {
     /// let range_restricted = relational.range_restrict(&vec![v!(x), v!(z)], "RR");
     /// assert_eq!(r"(P(x) ∧ Q(y)) ∧ RR(z)", range_restricted.to_string());
     /// ```
+    ///
+    /// [Alice's book]: http://webdam.inria.fr/Alice/
     pub fn range_restrict(&self, range: &[Var], symbol: &str) -> Relational {
         self.iter()
             .map(|clause| {

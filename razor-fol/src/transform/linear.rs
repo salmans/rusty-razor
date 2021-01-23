@@ -1,8 +1,29 @@
+//! Implements an algorithm for linearizing [`Relational`] formulae.
+
 use super::Relational;
-use crate::syntax::{formula::*, Var};
+use crate::syntax::{formula::*, term::Variable, Var};
 use std::collections::HashMap;
 
 impl Relational {
+    /// Is similar to [`Relational::linear`] but uses a custom closure to create new variable
+    /// terms, created by removing variables that appear in multiple positions of the receiver.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::{ToGNF, ToRelational};
+    ///
+    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
+    /// let gnfs = fof.gnf();
+    /// let gnf_head = gnfs[0].head();
+    /// let relational = gnf_head.relational();
+    /// let mut generator = |name: &str, count| format!("V:{}:{}", name, count).into();    
+    /// let linear = relational.linear_with(&mut generator);
+    /// assert_eq!(    
+    ///     r"(((($f(x, ?0) ∧ ?0 = V:?0:0) ∧ P(V:?0:0)) ∧ @c(?1)) ∧ ?1 = V:?1:0) ∧ Q(V:?1:0)",
+    ///     linear.to_string()
+    /// );
+    /// ```    
     pub fn linear_with<G>(&self, generator: &mut G) -> Relational
     where
         G: FnMut(&str, u32) -> Var,
@@ -24,8 +45,9 @@ impl Relational {
             .into()
     }
 
-    /// Replaces replaces any varialbe `v` that appears in more than one position of `formula`
-    /// with a fresh variable `y` and an atom `=(v, y)` is conjoined with `formula`.
+    /// Returns a new [`Relational`] instance, resulting by replacing any varialbe `v` that
+    /// appears in more than one position of the receiver with a fresh variable `y` and
+    /// conjoined with an equation `v = y`.
     ///
     /// **Example**:
     /// ```rust
@@ -48,6 +70,39 @@ impl Relational {
     }
 }
 
+// A helper to generate new fresh variable terms and equations to extend the original
+// formula.
+fn make_equations<G>(
+    vars: &mut HashMap<Var, u32>,
+    terms: &[Variable],
+    generator: &mut G,
+) -> (Vec<Atomic<Variable>>, Vec<Variable>)
+where
+    G: FnMut(&str, u32) -> Var,
+{
+    let mut equations = Vec::<Atomic<_>>::new();
+    let mut new_terms = Vec::new();
+    for variable in terms {
+        vars.entry(variable.symbol().clone())
+            .and_modify(|count| {
+                let new_var: Var = generator(variable.name(), *count);
+
+                let left = variable.clone();
+                let right = new_var.clone().into();
+
+                equations.push(Equals { left, right }.into());
+                new_terms.push(new_var.into());
+                *count += 1;
+            })
+            .or_insert_with(|| {
+                new_terms.push(variable.clone().into());
+                0
+            });
+    }
+
+    (equations, new_terms)
+}
+
 fn linearize<G>(rel: &Relational, generator: &mut G) -> Relational
 where
     G: FnMut(&str, u32) -> Var,
@@ -59,26 +114,8 @@ where
                 .iter()
                 .flat_map(|atomic| match atomic {
                     Atomic::Atom(this) => {
-                        let mut equations = Vec::<Atomic<_>>::new();
-                        let mut new_terms = Vec::new();
-                        for variable in &this.terms {
-                            vars.entry(variable.symbol().clone())
-                                .and_modify(|count| {
-                                    let new_var: Var = generator(variable.name(), *count);
-
-                                    let left = variable.clone();
-                                    let right = new_var.clone().into();
-
-                                    let eq = Equals { left, right }.into();
-                                    equations.push(eq);
-                                    new_terms.push(new_var.into());
-                                    *count += 1;
-                                })
-                                .or_insert_with(|| {
-                                    new_terms.push(variable.clone().into());
-                                    0
-                                });
-                        }
+                        let (mut equations, new_terms) =
+                            make_equations(&mut vars, &this.terms, generator);
                         equations.push(
                             Atom {
                                 predicate: this.predicate.clone(),
@@ -89,50 +126,15 @@ where
                         equations
                     }
                     Atomic::Equals(this) => {
-                        let mut equations = Vec::<Atomic<_>>::new();
-                        let left = &this.left;
-                        let right = &this.right;
-
-                        // FIXME: get rid of initial variables with dummy names:
-                        let mut new_left = Var::from("");
-                        let mut new_right = Var::from("");
-
-                        vars.entry(left.symbol().clone())
-                            .and_modify(|count| {
-                                let new_var = generator(left.name(), *count);
-                                let left = left.clone();
-                                let right = new_var.clone().into();
-
-                                let eq = Equals { left, right }.into();
-                                equations.push(eq);
-                                new_left = new_var.into();
-                                *count += 1;
-                            })
-                            .or_insert_with(|| {
-                                new_left = left.symbol().clone();
-                                0
-                            });
-
-                        vars.entry(right.symbol().clone())
-                            .and_modify(|count| {
-                                let new_var = generator(right.name(), *count);
-                                let left = right.clone();
-                                let right = new_var.clone().into();
-
-                                let eq = Equals { left, right }.into();
-                                equations.push(eq);
-                                new_right = new_var.into();
-                                *count += 1;
-                            })
-                            .or_insert_with(|| {
-                                new_right = right.symbol().clone();
-                                0
-                            });
+                        // left at index 0 and right at index 1:
+                        let terms = vec![this.left.clone(), this.right.clone()];
+                        let (mut equations, new_terms) =
+                            make_equations(&mut vars, &terms, generator);
 
                         equations.push(
                             Equals {
-                                left: new_left.into(),
-                                right: new_right.into(),
+                                left: new_terms[0].clone(),
+                                right: new_terms[1].clone(),
                             }
                             .into(),
                         );
