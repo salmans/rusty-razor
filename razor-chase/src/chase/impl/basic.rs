@@ -32,12 +32,12 @@ pub enum WitnessTerm {
     /// Wraps an instance of [`E`], witnessing itself.
     ///
     /// [`E`]: crate::chase::E
-    Elem { element: E },
+    Elem(E),
 
     /// Wraps an instance of [`Const`] as a witness term.
     ///
     /// [`Const`]: razor_fol::syntax::Const
-    Const { constant: Const },
+    Const(Const),
 
     /// Corresponds to a composite witness term, made by applying an instance of [`Func`]
     /// to a list of
@@ -52,12 +52,8 @@ impl WitnessTerm {
     /// of a [`Model`], constructs a [`WitnessTerm`].
     fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
         match term {
-            Complex::Const { constant } => Self::Const {
-                constant: constant.clone(),
-            },
-            Complex::Var { variable } => Self::Elem {
-                element: assign(&variable),
-            },
+            Complex::Const(c) => Self::Const(c.clone()),
+            Complex::Var(v) => Self::Elem(assign(&v)),
             Complex::App { function, terms } => {
                 let terms = terms.iter().map(|t| Self::witness(t, assign)).collect();
                 Self::App {
@@ -81,8 +77,8 @@ impl WitnessTermTrait for WitnessTerm {
 impl fmt::Display for WitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            Self::Elem { element } => write!(f, "{}", element),
-            Self::Const { constant } => write!(f, "{}", constant),
+            Self::Elem(e) => write!(f, "{}", e),
+            Self::Const(c) => write!(f, "{}", c),
             Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}[{}]", function, ts.join(", "))
@@ -99,7 +95,7 @@ impl fmt::Debug for WitnessTerm {
 
 impl From<Const> for WitnessTerm {
     fn from(constant: Const) -> Self {
-        Self::Const { constant }
+        Self::Const(constant)
     }
 }
 
@@ -111,7 +107,7 @@ impl From<&Const> for WitnessTerm {
 
 impl From<E> for WitnessTerm {
     fn from(element: E) -> Self {
-        WitnessTerm::Elem { element }
+        WitnessTerm::Elem(element)
     }
 }
 
@@ -178,8 +174,8 @@ impl Model {
     /// Returns a reference to an element witnessed by the given witness term.
     fn element_ref(&self, witness: &WitnessTerm) -> Option<&E> {
         match witness {
-            WitnessTerm::Elem { element } => self.domain_ref().into_iter().find(|e| e.eq(&element)),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness),
+            WitnessTerm::Elem(element) => self.domain_ref().into_iter().find(|e| e.eq(&element)),
+            WitnessTerm::Const(_) => self.rewrites.get(witness),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
@@ -229,7 +225,7 @@ impl Model {
     /// `witness` and adds them to the domain of the receiver.
     fn record(&mut self, witness: &WitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem { element } => {
+            WitnessTerm::Elem(element) => {
                 let element = self.history(element);
                 if self.domain().iter().any(|e| element.eq(e)) {
                     element
@@ -237,7 +233,7 @@ impl Model {
                     unreachable!("missing element `{}`", element)
                 }
             }
-            WitnessTerm::Const { .. } => {
+            WitnessTerm::Const(_) => {
                 if let Some(e) = self.rewrites.get(&witness) {
                     *e
                 } else {
@@ -275,9 +271,9 @@ impl Model {
             let key = if let WitnessTerm::App { function, terms } = k {
                 let mut new_terms: Vec<WitnessTerm> = Vec::new();
                 terms.iter().for_each(|t| {
-                    if let WitnessTerm::Elem { element } = t {
+                    if let WitnessTerm::Elem(element) = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem { element: *from });
+                            new_terms.push(WitnessTerm::Elem(*from));
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -321,7 +317,7 @@ impl Model {
                     let terms: Vec<WitnessTerm> = terms
                         .iter()
                         .map(|t| {
-                            if let WitnessTerm::Elem { element } = t {
+                            if let WitnessTerm::Elem(element) = t {
                                 if element == to {
                                     from.clone().into()
                                 } else {
@@ -786,19 +782,19 @@ mod test_basic {
 
     // Witness Constants
     pub fn _a_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _a() }
+        WitnessTerm::Const(_a())
     }
 
     pub fn _b_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _b() }
+        WitnessTerm::Const(_b())
     }
 
     pub fn _c_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _c() }
+        WitnessTerm::Const(_c())
     }
 
     pub fn _d_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _d() }
+        WitnessTerm::Const(_d())
     }
 
     #[test]

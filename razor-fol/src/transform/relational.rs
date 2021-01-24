@@ -352,11 +352,11 @@ where
     FG: FnMut(&Func) -> Pred,
 {
     match term {
-        Complex::Var { variable } => (None, variable.clone()),
-        Complex::Const { constant } => {
+        Complex::Var(v) => (None, v.clone()),
+        Complex::Const(c) => {
             let var = var_generator();
             let terms = vec![var.clone().into()];
-            let predicate = const_generator(constant);
+            let predicate = const_generator(c);
             let atom = Atom { predicate, terms };
             (Some(vec![atom.into()].into()), var)
         }

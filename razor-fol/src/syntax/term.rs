@@ -181,15 +181,11 @@ impl Renaming for HashMap<&Var, Var> {
 /// function applications.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Complex {
-    /// Is a variable term, wrapping a [variable symbol].
-    ///
-    /// [variable symbol]: crate::syntax::Var
-    Var { variable: Var },
+    /// Is a variable term, wrapping a [`Var`].
+    Var(Var),
 
-    /// Is a constant term, wrapping a [constant symbol].
-    ///
-    /// [constant symbol]: crate::syntax::Const
-    Const { constant: Const },
+    /// Is a constant term, wrapping a [`Const`].
+    Const(Const),
 
     /// Recursively defines a term by applying a `function` on a list of `terms`.
     App { function: Func, terms: Vec<Complex> },
@@ -218,8 +214,8 @@ impl Term for Complex {
     fn signature(&self) -> Result<Sig, Error> {
         let mut sig = Sig::new();
         match self {
-            Complex::Var { .. } => {}
-            Complex::Const { constant } => sig.add_constant(constant.clone()),
+            Complex::Var(_) => {}
+            Complex::Const(constant) => sig.add_constant(constant.clone()),
             Complex::App { function, terms } => {
                 for t in terms {
                     sig = sig.merge(t.signature()?)?;
@@ -238,8 +234,8 @@ impl Term for Complex {
         use itertools::Itertools;
 
         match self {
-            Complex::Var { variable } => vec![variable],
-            Complex::Const { constant: _ } => vec![],
+            Complex::Var(v) => vec![v],
+            Complex::Const(_) => vec![],
             Complex::App { function: _, terms } => terms
                 .iter()
                 .flat_map(|t| t.vars())
@@ -256,7 +252,7 @@ impl Term for Complex {
     fn rename_var(&self, renaming: &impl Renaming) -> Self {
         match self {
             Self::Const { .. } => self.clone(),
-            Self::Var { variable: v } => Complex::from(renaming.apply(v)),
+            Self::Var(v) => Complex::from(renaming.apply(v)),
             Self::App { function, terms } => {
                 let terms = terms.iter().map(|t| t.rename_var(renaming)).collect();
                 function.clone().app(terms)
@@ -266,8 +262,8 @@ impl Term for Complex {
 
     fn substitute(&self, sub: &impl Substitution<Self>) -> Self {
         match self {
-            Self::Const { .. } => self.clone(),
-            Self::Var { variable: v } => sub.apply(v),
+            Self::Const(_) => self.clone(),
+            Self::Var(v) => sub.apply(v),
             Self::App { function, terms } => {
                 let terms = terms.iter().map(|t| t.substitute(sub)).collect();
                 function.clone().app(terms)
@@ -278,7 +274,7 @@ impl Term for Complex {
 
 impl From<Var> for Complex {
     fn from(variable: Var) -> Self {
-        Self::Var { variable }
+        Self::Var(variable)
     }
 }
 
@@ -290,15 +286,15 @@ impl From<&Var> for Complex {
 
 impl From<Const> for Complex {
     fn from(constant: Const) -> Self {
-        Self::Const { constant }
+        Self::Const(constant)
     }
 }
 
 impl fmt::Display for Complex {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            Self::Var { variable } => write!(f, "{}", variable),
-            Self::Const { constant } => write!(f, "{}", constant),
+            Self::Var(v) => write!(f, "{}", v),
+            Self::Const(c) => write!(f, "{}", c),
             Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", function, ts.join(", "))
@@ -310,8 +306,8 @@ impl fmt::Display for Complex {
 impl fmt::Debug for Complex {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Var { variable } => write!(f, "{}", variable),
-            Self::Const { constant } => write!(f, "{}", constant),
+            Self::Var(variable) => write!(f, "{}", variable),
+            Self::Const(constant) => write!(f, "{}", constant),
             Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", function, ts.join(", "))

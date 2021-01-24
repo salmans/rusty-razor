@@ -84,12 +84,12 @@ impl fmt::Debug for Element {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WitnessTerm {
     /// Wraps an instance of [`Element`], witnessing itself.
-    Elem { element: Element },
+    Elem(Element),
 
     /// Wraps an instance of [`Const`] as a witness term.
     ///
     /// [`Const`]: razor_fol::syntax::Const
-    Const { constant: Const },
+    Const(Const),
 
     /// Corresponds to a composite witness term, made by applying an instance of [`Func`]
     /// to a list of
@@ -107,12 +107,8 @@ impl WitnessTerm {
     /// of a [`Model`], constructs a [`WitnessTerm`].
     pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> WitnessTerm {
         match term {
-            Complex::Const { constant } => WitnessTerm::Const {
-                constant: constant.clone(),
-            },
-            Complex::Var { variable } => WitnessTerm::Elem {
-                element: lookup(&variable),
-            },
+            Complex::Const(c) => WitnessTerm::Const(c.clone()),
+            Complex::Var(v) => WitnessTerm::Elem(lookup(&v)),
             Complex::App { function, terms } => {
                 let terms = terms
                     .iter()
@@ -134,8 +130,8 @@ impl WitnessTermTrait for WitnessTerm {
 impl fmt::Display for WitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            WitnessTerm::Elem { element } => write!(f, "{}", element.get()),
-            WitnessTerm::Const { constant } => write!(f, "{}", constant),
+            WitnessTerm::Elem(e) => write!(f, "{}", e.get()),
+            WitnessTerm::Const(c) => write!(f, "{}", c),
             WitnessTerm::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}[{}]", function, ts.join(", "))
@@ -146,13 +142,13 @@ impl fmt::Display for WitnessTerm {
 
 impl From<Const> for WitnessTerm {
     fn from(constant: Const) -> Self {
-        WitnessTerm::Const { constant }
+        WitnessTerm::Const(constant)
     }
 }
 
 impl From<Element> for WitnessTerm {
     fn from(element: Element) -> Self {
-        WitnessTerm::Elem { element }
+        WitnessTerm::Elem(element)
     }
 }
 
@@ -232,8 +228,8 @@ impl Model {
     /// Returns a reference to an element witnessed by the given witness term.
     fn element_ref(&self, witness: &WitnessTerm) -> Option<&Element> {
         match witness {
-            WitnessTerm::Elem { element } => self.lookup_element(&element),
-            WitnessTerm::Const { .. } => self.lookup_witness(witness),
+            WitnessTerm::Elem(e) => self.lookup_element(&e),
+            WitnessTerm::Const(_) => self.lookup_witness(witness),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&Element>> =
                     terms.iter().map(|t| self.element_ref(t)).collect();
@@ -286,11 +282,11 @@ impl Model {
     /// `witness` and adds them to the domain of the receiver.
     fn record(&mut self, witness: &WitnessTerm) -> Element {
         match witness {
-            WitnessTerm::Elem { element } => {
-                let element = self.history(element);
+            WitnessTerm::Elem(e) => {
+                let element = self.history(e);
                 self.lookup_element(&element).unwrap().clone()
             }
-            WitnessTerm::Const { .. } => {
+            WitnessTerm::Const(_) => {
                 if let Some(e) = self.lookup_witness(witness) {
                     e.clone()
                 } else {
@@ -419,18 +415,14 @@ impl Clone for Model {
         let domain: Vec<Element> = self.domain.iter().map(|e| e.deep_clone()).collect();
         let map_element = |e: &Element| domain.iter().find(|&x| x == e).unwrap().clone();
         let map_term = |w: &WitnessTerm| match w {
-            WitnessTerm::Elem { element } => WitnessTerm::Elem {
-                element: map_element(element),
-            },
-            WitnessTerm::Const { .. } => w.clone(),
+            WitnessTerm::Elem(e) => WitnessTerm::Elem(map_element(e)),
+            WitnessTerm::Const(_) => w.clone(),
             WitnessTerm::App { function, terms } => {
                 let terms = terms
                     .iter()
                     .map(|t| {
-                        if let WitnessTerm::Elem { element } = t {
-                            WitnessTerm::Elem {
-                                element: map_element(element),
-                            }
+                        if let WitnessTerm::Elem(e) = t {
+                            WitnessTerm::Elem(map_element(e))
                         } else {
                             unreachable!("expecting an element, found `{}`", t)
                         }

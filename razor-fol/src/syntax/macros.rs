@@ -107,14 +107,10 @@ macro_rules! pred {
 #[macro_export]
 macro_rules! term {
     ($v:ident) => {
-        $crate::syntax::term::Complex::Var {
-            variable: $crate::v!($v),
-        }
+        $crate::syntax::term::Complex::Var($crate::v!($v))
     };
     (@$c:ident) => {
-        $crate::syntax::term::Complex::Const {
-            constant: $crate::c!($c),
-        }
+        $crate::syntax::term::Complex::Const($crate::c!($c))
     };
     ($func:ident ($($t:tt)*)) => {
         {
