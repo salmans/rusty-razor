@@ -153,11 +153,7 @@ impl<T: Term + Ord> Formula for Clause<T> {
     }
 
     fn free_vars(&self) -> Vec<&Var> {
-        let mut vs = Vec::new();
-        for lit in &self.0 {
-            vs.extend(lit.free_vars());
-        }
-        vs.into_iter().unique().collect()
+        self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
     fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
@@ -257,11 +253,7 @@ impl<T: Term + Ord> Formula for ClauseSet<T> {
     }
 
     fn free_vars(&self) -> Vec<&Var> {
-        let mut vs = Vec::new();
-        for clause in &self.0 {
-            vs.extend(clause.free_vars());
-        }
-        vs.into_iter().unique().collect()
+        self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
     fn transform(&self, f: &impl Fn(&T) -> T) -> Self {

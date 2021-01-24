@@ -1046,7 +1046,7 @@ mod test_basic {
             sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            // Note: only range restricted geometric formulae get compressed
+            // Note: only range restricted geometric formulae get contracted
             "[[P(x), Q(x)] -> [[Q(y)]]]",
             sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
         );

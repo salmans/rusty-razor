@@ -15,5 +15,5 @@ pub use dnf::{ToDNF, DNF};
 pub use gnf::{PCFSet, ToGNF, GNF, PCF};
 pub use nnf::{ToNNF, NNF};
 pub use pnf::{ToPNF, PNF};
-pub use relational::{RelClause, Relational, ToRelational};
+pub use relational::{FlatClause, Relational, ToRelational};
 pub use snf::{ToSNF, SNF};

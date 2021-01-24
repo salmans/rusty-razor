@@ -11,7 +11,7 @@ use razor_fol::{
         term::Variable,
         Formula, EQ_SYM,
     },
-    transform::{RelClause, Relational},
+    transform::{FlatClause, Relational},
 };
 use std::collections::HashMap;
 
@@ -191,7 +191,7 @@ impl<'d> Convertor<'d> {
         use itertools::Itertools;
 
         self.clause_set(
-            &rel.iter().map(RelClause::atomics).collect_vec(),
+            &rel.iter().map(FlatClause::literals).collect_vec(),
             &AttributeList::new(vec![]),
             attributes,
         )
@@ -542,7 +542,7 @@ mod tests {
             let formula = fof!(P(x));
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x)]))
@@ -560,7 +560,7 @@ mod tests {
             let formula = fof!(P(x));
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
@@ -578,7 +578,7 @@ mod tests {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(
@@ -604,7 +604,7 @@ mod tests {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(
@@ -630,7 +630,7 @@ mod tests {
             let formula = fof!(Q(x, y));
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x), v!(x)]))
@@ -665,7 +665,7 @@ mod tests {
             let formula = fof!({D(x, y, z)} -> {[P(x)] & [R(y, z)]});
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x), v!(y), v!(z)]))
@@ -692,7 +692,7 @@ mod tests {
             let formula = fof!({D(x, y)} -> {[P(x)] & [R(y, x)]});
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
@@ -706,7 +706,7 @@ mod tests {
             let formula = fof!({D(x, y)} -> {[P(x)] & [R(x, y)]});
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![v!(y)]), &atts!(vec![v!(x), v!(y)]))
@@ -723,7 +723,7 @@ mod tests {
             let formula = fof!({D(x, y, z)} -> {[P(x)] & [Q(y, z)]});
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![v!(x), v!(y)]), &atts!([v!(y), v!(x)]))
@@ -750,7 +750,7 @@ mod tests {
             let formula = fof!({D(x, y, z)} -> {[P(x)] & [Q(y, z)]});
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(
@@ -801,7 +801,7 @@ mod tests {
             let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(x), v!(y)]))
@@ -826,7 +826,7 @@ mod tests {
             let formula = fof!([Q(x, y)] | [R(y, x)]);
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![]), &atts!(vec![v!(y)]))
@@ -863,7 +863,7 @@ mod tests {
             let formula = fof!([D(x)] -> [{ [P(x)] & [P(x)] } & { P(x) }]);
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
@@ -880,7 +880,7 @@ mod tests {
             let formula = fof!([D(x, y)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y)] }]);
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(&clauses, &atts!(vec![v!(x)]), &atts!(vec![v!(x)]))
@@ -897,7 +897,7 @@ mod tests {
             let formula = fof!([D(x, y, z)] -> [{ [P(x)] & [P(x)] } & { [P(x)] & [Q(y, z)] }]);
             let mut convertor = Convertor::new();
             let relational = relational_head(formula);
-            let clauses = relational.iter().map(RelClause::atomics).collect_vec();
+            let clauses = relational.iter().map(FlatClause::literals).collect_vec();
 
             let result = convertor
                 .clause_set(

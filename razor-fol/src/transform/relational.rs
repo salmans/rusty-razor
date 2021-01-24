@@ -8,53 +8,64 @@ use crate::syntax::{
 use itertools::Itertools;
 use std::{collections::HashMap, ops::Deref};
 
-type FlatAtom = Atomic<Variable>;
+// Atomic formula over flat terms to build relational formulae
+type FlatLiteral = Atomic<Variable>;
 
+/// Consists of a list of [`Atomic`]s over flat terms of type [`Variable`], treated as an
+/// ordered (multi-)set of literals. A [`FlatClause`] in interpreted as a conjunction of
+/// literals.
+///
+/// **Note**: unlike [`Clause`] which is implemented by a [`BTreeSet`] of literals,
+/// it is more convenient to process [`Relational`] formula as a vector of literals, where
+/// literals are topologically sorted (see [`ToRelational::relational`]).
+///
+/// [`Clause`]: crate::syntax::formula::clause::Clause
+/// [`BTreeSet`]: std::collections::BTreeSet
 #[derive(Clone, Debug)]
-pub struct RelClause(Vec<FlatAtom>);
+pub struct FlatClause(Vec<FlatLiteral>);
 
-impl RelClause {
-    /// Returns the list of atomic formulae of the receiver clause.
-    pub fn atomics(&self) -> &[FlatAtom] {
+impl FlatClause {
+    /// Returns the list of literals of the receiver.
+    pub fn literals(&self) -> &[FlatLiteral] {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of [`Atomic`]s.
-    pub fn into_atomics(self) -> Vec<FlatAtom> {
+    /// Consumes the receiver and returns its underlying list of literals.
+    pub fn into_literals(self) -> Vec<FlatLiteral> {
         self.0
     }
 }
 
-impl Deref for RelClause {
-    type Target = [FlatAtom];
+impl Deref for FlatClause {
+    type Target = [FlatLiteral];
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<FlatAtom> for RelClause {
-    fn from(value: FlatAtom) -> Self {
+impl From<FlatLiteral> for FlatClause {
+    fn from(value: FlatLiteral) -> Self {
         Self(vec![value])
     }
 }
 
-impl<I> From<I> for RelClause
+impl<I> From<I> for FlatClause
 where
-    I: IntoIterator<Item = FlatAtom>,
+    I: IntoIterator<Item = FlatLiteral>,
 {
     fn from(value: I) -> Self {
         Self(value.into_iter().collect())
     }
 }
 
-impl Default for RelClause {
+impl Default for FlatClause {
     fn default() -> Self {
         Self(Vec::new())
     }
 }
 
-impl Formula for RelClause {
+impl Formula for FlatClause {
     type Term = Variable;
 
     fn signature(&self) -> Result<Sig, Error> {
@@ -66,11 +77,7 @@ impl Formula for RelClause {
     }
 
     fn free_vars(&self) -> Vec<&Var> {
-        let mut vs = Vec::new();
-        for lit in &self.0 {
-            vs.extend(lit.free_vars());
-        }
-        vs.into_iter().unique().collect()
+        self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
     fn transform(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
@@ -78,8 +85,8 @@ impl Formula for RelClause {
     }
 }
 
-impl From<FlatAtom> for FOF {
-    fn from(value: FlatAtom) -> Self {
+impl From<FlatLiteral> for FOF {
+    fn from(value: FlatLiteral) -> Self {
         match value {
             Atomic::Atom(this) => Atom::<Complex> {
                 predicate: this.predicate,
@@ -95,10 +102,10 @@ impl From<FlatAtom> for FOF {
     }
 }
 
-impl From<RelClause> for FOF {
-    fn from(value: RelClause) -> Self {
+impl From<FlatClause> for FOF {
+    fn from(value: FlatClause) -> Self {
         value
-            .into_atomics()
+            .into_literals()
             .into_iter()
             .map(FOF::from)
             .fold1(|item, acc| item.and(acc))
@@ -111,21 +118,21 @@ impl From<RelClause> for FOF {
 /// transform positive formulae in the head and body of a [`GNF`] to relational forms.
 ///
 /// **Hint**: A relationalized formula contains only (flat) variable terms with
-/// no function symbol nor constants.
+/// no functions nor constants.
 ///
 /// [`GNF`]: crate::transform::GNF
 #[derive(Clone, Debug)]
-pub struct Relational(Vec<RelClause>);
+pub struct Relational(Vec<FlatClause>);
 
-impl From<RelClause> for Relational {
-    fn from(value: RelClause) -> Self {
+impl From<FlatClause> for Relational {
+    fn from(value: FlatClause) -> Self {
         vec![value].into_iter().into()
     }
 }
 
 impl<I> From<I> for Relational
 where
-    I: IntoIterator<Item = RelClause>,
+    I: IntoIterator<Item = FlatClause>,
 {
     fn from(value: I) -> Self {
         Self(value.into_iter().collect())
@@ -133,17 +140,19 @@ where
 }
 
 impl Relational {
-    pub fn clauses(&self) -> &[RelClause] {
+    /// Returns the list of clauses of the receiver.
+    pub fn clauses(&self) -> &[FlatClause] {
         &self.0
     }
 
-    pub fn into_clauses(self) -> Vec<RelClause> {
+    /// Consumes the receiver and returns its underlying list of clauses.
+    pub fn into_clauses(self) -> Vec<FlatClause> {
         self.0
     }
 }
 
 impl Deref for Relational {
-    type Target = [RelClause];
+    type Target = [FlatClause];
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -152,12 +161,13 @@ impl Deref for Relational {
 
 impl Default for Relational {
     fn default() -> Self {
-        Vec::<RelClause>::new().into()
+        Vec::<FlatClause>::new().into()
     }
 }
 
 pub trait ToRelational: Formula {
-    /// Is similar to [`PCFSet::relational`] but uses custom closures for generating symbols.
+    /// Is similar to [`ToRelational::relational`] but uses custom closures for generating symbols.
+    ///
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::{FOF, Const, Var, Func};
@@ -195,13 +205,11 @@ pub trait ToRelational: Formula {
     ///
     /// **Note:**
     /// The underlying algorithm works on input first-order formulae that are negation and quantifier-free:
-    /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. This requirement is satisfied by an instance
-    /// of PcfSet, which represents a Disjunctive Normal Form over positive literals.
-    /// Relationalization consists of applying the following rewrites on the input formula:
+    /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. Relationalization consists of applying
+    /// the following rewrites on the input formula:
     ///   * A constant `'c` rewrites to a predicate `C(x)`.
     ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
     /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
-    ///   * An equation `v = y` rewrites to an atomic formula `=(x, y)`.
     ///
     /// In the resulting formula, the new (placeholder) variables are sorted topologically from
     /// left to right where the ordering relation is the dependency between the new variables.
@@ -233,7 +241,6 @@ pub trait ToRelational: Formula {
         };
         let mut const_generator = |c: &Const| format!("@{}", c.name()).into();
         let mut fn_generator = |f: &Func| format!("${}", f.name()).into();
-
         self.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
     }
 }
@@ -250,7 +257,7 @@ impl ToRelational for PCF {
         CG: FnMut(&Const) -> Pred,
         FG: FnMut(&Func) -> Pred,
     {
-        // keeping track of the generated variables to remove reflexive equations later on:
+        // keeping track of the generated variables to remove redundant equations later on:
         let mut generated_vars = Vec::new();
         let mut var_generator_ex = || {
             let v = var_generator();
@@ -259,23 +266,7 @@ impl ToRelational for PCF {
         };
         let flattened = flatten_clause(self, &mut var_generator_ex, const_generator, fn_generator);
         let relational: Relational = flattened.into();
-        let simplified = simplify_equations(&relational, &mut generated_vars);
-
-        simplified
-            .into_clauses()
-            .into_iter()
-            .map(|clause| {
-                clause
-                    .into_atomics()
-                    .into_iter()
-                    // remove reflexive equations:
-                    .filter(|atomic| match atomic {
-                        Atomic::Equals(this) => this.left != this.right,
-                        _ => true,
-                    })
-                    .into()
-            })
-            .into()
+        simplify_equations(&relational, &mut generated_vars)
     }
 }
 
@@ -300,23 +291,7 @@ impl ToRelational for PCFSet {
         };
         let flattened =
             flatten_clause_set(self, &mut var_generator_ex, const_generator, fn_generator);
-        let simplified = simplify_equations(&flattened, &mut generated_vars);
-
-        simplified
-            .into_clauses()
-            .into_iter()
-            .map(|clause| {
-                clause
-                    .into_atomics()
-                    .into_iter()
-                    // remove reflexive equations:
-                    .filter(|atomic| match atomic {
-                        Atomic::Equals(this) => this.left != this.right,
-                        _ => true,
-                    })
-                    .into()
-            })
-            .into()
+        simplify_equations(&flattened, &mut generated_vars)
     }
 }
 
@@ -332,11 +307,7 @@ impl Formula for Relational {
     }
 
     fn free_vars(&self) -> Vec<&Var> {
-        let mut vs = Vec::new();
-        for clause in &self.0 {
-            vs.extend(clause.free_vars());
-        }
-        vs.into_iter().unique().collect()
+        self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
     fn transform(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
@@ -374,7 +345,7 @@ fn flatten_term<VG, CG, FG>(
     var_generator: &mut VG,
     const_generator: &mut CG,
     fn_generator: &mut FG,
-) -> (Option<RelClause>, Var)
+) -> (Option<FlatClause>, Var)
 where
     VG: FnMut() -> Var,
     CG: FnMut(&Const) -> Pred,
@@ -397,7 +368,7 @@ where
                     let (clauses, var) =
                         flatten_term(t, var_generator, const_generator, fn_generator);
                     if let Some(cs) = clauses {
-                        conjuncts.extend(cs.into_atomics());
+                        conjuncts.extend(cs.into_literals());
                     }
                     var.into()
                 })
@@ -434,13 +405,39 @@ where
         .into()
 }
 
+// A helper to generate new flat variable terms and equations to extend the original formula.
+fn make_equations<VG, CG, FG>(
+    terms: &[Complex],
+    var_generator: &mut VG,
+    const_generator: &mut CG,
+    fn_generator: &mut FG,
+) -> (Vec<Atomic<Variable>>, Vec<Variable>)
+where
+    VG: FnMut() -> Var,
+    CG: FnMut(&Const) -> Pred,
+    FG: FnMut(&Func) -> Pred,
+{
+    let mut conjuncts = Vec::new();
+    let terms = terms
+        .iter()
+        .map(|t| {
+            let (clauses, var) = flatten_term(t, var_generator, const_generator, fn_generator);
+            if let Some(cs) = clauses {
+                conjuncts.extend(cs.into_literals());
+            }
+            var.into()
+        })
+        .collect::<Vec<Variable>>();
+    (conjuncts, terms)
+}
+
 // Applies top level flattening on the input clause set.
 fn flatten_clause<VG, CG, FG>(
     clause: &PCF,
     var_generator: &mut VG,
     const_generator: &mut CG,
     fn_generator: &mut FG,
-) -> RelClause
+) -> FlatClause
 where
     VG: FnMut() -> Var,
     CG: FnMut(&Const) -> Pred,
@@ -450,48 +447,33 @@ where
         .iter()
         .flat_map(|lit| match lit {
             Atomic::Atom(this) => {
-                let mut conjuncts = Vec::new();
-                let terms = this
-                    .terms
-                    .iter()
-                    .map(|t| {
-                        let (clauses, var) =
-                            flatten_term(t, var_generator, const_generator, fn_generator);
-                        if let Some(cs) = clauses {
-                            conjuncts.extend(cs.into_atomics());
-                        }
-                        var.into()
-                    })
-                    .collect::<Vec<Variable>>();
-
-                let atom = Atom {
-                    predicate: this.predicate.clone(),
-                    terms,
-                }
-                .into();
-
+                let (mut conjuncts, flat_terms) =
+                    make_equations(&this.terms, var_generator, const_generator, fn_generator);
                 // !!! Preserving the topological order among variables:
-                conjuncts.push(atom);
+                conjuncts.push(
+                    Atom {
+                        predicate: this.predicate.clone(),
+                        terms: flat_terms,
+                    }
+                    .into(),
+                );
                 conjuncts
             }
             Atomic::Equals(this) => {
-                let mut conjuncts = vec![];
-                let (left_clauses, left_var) =
-                    flatten_term(&this.left, var_generator, const_generator, fn_generator);
-                if let Some(cs) = left_clauses {
-                    conjuncts.extend(cs.into_atomics());
-                }
-                let left = left_var.into();
+                // left at index 0 and right at index 1:
+                let terms = vec![this.left.clone(), this.right.clone()];
+                let (mut conjuncts, mut flat_terms) =
+                    make_equations(&terms, var_generator, const_generator, fn_generator);
 
-                let (right_clauses, right_var) =
-                    flatten_term(&this.right, var_generator, const_generator, fn_generator);
-                if let Some(cs) = right_clauses {
-                    conjuncts.extend(cs.into_atomics());
-                }
-                let right = right_var.into();
-                let equals = Equals { left, right }.into();
-
-                conjuncts.push(equals);
+                assert_eq!(2, flat_terms.len());
+                // !!! Preserving the topological order among variables:
+                conjuncts.push(
+                    Equals {
+                        left: flat_terms.remove(0),
+                        right: flat_terms.remove(0),
+                    }
+                    .into(),
+                );
                 conjuncts
             }
         })
@@ -503,7 +485,7 @@ where
 fn equation_rewrites<'a>(
     clause_set: &'a Relational,
     map: &mut HashMap<&'a Var, &'a Var>,
-    generated_variables: &mut Vec<Var>,
+    generated_variables: &mut [Var],
 ) {
     clause_set.iter().for_each(|clause| {
         clause.iter().for_each(|atomic| match atomic {
@@ -540,7 +522,8 @@ fn equation_rewrites<'a>(
 
 // Simplify tries to minimize the use of existential variables (generated by relationalize) by replacing
 // them with universal or other existential variables that are syntactically equal with them.
-fn simplify_equations(clause_set: &Relational, generated_variables: &mut Vec<Var>) -> Relational {
+// It also removes reflexive equations
+fn simplify_equations(clause_set: &Relational, generated_variables: &mut [Var]) -> Relational {
     let mut map = HashMap::new();
     equation_rewrites(clause_set, &mut map, generated_variables);
 
@@ -548,18 +531,38 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut Vec<Var
         let variable = map.get(v).map(|&t| t.clone()).unwrap_or_else(|| v.clone());
         Variable::from(variable)
     };
-    clause_set.substitute(&sub)
+
+    clause_set
+        .substitute(&sub)
+        .into_clauses()
+        .into_iter()
+        .map(|clause| {
+            clause
+                .into_literals()
+                .into_iter()
+                // remove reflexive equations:
+                .filter(|atomic| match atomic {
+                    Atomic::Equals(this) => this.left != this.right,
+                    _ => true,
+                })
+                .into()
+        })
+        .into()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{fof, transform::PCF};
+    use crate::{
+        assert_eq_sorted_vecs, fof,
+        syntax::{signature::PredSig, Sig, EQ_SYM},
+        term,
+        transform::{ToGNF, PCF},
+        v,
+    };
 
     // Assumes the input in GNF
     fn clause_set(fof: FOF) -> Vec<PCFSet> {
-        use crate::transform::ToGNF;
-
         fof.gnf()
             .into_iter()
             .map(|f| f.into_body_and_head().1)
@@ -712,6 +715,110 @@ mod tests {
                 terms: vec![term!(x), term!(f(x))],
             })]);
             assert_eq!("$f(x, ?0) ∧ P(x, ?0)", clause_set.relational().to_string());
+        }
+    }
+
+    #[test]
+    fn relational_free_vars() {
+        {
+            let mut gnf = fof!({'|'} -> {_|_}).gnf();
+            assert_eq!(1, gnf.len());
+            let (body, head) = gnf.remove(0).into_body_and_head();
+            let body = body.relational();
+            let head = head.relational();
+            assert_eq!(Vec::<&Var>::new(), body.free_vars());
+            assert_eq!(Vec::<&Var>::new(), head.free_vars());
+        }
+        {
+            // !! only the head of range restricted sequents gets contracted during GNF conversion.
+            // !! make sure the test gnf is not getting simplified by the conversion algorithm.
+            let mut gnf =
+                fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}).gnf();
+            assert_eq!(1, gnf.len());
+            let (body, head) = gnf.remove(0).into_body_and_head();
+            let body = body.relational();
+            let head = head.relational();
+            assert_eq_sorted_vecs!(
+                vec![v!(x), v!(y), v!(z)].iter().collect::<Vec<_>>(),
+                body.free_vars()
+            );
+            assert_eq_sorted_vecs!(
+                vec![v!(x), v!(y), v!(z)].iter().collect::<Vec<_>>(),
+                head.free_vars()
+            );
+        }
+    }
+
+    #[test]
+    fn relational_transform() {
+        let mut gnf =
+            fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}).gnf();
+        let f = |t: &Variable| {
+            {
+                if *t == Var::from("x").into() {
+                    Var::from("z").into()
+                } else {
+                    t.clone()
+                }
+            }
+            .into()
+        };
+        assert_eq!(1, gnf.len());
+        let (body, head) = gnf.remove(0).into_body_and_head();
+        let body = body.relational();
+        let head = head.relational();
+        assert_eq!(
+            fof!([[P(z)] & [P(z)]] & [Q(z, y)]),
+            FOF::from(body.transform(&f))
+        );
+        assert_eq!(
+            fof!([(P(z)) & ([z] = [y])] | [Q(z, y)]),
+            FOF::from(head.transform(&f))
+        );
+    }
+
+    #[test]
+    fn relational_signature() {
+        {
+            let mut sig_body = Sig::new();
+            sig_body
+                .add_predicate(PredSig {
+                    symbol: "P".into(),
+                    arity: 1,
+                })
+                .unwrap();
+            sig_body
+                .add_predicate(PredSig {
+                    symbol: "Q".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            let mut sig_head = sig_body.clone();
+            sig_head
+                .add_predicate(PredSig {
+                    symbol: EQ_SYM.into(),
+                    arity: 2,
+                })
+                .unwrap();
+
+            let mut gnf =
+                fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}).gnf();
+            assert_eq!(1, gnf.len());
+            let (body, head) = gnf.remove(0).into_body_and_head();
+            let body = body.relational();
+            let head = head.relational();
+            assert_eq!(sig_body, body.signature().unwrap());
+            assert_eq!(sig_head, head.signature().unwrap());
+        }
+        {
+            let mut gnf =
+                fof!({[[P(x)] & [Q(x, y)]] & [P(z, z)]} -> {[(P(x)) & ([z] = [y])] | [P(x, y)]})
+                    .gnf();
+            let (body, head) = gnf.remove(0).into_body_and_head();
+            let body = body.relational();
+            let head = head.relational();
+            assert!(body.signature().is_err());
+            assert!(head.signature().is_err());
         }
     }
 }

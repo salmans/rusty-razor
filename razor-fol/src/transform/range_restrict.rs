@@ -1,4 +1,4 @@
-use super::{RelClause, Relational};
+use super::{FlatClause, Relational};
 use crate::syntax::{formula::*, Var};
 
 impl Relational {
@@ -29,8 +29,8 @@ impl Relational {
                 let free = clause.free_vars();
                 let mut range = Vec::from(range);
                 range.retain(|x| !free.contains(&x));
-                let mut atomics = clause.atomics().to_vec();
-                atomics.extend(restrict(&range, symbol).into_atomics());
+                let mut atomics = clause.literals().to_vec();
+                atomics.extend(restrict(&range, symbol).into_literals());
                 atomics.into()
             })
             .into()
@@ -39,7 +39,7 @@ impl Relational {
 
 // Is a helper for `range_restrict` to build range_restriction conjuncts.
 #[inline(always)]
-fn restrict(range: &[Var], symbol: &str) -> RelClause {
+fn restrict(range: &[Var], symbol: &str) -> FlatClause {
     let mut result = Vec::new();
     for v in range {
         result.push(

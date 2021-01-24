@@ -33,7 +33,7 @@ impl Relational {
             .into_iter()
             .map(|clause| {
                 clause
-                    .into_atomics()
+                    .into_literals()
                     .into_iter()
                     // remove reflexive equations:
                     .filter(|atomic| match atomic {
@@ -70,8 +70,7 @@ impl Relational {
     }
 }
 
-// A helper to generate new fresh variable terms and equations to extend the original
-// formula.
+// A helper to generate new fresh variable terms and equations to extend the original formula.
 fn make_equations<G>(
     vars: &mut HashMap<Var, u32>,
     terms: &[Variable],
@@ -128,13 +127,14 @@ where
                     Atomic::Equals(this) => {
                         // left at index 0 and right at index 1:
                         let terms = vec![this.left.clone(), this.right.clone()];
-                        let (mut equations, new_terms) =
+                        let (mut equations, mut new_terms) =
                             make_equations(&mut vars, &terms, generator);
 
+                        assert_eq!(2, new_terms.len());
                         equations.push(
                             Equals {
-                                left: new_terms[0].clone(),
-                                right: new_terms[1].clone(),
+                                left: new_terms.remove(0),
+                                right: new_terms.remove(0),
                             }
                             .into(),
                         );
@@ -175,7 +175,7 @@ mod tests {
     fn test_linear() {
         // Note: the body of sequents in the tests below are needed to satisfy
         // the requirement that heads of geometric sequents with no free variables
-        // in their head gets compressed; otherwise, these tests wouldn't not
+        // in their head gets contracted; otherwise, these tests wouldn't not
         // be interesting.
         assert_eq!("[]", linear(fof!('|')));
         assert_eq!("[false]", linear(fof!(_|_)));

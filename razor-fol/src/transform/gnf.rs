@@ -303,7 +303,7 @@ pub trait ToGNF: Formula {
 impl ToGNF for CNF {
     fn gnf(&self) -> Vec<GNF> {
         let gnfs = self.iter().map(gnf).collect();
-        compress_geometric(gnfs)
+        contract(gnfs)
     }
 }
 
@@ -391,12 +391,12 @@ impl<T: ToGNF> Theory<T> {
 
         // Assuming that the conversion does not change the signature of the theory,
         // so it's safe to unwrap:
-        Theory::try_from(compress_geometric(formulae)).unwrap()
+        Theory::try_from(contract(formulae)).unwrap()
     }
 }
 
 // a helper to merge sequents with syntactically identical bodies
-fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
+fn contract(formulae: Vec<GNF>) -> Vec<GNF> {
     formulae
         .into_iter()
         .sorted_by(|first, second| first.body().cmp(second.body()))
@@ -405,7 +405,7 @@ fn compress_geometric(formulae: Vec<GNF>) -> Vec<GNF> {
             // merge the ones with the same body:
             let body_vars = first.body().free_vars();
             let head_vars = first.head().free_vars();
-            // compress sequents with no free variables that show up only in head:
+            // contract sequents with no free variables that show up only in head:
             if head_vars
                 .iter()
                 .all(|hv| body_vars.iter().any(|bv| bv == hv))
@@ -1109,7 +1109,7 @@ mod tests {
             assert_eq!(Vec::<&Var>::new(), gnf[0].free_vars());
         }
         {
-            // Only the heads of range-restricted formula get compressed:
+            // Only the heads of range-restricted formula get contracted:
             let gnf = fof!({[P(x, @c)] & [Q(y)]} -> {[Q(x)] | [ [Q(y)] & [R()] ]}).gnf();
             assert_eq!(1, gnf.len());
             assert_eq_sorted_vecs!(vec![v!(x), v!(y)].iter().collect_vec(), gnf[0].free_vars());
@@ -1175,7 +1175,7 @@ mod tests {
 
     #[test]
     fn test_gnf_theory() {
-        // mostly testing if compression of head works properly:
+        // mostly testing if contraction works properly:
         {
             let theory: Theory<FOF> = "P('a); P('b);".parse().unwrap();
             assert_eq!("⊤ → (P(\'a) ∧ P(\'b))", theory.gnf().to_string());
