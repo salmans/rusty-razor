@@ -280,7 +280,7 @@ impl<'d> Convertor<'d> {
     ) -> Result<SubExpression, Error> {
         // `equals.left` is at index 0 and `equals.right` at index 1:
         let (expr_attrs, expr_indices) =
-            attributes_and_indices(attrs, &vec![equals.left.clone(), equals.right.clone()])?;
+            attributes_and_indices(attrs, &[equals.left.clone(), equals.right.clone()])?;
 
         let to_project = attrs.len() != 2 || expr_indices != [0, 1];
 

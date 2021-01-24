@@ -360,11 +360,11 @@ impl Term for Variable {
     }
 
     fn rename_var(&self, renaming: &impl Renaming) -> Self {
-        renaming.apply(&self.0).clone().into()
+        renaming.apply(&self.0).into()
     }
 
     fn substitute(&self, sub: &impl Substitution<Self>) -> Self {
-        sub.apply(&self.0).into()
+        sub.apply(&self.0)
     }
 }
 

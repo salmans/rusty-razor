@@ -461,9 +461,12 @@ where
             }
             Atomic::Equals(this) => {
                 // left at index 0 and right at index 1:
-                let terms = vec![this.left.clone(), this.right.clone()];
-                let (mut conjuncts, mut flat_terms) =
-                    make_equations(&terms, var_generator, const_generator, fn_generator);
+                let (mut conjuncts, mut flat_terms) = make_equations(
+                    &[this.left.clone(), this.right.clone()],
+                    var_generator,
+                    const_generator,
+                    fn_generator,
+                );
 
                 assert_eq!(2, flat_terms.len());
                 // !!! Preserving the topological order among variables:
@@ -488,8 +491,8 @@ fn equation_rewrites<'a>(
     generated_variables: &mut [Var],
 ) {
     clause_set.iter().for_each(|clause| {
-        clause.iter().for_each(|atomic| match atomic {
-            Atomic::Equals(this) => {
+        clause.iter().for_each(|atomic| {
+            if let Atomic::Equals(this) = atomic {
                 let left = &this.left;
                 let right = &this.right;
 
@@ -515,7 +518,6 @@ fn equation_rewrites<'a>(
                     _ => {}
                 }
             }
-            _ => {}
         });
     });
 }

@@ -94,7 +94,7 @@ where
                 *count += 1;
             })
             .or_insert_with(|| {
-                new_terms.push(variable.clone().into());
+                new_terms.push(variable.clone());
                 0
             });
     }
@@ -126,9 +126,11 @@ where
                     }
                     Atomic::Equals(this) => {
                         // left at index 0 and right at index 1:
-                        let terms = vec![this.left.clone(), this.right.clone()];
-                        let (mut equations, mut new_terms) =
-                            make_equations(&mut vars, &terms, generator);
+                        let (mut equations, mut new_terms) = make_equations(
+                            &mut vars,
+                            &[this.left.clone(), this.right.clone()],
+                            generator,
+                        );
 
                         assert_eq!(2, new_terms.len());
                         equations.push(
