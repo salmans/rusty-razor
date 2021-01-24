@@ -1,4 +1,4 @@
-/*! Defines formulae in Prenex Normal Form (PNF) and implements an algorithm for converting
+/*! Defines formulae in Prenex Normal Form (PNF) and implements an algorithm for transforming
 an [`FOF`] to a [`PNF`].
 
 [`FOF`]: crate::syntax::FOF
@@ -81,6 +81,7 @@ impl From<QFF> for PNF {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to [`PNF`].
 pub trait ToPNF: Formula {
     /// Transforms the receiver formula to a Prenex Normal Form (PNF).
     ///
@@ -145,17 +146,17 @@ impl Formula for PNF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            PNF::QFF(this) => this.transform(f).into(),
+            PNF::QFF(this) => this.transform_term(f).into(),
             PNF::Exists(this) => Exists {
                 variables: this.variables.clone(),
-                formula: this.formula.transform(f),
+                formula: this.formula.transform_term(f),
             }
             .into(),
             PNF::Forall(this) => Forall {
                 variables: this.variables.clone(),
-                formula: this.formula.transform(f),
+                formula: this.formula.transform_term(f),
             }
             .into(),
         }
@@ -1059,7 +1060,7 @@ mod tests {
         };
         assert_eq!(
             fof!(!x . {? y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),
-            FOF::from(pnf.transform(&f))
+            FOF::from(pnf.transform_term(&f))
         );
     }
 

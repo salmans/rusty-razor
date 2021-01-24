@@ -24,8 +24,8 @@ impl Func {
     /// Applies the receiver on a list of terms. The length of `terms` must be equal to
     /// the (assumed) arity of the function.
     ///
-    /// **Note**: the definition of [`Func`] does not impose any restrictions on the
-    /// arity of function symbols. The user is expected to assume the arity of the function.
+    /// **Note**: the definition of [`Func`] does not impose restriction on the
+    /// arity of the function. The user is expected to assume the arity of the function.
     ///
     /// [`Func`]: crate::syntax::Func
     pub fn app(self, args: Vec<Complex>) -> Complex {
@@ -128,8 +128,8 @@ impl Pred {
     /// Applies the receiver on a list of arguments. The length of `terms` must be equal to
     /// the (assumed) arity of the predicate.
     ///
-    /// **Note**: the definition of [`Pred`] does not impose any restrictions
-    /// on the arity of predicate symbols. The user is expected to assume the arity of the predicate.
+    /// **Note**: the definition of [`Pred`] does not impose restriction on the arity
+    /// of the predicate. The user is expected to assume the arity of the predicate.
     ///
     /// [`Pred`]: crate::syntax::Pred
     pub fn app(self, terms: Vec<Complex>) -> FOF {

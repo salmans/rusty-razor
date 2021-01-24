@@ -150,7 +150,7 @@ impl SubExpression {
     }
 
     /// Consumes the receiver and returns its `expression`.
-    fn into_expression(self) -> Mono<Tuple> {
+    fn into_mono(self) -> Mono<Tuple> {
         self.expression
     }
 }
@@ -195,10 +195,10 @@ impl<'d> Convertor<'d> {
             &AttributeList::new(vec![]),
             attributes,
         )
-        .map(SubExpression::into_expression)
+        .map(SubExpression::into_mono)
     }
 
-    /// Memoizes `sub_expr` if the receiver is a memoizing instance.
+    // Memoizes `sub_expr` if the receiver is a memoizing instance.
     fn memoize(&mut self, sub_expr: &mut SubExpression) -> Result<(), codd::Error> {
         if let Some(database) = &mut self.database {
             if !self.views.contains_key(sub_expr.raw()) {
@@ -351,7 +351,6 @@ impl<'d> Convertor<'d> {
 
                 let mut expr_attrs = Vec::new(); // attributes of the resulting expression
                 let mut expr_indices = Vec::new(); // indices of those attributes
-
                 for attr in attrs.iter() {
                     let mut left_iter = left_sub.attributes.iter();
                     let mut right_iter = right_sub.attributes.iter();
@@ -371,7 +370,7 @@ impl<'d> Convertor<'d> {
                 let raw = RawExpression::join(
                     left_sub.raw,
                     right_sub.raw,
-                    expr_indices.iter().map(|ei| ei.map(|i| i as u8)).collect(),
+                    expr_indices.iter().map(|e| e.map(|i| i as u8)).collect(),
                 );
 
                 let join = left_sub
@@ -413,7 +412,6 @@ impl<'d> Convertor<'d> {
                 // Disjuctions simply hope that left and right have the same attributes:
                 let left_exp = self.clause(first, key_attrs, attrs)?;
                 let right_exp = self.clause_set(rest, key_attrs, attrs)?;
-
                 assert_eq!(left_exp.attributes, right_exp.attributes);
 
                 let union = left_exp
@@ -459,7 +457,6 @@ fn attributes_and_indices(
 
     let mut expr_attrs = Vec::new(); // attributes of the resulting expression
     let mut expr_indices = Vec::new(); // positions of those attributes in the tuple
-
     target.iter().for_each(|attr| {
         let mut vars_iter = var_attrs.iter();
         if let Some(p) = vars_iter.position(|item| item == attr) {

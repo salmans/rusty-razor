@@ -1,4 +1,4 @@
-/*! Defines formulae in Skolem Normal Form (SNF) and implements an algorithm for converting
+/*! Defines formulae in Skolem Normal Form (SNF) and implements an algorithm for transforming
 a [`PNF`] to an [`SNF`].
 
 [`PNF`]: crate::transform::PNF
@@ -15,7 +15,7 @@ use std::collections::HashMap;
 /// [PNF]: crate::transform::PNF
 #[derive(Clone, Debug)]
 pub enum SNF {
-    /// Is the quantifier-free sub-formula of an [`SNF`].
+    /// Is the quantifier-free part of the [`SNF`].
     QFF(QFF),
 
     /// Is a universally quantified formula, wrapping a [`Forall`].
@@ -76,9 +76,10 @@ impl From<QFF> for SNF {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to [`SNF`].
 pub trait ToSNF: Formula {
-    /// Is similar to [`ToSNF::snf`] but uses a custom closure to avoid collision
-    /// when generating Skolem function names (including Skolem constants).
+    /// Is similar to [`ToSNF::snf`] but uses a custom closure to generate Skolem
+    /// function and constant names.
     ///
     /// **Example**:
     /// ```rust
@@ -229,12 +230,12 @@ impl Formula for SNF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            SNF::QFF(this) => this.transform(f).into(),
+            SNF::QFF(this) => this.transform_term(f).into(),
             SNF::Forall(this) => Forall {
                 variables: this.variables.clone(),
-                formula: this.formula.transform(f),
+                formula: this.formula.transform_term(f),
             }
             .into(),
         }
@@ -387,7 +388,7 @@ mod tests {
         };
         assert_eq!(
             fof!(!x . {! y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),
-            FOF::from(snf.transform(&f))
+            FOF::from(snf.transform_term(&f))
         );
     }
 

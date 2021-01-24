@@ -1,4 +1,5 @@
-/*! Implements a relationalization algorithm for formulae.*/
+/*! Defines a relational formula and implements an algorithm for transforming compatible formula types
+to [`Relational`].*/
 use super::{PCFSet, PCF};
 use crate::syntax::{
     formula::*,
@@ -16,8 +17,8 @@ type FlatLiteral = Atomic<Variable>;
 /// literals.
 ///
 /// **Note**: unlike [`Clause`] which is implemented by a [`BTreeSet`] of literals,
-/// it is more convenient to process [`Relational`] formula as a vector of literals, where
-/// literals are topologically sorted (see [`ToRelational::relational`]).
+/// it is more convenient to process [`Relational`] formula as a vector of literals
+/// that are topologically sorted (see [`ToRelational::relational`]).
 ///
 /// [`Clause`]: crate::syntax::formula::clause::Clause
 /// [`BTreeSet`]: std::collections::BTreeSet
@@ -80,8 +81,8 @@ impl Formula for FlatClause {
         self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
-        self.0.iter().map(|lit| lit.transform(f)).into()
+    fn transform_term(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
+        self.0.iter().map(|lit| lit.transform_term(f)).into()
     }
 }
 
@@ -113,11 +114,12 @@ impl From<FlatClause> for FOF {
     }
 }
 
-/// Represents a relational formula as a Disjunctive Normal Form (DNF) over positive atomic
-/// formulae with flat terms. In Razor, the primary use-case of this type is to
-/// transform positive formulae in the head and body of a [`GNF`] to relational forms.
+/// Represents a relational formula as a Disjunctive Normal Form (DNF) over positive
+/// literals with flat terms. The primary use-case of this type is to transform
+/// positive formulae in the head and body of a [`GNF`] to relational expressions
+/// as database queries.
 ///
-/// **Hint**: A relationalized formula contains only (flat) variable terms with
+/// **Hint**: A relational formula contains only (flat) variable terms with
 /// no functions nor constants.
 ///
 /// [`GNF`]: crate::transform::GNF
@@ -140,12 +142,12 @@ where
 }
 
 impl Relational {
-    /// Returns the list of clauses of the receiver.
+    /// Returns the clauses of the receiver.
     pub fn clauses(&self) -> &[FlatClause] {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of clauses.
+    /// Consumes the receiver and returns its underlying clauses.
     pub fn into_clauses(self) -> Vec<FlatClause> {
         self.0
     }
@@ -165,29 +167,48 @@ impl Default for Relational {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to [`Relational`].
 pub trait ToRelational: Formula {
-    /// Is similar to [`ToRelational::relational`] but uses custom closures for generating symbols.
+    /// Is similar to [`ToRelational::relational`] but uses custom closures for generating new symbols.
     ///
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::{FOF, Const, Var, Func};
     /// use razor_fol::transform::{ToGNF, ToRelational};
     ///
-    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
+    /// let fof = "P(x) & Q(g(x)) -> (P(f(x)) & Q('c)) | R(x)".parse::<FOF>().unwrap();
     /// let gnfs = fof.gnf();
+    ///
+    /// // The body and head of a GNF can be relationalized:
+    /// let gnf_body = gnfs[0].body();
     /// let gnf_head = gnfs[0].head();
+    ///
     /// let mut var_counter = 0;
     /// let mut var_generator = || {
-    ///    let name = var_counter.to_string();
-    ///    var_counter += 1;
-    ///    name.into()
+    ///     let name = var_counter.to_string();
+    ///     var_counter += 1;
+    ///     name.into()
     /// };
     /// let mut const_generator = |c: &Const| c.name().to_uppercase().into();
-    /// let mut fn_generator = |f: &Func| f.name().to_uppercase().into();    
-    /// let transformed = gnf_head.relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
+    /// let mut fn_generator = |f: &Func| f.name().to_uppercase().into();
+    /// let body = gnf_body.relational_with(
+    ///     &mut var_generator,
+    ///     &mut const_generator,
+    ///     &mut fn_generator
+    /// );
     /// assert_eq!(
-    ///     r"((F(x, 0) ∧ P(0)) ∧ C(1)) ∧ Q(1)",
-    ///     transformed.to_string()
+    ///     r"(P(x) ∧ G(x, 0)) ∧ Q(0)",
+    ///     body.to_string()
+    /// );    
+    ///
+    /// let head = gnf_head.relational_with(
+    ///     &mut var_generator,
+    ///     &mut const_generator,
+    ///     &mut fn_generator
+    /// );
+    /// assert_eq!(
+    ///     r"(((F(x, 1) ∧ P(1)) ∧ C(2)) ∧ Q(2)) ∨ R(x)",
+    ///     head.to_string()
     /// );
     /// ```
     fn relational_with<VG, CG, FG>(
@@ -204,15 +225,15 @@ pub trait ToRelational: Formula {
     /// Applies the relationalization algorithm on the receiver and returns a relational formula.    
     ///
     /// **Note:**
-    /// The underlying algorithm works on input first-order formulae that are negation and quantifier-free:
-    /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. Relationalization consists of applying
-    /// the following rewrites on the input formula:
+    /// The underlying algorithm works on first-order formulae that are negation and quantifier-free:
+    /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. The transformation consists of applying
+    /// the following rewrites on the receiver:
     ///   * A constant `'c` rewrites to a predicate `C(x)`.
     ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
     /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
     ///
     /// In the resulting formula, the new (placeholder) variables are sorted topologically from
-    /// left to right where the ordering relation is the dependency between the new variables.
+    /// left to right with the dependency between variables as the ordering relation as follows:
     /// A varialbe `v` depends on a variable `y` if and only if for a new function predicate, namely `F`,
     /// `F(..., y,..., v)` is a conjunct in the formula (i.e., the result of the
     /// function replaced by `F`, applied to its arguments, depends on `y`).
@@ -282,7 +303,7 @@ impl ToRelational for PCFSet {
         CG: FnMut(&Const) -> Pred,
         FG: FnMut(&Func) -> Pred,
     {
-        // keeping track of the generated variables to remove reflexive equations later on:
+        // keeping track of the generated variables to remove redundant equations later on:
         let mut generated_vars = Vec::new();
         let mut var_generator_ex = || {
             let v = var_generator();
@@ -310,8 +331,8 @@ impl Formula for Relational {
         self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
-        self.0.iter().map(|clause| clause.transform(f)).into()
+    fn transform_term(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
+        self.0.iter().map(|clause| clause.transform_term(f)).into()
     }
 }
 
@@ -338,8 +359,8 @@ impl std::fmt::Display for Relational {
     }
 }
 
-// Recursively flattens a term and returns the resulting formula together with a placeholder variable
-// for the term. Nothing needs to be done if the input term is a variable.
+// Recursively flattens a term and returns the resulting formula together with a placeholder
+// variable for the term. Nothing needs to be done if the input term is a variable.
 fn flatten_term<VG, CG, FG>(
     term: &Complex,
     var_generator: &mut VG,
@@ -449,7 +470,9 @@ where
             Atomic::Atom(this) => {
                 let (mut conjuncts, flat_terms) =
                     make_equations(&this.terms, var_generator, const_generator, fn_generator);
-                // !!! Preserving the topological order among variables:
+
+                // !!! To preserve the topological order among variables,
+                // append the new atom to the end:
                 conjuncts.push(
                     Atom {
                         predicate: this.predicate.clone(),
@@ -469,14 +492,12 @@ where
                 );
 
                 assert_eq!(2, flat_terms.len());
-                // !!! Preserving the topological order among variables:
-                conjuncts.push(
-                    Equals {
-                        left: flat_terms.remove(0),
-                        right: flat_terms.remove(0),
-                    }
-                    .into(),
-                );
+                let left = flat_terms.remove(0);
+                let right = flat_terms.remove(0);
+
+                // !!! To preserve the topological order among variables,
+                // append the new equation to the end:
+                conjuncts.push(Equals { left, right }.into());
                 conjuncts
             }
         })
@@ -524,7 +545,7 @@ fn equation_rewrites<'a>(
 
 // Simplify tries to minimize the use of existential variables (generated by relationalize) by replacing
 // them with universal or other existential variables that are syntactically equal with them.
-// It also removes reflexive equations
+// It also removes reflexive equations.
 fn simplify_equations(clause_set: &Relational, generated_variables: &mut [Var]) -> Relational {
     let mut map = HashMap::new();
     equation_rewrites(clause_set, &mut map, generated_variables);
@@ -543,9 +564,12 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut [Var]) 
                 .into_literals()
                 .into_iter()
                 // remove reflexive equations:
-                .filter(|atomic| match atomic {
-                    Atomic::Equals(this) => this.left != this.right,
-                    _ => true,
+                .filter(|atomic| {
+                    if let Atomic::Equals(this) = atomic {
+                        this.left != this.right
+                    } else {
+                        true
+                    }
                 })
                 .into()
         })
@@ -771,11 +795,11 @@ mod tests {
         let head = head.relational();
         assert_eq!(
             fof!([[P(z)] & [P(z)]] & [Q(z, y)]),
-            FOF::from(body.transform(&f))
+            FOF::from(body.transform_term(&f))
         );
         assert_eq!(
             fof!([(P(z)) & ([z] = [y])] | [Q(z, y)]),
-            FOF::from(head.transform(&f))
+            FOF::from(head.transform_term(&f))
         );
     }
 

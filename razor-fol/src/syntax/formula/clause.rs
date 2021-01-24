@@ -64,10 +64,10 @@ impl<T: Term> Formula for Literal<T> {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
+    fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
         match self {
-            Literal::Pos(this) => Self::Pos(this.transform(f)),
-            Literal::Neg(this) => Self::Neg(this.transform(f)),
+            Literal::Pos(this) => Self::Pos(this.transform_term(f)),
+            Literal::Neg(this) => Self::Neg(this.transform_term(f)),
         }
     }
 }
@@ -156,8 +156,8 @@ impl<T: Term + Ord> Formula for Clause<T> {
         self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
-        self.0.iter().map(|lit| lit.transform(f)).into()
+    fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
+        self.0.iter().map(|lit| lit.transform_term(f)).into()
     }
 }
 
@@ -196,7 +196,7 @@ impl<T: Term> ClauseSet<T> {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying clauses.
+    /// Consumes the receiver and returns its underlying set of clauses.
     pub fn into_clauses(self) -> BTreeSet<Clause<T>> {
         self.0
     }
@@ -256,8 +256,8 @@ impl<T: Term + Ord> Formula for ClauseSet<T> {
         self.0.iter().flat_map(|l| l.free_vars()).unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
-        self.0.iter().map(|clause| clause.transform(f)).into()
+    fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
+        self.0.iter().map(|clause| clause.transform_term(f)).into()
     }
 }
 
@@ -349,7 +349,7 @@ mod tests {
                     predicate: "P".into(),
                     terms: vec![term!(z), term!(y)],
                 }),
-                formula.transform(&f)
+                formula.transform_term(&f)
             );
         }
         {
@@ -377,7 +377,7 @@ mod tests {
                         terms: vec![term!(z), term!(y)],
                     }
                 }),
-                formula.transform(&f)
+                formula.transform_term(&f)
             );
         }
         {
@@ -398,7 +398,7 @@ mod tests {
                     left: term!(z),
                     right: term!(y),
                 }),
-                formula.transform(&f)
+                formula.transform_term(&f)
             );
         }
         {
@@ -423,7 +423,7 @@ mod tests {
                         right: term!(y),
                     }
                 }),
-                formula.transform(&f)
+                formula.transform_term(&f)
             );
         }
     }
@@ -662,7 +662,7 @@ mod tests {
                 }
                 .into()
             };
-            assert_eq!(expected, clause.transform(&f));
+            assert_eq!(expected, clause.transform_term(&f));
         }
     }
 
@@ -783,7 +783,7 @@ mod tests {
                 }
                 .into()
             };
-            assert_eq!(expected, clause_set.transform(&f));
+            assert_eq!(expected, clause_set.transform_term(&f));
         }
     }
 

@@ -35,10 +35,10 @@ pub enum FOF {
     /// Is an bi-implication between two first-order formulae, wrapping an [`Iff`].    
     Iff(Box<Iff<FOF>>),
 
-    /// Is an existentially quantified formula, wrapping an [`Exists`].
+    /// Is an existentially quantified first-order formula, wrapping an [`Exists`].
     Exists(Box<Exists<FOF>>),
 
-    /// Is a universally quantified formula, wrapping a [`Forall`].
+    /// Is a universally quantified first-order formula, wrapping a [`Forall`].
     Forall(Box<Forall<FOF>>),
 }
 
@@ -151,42 +151,42 @@ impl FOF {
         Forall { variables, formula }.into()
     }
 
-    /// Returns a conjunction of the receiver and `formula`.
+    /// Returns a conjunction of the receiver and `other`.
     #[inline(always)]
-    pub fn and(self, formula: Self) -> Self {
+    pub fn and(self, other: Self) -> Self {
         And {
             left: self,
-            right: formula,
+            right: other,
         }
         .into()
     }
 
-    /// Returns a disjunction of the receiver and `formula`.
+    /// Returns a disjunction of the receiver and `other`.
     #[inline(always)]
-    pub fn or(self, formula: Self) -> Self {
+    pub fn or(self, other: Self) -> Self {
         Or {
             left: self,
-            right: formula,
+            right: other,
         }
         .into()
     }
 
-    /// Returns an implication between the receiver and `formula`.
+    /// Returns an implication between the receiver and `other`.
     #[inline(always)]
-    pub fn implies(self, formula: Self) -> Self {
+    pub fn implies(self, other: Self) -> Self {
         Implies {
             premise: self,
-            consequence: formula,
+            consequence: other,
         }
         .into()
     }
 
-    /// Returns a bi-implication between the receiver and `formula`.
+    /// Returns a bi-implication between the receiver and `other`.
     #[inline(always)]
-    pub fn iff(self, formula: Self) -> Self {
+    pub fn iff(self, other: Self) -> Self {
         Iff {
             left: self,
-            right: formula,
+            right: other,
         }
         .into()
     }
@@ -227,18 +227,18 @@ impl Formula for FOF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             FOF::Top | FOF::Bottom => self.clone(),
-            FOF::Atom(this) => this.transform(f).into(),
-            FOF::Equals(this) => this.transform(f).into(),
-            FOF::Not(this) => this.transform(f).into(),
-            FOF::And(this) => this.transform(f).into(),
-            FOF::Or(this) => this.transform(f).into(),
-            FOF::Implies(this) => this.transform(f).into(),
-            FOF::Iff(this) => this.transform(f).into(),
-            FOF::Exists(this) => this.transform(f).into(),
-            FOF::Forall(this) => this.transform(f).into(),
+            FOF::Atom(this) => this.transform_term(f).into(),
+            FOF::Equals(this) => this.transform_term(f).into(),
+            FOF::Not(this) => this.transform_term(f).into(),
+            FOF::And(this) => this.transform_term(f).into(),
+            FOF::Or(this) => this.transform_term(f).into(),
+            FOF::Implies(this) => this.transform_term(f).into(),
+            FOF::Iff(this) => this.transform_term(f).into(),
+            FOF::Exists(this) => this.transform_term(f).into(),
+            FOF::Forall(this) => this.transform_term(f).into(),
         }
     }
 }

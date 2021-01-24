@@ -119,11 +119,11 @@ impl Sig {
         for c in other.constants {
             sig.add_constant(c);
         }
-        for f in other.functions.values() {
-            sig.add_function(f.clone())?;
+        for (_, f) in other.functions.into_iter() {
+            sig.add_function(f)?;
         }
-        for p in other.predicates.values() {
-            sig.add_predicate(p.clone())?;
+        for (_, p) in other.predicates.into_iter() {
+            sig.add_predicate(p)?;
         }
 
         Ok(sig)

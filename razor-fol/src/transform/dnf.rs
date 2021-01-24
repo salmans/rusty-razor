@@ -1,5 +1,5 @@
 /*! Defines formulae in Disjunctive Normal Form (DNF) and implements an algorithm for
-converting an [`SNF`] to a [`DNF`].
+transforming an [`SNF`] to a [`DNF`].
 
 [`SNF`]: crate::transform::SNF
  */
@@ -33,6 +33,7 @@ impl From<DNFClauseSet> for DNF {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to [`DNF`].
 pub trait ToDNF: Formula {
     /// Transform the receiver formula to a Disjunctive Normal Form (DNF).
     ///
@@ -139,8 +140,8 @@ impl Formula for DNF {
         self.0.free_vars()
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        DNF(self.0.transform(f))
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        DNF(self.0.transform_term(f))
     }
 }
 
@@ -439,7 +440,7 @@ mod tests {
         };
         assert_eq!(
             fof!({ [P(y, z)] | [Q(z)] } | { [R(y)] & [R(z)] }),
-            FOF::from(dnf.transform(&f))
+            FOF::from(dnf.transform_term(&f))
         );
     }
 

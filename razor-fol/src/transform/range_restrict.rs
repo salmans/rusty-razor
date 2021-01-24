@@ -1,11 +1,12 @@
+//! Implements a range-restriction algorithm for [`Relational`] formulae.
 use super::{FlatClause, Relational};
 use crate::syntax::{formula::*, Var};
 
 impl Relational {
     /// Given a list of variables `range`, ensures that every variable in `range` appears at
-    /// least once in the receiver. This is done by conjoining atomic formulae in the form
-    /// of `RR(v)` where `RR` is a "range-restriction" predicate with `symbol` as the
-    /// predicate symbol.
+    /// least once in the formula represented by the receiver. This is done by conjoining
+    /// atomic formulae in the form of `RR(v)` where `RR` is a "range-restriction" predicate
+    /// with `symbol` as the predicate symbol.
     ///
     /// **Note**: the term "range-restricted" is borrowed from the [Alice's book] of
     /// database literature.
@@ -29,9 +30,9 @@ impl Relational {
                 let free = clause.free_vars();
                 let mut range = Vec::from(range);
                 range.retain(|x| !free.contains(&x));
-                let mut atomics = clause.literals().to_vec();
-                atomics.extend(restrict(&range, symbol).into_literals());
-                atomics.into()
+                let mut literals = clause.literals().to_vec();
+                literals.extend(restrict(&range, symbol).into_literals());
+                literals.into()
             })
             .into()
     }

@@ -60,7 +60,6 @@ fn equality_axioms() -> Vec<GNF> {
     // fof!(['|'] -> [(x) = (x)]),
     // symmetric (not needed):
     // fof!([(x) = (y)] -> [(y) = (x)]),
-
     // transitive:
     fof!({[(x) = (y)] & [(y) = (z)]} -> {(x) = (z)}).gnf()
 }

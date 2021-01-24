@@ -13,23 +13,23 @@ use itertools::Itertools;
 use std::{fmt, hash::Hash};
 
 // Precedence of basic formula types:
-pub(crate) const PRECEDENCE_AND: u8 = 7;
-pub(crate) const PRECEDENCE_OR: u8 = 7;
-pub(crate) const PRECEDENCE_IMPLIES: u8 = 7;
-pub(crate) const PRECEDENCE_IFF: u8 = 7;
-pub(crate) const PRECEDENCE_EXISTS: u8 = 7;
-pub(crate) const PRECEDENCE_FORALL: u8 = 7;
-pub(crate) const PRECEDENCE_EQUALS: u8 = 8;
-pub(crate) const PRECEDENCE_NOT: u8 = 9;
-pub(crate) const PRECEDENCE_ATOM: u8 = 10;
+pub(crate) const PRECEDENCE_AND: u8 = 1;
+pub(crate) const PRECEDENCE_OR: u8 = 1;
+pub(crate) const PRECEDENCE_IMPLIES: u8 = 1;
+pub(crate) const PRECEDENCE_IFF: u8 = 1;
+pub(crate) const PRECEDENCE_EXISTS: u8 = 1;
+pub(crate) const PRECEDENCE_FORALL: u8 = 1;
+pub(crate) const PRECEDENCE_EQUALS: u8 = 2;
+pub(crate) const PRECEDENCE_NOT: u8 = 3;
+pub(crate) const PRECEDENCE_ATOM: u8 = 4;
 
 /// Is the trait of various formula types.
 pub trait Formula {
-    /// Is the type of [`Term`]s in this type of formula.
+    /// Is the type of [`Term`]s used in the formula.
     type Term: Term;
 
-    /// Returns the signature on which the formula is defined. It fails if there are
-    /// the underlying signature is inconsistent.
+    /// Returns the signature on which the formula is defined. It fails if the underlying
+    /// signature is inconsistent.
     ///
     /// **Example**:
     /// ```rust
@@ -55,14 +55,14 @@ pub trait Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{Var, FOF};
+    /// # use razor_fol::{v, syntax::FOF};
     /// # use itertools::Itertools;
     /// use razor_fol::syntax::Formula;
     ///
     /// // `x`, `y` and `z` are variable symbols:
-    /// let x = Var::from("x");
-    /// let y = Var::from("y");
-    /// let z = Var::from("z");
+    /// let x = v!(x);
+    /// let y = v!(y);
+    /// let z = v!(z);
     ///
     /// let formula: FOF = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
     /// assert_eq!(vec![&x, &y, &z].iter().sorted(), formula.free_vars().iter().sorted());
@@ -76,14 +76,14 @@ pub trait Formula {
     fn free_vars(&self) -> Vec<&Var>;
 
     /// Applies a transformation function `f` on the terms of the receiver.
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self;
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self;
 
     /// Recursively applies a [`Renaming`] on the variable terms of the receiver.
     fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
     {
-        self.transform(&|t: &Self::Term| t.rename_var(renaming))
+        self.transform_term(&|t: &Self::Term| t.rename_var(renaming))
     }
 
     /// Recursively applies a [`Substitution`] on the variable terms of the receiver.
@@ -91,7 +91,7 @@ pub trait Formula {
     where
         Self: Sized,
     {
-        self.transform(&|t: &Self::Term| t.substitute(sub))
+        self.transform_term(&|t: &Self::Term| t.substitute(sub))
     }
 }
 
@@ -104,7 +104,7 @@ pub trait FormulaEx: Formula {
 /// Represents an atomic formula, obtained by applying a predicate on a list of terms.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Atom<T: Term> {
-    /// Is the predicate that is applied on terms of this atomic formula.
+    /// Is the predicate that is applied on the terms of this atomic formula.
     pub predicate: Pred,
 
     /// Is the list of terms on which the predicate is applied.
@@ -132,7 +132,7 @@ impl<T: Term> Formula for Atom<T> {
         self.terms.iter().flat_map(|t| t.vars()).unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
+    fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
         Self {
             predicate: self.predicate.clone(),
             terms: self.terms.iter().map(f).collect(),
@@ -190,7 +190,7 @@ impl<T: Term> Formula for Equals<T> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&T) -> T) -> Self {
+    fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
         Self {
             left: f(&self.left),
             right: f(&self.right),
@@ -234,9 +234,9 @@ impl<F: Formula> Formula for Not<F> {
         self.formula.free_vars()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Not {
-            formula: self.formula.transform(f),
+            formula: self.formula.transform_term(f),
         }
     }
 }
@@ -290,10 +290,10 @@ impl<F: Formula> Formula for And<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Self {
-            left: self.left.transform(f),
-            right: self.right.transform(f),
+            left: self.left.transform_term(f),
+            right: self.right.transform_term(f),
         }
     }
 }
@@ -353,10 +353,10 @@ impl<F: Formula> Formula for Or<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Self {
-            left: self.left.transform(f),
-            right: self.right.transform(f),
+            left: self.left.transform_term(f),
+            right: self.right.transform_term(f),
         }
     }
 }
@@ -396,10 +396,10 @@ impl<F: FormulaEx + fmt::Debug> fmt::Debug for Or<F> {
 /// Represents an implication between two formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Implies<F: Formula> {
-    /// Is the premise (formula) of this implication.
+    /// Is the premise of this implication.
     pub premise: F,
 
-    /// Is the consequence (formula) of this implication.
+    /// Is the consequence of this implication.
     pub consequence: F,
 }
 
@@ -418,10 +418,10 @@ impl<F: Formula> Formula for Implies<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Self {
-            premise: self.premise.transform(f),
-            consequence: self.consequence.transform(f),
+            premise: self.premise.transform_term(f),
+            consequence: self.consequence.transform_term(f),
         }
     }
 }
@@ -481,10 +481,10 @@ impl<F: Formula> Formula for Iff<F> {
         vs.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Self {
-            left: self.left.transform(f),
-            right: self.right.transform(f),
+            left: self.left.transform_term(f),
+            right: self.right.transform_term(f),
         }
     }
 }
@@ -524,7 +524,7 @@ impl<F: FormulaEx + fmt::Debug> fmt::Debug for Iff<F> {
 /// Represents an existentially quantified formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Exists<F: Formula> {
-    /// Is the list of variables bound by this quantifier.
+    /// Is the list of variables bound by the quantifier.
     pub variables: Vec<Var>,
 
     /// Is the scope (formula) of the quantified formula.
@@ -546,10 +546,10 @@ impl<F: Formula> Formula for Exists<F> {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Self {
             variables: self.variables.clone(),
-            formula: self.formula.transform(f),
+            formula: self.formula.transform_term(f),
         }
     }
 }
@@ -585,7 +585,7 @@ impl<F: FormulaEx + fmt::Debug> fmt::Debug for Exists<F> {
 /// Represents a universally quantified formula.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Forall<F: Formula> {
-    /// Is the list of variables bound by this quantifier.
+    /// Is the list of variables bound by the quantifier.
     pub variables: Vec<Var>,
 
     /// Is the scope (formula) of the quantified formula.
@@ -607,10 +607,10 @@ impl<F: Formula> Formula for Forall<F> {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         Self {
             variables: self.variables.clone(),
-            formula: self.formula.transform(f),
+            formula: self.formula.transform_term(f),
         }
     }
 }
@@ -682,10 +682,10 @@ impl<T: Term> Formula for Atomic<T> {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
         match self {
-            Atomic::Atom(this) => Self::Atom(this.transform(f)),
-            Atomic::Equals(this) => Self::Equals(this.transform(f)),
+            Atomic::Atom(this) => this.transform_term(f).into(),
+            Atomic::Equals(this) => this.transform_term(f).into(),
         }
     }
 }
@@ -816,7 +816,7 @@ mod tests {
                 predicate: "P".into(),
                 terms: vec![term!(z), term!(y)],
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -952,7 +952,7 @@ mod tests {
                 left: term!(z),
                 right: term!(y),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1053,7 +1053,7 @@ mod tests {
             Not {
                 formula: fof!(R(z, y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1133,7 +1133,7 @@ mod tests {
                 left: fof!(P(z)),
                 right: fof!(Q(y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1242,7 +1242,7 @@ mod tests {
                 left: fof!(P(z)),
                 right: fof!(Q(y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1351,7 +1351,7 @@ mod tests {
                 premise: fof!(P(z)),
                 consequence: fof!(Q(y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1460,7 +1460,7 @@ mod tests {
                 left: fof!(P(z)),
                 right: fof!(Q(y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1551,7 +1551,7 @@ mod tests {
                 variables: vec![v!(x)],
                 formula: fof!(Q(z, y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1732,7 +1732,7 @@ mod tests {
                 variables: vec![v!(x)],
                 formula: fof!(Q(z, y)),
             },
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1827,7 +1827,7 @@ mod tests {
                     predicate: "P".into(),
                     terms: vec![term!(z), term!(y)],
                 }),
-                formula.transform(&f)
+                formula.transform_term(&f)
             );
         }
         {
@@ -1848,7 +1848,7 @@ mod tests {
                     left: term!(z),
                     right: term!(y),
                 }),
-                formula.transform(&f)
+                formula.transform_term(&f)
             );
         }
     }

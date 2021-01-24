@@ -1,5 +1,5 @@
 /*! Defines formulae in Negation Normal Form (NNF) and implements an algorithm for
-converting an [`FOF`] to an [`NNF`].
+transforming an [`FOF`] to an [`NNF`].
 
 [`FOF`]: crate::syntax::FOF
 */
@@ -91,6 +91,7 @@ impl From<Literal<Complex>> for NNF {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to [`NNF`].
 pub trait ToNNF: Formula {
     /// Transforms the receiver formula to a Negation Normal Form (NNF).
     ///
@@ -159,8 +160,7 @@ impl Formula for NNF {
 
     fn signature(&self) -> Result<Sig, Error> {
         match self {
-            NNF::Top => Ok(Sig::default()),
-            NNF::Bottom => Ok(Sig::default()),
+            NNF::Top | NNF::Bottom => Ok(Sig::default()),
             NNF::Literal(this) => this.signature(),
             NNF::And(this) => this.signature(),
             NNF::Or(this) => this.signature(),
@@ -181,15 +181,14 @@ impl Formula for NNF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            Self::Top => NNF::Top,
-            Self::Bottom => NNF::Bottom,
-            Self::Literal(this) => this.transform(f).into(),
-            Self::And(this) => this.transform(f).into(),
-            Self::Or(this) => this.transform(f).into(),
-            Self::Exists(this) => this.transform(f).into(),
-            Self::Forall(this) => this.transform(f).into(),
+            Self::Top | Self::Bottom => self.clone(),
+            Self::Literal(this) => this.transform_term(f).into(),
+            Self::And(this) => this.transform_term(f).into(),
+            Self::Or(this) => this.transform_term(f).into(),
+            Self::Exists(this) => this.transform_term(f).into(),
+            Self::Forall(this) => this.transform_term(f).into(),
         }
     }
 }
@@ -203,8 +202,7 @@ impl std::fmt::Display for NNF {
 impl FormulaEx for NNF {
     fn precedence(&self) -> u8 {
         match self {
-            NNF::Top => PRECEDENCE_ATOM,
-            NNF::Bottom => PRECEDENCE_ATOM,
+            NNF::Top | NNF::Bottom => PRECEDENCE_ATOM,
             NNF::Literal(this) => this.precedence(),
             NNF::And(this) => this.precedence(),
             NNF::Or(this) => this.precedence(),
@@ -511,7 +509,7 @@ mod tests {
         };
         assert_eq!(
             fof!({!x. {? y. {[P(z, y)] | [~(Q(z))]}}} & {[~(R(z, z))] | [R(@c)]}),
-            FOF::from(nnf.transform(&f))
+            FOF::from(nnf.transform_term(&f))
         );
     }
 

@@ -6,7 +6,8 @@ use std::collections::HashMap;
 
 impl Relational {
     /// Is similar to [`Relational::linear`] but uses a custom closure to create new variable
-    /// terms, created by removing variables that appear in multiple positions of the receiver.
+    /// terms, resulting from removing variables that appear in multiple positions of the
+    /// receiver.
     ///
     /// **Example**:
     /// ```rust
@@ -36,16 +37,19 @@ impl Relational {
                     .into_literals()
                     .into_iter()
                     // remove reflexive equations:
-                    .filter(|atomic| match atomic {
-                        Atomic::Equals(this) => this.left != this.right,
-                        _ => true,
+                    .filter(|atomic| {
+                        if let Atomic::Equals(this) = atomic {
+                            this.left != this.right
+                        } else {
+                            true
+                        }
                     })
                     .into()
             })
             .into()
     }
 
-    /// Returns a new [`Relational`] instance, resulting by replacing any varialbe `v` that
+    /// Returns a new [`Relational`] instance, resulting from replacing any varialbe `v` that
     /// appears in more than one position of the receiver with a fresh variable `y` and
     /// conjoined with an equation `v = y`.
     ///
@@ -98,7 +102,6 @@ where
                 0
             });
     }
-
     (equations, new_terms)
 }
 
@@ -131,8 +134,8 @@ where
                             &[this.left.clone(), this.right.clone()],
                             generator,
                         );
-
                         assert_eq!(2, new_terms.len());
+
                         equations.push(
                             Equals {
                                 left: new_terms.remove(0),

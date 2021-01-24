@@ -3,7 +3,7 @@ use super::{Error, Sig, Var, *};
 use crate::syntax::term::Complex;
 use std::fmt;
 
-/// Is the type of quantifier-free sub-formula of formulae types such as [`PNF`]
+/// Is the type of the quantifier-free part of formulae types such as [`PNF`]
 /// and [`SNF`].
 ///
 /// [`PNF`]: crate::transform::PNF
@@ -111,16 +111,16 @@ impl Formula for QFF {
         }
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
             QFF::Top | QFF::Bottom => self.clone(),
-            QFF::Atom(this) => this.transform(f).into(),
-            QFF::Equals(this) => this.transform(f).into(),
-            QFF::Not(this) => this.transform(f).into(),
-            QFF::And(this) => this.transform(f).into(),
-            QFF::Or(this) => this.transform(f).into(),
-            QFF::Implies(this) => this.transform(f).into(),
-            QFF::Iff(this) => this.transform(f).into(),
+            QFF::Atom(this) => this.transform_term(f).into(),
+            QFF::Equals(this) => this.transform_term(f).into(),
+            QFF::Not(this) => this.transform_term(f).into(),
+            QFF::And(this) => this.transform_term(f).into(),
+            QFF::Or(this) => this.transform_term(f).into(),
+            QFF::Implies(this) => this.transform_term(f).into(),
+            QFF::Iff(this) => this.transform_term(f).into(),
         }
     }
 }
@@ -272,7 +272,7 @@ mod tests {
                 predicate: "P".into(),
                 terms: vec![term!(z), term!(y)],
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -414,7 +414,7 @@ mod tests {
                 left: term!(z),
                 right: term!(y),
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -539,7 +539,7 @@ mod tests {
                 }
                 .into()
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -665,7 +665,7 @@ mod tests {
                 }
                 .into(),
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -851,7 +851,7 @@ mod tests {
                 }
                 .into(),
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1037,7 +1037,7 @@ mod tests {
                 }
                 .into(),
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 
@@ -1223,7 +1223,7 @@ mod tests {
                 }
                 .into(),
             }),
-            formula.transform(&f)
+            formula.transform_term(&f)
         );
     }
 

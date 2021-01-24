@@ -10,17 +10,17 @@ pub trait Term {
 
     /// Returns a list of variable symbols in the receiver.
     ///
-    /// **Note**: In the list of free variables, each variable symbol appears only once
+    /// **Note**: In the list of variables, each variable symbol appears only once
     /// even if it is present at multiple positions of the receiver.
     ///
     /// **Example**:
     /// ```rust
-    /// use razor_fol::{term, syntax::{Var, Term}};
+    /// use razor_fol::{v, term, syntax::Term};
     ///
     /// // `x`, `y` and `z` are variable symbols:
-    /// let x = Var::from("x");
-    /// let y = Var::from("y");
-    /// let z = Var::from("z");
+    /// let x = v!(x);
+    /// let y = v!(y);
+    /// let z = v!(z);
     ///
     /// let term = term!(f(g(f(x, y), @c, z), x));
     ///
@@ -29,24 +29,22 @@ pub trait Term {
     fn vars(&self) -> Vec<&Var>;
 
     /// Applies a transformation function `f` recursively on the subterms of the receiver.
-    ///
-    /// [`Term`]: crate::syntax::Term
     fn transform(&self, f: &impl Fn(&Self) -> Self) -> Self;
 
     /// Applies a [`Renaming`] on the variable terms of the receiver.
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::{syntax::{Var, Const, Func}, term};
+    /// # use razor_fol::{syntax::{Const, Func}, term, v};
     /// use razor_fol::syntax::{Formula, Term, term::Complex};
     /// use std::collections::HashMap;
     ///
     /// // variable symbols:
-    /// let x_sym = Var::from("x");
-    /// let y_sym = Var::from("y");
-    /// let z_sym = Var::from("z");
-    /// let a_sym = Var::from("a");
-    /// let b_sym = Var::from("b");
+    /// let x_sym = v!(x);
+    /// let y_sym = v!(y);
+    /// let z_sym = v!(z);
+    /// let a_sym = v!(a);
+    /// let b_sym = v!(b);
     ///
     /// // A variable renaming map that renames variable `x` to `a` and variable `y` to `b`
     /// let mut renaming = HashMap::new();
@@ -112,15 +110,10 @@ pub trait Term {
 /// Is the trait of types that map variables to terms.
 pub trait Substitution<T: Term> {
     /// Maps `v` to a [`Term`].
-    ///
-    /// [`Term`]: crate::syntax::Term
     fn apply(&self, v: &Var) -> T;
 }
 
 /// Any function from [`Var`] to [`Term`] is a substitution.
-///
-/// [`Var`]: crate::syntax::Var
-/// [`Term`]: crate::syntax::Term
 impl<F, T> Substitution<T> for F
 where
     T: Term,
@@ -132,9 +125,6 @@ where
 }
 
 /// Any map from [`Var`] to [`Term`] is a substitution.
-///
-/// [`Var`]: crate::syntax::Var
-/// [`Term`]: crate::syntax::Term
 impl<T> Substitution<T> for HashMap<&Var, T>
 where
     T: Term + Clone + From<Var>,
@@ -155,9 +145,6 @@ pub trait Renaming {
 }
 
 /// Any function from [`Var`] to [`Term`] is a variable renaming.
-///
-/// [`Var`]: crate::syntax::Var
-/// [`Term`]: crate::syntax::Term
 impl<F> Renaming for F
 where
     F: Fn(&Var) -> Var,
@@ -168,9 +155,6 @@ where
 }
 
 /// Any map from [`Var`] to [`Term`] is a variable renaming.
-///
-/// [`Var`]: crate::syntax::Var
-/// [`Term`]: crate::syntax::Term
 impl Renaming for HashMap<&Var, Var> {
     fn apply(&self, v: &Var) -> Var {
         self.get(v).cloned().unwrap_or_else(|| v.clone())
@@ -195,7 +179,6 @@ impl Complex {
     /// Returns an [equation] (formula) between the receiver and `term`.
     ///
     /// [equation]: crate::syntax::FOF::Equals
-    ///
     pub fn equals(self, term: Self) -> FOF {
         Equals {
             left: self,
@@ -226,7 +209,6 @@ impl Term for Complex {
                 })?;
             }
         }
-
         Ok(sig)
     }
 

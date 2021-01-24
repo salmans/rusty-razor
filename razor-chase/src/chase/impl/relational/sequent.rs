@@ -95,38 +95,28 @@ impl Sequent {
         let body_linear = gnf
             .body()
             .relational_with(
-                &mut make_var_generator(),
-                &mut make_const_generator(),
-                &mut make_fn_generator(),
+                &mut var_generator(),
+                &mut const_generator(),
+                &mut fn_generator(),
             )
-            .linear_with(&mut make_linear_generator());
+            .linear_with(&mut linear_generator());
         let head_relational = gnf.head().relational_with(
-            &mut make_var_generator(),
-            &mut make_const_generator(),
-            &mut make_fn_generator(),
+            &mut var_generator(),
+            &mut const_generator(),
+            &mut fn_generator(),
         );
         let branches = build_branches(&head_relational)?; // relationalized right is enough for building branches
-        let head_linear = head_relational.linear_with(&mut make_linear_generator());
+        let head_linear = head_relational.linear_with(&mut linear_generator());
 
         let head_attributes = AttributeList::try_from(&head_linear)?.universals();
         let range = Vec::from(&head_attributes);
 
         // apply range restriction:
-        let body_range_restricted = body_linear.range_restrict(&&range, DOMAIN);
+        let body_range_restricted = body_linear.range_restrict(&range, DOMAIN);
         let head_range_restricted = head_linear.range_restrict(&range, DOMAIN);
 
         let body_attributes =
             AttributeList::try_from(&body_range_restricted)?.intersect(&head_attributes);
-
-        let branches = if branches.iter().any(|branch| branch.is_empty()) {
-            vec![vec![]] // logically the right is true
-        } else {
-            // Remove duplicate atoms is necessary for correctness:
-            branches
-                .into_iter()
-                .map(|branch| branch.into_iter().unique().collect())
-                .collect()
-        };
 
         let body_expression = convertor.convert(&body_range_restricted, &body_attributes)?;
         let head_expression = convertor.convert(&head_range_restricted, &body_attributes)?;
@@ -162,7 +152,7 @@ impl SequentTrait for Sequent {
 }
 
 // functions to generate symbols for relationalization and linearization:
-fn make_var_generator() -> impl FnMut() -> Var {
+fn var_generator() -> impl FnMut() -> Var {
     let mut var_counter = 0;
     move || {
         let name = format!("{}{}", EXISTENTIAL_PREFIX, var_counter);
@@ -171,20 +161,20 @@ fn make_var_generator() -> impl FnMut() -> Var {
     }
 }
 
-fn make_const_generator() -> impl FnMut(&Const) -> Pred {
+fn const_generator() -> impl FnMut(&Const) -> Pred {
     |c: &Const| constant_instance_name(c).into()
 }
 
-fn make_fn_generator() -> impl FnMut(&Func) -> Pred {
+fn fn_generator() -> impl FnMut(&Func) -> Pred {
     |f: &Func| function_instance_name(f).into()
 }
 
-fn make_linear_generator() -> impl FnMut(&str, u32) -> Var {
+fn linear_generator() -> impl FnMut(&str, u32) -> Var {
     |name: &str, count| format!("{}{}{}{}", EQUATIONAL_PREFIX, name, SEPERATOR, count).into()
 }
 
 fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
-    let mut result = Vec::new();
+    let mut branches = Vec::new();
     for clause in rel.iter() {
         let mut new_clause = Vec::new();
         for atomic in clause.iter() {
@@ -230,8 +220,20 @@ fn build_branches(rel: &Relational) -> Result<Vec<Vec<Atom>>, Error> {
                 }
             }
         }
-        result.push(new_clause);
+        branches.push(new_clause);
     }
+
+    // optimizing the branches:
+    let result = if branches.iter().any(|branch| branch.is_empty()) {
+        vec![vec![]] // logically the right is true
+    } else {
+        // Remove duplicate atoms is necessary for correctness:
+        branches
+            .into_iter()
+            .map(|branch| branch.into_iter().unique().collect())
+            .collect()
+    };
+
     Ok(result)
 }
 

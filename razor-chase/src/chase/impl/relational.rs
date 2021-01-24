@@ -7,14 +7,14 @@ mod constants;
 mod evaluator;
 mod expression;
 mod model;
-mod preprocessor;
+mod pre_processor;
 mod rewrite;
 mod sequent;
 mod symbol;
 
 pub use evaluator::Evaluator;
 pub use model::Model;
-pub use preprocessor::PreProcessor;
+pub use pre_processor::PreProcessor;
 pub use sequent::Sequent;
 use std::collections::HashMap;
 use thiserror::Error;

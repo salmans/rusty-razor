@@ -1,5 +1,5 @@
 /*! Defines formulae in Geometric Normal Form (GNF) and implements an algorithm for
-converting a [`CNF`] to a [`GNF`].
+transforming a [`CNF`] to a [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */
@@ -24,18 +24,18 @@ type PosLiteral = Atomic<Complex>;
 pub struct PCF(BTreeSet<PosLiteral>);
 
 impl PCF {
-    /// Returns the atomic formulae of the receiver clause.
+    /// Returns the positive literals of the receiver clause.
     #[inline(always)]
-    pub fn atomics(&self) -> &BTreeSet<PosLiteral> {
+    pub fn literals(&self) -> &BTreeSet<PosLiteral> {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of atomic formulae.
-    pub fn into_atomics(self) -> BTreeSet<PosLiteral> {
+    /// Consumes the receiver and returns its underlying list of positive literals.
+    pub fn into_literals(self) -> BTreeSet<PosLiteral> {
         self.0
     }
 
-    /// Returns a new clause, resulting from joining the atomic formulae of the
+    /// Returns a new clause, resulting from joining the positive literals of the
     /// receiver and `other`.
     pub fn union(&self, other: &Self) -> Self {
         self.0.union(&other.0).cloned().into()
@@ -103,15 +103,15 @@ impl Formula for PCF {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        self.iter().map(|lit| lit.transform(f)).into()
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        self.iter().map(|lit| lit.transform_term(f)).into()
     }
 }
 
 impl From<PCF> for FOF {
     fn from(value: PCF) -> Self {
         value
-            .into_atomics()
+            .into_literals()
             .into_iter()
             .sorted()
             .into_iter()
@@ -155,7 +155,7 @@ impl PCFSet {
             .into()
     }
 
-    /// Returns a new pcf set obtained by removing pcfs that are proper supersets of
+    /// Returns a new PCF set obtained by removing pcfs that are proper supersets of
     /// some other pcfs in the receiver.
     pub fn simplify(&self) -> Self {
         self.iter()
@@ -212,8 +212,8 @@ impl Formula for PCFSet {
             .collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        self.iter().map(|lit| lit.transform(f)).into()
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        self.iter().map(|lit| lit.transform_term(f)).into()
     }
 }
 
@@ -279,6 +279,7 @@ impl From<(PCF, PCFSet)> for GNF {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to a list of [`GNF`]s.
 pub trait ToGNF: Formula {
     /// Transforms the receiver [`Formula`] to a list of formulae in Geometric Normal
     /// Form (GNF).
@@ -327,10 +328,10 @@ impl Formula for GNF {
         b_vars.into_iter().unique().collect()
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         Self {
-            body: self.body.transform(f),
-            head: self.head.transform(f),
+            body: self.body.transform_term(f),
+            head: self.head.transform_term(f),
         }
     }
 }
@@ -388,7 +389,6 @@ impl<T: ToGNF> Theory<T> {
         use std::convert::TryFrom;
 
         let formulae = self.formulae().iter().flat_map(|f| f.gnf()).collect_vec();
-
         // Assuming that the conversion does not change the signature of the theory,
         // so it's safe to unwrap:
         Theory::try_from(contract(formulae)).unwrap()
@@ -554,7 +554,7 @@ mod tests {
                     predicate: "P".into(),
                     terms: vec![term!(z), term!(y)],
                 }),
-                pcf.transform(&f)
+                pcf.transform_term(&f)
             );
         }
         {
@@ -575,7 +575,7 @@ mod tests {
                     left: term!(z),
                     right: term!(y),
                 }),
-                pcf.transform(&f)
+                pcf.transform_term(&f)
             );
         }
     }
@@ -910,7 +910,7 @@ mod tests {
                     predicate: "P".into(),
                     terms: vec![term!(z), term!(y)],
                 })),
-                pcf_set.transform(&f)
+                pcf_set.transform_term(&f)
             );
         }
         {
@@ -931,7 +931,7 @@ mod tests {
                     left: term!(z),
                     right: term!(y),
                 })),
-                pcf_set.transform(&f)
+                pcf_set.transform_term(&f)
             );
         }
     }
@@ -1132,7 +1132,7 @@ mod tests {
         };
         assert_eq!(
             fof!({[P(y, z)] & [Q(x)]} -> {[Q(z)] | [[R(y)] & [R(z)]]}),
-            FOF::from(gnf[0].transform(&f))
+            FOF::from(gnf[0].transform_term(&f))
         );
     }
 

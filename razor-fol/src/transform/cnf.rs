@@ -1,5 +1,5 @@
 /*! Defines formulae in Conjunctive Normal Form (CNF) and implements an algorithm for
-converting an [`SNF`] to a [`CNF`].
+transforming an [`SNF`] to a [`CNF`].
 
 [`SNF`]: crate::transform::SNF
  */
@@ -33,6 +33,7 @@ impl From<CNFClauseSet> for CNF {
     }
 }
 
+/// Is the trait of [`Formula`] types that can be transformed to [`CNF`].
 pub trait ToCNF: Formula {
     /// Transform the receiver formula to a Conjunctive Normal Form (CNF).
     ///
@@ -135,8 +136,8 @@ impl Formula for CNF {
         self.0.free_vars()
     }
 
-    fn transform(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        Self(self.0.transform(f))
+    fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
+        Self(self.0.transform_term(f))
     }
 }
 
@@ -453,7 +454,7 @@ mod tests {
         };
         assert_eq!(
             fof!({ [P(y, z)] & [Q(z)] } & { [R(y)] | [R(z)] }),
-            FOF::from(cnf.transform(&f))
+            FOF::from(cnf.transform_term(&f))
         );
     }
 
