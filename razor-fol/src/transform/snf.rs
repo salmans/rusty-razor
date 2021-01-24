@@ -1,5 +1,5 @@
-/*! Defines formulae in Skolem Normal Form (PNF) and implements an algorithm for converting
-[`PNF`] to [`SNF`].
+/*! Defines formulae in Skolem Normal Form (SNF) and implements an algorithm for converting
+a [`PNF`] to an [`SNF`].
 
 [`PNF`]: crate::transform::PNF
 */
@@ -165,8 +165,6 @@ impl<T: ToSNF> From<T> for SNF {
 }
 
 impl SNF {
-    /// Creates a new formula in SNF from a [`PNF`], a list of skolem variables, and
-    /// a `generator` function for creating fresh skolem functions.
     fn new<CG, FG>(
         pnf: PNF,
         mut skolem_vars: Vec<Var>,
@@ -207,7 +205,7 @@ impl SNF {
         }
     }
 
-    /// Creates a universally quantified [`SNF`].
+    // Creates a universally quantified [`SNF`].
     #[inline(always)]
     fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
@@ -276,7 +274,16 @@ impl From<&SNF> for FOF {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{assert_debug_string, fof, transform::ToPNF};
+    use crate::{
+        assert_debug_string, assert_eq_sorted_vecs, fof,
+        syntax::{
+            signature::{FuncSig, PredSig},
+            Sig, EQ_SYM,
+        },
+        term,
+        transform::ToPNF,
+        v,
+    };
 
     fn snf(formula: &FOF) -> FOF {
         formula.pnf().snf().into()
@@ -292,7 +299,6 @@ mod tests {
     #[test]
     fn test_snf() {
         assert_debug_string!("P('c#0)", snf(&fof!(? x. (P(x)))));
-
         assert_debug_string!("! x. P(x, f#0(x))", snf(&fof!(!x. (?y. (P(x, y))))));
         assert_debug_string!("P(x, f#0(x))", snf(&fof!(?y. (P(x, y)))));
         assert_debug_string!(
@@ -342,6 +348,83 @@ mod tests {
                 "Q('c#1)",
                 snf_with(&fof!(? x. (Q(x))), &mut const_generator, &mut fn_generator)
             );
+        }
+    }
+
+    #[test]
+    fn snf_free_vars() {
+        {
+            let snf = fof!('|').snf();
+            assert_eq!(Vec::<&Var>::new(), snf.free_vars());
+        }
+        {
+            let snf = fof!(_|_).snf();
+            assert_eq!(Vec::<&Var>::new(), snf.free_vars());
+        }
+        {
+            let snf =
+                fof!(!x . {! y . {[[P(x, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(x, z)}]]}}).snf();
+            assert_eq_sorted_vecs!(
+                vec![v!(w), v!(z)].iter().collect::<Vec<_>>(),
+                snf.free_vars()
+            );
+        }
+    }
+
+    #[test]
+    fn snf_transform() {
+        let snf =
+            fof!(!x . {! y . {[[P(f(x), y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(f(x), z)}]]}}).snf();
+        let f = |t: &Complex| {
+            {
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
+                }
+            }
+            .into()
+        };
+        assert_eq!(
+            fof!(!x . {! y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),
+            FOF::from(snf.transform(&f))
+        );
+    }
+
+    #[test]
+    fn snf_signature() {
+        {
+            let mut sig = Sig::new();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: "Q".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_predicate(PredSig {
+                symbol: EQ_SYM.into(),
+                arity: 2,
+            })
+            .unwrap();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
+                arity: 1,
+            })
+            .unwrap();
+            sig.add_constant("c".into());
+
+            let snf =
+                fof!(!x . {! y . {[[P(f(x), y)] & [Q(w)]] -> [[(@c) = (z)] | [~{P(f(x), z)}]]}})
+                    .snf();
+            assert_eq!(sig, snf.signature().unwrap());
+        }
+        {
+            let snf = fof!(!y. { [P(x, y) ] & [ ~(P(x)) ]}).snf();
+            assert!(snf.signature().is_err());
         }
     }
 }
