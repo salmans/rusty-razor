@@ -182,11 +182,11 @@ mod test_lifo {
         PreProcessorEx, SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
-    pub fn run_test(theory: &Theory) -> Vec<Model> {
+    pub fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
         let pre_processor = PreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = Evaluator;

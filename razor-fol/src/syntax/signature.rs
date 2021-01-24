@@ -2,32 +2,31 @@
 
 ['Sig']: crate::syntax::Sig
 */
-use super::{Error, Formula, Pred, Term, C, EQ_SYM, F};
-use core::convert::TryFrom;
+use super::{Const, Error, Func, Pred};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
 };
 
-/// Contains the signature information for a function.
+/// Contains the signature information for a [`Func`].
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct FSig {
+pub struct FuncSig {
     /// Is the function symbol.
-    pub symbol: F,
+    pub symbol: Func,
 
     /// Is the arity of the function.
     pub arity: u8,
 }
 
-impl fmt::Display for FSig {
+impl fmt::Display for FuncSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "predicate: {}, arity: {}", self.symbol, self.arity)
     }
 }
 
-/// Contains the signature information for a predicate.
+/// Contains the signature information for a [`Pred`].
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct PSig {
+pub struct PredSig {
     /// Is the predicate symbol.
     pub symbol: Pred,
 
@@ -35,7 +34,7 @@ pub struct PSig {
     pub arity: u8,
 }
 
-impl fmt::Display for PSig {
+impl fmt::Display for PredSig {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "function: {}, arity: {}", self.symbol, self.arity)
     }
@@ -44,18 +43,19 @@ impl fmt::Display for PSig {
 /// Is the signature of a first-order theory.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Sig {
-    /// Is the constant symbols in a theory.
-    constants: HashSet<C>,
+    /// Is the constant symbols in the signature.
+    constants: HashSet<Const>,
 
-    /// Is the signature of functions in a theory.
-    functions: HashMap<F, FSig>,
+    /// Is the signature of functions.
+    functions: HashMap<String, FuncSig>,
 
-    /// Is the signature of predicates in a theory.
-    predicates: HashMap<Pred, PSig>,
+    /// Is the signature of predicates.
+    predicates: HashMap<String, PredSig>,
 }
 
 impl Sig {
-    fn new() -> Self {
+    /// Creates an empty signature.
+    pub(crate) fn new() -> Self {
         Self {
             constants: HashSet::new(),
             functions: HashMap::new(),
@@ -63,14 +63,26 @@ impl Sig {
         }
     }
 
-    // inserts a new constant in the signature.
-    fn add_constant(&mut self, constant: C) {
+    /// Creates a new signature by merging the items of an iterator over signatures.
+    pub(crate) fn from_signatures<I>(value: I) -> Result<Self, Error>
+    where
+        I: IntoIterator<Item = Sig>,
+    {
+        let mut sig = Self::new();
+        for s in value {
+            sig = sig.merge(s)?;
+        }
+        Ok(sig)
+    }
+
+    /// Inserts a new [`Const`] in the receiver signature.
+    pub(crate) fn add_constant(&mut self, constant: Const) {
         self.constants.insert(constant);
     }
 
-    // adds the signature of a function.
-    fn add_function(&mut self, function: FSig) -> Result<(), Error> {
-        if let Some(sig) = self.functions.get(&function.symbol) {
+    /// Inserts the signature [`FuncSig`] of a function [`Func`] to the reciever.
+    pub(crate) fn add_function(&mut self, function: FuncSig) -> Result<(), Error> {
+        if let Some(sig) = self.functions.get(function.symbol.name()) {
             if *sig != function {
                 return Err(Error::InconsistentFuncSig {
                     this: sig.clone(),
@@ -78,14 +90,15 @@ impl Sig {
                 });
             }
         } else {
-            self.functions.insert(function.symbol.clone(), function);
+            self.functions
+                .insert(function.symbol.name().into(), function);
         }
         Ok(())
     }
 
-    // adds the signature of a predicate.
-    fn add_predicate(&mut self, predicate: PSig) -> Result<(), Error> {
-        if let Some(sig) = self.predicates.get(&predicate.symbol) {
+    /// Inserts the signature [`PredSig`] of a predicate [`Pred`] to the reciever.
+    pub(crate) fn add_predicate(&mut self, predicate: PredSig) -> Result<(), Error> {
+        if let Some(sig) = self.predicates.get(predicate.symbol.name()) {
             if *sig != predicate {
                 return Err(Error::InconsistentPredSig {
                     this: sig.clone(),
@@ -93,478 +106,330 @@ impl Sig {
                 });
             }
         } else {
-            self.predicates.insert(predicate.symbol.clone(), predicate);
+            self.predicates
+                .insert(predicate.symbol.name().into(), predicate);
         }
         Ok(())
     }
 
-    /// Returns the constants of this signature.
-    pub fn constants(&self) -> &HashSet<C> {
-        &self.constants
-    }
+    /// Returns a signature that combines the receiver with of `other`.
+    pub(crate) fn merge(self, other: Self) -> Result<Self, Error> {
+        let mut sig = self;
 
-    /// Returns the function of this signature.
-    pub fn functions(&self) -> &HashMap<F, FSig> {
-        &self.functions
-    }
-
-    /// Returns the predicates of this signature.
-    pub fn predicates(&self) -> &HashMap<Pred, PSig> {
-        &self.predicates
-    }
-}
-
-impl TryFrom<&Formula> for Sig {
-    type Error = Error;
-
-    fn try_from(value: &Formula) -> Result<Self, Error> {
-        let mut sig = Sig::new();
-        let (cs, fs, ps) = formula_signature(&value);
-
-        for c in cs {
+        for c in other.constants {
             sig.add_constant(c);
         }
-
-        for f in fs {
+        for (_, f) in other.functions.into_iter() {
             sig.add_function(f)?;
         }
-
-        for p in ps {
+        for (_, p) in other.predicates.into_iter() {
             sig.add_predicate(p)?;
         }
 
         Ok(sig)
     }
-}
 
-impl TryFrom<&Vec<Formula>> for Sig {
-    type Error = Error;
+    /// Returns the set [`Const`]s in this signature.
+    pub fn constants(&self) -> &HashSet<Const> {
+        &self.constants
+    }
 
-    fn try_from(value: &Vec<Formula>) -> Result<Self, Self::Error> {
-        let mut sig = Sig::new();
+    /// Returns the function signatures in the receiver in the form of a map from
+    /// function names to [`FuncSig`].
+    pub fn functions(&self) -> &HashMap<String, FuncSig> {
+        &self.functions
+    }
 
-        for f in value {
-            let (cs, fs, ps) = formula_signature(f);
-
-            for c in cs {
-                sig.add_constant(c);
-            }
-
-            for f in fs {
-                sig.add_function(f)?;
-            }
-
-            for p in ps {
-                sig.add_predicate(p)?;
-            }
-        }
-
-        Ok(sig)
+    /// Returns the predicate signatures in the receiver in the form of a map from
+    /// predicate names to [`PredSig`].    
+    pub fn predicates(&self) -> &HashMap<String, PredSig> {
+        &self.predicates
     }
 }
 
-// returns the constants and function signatures in the input term and its
-// subterms and fails if a functions with different signatures exist.
-fn term_signature(term: &Term) -> (Vec<C>, Vec<FSig>) {
-    match term {
-        Term::Var { .. } => (Vec::new(), Vec::new()),
-        Term::Const { constant } => (vec![constant.clone()], Vec::new()),
-        Term::App { function, terms } => {
-            let mut constants = Vec::new();
-            let mut functions = Vec::new();
-
-            for t in terms {
-                let (cs, fs) = term_signature(t);
-                constants.extend(cs);
-                functions.extend(fs);
-            }
-
-            functions.push(FSig {
-                symbol: function.clone(),
-                arity: terms.len() as u8,
-            });
-
-            (constants, functions)
-        }
+impl Default for Sig {
+    fn default() -> Self {
+        Self::new()
     }
-}
-
-// returns the constants, functions signatures and predicates signatures in
-// the given formula and its subformulae and fails if a function or a predicate
-// with different signatures exist.
-fn formula_signature(formula: &Formula) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
-    match formula {
-        Formula::Top | Formula::Bottom => (Vec::new(), Vec::new(), Vec::new()),
-        Formula::Atom { predicate, terms } => {
-            let mut constants = Vec::new();
-            let mut functions = Vec::new();
-
-            for t in terms {
-                let (cs, fs) = term_signature(t);
-                constants.extend(cs);
-                functions.extend(fs);
-            }
-
-            (
-                constants,
-                functions,
-                vec![PSig {
-                    symbol: predicate.clone(),
-                    arity: terms.len() as u8,
-                }],
-            )
-        }
-        Formula::Equals { left, right } => {
-            let (cs, fs) = combine_term_signatures(left, right);
-            (
-                cs,
-                fs,
-                vec![PSig {
-                    symbol: Pred(EQ_SYM.to_string()),
-                    arity: 2,
-                }],
-            )
-        }
-        Formula::Not { formula } => formula_signature(formula),
-        Formula::And { left, right } => combine_formula_signatures(left, right),
-        Formula::Or { left, right } => combine_formula_signatures(left, right),
-        Formula::Implies { left, right } => combine_formula_signatures(left, right),
-        Formula::Iff { left, right } => combine_formula_signatures(left, right),
-        Formula::Exists { formula, .. } => formula_signature(formula),
-        Formula::Forall { formula, .. } => formula_signature(formula),
-    }
-}
-
-fn combine_term_signatures(first: &Term, second: &Term) -> (Vec<C>, Vec<FSig>) {
-    let (mut cs, mut fs) = term_signature(first);
-    let (rcs, rfs) = term_signature(second);
-
-    cs.extend(rcs);
-    fs.extend(rfs);
-
-    (cs, fs)
-}
-
-fn combine_formula_signatures(first: &Formula, second: &Formula) -> (Vec<C>, Vec<FSig>, Vec<PSig>) {
-    let (mut cs, mut fs, mut ps) = formula_signature(first);
-    let (rcs, rfs, rps) = formula_signature(second);
-
-    cs.extend(rcs);
-    fs.extend(rfs);
-    ps.extend(rps);
-
-    (cs, fs, ps)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::syntax::{Formula, FOF};
 
     #[test]
-    fn test_sig_from_formula() {
+    fn test_merge() {
         {
-            let sig = Sig::new();
-            let formula = "true".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
+            let sig = Sig::default();
+            let other = Sig::default();
+            assert_eq!(Sig::default(), sig.merge(other).unwrap());
         }
         {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "P('c)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
-        }
-        {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred(EQ_SYM.to_string()),
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
                 arity: 2,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "'c = 'c".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
+            sig.add_constant("c".into());
+            let other = Sig::default();
+
+            let expected = sig.clone();
+            assert_eq!(expected, sig.merge(other).unwrap());
         }
         {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
                 arity: 2,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "P(f(x, 'c))".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
+            sig.add_constant("c".into());
+
+            let mut other = Sig::default();
+            other
+                .add_predicate(PredSig {
+                    symbol: "Q".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            other
+                .add_function(FuncSig {
+                    symbol: "g".into(),
+                    arity: 3,
+                })
+                .unwrap();
+            other.add_constant("d".into());
+
+            let mut expected = Sig::default();
+            expected
+                .add_predicate(PredSig {
+                    symbol: "P".into(),
+                    arity: 1,
+                })
+                .unwrap();
+            expected
+                .add_function(FuncSig {
+                    symbol: "f".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            expected.add_constant("c".into());
+            expected
+                .add_predicate(PredSig {
+                    symbol: "Q".into(),
+                    arity: 2,
+                })
+                .unwrap();
+            expected
+                .add_function(FuncSig {
+                    symbol: "g".into(),
+                    arity: 3,
+                })
+                .unwrap();
+            expected.add_constant("d".into());
+
+            assert_eq!(expected, sig.merge(other).unwrap());
         }
         {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 3,
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
+                arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("g".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            sig.add_constant(C("d".to_string()));
-            let formula = "P(f(x, 'c), 'd, f(g(x), y))".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
+            sig.add_constant("c".into());
+
+            let other = sig.clone();
+            let expected = sig.clone();
+
+            assert_eq!(expected, sig.merge(other).unwrap());
         }
         {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            let mut sig = Sig::default();
+            sig.add_predicate(PredSig {
+                symbol: "P".into(),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "~P(f('c), y)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
+
+            let mut other = Sig::default();
+            other
+                .add_predicate(PredSig {
+                    symbol: "P".into(),
+                    arity: 2,
+                })
+                .unwrap();
+
+            assert!(sig.merge(other).is_err());
         }
         {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_predicate(PSig {
-                symbol: Pred("Q".to_string()),
+            let mut sig = Sig::default();
+            sig.add_function(FuncSig {
+                symbol: "f".into(),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "P(f(x), y) & Q('c)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
+
+            let mut other = Sig::default();
+            other
+                .add_function(FuncSig {
+                    symbol: "f".into(),
+                    arity: 2,
+                })
+                .unwrap();
+
+            assert!(sig.merge(other).is_err());
         }
         {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_predicate(PSig {
-                symbol: Pred("Q".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "P(f(x), y) | Q('c)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
-        }
-        {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_predicate(PSig {
-                symbol: Pred("Q".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "P(f(x), y) -> Q('c)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
-        }
-        {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_predicate(PSig {
-                symbol: Pred("Q".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "P(f(x), y) <=> Q('c)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
-        }
-        {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "!x. P(f('c), y)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
-        }
-        {
-            let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
-                arity: 2,
-            })
-            .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
-                arity: 1,
-            })
-            .unwrap();
-            sig.add_constant(C("c".to_string()));
-            let formula = "?x. P(f('c), y)".parse::<Formula>().unwrap();
-            assert_eq!(sig, Sig::try_from(&formula).unwrap());
-        }
-        {
-            let formula = "P(x) & P(x, y)".parse::<Formula>().unwrap();
-            assert!(Sig::try_from(&formula).is_err());
-        }
-        {
-            let formula = "P(f(x), f(x, y))".parse::<Formula>().unwrap();
-            assert!(Sig::try_from(&formula).is_err());
-        }
-        {
-            let formula = "f(x) = f(x, y)".parse::<Formula>().unwrap();
-            assert!(Sig::try_from(&formula).is_err());
-        }
-        {
-            let formula = "P(f(x)) & P(f(x, y))".parse::<Formula>().unwrap();
-            assert!(Sig::try_from(&formula).is_err());
+            let mut sig = Sig::default();
+            sig.add_constant("c".into());
+
+            let mut other = Sig::default();
+            other.add_constant("c".into());
+
+            assert!(sig.merge(other).is_ok());
         }
     }
 
     #[test]
-    fn test_sig_from_formulae() {
+    fn test_from_signatures() {
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
+            sig.add_predicate(PredSig {
+                symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_predicate(PSig {
-                symbol: Pred("Q".to_string()),
+            sig.add_predicate(PredSig {
+                symbol: Pred::from("Q"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            sig.add_function(FuncSig {
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("g".to_string()),
+            sig.add_function(FuncSig {
+                symbol: Func::from("g"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
-            sig.add_constant(C("d".to_string()));
+            sig.add_constant(Const::from("c"));
+            sig.add_constant(Const::from("d"));
             let formulae = vec![
-                "P(f('c), y)".parse::<Formula>().unwrap(),
-                "Q(g('d), z)".parse::<Formula>().unwrap(),
+                "P(f('c), y)".parse::<FOF>().unwrap(),
+                "Q(g('d), z)".parse::<FOF>().unwrap(),
             ];
-            assert_eq!(sig, Sig::try_from(&formulae).unwrap());
+            assert_eq!(
+                sig,
+                Sig::from_signatures(
+                    formulae
+                        .iter()
+                        .map(|f| f.signature())
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap()
+                )
+                .unwrap()
+            );
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
+            sig.add_predicate(PredSig {
+                symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            sig.add_function(FuncSig {
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
+            sig.add_constant(Const::from("c"));
             let formulae = vec![
-                "P(f('c), y)".parse::<Formula>().unwrap(),
-                "P(f('c), y)".parse::<Formula>().unwrap(),
+                "P(f('c), y)".parse::<FOF>().unwrap(),
+                "P(f('c), y)".parse::<FOF>().unwrap(),
             ];
-            assert_eq!(sig, Sig::try_from(&formulae).unwrap());
+            assert_eq!(
+                sig,
+                Sig::from_signatures(
+                    formulae
+                        .iter()
+                        .map(|f| f.signature())
+                        .collect::<Result<Vec<_>, _>>()
+                        .unwrap()
+                )
+                .unwrap()
+            );
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
+            sig.add_predicate(PredSig {
+                symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            sig.add_function(FuncSig {
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
+            sig.add_constant(Const::from("c"));
             let formulae = vec![
-                "P(f('c), y)".parse::<Formula>().unwrap(),
-                "P(f('c, d), y)".parse::<Formula>().unwrap(),
+                "P(f('c), y)".parse::<FOF>().unwrap(),
+                "P(f('c, d), y)".parse::<FOF>().unwrap(),
             ];
-            assert!(Sig::try_from(&formulae).is_err());
+            assert!(Sig::from_signatures(
+                formulae
+                    .iter()
+                    .map(|f| f.signature())
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            )
+            .is_err());
         }
         {
             let mut sig = Sig::new();
-            sig.add_predicate(PSig {
-                symbol: Pred("P".to_string()),
+            sig.add_predicate(PredSig {
+                symbol: Pred::from("P"),
                 arity: 2,
             })
             .unwrap();
-            sig.add_function(FSig {
-                symbol: F("f".to_string()),
+            sig.add_function(FuncSig {
+                symbol: Func::from("f"),
                 arity: 1,
             })
             .unwrap();
-            sig.add_constant(C("c".to_string()));
+            sig.add_constant(Const::from("c"));
             let formulae = vec![
-                "P(f('c), y)".parse::<Formula>().unwrap(),
-                "P(f('c), y, z)".parse::<Formula>().unwrap(),
+                "P(f('c), y)".parse::<FOF>().unwrap(),
+                "P(f('c), y, z)".parse::<FOF>().unwrap(),
             ];
-            assert!(Sig::try_from(&formulae).is_err());
+            assert!(Sig::from_signatures(
+                formulae
+                    .iter()
+                    .map(|f| f.signature())
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+            )
+            .is_err());
         }
     }
 }

@@ -1,7 +1,7 @@
 //! Provides a "basic" implementation of the Chase.
 //!
-//! This implementation is used as a reference for the correctness of other implementations of the
-//! [Chase].
+//! This implementation is used as a reference for the correctness of other implementations
+//! of the [Chase].
 //!
 //! **Note**: The performance of `chase::impl::basic` is not a concern.
 //!
@@ -10,21 +10,17 @@
 use crate::chase::*;
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::*;
+use razor_fol::{
+    syntax::{formula::Atomic, term::Complex, Formula, FOF},
+    transform::GNF,
+};
 use std::{
     collections::{HashMap, HashSet},
-    convert::TryFrom,
     fmt, iter,
 };
-use thiserror::Error;
 
-/// Is the type of errors arising from inconsistencies in the syntax of formulae.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Is returned when a sequent cannot be constructed from a formula.
-    #[error("cannot build sequent from formula `{}`", .formula.to_string())]
-    BadSequentFormula { formula: razor_fol::syntax::Formula },
-}
+// Is a *positive* literal apearing in the body and the head of sequents
+pub type Literal = Atomic<Complex>;
 
 /// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
 /// [`E`].
@@ -36,32 +32,29 @@ pub enum WitnessTerm {
     /// Wraps an instance of [`E`], witnessing itself.
     ///
     /// [`E`]: crate::chase::E
-    Elem { element: E },
+    Elem(E),
 
-    /// Wraps an instance of [`C`] as a witness term.
+    /// Wraps an instance of [`Const`] as a witness term.
     ///
-    /// [`C`]: razor_fol::syntax::C
-    Const { constant: C },
+    /// [`Const`]: razor_fol::syntax::Const
+    Const(Const),
 
-    /// Corresponds to a composite witness term, made by applying an instance of [`F`] to a list of
+    /// Corresponds to a composite witness term, made by applying an instance of [`Func`]
+    /// to a list of
     /// witness terms.
     ///
-    /// [`F`]: razor_fol::syntax::F
-    App { function: F, terms: Vec<Self> },
+    /// [`Func`]: razor_fol::syntax::Func
+    App { function: Func, terms: Vec<Self> },
 }
 
 impl WitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    fn witness(term: &Term, assign: &impl Fn(&V) -> E) -> Self {
+    fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
         match term {
-            Term::Const { constant } => Self::Const {
-                constant: constant.clone(),
-            },
-            Term::Var { variable } => Self::Elem {
-                element: assign(&variable),
-            },
-            Term::App { function, terms } => {
+            Complex::Const(c) => Self::Const(c.clone()),
+            Complex::Var(v) => Self::Elem(assign(&v)),
+            Complex::App { function, terms } => {
                 let terms = terms.iter().map(|t| Self::witness(t, assign)).collect();
                 Self::App {
                     function: function.clone(),
@@ -69,6 +62,11 @@ impl WitnessTerm {
                 }
             }
         }
+    }
+
+    /// Builds a term by applying `function` on `args` as arguments.
+    pub fn apply(function: Func, terms: Vec<Self>) -> Self {
+        WitnessTerm::App { function, terms }
     }
 }
 
@@ -79,8 +77,8 @@ impl WitnessTermTrait for WitnessTerm {
 impl fmt::Display for WitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            Self::Elem { element } => write!(f, "{}", element),
-            Self::Const { constant } => write!(f, "{}", constant),
+            Self::Elem(e) => write!(f, "{}", e),
+            Self::Const(c) => write!(f, "{}", c),
             Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}[{}]", function, ts.join(", "))
@@ -95,33 +93,27 @@ impl fmt::Debug for WitnessTerm {
     }
 }
 
-impl From<C> for WitnessTerm {
-    fn from(constant: C) -> Self {
-        Self::Const { constant }
+impl From<Const> for WitnessTerm {
+    fn from(constant: Const) -> Self {
+        Self::Const(constant)
     }
 }
 
-impl From<&C> for WitnessTerm {
-    fn from(constant: &C) -> Self {
+impl From<&Const> for WitnessTerm {
+    fn from(constant: &Const) -> Self {
         Self::from(constant.clone())
     }
 }
 
 impl From<E> for WitnessTerm {
     fn from(element: E) -> Self {
-        WitnessTerm::Elem { element }
+        WitnessTerm::Elem(element)
     }
 }
 
 impl From<&E> for WitnessTerm {
     fn from(element: &E) -> Self {
         Self::from(*element)
-    }
-}
-
-impl FApp for WitnessTerm {
-    fn apply(function: F, terms: Vec<Self>) -> Self {
-        WitnessTerm::App { function, terms }
     }
 }
 
@@ -182,8 +174,8 @@ impl Model {
     /// Returns a reference to an element witnessed by the given witness term.
     fn element_ref(&self, witness: &WitnessTerm) -> Option<&E> {
         match witness {
-            WitnessTerm::Elem { element } => self.domain_ref().into_iter().find(|e| e.eq(&element)),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness),
+            WitnessTerm::Elem(element) => self.domain_ref().into_iter().find(|e| e.eq(&element)),
+            WitnessTerm::Const(_) => self.rewrites.get(witness),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
@@ -233,7 +225,7 @@ impl Model {
     /// `witness` and adds them to the domain of the receiver.
     fn record(&mut self, witness: &WitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem { element } => {
+            WitnessTerm::Elem(element) => {
                 let element = self.history(element);
                 if self.domain().iter().any(|e| element.eq(e)) {
                     element
@@ -241,7 +233,7 @@ impl Model {
                     unreachable!("missing element `{}`", element)
                 }
             }
-            WitnessTerm::Const { .. } => {
+            WitnessTerm::Const(_) => {
                 if let Some(e) = self.rewrites.get(&witness) {
                     *e
                 } else {
@@ -279,9 +271,9 @@ impl Model {
             let key = if let WitnessTerm::App { function, terms } = k {
                 let mut new_terms: Vec<WitnessTerm> = Vec::new();
                 terms.iter().for_each(|t| {
-                    if let WitnessTerm::Elem { element } = t {
+                    if let WitnessTerm::Elem(element) = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem { element: *from });
+                            new_terms.push(WitnessTerm::Elem(*from));
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -325,7 +317,7 @@ impl Model {
                     let terms: Vec<WitnessTerm> = terms
                         .iter()
                         .map(|t| {
-                            if let WitnessTerm::Elem { element } = t {
+                            if let WitnessTerm::Elem(element) = t {
                                 if element == to {
                                     from.clone().into()
                                 } else {
@@ -490,123 +482,19 @@ impl fmt::Display for Model {
     }
 }
 
-/// Represents atomic formulae in [`Sequent`].
-#[derive(Clone)]
-pub enum Literal {
-    /// Represents an atomic literal, corresponding to an atomic [`Formula`] of variant [`Atom`].
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    /// [`Atom`]: razor_fol::syntax::Formula::Atom
-    Atm { predicate: Pred, terms: Vec<Term> },
-
-    /// Represents a equality literal, corresponding to an atomic [`Formula`] of variant [`Equals`].
-    ///
-    /// [`Equals`]: razor_fol::syntax::Formula::Equals
-    Eql { left: Term, right: Term },
-}
-
-impl Literal {
-    /// Builds the body of a [`Sequent`] from a [`Formula`].
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    fn build_body(formula: &Formula) -> Vec<Literal> {
-        match formula {
-            Formula::Top => vec![],
-            Formula::Atom { predicate, terms } => vec![Literal::Atm {
-                predicate: predicate.clone(),
-                terms: terms.to_vec(),
-            }],
-            Formula::Equals { left, right } => vec![Literal::Eql {
-                left: left.clone(),
-                right: right.clone(),
-            }],
-            Formula::And { left, right } => {
-                let mut left = Literal::build_body(left);
-                let mut right = Literal::build_body(right);
-                left.append(&mut right);
-                left
-            }
-            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
-        }
-    }
-
-    /// Builds the head of a [`Sequent`] from a [`Formula`].
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    fn build_head(formula: &Formula) -> Vec<Vec<Literal>> {
-        match formula {
-            Formula::Top => vec![vec![]],
-            Formula::Bottom => vec![],
-            Formula::Atom { predicate, terms } => vec![vec![Literal::Atm {
-                predicate: predicate.clone(),
-                terms: terms.to_vec(),
-            }]],
-            Formula::Equals { left, right } => vec![vec![Literal::Eql {
-                left: left.clone(),
-                right: right.clone(),
-            }]],
-            Formula::And { left, right } => {
-                let mut left = Literal::build_head(left);
-                let mut right = Literal::build_head(right);
-                if left.is_empty() {
-                    left
-                } else if right.is_empty() {
-                    right
-                } else if left.len() == 1 && right.len() == 1 {
-                    let mut left = left.remove(0);
-                    let mut right = right.remove(0);
-                    left.append(&mut right);
-                    vec![left]
-                } else {
-                    unreachable!("expecting standard geometric sequent, found `{}`", formula)
-                }
-            }
-            Formula::Or { left, right } => {
-                let mut left = Literal::build_head(left);
-                let mut right = Literal::build_head(right);
-                left.append(&mut right);
-                left
-            }
-            _ => unreachable!("expecting standard geometric sequent, found `{}`", formula),
-        }
-    }
-}
-
-impl<'t> fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            Literal::Atm { predicate, terms } => {
-                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}({})", predicate, ts.join(", "))
-            }
-            Literal::Eql { left, right } => write!(f, "{} = {}", left, right),
-        }
-    }
-}
-
 /// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
 /// head.
 #[derive(Clone)]
 pub struct Sequent {
     /// Is the list of free variables in the sequent and is used for memoization.
-    pub free_vars: Vec<V>,
-
-    /// Is the [`Formula`] from which the body of the sequent is built.
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    body: Formula,
-
-    /// Is the [`Formula`] from which the head of the sequent is built.
-    ///
-    /// [`Formula`]: razor_fol::syntax::Formula
-    head: Formula,
+    pub free_vars: Vec<Var>,
 
     /// Represents the body of the sequent as a list of [`Literal`]s. The literals in
     /// `body_literals` are assumed to be conjoined.
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub body_literals: Vec<Literal>,
+    pub body: Vec<Literal>,
 
     /// Represents the head of the sequent as a list of list of [`Literal`]s. The literals in
     /// each sublist of `head_literals` are assumed to be conjoined where the sublists are
@@ -614,40 +502,40 @@ pub struct Sequent {
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub head_literals: Vec<Vec<Literal>>,
+    pub head: Vec<Vec<Literal>>,
+
+    // other fields:
+    body_fof: FOF,
+    head_fof: FOF,
 }
 
-impl TryFrom<&Formula> for Sequent {
-    type Error = Error;
+impl From<&GNF> for Sequent {
+    fn from(gnf: &GNF) -> Self {
+        let gnf_body = gnf.body();
+        let gnf_head = gnf.head();
+        let free_vars = gnf.free_vars().into_iter().cloned().collect();
 
-    fn try_from(formula: &Formula) -> Result<Self, Self::Error> {
-        match formula {
-            Formula::Implies { left, right } => {
-                let free_vars: Vec<V> = formula.free_vars().into_iter().cloned().collect();
-                let body_literals = Literal::build_body(left);
-                let head_literals = Literal::build_head(right);
-                let body = *left.clone();
-                let head = *right.clone();
-                Ok(Sequent {
-                    free_vars,
-                    body,
-                    head,
-                    body_literals,
-                    head_literals,
-                })
-            }
-            _ => Err(Error::BadSequentFormula {
-                formula: formula.clone(),
-            }),
+        let body = gnf_body.iter().cloned().collect();
+        let head = gnf_head
+            .iter()
+            .map(|h| h.iter().cloned().collect())
+            .collect();
+
+        Self {
+            free_vars,
+            body,
+            head,
+            body_fof: gnf_body.into(),
+            head_fof: gnf_head.into(),
         }
     }
 }
 
 impl fmt::Display for Sequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let body: Vec<String> = self.body_literals.iter().map(|l| l.to_string()).collect();
+        let body: Vec<String> = self.body.iter().map(|l| l.to_string()).collect();
         let head: Vec<String> = self
-            .head_literals
+            .head
             .iter()
             .map(|ls| {
                 let ls: Vec<String> = ls.iter().map(|l| l.to_string()).collect();
@@ -659,12 +547,12 @@ impl fmt::Display for Sequent {
 }
 
 impl SequentTrait for Sequent {
-    fn body(&self) -> Formula {
-        self.body.clone()
+    fn body(&self) -> FOF {
+        self.body_fof.clone()
     }
 
-    fn head(&self) -> Formula {
-        self.head.clone()
+    fn head(&self) -> FOF {
+        self.head_fof.clone()
     }
 }
 
@@ -678,7 +566,7 @@ impl PreProcessorEx for PreProcessor {
     type Sequent = Sequent;
     type Model = Model;
 
-    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model) {
+    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         use std::convert::TryInto;
 
         (
@@ -728,21 +616,21 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             // (notice the do-while pattern)
             while {
                 // construct a map from variables to elements
-                let mut assignment_map: HashMap<&V, E> = HashMap::new();
+                let mut assignment_map: HashMap<&Var, E> = HashMap::new();
                 for (i, item) in assignment.iter().enumerate().take(vars_size) {
                     assignment_map.insert(vars.get(i).unwrap(), *(*domain.get(*item).unwrap()));
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| *assignment_map.get(v).unwrap();
+                let assignment_func = |v: &Var| *assignment_map.get(v).unwrap();
 
                 // lift the variable assignments to literals (used to create observations)
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
                 let body: Vec<Observation<WitnessTerm>> =
-                    sequent.body_literals.iter().map(&observe_literal).collect();
+                    sequent.body.iter().map(&observe_literal).collect();
                 let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
-                    .head_literals
+                    .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
                     .collect();
@@ -826,22 +714,23 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
-    assignment_func: impl Fn(&V) -> E,
+    assignment_func: impl Fn(&Var) -> E,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
-        Literal::Atm { predicate, terms } => {
-            let terms = terms
+        Atomic::Atom(this) => {
+            let terms = this
+                .terms
                 .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
-                relation: Rel(predicate.0.clone()),
+                relation: Rel::from(this.predicate.name()),
                 terms,
             }
         }
-        Literal::Eql { left, right } => {
-            let left = WitnessTerm::witness(left, &assignment_func);
-            let right = WitnessTerm::witness(right, &assignment_func);
+        Atomic::Equals(this) => {
+            let left = WitnessTerm::witness(&this.left, &assignment_func);
+            let right = WitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -867,6 +756,7 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 mod test_basic {
     use super::*;
     use crate::test_prelude::*;
+    use razor_fol::transform::ToGNF;
     use std::iter::FromIterator;
 
     // Witness Elements
@@ -892,19 +782,19 @@ mod test_basic {
 
     // Witness Constants
     pub fn _a_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _a() }
+        WitnessTerm::Const(_a())
     }
 
     pub fn _b_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _b() }
+        WitnessTerm::Const(_b())
     }
 
     pub fn _c_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _c() }
+        WitnessTerm::Const(_c())
     }
 
     pub fn _d_() -> WitnessTerm {
-        WitnessTerm::Const { constant: _d() }
+        WitnessTerm::Const(_d())
     }
 
     #[test]
@@ -934,14 +824,14 @@ mod test_basic {
 
     #[test]
     fn test_witness_app() {
-        let f_0: WitnessTerm = f().app(vec![]);
+        let f_0 = WitnessTerm::apply(f(), vec![]);
         assert_eq!("f[]", f_0.to_string());
-        assert_eq!("f['c]", f().app(vec![_c_()]).to_string());
-        let g_0: WitnessTerm = g().app(vec![]);
-        assert_eq!("f[g[]]", f().app(vec![g_0]).to_string());
+        assert_eq!("f['c]", WitnessTerm::apply(f(), vec![_c_()]).to_string());
+        let g_0 = WitnessTerm::apply(g(), vec![]);
+        assert_eq!("f[g[]]", WitnessTerm::apply(f(), vec![g_0]).to_string());
         assert_eq!(
             "f['c, g['d]]",
-            f().app(vec![_c_(), g().app(vec![_d_()])]).to_string()
+            WitnessTerm::apply(f(), vec![_c_(), WitnessTerm::apply(g(), vec![_d_()])]).to_string()
         );
     }
 
@@ -1005,17 +895,17 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app1(f().app(vec![_c_()])));
+            model.observe(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()])));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app1(_e_1())].into_iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app1(_e_1())));
-            assert!(model.is_observed(&_R_().app1(f().app(vec![_c_()]))));
+            assert!(model.is_observed(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()]))));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![f().app(vec![_e_0()])]),
+                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
         }
@@ -1034,24 +924,30 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app2(f().app(vec![_c_()]), g().app(vec![f().app(vec![_c_()])])));
+            model.observe(&_R_().app2(
+                WitnessTerm::apply(f(), vec![_c_()]),
+                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])]),
+            ));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1(), e_2()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())].into_iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
-            assert!(model.is_observed(
-                &_R_().app2(f().app(vec![_c_()]), g().app(vec![f().app(vec![_c_()])]))
-            ));
-            assert!(model.is_observed(&_R_().app(vec![f().app(vec![_c_()]), _e_2()])));
+            assert!(model.is_observed(&_R_().app2(
+                WitnessTerm::apply(f(), vec![_c_()]),
+                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])])
+            )));
+            assert!(
+                model.is_observed(&_R_().app(vec![WitnessTerm::apply(f(), vec![_c_()]), _e_2()]))
+            );
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![f().app(vec![_e_0()])]),
+                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
             assert_eq_sets(
-                &Vec::from_iter(vec![g().app(vec![_e_1()])]),
+                &Vec::from_iter(vec![WitnessTerm::apply(g(), vec![_e_1()])]),
                 &model.witness(&e_2()),
             );
         }
@@ -1072,9 +968,12 @@ mod test_basic {
         }
         {
             let mut model = Model::new();
-            model.observe(&_R_().app(vec![_a_(), f().app(vec![_a_()])]));
+            model.observe(&_R_().app(vec![_a_(), WitnessTerm::apply(f(), vec![_a_()])]));
             model.observe(&_S_().app(vec![_b_()]));
-            model.observe(&_R_().app(vec![g().app(vec![f().app(vec![_a_()])]), _b_()]));
+            model.observe(&_R_().app(vec![
+                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_a_()])]),
+                _b_(),
+            ]));
             model.observe(&_S_().app(vec![_c_()]));
             assert_eq_sets(
                 &Vec::from_iter(vec![e_0(), e_1(), e_2(), e_3(), e_4()]),
@@ -1102,121 +1001,69 @@ mod test_basic {
         model.observe(&_R_().app1(_e_0()));
     }
 
+    // Assumes that `fof` is in GNF, so it converts to a single GNF
+    fn sequents(gnfs: Vec<GNF>) -> Vec<Sequent> {
+        gnfs.iter().map(Sequent::from).collect()
+    }
+
     #[test]
     fn test_build_sequent() {
+        assert_debug_string("[]", sequents("true -> true".parse::<FOF>().unwrap().gnf()));
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> true".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> true & true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> true & true".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> true | true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[], []]",
-            Sequent::try_from(&"true -> true | true".parse().unwrap()).unwrap(),
+            "[[] -> []]",
+            sequents("true -> false".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> []",
-            Sequent::try_from(&"true -> false".parse().unwrap()).unwrap(),
+            "[[] -> []]",
+            sequents("true -> false & true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> []",
-            Sequent::try_from(&"true -> false & true".parse().unwrap()).unwrap(),
+            "[[] -> []]",
+            sequents("true -> true & false".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> []",
-            Sequent::try_from(&"true -> true & false".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> true | false".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> true | false".parse().unwrap()).unwrap(),
+            "[]",
+            sequents("true -> false | true".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[] -> [[]]",
-            Sequent::try_from(&"true -> false | true".parse().unwrap()).unwrap(),
+            "[[P(x)] -> [[Q(x)]]]",
+            sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[P(x)] -> [[Q(x)]]",
-            Sequent::try_from(&"P(x) -> Q(x)".parse().unwrap()).unwrap(),
+            // Note: only range restricted geometric formulae get contracted
+            "[[P(x), Q(x)] -> [[Q(y)]]]",
+            sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[P(x), Q(x)] -> [[Q(y)]]",
-            Sequent::try_from(&"P(x) & Q(x) -> Q(y)".parse().unwrap()).unwrap(),
+            "[[P(x, z), Q(x)] -> [[Q(x)], [R(z), S(z)]]]",
+            sequents(
+                "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
+                    .parse::<FOF>()
+                    .unwrap()
+                    .gnf(),
+            ),
         );
         assert_debug_string(
-            "[P(x), Q(x)] -> [[Q(x)], [R(z), S(z)]]",
-            Sequent::try_from(&"P(x) & Q(x) -> Q(x) | (R(z) & S(z))".parse().unwrap()).unwrap(),
+            "[[D(x, y, z)] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]]",
+            sequents(
+                "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
+                    .parse::<FOF>()
+                    .unwrap()
+                    .gnf(),
+            ),
         );
-        assert_debug_string(
-            "[] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]",
-            Sequent::try_from(
-                &"true -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
-                    .parse()
-                    .unwrap(),
-            )
-            .unwrap(),
-        );
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_1() {
-        Sequent::try_from(&"true".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_2() {
-        Sequent::try_from(&"false".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_3() {
-        Sequent::try_from(&"false -> true".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_4() {
-        Sequent::try_from(&"(P(x) | Q(x)) -> R(x)".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_5() {
-        Sequent::try_from(&"P(x) -> R(x) & (Q(z) | R(z))".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_6() {
-        Sequent::try_from(&"P(x) -> ?x. Q(x)".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_7() {
-        Sequent::try_from(&"?x.Q(x) -> P(x)".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_8() {
-        Sequent::try_from(&"true -> ~false".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_9() {
-        Sequent::try_from(&"true -> ~true".parse().unwrap()).unwrap();
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_build_invalid_sequent_10() {
-        Sequent::try_from(&"~P(x) -> ~Q(x)".parse().unwrap()).unwrap();
     }
 
     #[test]
@@ -1249,8 +1096,8 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0, e#1}\n\
                        Facts: <R(e#0, e#1)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1",
+                       'c#0 -> e#0\n\
+                       'c#1 -> e#1",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy3.raz"
             )))
@@ -1368,11 +1215,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0, e#1, e#2}\n\
-                       Facts: <P(e#0, e#0)>, <P(e#1, e#2)>, <Q(e#0)>\n\
-                       'c -> e#0\n\
-                       'a -> e#1\n\
-                       'b -> e#2",
+            "Domain: {e#0, e#1, e#2}\nFacts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\'a -> e#0\n\'b -> e#1\n\'c -> e#2",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy17.raz"
             )))
@@ -1440,9 +1283,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2 -> e#0",
+            "Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\'c#0 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy23.raz"
             )))
@@ -1450,7 +1291,7 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0}\n\
                        Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>, <T(e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0",
+                       'c#0, 'c#1, 'c#2, 'c#3 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy24.raz"
             )))
@@ -1458,10 +1299,10 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0, e#1, e#2, e#3}\n\
                        Facts: <P(e#0)>, <Q(e#1)>, <R(e#2)>, <S(e#3)>\n\
-                       'sk#0 -> e#0\n\
-                       'sk#1 -> e#1\n\
-                       'sk#2 -> e#2\n\
-                       'sk#3 -> e#3",
+                       'c#0 -> e#0\n\
+                       'c#1 -> e#1\n\
+                       'c#2 -> e#2\n\
+                       'c#3 -> e#3",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy25.raz"
             )))
@@ -1469,11 +1310,11 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0}\n\
                        Facts: <P(e#0)>\n\
-                       'sk#0 -> e#0\n\
+                       'c#0 -> e#0\n\
                        -- -- -- -- -- -- -- -- -- --\n\
                        Domain: {e#0}\n\
                        Facts: <P(e#0)>\n\
-                       'sk#1 -> e#0",
+                       'c#1 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy26.raz"
             )))
@@ -1525,7 +1366,7 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0}\n\
                        Facts: <Q(e#0, e#0)>, <R(e#0)>, <U(e#0)>\n\
-                       'sk#0 -> e#0",
+                       'c#0 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy31.raz"
             )))
@@ -1533,351 +1374,356 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0, e#1}\n\
         Facts: <Q(e#0, e#1)>, <R(e#0)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1",
+        'c#0 -> e#0\n\
+        f#0[e#0] -> e#1",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy32.raz"
             )))
         );
         assert_eq!(
             "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#7[e#2] -> e#3\n\
-        sk#15[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1112(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#7[e#2] -> e#3\n\
-        sk#15[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1121(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#7[e#2] -> e#3\n\
-        sk#17[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1122(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#7[e#2] -> e#3\n\
-        sk#17[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1211(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#9[e#2] -> e#3\n\
-        sk#19[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1212(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#9[e#2] -> e#3\n\
-        sk#19[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1221(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#9[e#2] -> e#3\n\
-        sk#21[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1222(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#3[e#1] -> e#2\n\
-        sk#9[e#2] -> e#3\n\
-        sk#21[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2111(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#11[e#2] -> e#3\n\
-        sk#23[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2112(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#11[e#2] -> e#3\n\
-        sk#23[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2121(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#11[e#2] -> e#3\n\
-        sk#25[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2122(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#11[e#2] -> e#3\n\
-        sk#25[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2211(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#13[e#2] -> e#3\n\
-        sk#27[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2212(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#13[e#2] -> e#3\n\
-        sk#27[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2221(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#13[e#2] -> e#3\n\
-        sk#29[e#3] -> e#4\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2222(e#4)>\n\
-        'sk#0 -> e#0\n\
-        sk#1[e#0] -> e#1\n\
-        sk#5[e#1] -> e#2\n\
-        sk#13[e#2] -> e#3\n\
-        sk#29[e#3] -> e#4",
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1111(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P111(e#3)>, <P1112(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1121(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P11(e#2)>, <P112(e#3)>, <P1122(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1211(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P121(e#3)>, <P1212(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1221(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P1(e#1)>, <P12(e#2)>, <P122(e#3)>, <P1222(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2111(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P211(e#3)>, <P2112(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2121(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P21(e#2)>, <P212(e#3)>, <P2122(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2211(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P221(e#3)>, <P2212(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2221(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4}\n\
+Facts: <P(e#0)>, <P2(e#1)>, <P22(e#2)>, <P222(e#3)>, <P2222(e#4)>\n\
+'c#0 -> e#0\n\
+f#0[e#0] -> e#1\n\
+f#0[e#1] -> e#2\n\
+f#0[e#2] -> e#3\n\
+f#0[e#3] -> e#4",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy35.raz"
             )))
         );
-        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#14[e#4, e#5] -> e#6\n\
-        sk#15[e#4, e#5] -> e#7\n\
-        sk#30[e#6, e#7] -> e#8\n\
-        sk#31[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#14[e#4, e#5] -> e#6\n\
-        sk#15[e#4, e#5] -> e#7\n\
-        sk#30[e#6, e#7] -> e#8\n\
-        sk#31[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#14[e#4, e#5] -> e#6\n\
-        sk#15[e#4, e#5] -> e#7\n\
-        sk#34[e#6, e#7] -> e#8\n\
-        sk#35[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#14[e#4, e#5] -> e#6\n\
-        sk#15[e#4, e#5] -> e#7\n\
-        sk#34[e#6, e#7] -> e#8\n\
-        sk#35[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#18[e#4, e#5] -> e#6\n\
-        sk#19[e#4, e#5] -> e#7\n\
-        sk#38[e#6, e#7] -> e#8\n\
-        sk#39[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#18[e#4, e#5] -> e#6\n\
-        sk#19[e#4, e#5] -> e#7\n\
-        sk#38[e#6, e#7] -> e#8\n\
-        sk#39[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#18[e#4, e#5] -> e#6\n\
-        sk#19[e#4, e#5] -> e#7\n\
-        sk#42[e#6, e#7] -> e#8\n\
-        sk#43[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#6[e#2, e#3] -> e#4\n\
-        sk#7[e#2, e#3] -> e#5\n\
-        sk#18[e#4, e#5] -> e#6\n\
-        sk#19[e#4, e#5] -> e#7\n\
-        sk#42[e#6, e#7] -> e#8\n\
-        sk#43[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#22[e#4, e#5] -> e#6\n\
-        sk#23[e#4, e#5] -> e#7\n\
-        sk#46[e#6, e#7] -> e#8\n\
-        sk#47[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#22[e#4, e#5] -> e#6\n\
-        sk#23[e#4, e#5] -> e#7\n\
-        sk#46[e#6, e#7] -> e#8\n\
-        sk#47[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#22[e#4, e#5] -> e#6\n\
-        sk#23[e#4, e#5] -> e#7\n\
-        sk#50[e#6, e#7] -> e#8\n\
-        sk#51[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#22[e#4, e#5] -> e#6\n\
-        sk#23[e#4, e#5] -> e#7\n\
-        sk#50[e#6, e#7] -> e#8\n\
-        sk#51[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#26[e#4, e#5] -> e#6\n\
-        sk#27[e#4, e#5] -> e#7\n\
-        sk#54[e#6, e#7] -> e#8\n\
-        sk#55[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#26[e#4, e#5] -> e#6\n\
-        sk#27[e#4, e#5] -> e#7\n\
-        sk#54[e#6, e#7] -> e#8\n\
-        sk#55[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#26[e#4, e#5] -> e#6\n\
-        sk#27[e#4, e#5] -> e#7\n\
-        sk#58[e#6, e#7] -> e#8\n\
-        sk#59[e#6, e#7] -> e#9\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\
-        'sk#0 -> e#0\n\
-        'sk#1 -> e#1\n\
-        sk#2[e#0, e#1] -> e#2\n\
-        sk#3[e#0, e#1] -> e#3\n\
-        sk#10[e#2, e#3] -> e#4\n\
-        sk#11[e#2, e#3] -> e#5\n\
-        sk#26[e#4, e#5] -> e#6\n\
-        sk#27[e#4, e#5] -> e#7\n\
-        sk#58[e#6, e#7] -> e#8\n\
-        sk#59[e#6, e#7] -> e#9", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy36.raz"))));
+        assert_eq!(
+            "Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\
+\'c#0 -> e#0\n\
+\'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9\n\
+-- -- -- -- -- -- -- -- -- --\n\
+Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
+Facts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\
+'c#0 -> e#0\n\
+'c#1 -> e#1\n\
+f#0[e#0, e#1] -> e#2\n\
+f#1[e#0, e#1] -> e#3\n\
+f#0[e#2, e#3] -> e#4\n\
+f#1[e#2, e#3] -> e#5\n\
+f#0[e#4, e#5] -> e#6\n\
+f#1[e#4, e#5] -> e#7\n\
+f#0[e#6, e#7] -> e#8\n\
+f#1[e#6, e#7] -> e#9",
+            print_basic_models(solve_basic(&read_theory_from_file(
+                "../theories/core/thy36.raz"
+            )))
+        );
         assert_eq!(
             "",
             print_basic_models(solve_basic(&read_theory_from_file(
@@ -1885,9 +1731,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <R(e#0, e#0, e#0)>\n\
-                       'sk#0, 'sk#1, 'sk#2 -> e#0",
+            "Domain: {e#0}\nFacts: <R(e#0, e#0, e#0)>\n'c#0, 'c#1, 'c#2 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy38.raz"
             )))
@@ -1895,7 +1739,7 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6}\n\
                        Facts: <Q(e#1)>, <R(e#1, e#6)>\n\
-                       'sk#0 -> e#0\n\
+                       'c#0 -> e#0\n\
                        f[e#0] -> e#1\n\
                        f[e#1] -> e#2\n\
                        f[e#2] -> e#3\n\
@@ -1909,11 +1753,11 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
         Facts: <P(e#1)>, <Q(e#1)>, <R(e#0, e#1)>, <R(e#1, e#3)>, <S(e#4)>\n\
-        'sk#0 -> e#0\n\
+        'c#0 -> e#0\n\
         f[e#0] -> e#1\n\
         f[e#1] -> e#2\n\
         f[e#2] -> e#3\n\
-        sk#1[e#1] -> e#4",
+        f#0[e#1] -> e#4",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy40.raz"
             )))
@@ -1953,22 +1797,19 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: <P(e#0)>, <Q(e#0)>\n\
-        'a, \'b -> e#0\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0, e#1}\n\
-        Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
-        'a -> e#0\n\
-        'b -> e#1",
+            "Domain: {e#0, e#1}\n\
+             Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
+             'a -> e#0\n\'b -> e#1\n\
+             -- -- -- -- -- -- -- -- -- --\n\
+             Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>\n\
+             'a, \
+             'b -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy45.raz"
             )))
         );
         assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: <P(e#0)>, <Q(e#0)>, <R(e#0, e#0)>\n\
-        'sk#0, 'sk#1 -> e#0",
+            "Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0, e#0)>\n\'c#0 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy46.raz"
             )))
@@ -1976,7 +1817,7 @@ mod test_basic {
         assert_eq!(
             "Domain: {e#0}\n\
         Facts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\
-        'sk#0, 'sk#1, 'sk#2, 'sk#3 -> e#0",
+        'c#0 -> e#0",
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy47.raz"
             )))
@@ -2024,7 +1865,7 @@ mod test_basic {
         assert_eq!(
             r#"Domain: {e#0}
 Facts: <P(e#0)>, <Q(e#0)>
-'sk#0 -> e#0"#,
+'c#0 -> e#0"#,
             print_basic_models(solve_domain_bounded_basic(
                 &read_theory_from_file("../theories/bounded/thy3.raz"),
                 5
@@ -2038,28 +1879,28 @@ Facts: <P(e#0)>, <Q(e#0)>
 Domain: {e#0, e#1}
 Facts: <P(e#0)>, <P(e#1)>, <Q(e#1)>
 'a -> e#0
-sk#0[e#0] -> e#1
+f#0[e#0] -> e#1
 -- -- -- -- -- -- -- -- -- --
 Domain: {e#0, e#1, e#2}
 Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <Q(e#2)>
 'a -> e#0
-sk#0[e#0] -> e#1
-sk#0[e#1] -> e#2
+f#0[e#0] -> e#1
+f#0[e#1] -> e#2
 -- -- -- -- -- -- -- -- -- --
 Domain: {e#0, e#1, e#2, e#3}
 Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <Q(e#3)>
 'a -> e#0
-sk#0[e#0] -> e#1
-sk#0[e#1] -> e#2
-sk#0[e#2] -> e#3
+f#0[e#0] -> e#1
+f#0[e#1] -> e#2
+f#0[e#2] -> e#3
 -- -- -- -- -- -- -- -- -- --
 Domain: {e#0, e#1, e#2, e#3, e#4}
 Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <Q(e#4)>
 'a -> e#0
-sk#0[e#0] -> e#1
-sk#0[e#1] -> e#2
-sk#0[e#2] -> e#3
-sk#0[e#3] -> e#4"#,
+f#0[e#0] -> e#1
+f#0[e#1] -> e#2
+f#0[e#2] -> e#3
+f#0[e#3] -> e#4"#,
             print_basic_models(solve_domain_bounded_basic(
                 &read_theory_from_file("../theories/bounded/thy4.raz"),
                 5

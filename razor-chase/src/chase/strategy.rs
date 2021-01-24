@@ -4,7 +4,7 @@
 //!
 //! [`StrategyTrait`]: crate::chase::StrategyTrait
 use crate::chase::{SequentTrait, StrategyTrait};
-use razor_fol::syntax::Formula;
+use razor_fol::syntax::{Formula, FOF};
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
@@ -128,7 +128,8 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait
     fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
         let (initial_sequents, rest) = sequents
             .into_iter()
-            .partition(|s| s.body() == Formula::Top && s.head().free_vars().is_empty());
+            .partition(|s| s.body() == FOF::Top && s.head().free_vars().is_empty());
+
         Bootstrap {
             initial_sequents,
             strategy: Stg::new(rest),
@@ -160,7 +161,7 @@ mod test_fair {
     };
     use crate::test_prelude::{read_theory_from_file, solve_basic};
     use itertools::Itertools;
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
@@ -187,7 +188,7 @@ mod test_fair {
         )
     }
 
-    fn run_test(theory: &Theory) -> Vec<Model> {
+    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
         let preprocessor = PreProcessor;
         let (sequents, init_model) = preprocessor.pre_process(theory);
         let evaluator = Evaluator;
@@ -224,11 +225,11 @@ mod test_bootstrap {
         PreProcessorEx, SchedulerTrait, StrategyTrait,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
-    fn run_test(theory: &Theory) -> Vec<Model> {
+    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
         let pre_processor = PreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = Evaluator;

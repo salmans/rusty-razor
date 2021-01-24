@@ -1,6 +1,6 @@
 use super::{constants::*, Error};
 use itertools::Itertools;
-use razor_fol::syntax;
+use razor_fol::{syntax, transform::Relational};
 use std::convert::TryFrom;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -48,18 +48,18 @@ impl Attribute {
     }
 }
 
-impl TryFrom<&syntax::V> for Attribute {
+impl TryFrom<&syntax::Var> for Attribute {
     type Error = Error;
 
-    fn try_from(value: &syntax::V) -> Result<Self, Error> {
-        value.0.parse()
+    fn try_from(value: &syntax::Var) -> Result<Self, Error> {
+        value.name().parse()
     }
 }
 
-impl From<&Attribute> for syntax::V {
+impl From<&Attribute> for syntax::Var {
     fn from(attr: &Attribute) -> Self {
         let name = &attr.name;
-        syntax::V(name.into())
+        syntax::Var::from(name)
     }
 }
 
@@ -93,8 +93,14 @@ impl FromStr for Attribute {
 pub(super) struct AttributeList(Vec<Attribute>);
 
 impl AttributeList {
+    /// Creates a new instance from an iterator of [`Attribute`]s.
     pub fn new<I: IntoIterator<Item = Attribute>>(attributes: I) -> Self {
         Self(attributes.into_iter().map(Into::into).collect())
+    }
+
+    /// Creates an empty list of attributes.
+    pub fn empty() -> Self {
+        Self::new(vec![])
     }
 
     /// Returns the set union of the attributes in the receiver and those in `other`.
@@ -141,10 +147,12 @@ impl Deref for AttributeList {
     }
 }
 
-impl TryFrom<&syntax::Formula> for AttributeList {
+impl TryFrom<&Relational> for AttributeList {
     type Error = Error;
 
-    fn try_from(value: &syntax::Formula) -> Result<Self, Self::Error> {
+    fn try_from(value: &Relational) -> Result<Self, Self::Error> {
+        use razor_fol::syntax::Formula;
+
         let attributes = value
             .free_vars()
             .into_iter()
@@ -155,8 +163,8 @@ impl TryFrom<&syntax::Formula> for AttributeList {
     }
 }
 
-impl From<&AttributeList> for Vec<syntax::V> {
+impl From<&AttributeList> for Vec<syntax::Var> {
     fn from(attrs: &AttributeList) -> Self {
-        attrs.iter().map(syntax::V::from).collect()
+        attrs.iter().map(syntax::Var::from).collect()
     }
 }

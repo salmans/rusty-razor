@@ -1,46 +1,55 @@
-/*! Defines first-order theories. */
-
-use std::{convert::TryFrom, fmt};
+/*! Defines theories of formulae. */
 
 use super::{Error, Formula, Sig};
+use std::{convert::TryFrom, fmt, ops::Deref};
 
 /// is a first-order theory, containing a set of first-order formulae.
 #[derive(Clone)]
-pub struct Theory {
+pub struct Theory<T: Formula> {
     /// is the signature of the theory, containing constants, function symbols, and predicates.
     signature: Sig,
 
     /// is the list of first-order formulae in this theory.
-    formulae: Vec<Formula>,
+    formulae: Vec<T>,
 }
 
-impl Theory {
+impl<T: Formula> Theory<T> {
     /// Returns a reference to the signature of this theory.
     pub fn signature(&self) -> &Sig {
         &self.signature
     }
 
     /// Returns the formulae of this theory.
-    pub fn formulae(&self) -> &[Formula] {
+    pub fn formulae(&self) -> &[T] {
         &self.formulae
     }
 
-    /// Extends this theory with additional formulae. It fails if the signature of the new formulae is
-    /// inconsistent with the signature of this theory.
-    pub fn extend<T: IntoIterator<Item = Formula>>(&mut self, iter: T) -> Result<(), Error> {
+    /// Extends this theory with additional formulae. It fails if the signature of the
+    /// new formulae is inconsistent with the signature of this theory.
+    pub fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) -> Result<(), Error> {
         self.formulae.extend(iter);
 
         // recalculating the signature:
-        self.signature = Sig::try_from(&self.formulae)?;
+        self.signature = Sig::from_signatures(
+            self.formulae()
+                .iter()
+                .map(|f| f.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )?;
         Ok(())
     }
 }
 
-impl TryFrom<Vec<Formula>> for Theory {
+impl<T: Formula> TryFrom<Vec<T>> for Theory<T> {
     type Error = Error;
 
-    fn try_from(formulae: Vec<Formula>) -> Result<Self, Error> {
-        let signature = Sig::try_from(&formulae)?;
+    fn try_from(formulae: Vec<T>) -> Result<Self, Error> {
+        let signature = Sig::from_signatures(
+            formulae
+                .iter()
+                .map(|f| f.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )?;
 
         Ok(Theory {
             signature,
@@ -49,7 +58,15 @@ impl TryFrom<Vec<Formula>> for Theory {
     }
 }
 
-impl fmt::Display for Theory {
+impl<T: Formula> Deref for Theory<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        &self.formulae
+    }
+}
+
+impl<T: Formula + fmt::Display> fmt::Display for Theory<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let fs: Vec<String> = self.formulae.iter().map(|t| t.to_string()).collect();
         write!(f, "{}", fs.join("\n"))
@@ -59,20 +76,27 @@ impl fmt::Display for Theory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::formula;
+    use crate::fof;
 
     #[test]
     fn theory_to_string() {
         let formulae = vec![
-            formula!(!x. ((x) = (x))),
-            formula!(!x, y. (((x) = (y)) -> ((y) = (x)))),
-            formula!(!x, y, z. ((((x) = (y)) & ((y) = (z))) -> ((x) = (z)))),
+            fof!(!x. ((x) = (x))),
+            fof!(!x, y. (((x) = (y)) -> ((y) = (x)))),
+            fof!(!x, y, z. ((((x) = (y)) & ((y) = (z))) -> ((x) = (z)))),
         ];
 
-        let expected_sig = Sig::try_from(&formulae).unwrap();
-        let expected = "∀ x. (x = x)\n\
-            ∀ x, y. ((x = y) → (y = x))\n\
-            ∀ x, y, z. (((x = y) ∧ (y = z)) → (x = z))";
+        let expected_sig = Sig::from_signatures(
+            formulae
+                .iter()
+                .map(|f| f.signature())
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap(),
+        )
+        .unwrap();
+        let expected = "∀ x. x = x\n\
+            ∀ x, y. (x = y → y = x)\n\
+            ∀ x, y, z. ((x = y ∧ y = z) → x = z)";
 
         let theory = Theory::try_from(formulae).unwrap();
         assert_eq!(expected, &theory.to_string());
@@ -82,8 +106,8 @@ mod tests {
     #[test]
     fn theory_extend() {
         {
-            let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
-            let formulae = vec![formula!(Q(x))];
+            let mut theory = Theory::try_from(vec![fof!(P(f(@c)))]).unwrap();
+            let formulae = vec![fof!(Q(x))];
 
             assert!(theory.extend(formulae).is_ok());
 
@@ -97,8 +121,8 @@ mod tests {
             assert_eq!(2, theory.signature().predicates().len());
         }
         {
-            let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
-            let formulae = vec![formula!(P(x))];
+            let mut theory = Theory::try_from(vec![fof!(P(f(@c)))]).unwrap();
+            let formulae = vec![fof!(P(x))];
 
             assert!(theory.extend(formulae).is_ok());
 
@@ -112,8 +136,8 @@ mod tests {
             assert_eq!(1, theory.signature().predicates().len());
         }
         {
-            let mut theory = Theory::try_from(vec![formula!(P(f(@c)))]).unwrap();
-            let formulae = vec![formula!(P(x, y))];
+            let mut theory = Theory::try_from(vec![fof!(P(f(@c)))]).unwrap();
+            let formulae = vec![fof!(P(x, y))];
 
             assert!(theory.extend(formulae).is_err());
         }

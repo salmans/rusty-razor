@@ -25,7 +25,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::V;
+use razor_fol::syntax::{formula::Atomic, Var};
 use std::{collections::HashMap, iter};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
@@ -61,25 +61,24 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
             // (notice the do-while pattern)
             while {
                 // construct a map from variables to elements
-                let mut assignment_map: HashMap<&V, Element> = HashMap::new();
+                let mut assignment_map: HashMap<&Var, Element> = HashMap::new();
                 for (i, item) in assignment.iter().enumerate() {
                     assignment_map
                         .insert(vars.get(i).unwrap(), (*domain.get(*item).unwrap()).clone());
                 }
                 // construct a "characteristic function" for the assignment map
-                let assignment_func = |v: &V| assignment_map.get(v).unwrap().clone();
+                let assignment_func = |v: &Var| assignment_map.get(v).unwrap().clone();
 
                 // lift the variable assignments to literals (used to make observations)
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> =
-                    sequent.body_literals.iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
-                    .head_literals
+                let body = sequent.body.iter().map(&observe_literal).collect_vec();
+                let head = sequent
+                    .head
                     .iter()
-                    .map(|l| l.iter().map(&observe_literal).collect())
-                    .collect();
+                    .map(|l| l.iter().map(&observe_literal).collect_vec())
+                    .collect_vec();
 
                 // if all body observations are true in the model but not all the head observations
                 // are true, extend the model:
@@ -170,22 +169,23 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // Given an function from variables to elements of a model, returns a closure that lift the variable
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
-    assignment_func: impl Fn(&V) -> Element,
+    assignment_func: impl Fn(&Var) -> Element,
 ) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
     move |lit: &Literal| match lit {
-        basic::Literal::Atm { predicate, terms } => {
-            let terms = terms
+        Atomic::Atom(this) => {
+            let terms = this
+                .terms
                 .iter()
                 .map(|t| WitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
-                relation: Rel(predicate.0.clone()),
+                relation: Rel::from(this.predicate.name()),
                 terms,
             }
         }
-        basic::Literal::Eql { left, right } => {
-            let left = WitnessTerm::witness(left, &assignment_func);
-            let right = WitnessTerm::witness(right, &assignment_func);
+        Atomic::Equals(this) => {
+            let left = WitnessTerm::witness(&this.left, &assignment_func);
+            let right = WitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -218,14 +218,11 @@ mod test_batch {
     use crate::chase::r#impl::basic::Sequent;
     use crate::chase::r#impl::reference::Model;
     use crate::chase::{
-        bounder::DomainSize,
-        chase_all,
-        scheduler::FIFO,
-        strategy::{Bootstrap, Fair},
-        SchedulerTrait, StrategyTrait,
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
+        StrategyTrait,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::Theory;
+    use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
@@ -276,7 +273,7 @@ mod test_batch {
         }
     }
 
-    fn run_test(theory: &Theory) -> Vec<Model> {
+    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
         use std::convert::TryInto;
 
         let geometric_theory = theory.gnf();
@@ -287,7 +284,7 @@ mod test_batch {
             .collect();
 
         let evaluator = Evaluator;
-        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+        let strategy = Fair::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(Model::new(), strategy);

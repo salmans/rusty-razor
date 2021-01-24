@@ -2,58 +2,58 @@
 
 /// Creates a [variable] from a given identifier.
 ///
-/// [variable]: crate::syntax::V
+/// [variable]: crate::syntax::Var
 /// **Example**:
 /// ```rust
-/// # use razor_fol::syntax::V;
+/// # use razor_fol::syntax::Var;
 /// use razor_fol::v;
 ///
 /// let var = v!(v);
 ///
-/// assert_eq!(V("v".to_string()), var);
+/// assert_eq!(Var::from("v"), var);
 /// ```
 #[macro_export]
 macro_rules! v {
     ($v:ident) => {
-        $crate::syntax::V::from(stringify!($v))
+        $crate::syntax::Var::from(stringify!($v))
     };
 }
 
 /// Creates a [function symbol] from a given identifier.
 ///
-/// [function symbol]: crate::syntax::F
+/// [function symbol]: crate::syntax::Func
 /// **Example**:
 /// ```rust
-/// # use razor_fol::syntax::F;
+/// # use razor_fol::syntax::Func;
 /// use razor_fol::f;
 ///
 /// let func = f!(f);
 ///
-/// assert_eq!(F("f".to_string()), func);
+/// assert_eq!(Func::from("f"), func);
 /// ```
 #[macro_export]
 macro_rules! f {
     ($f:ident) => {
-        $crate::syntax::F::from(stringify!($f))
+        $crate::syntax::Func::from(stringify!($f))
     };
 }
 
 /// Creates a [constant] from a given identifier.
 ///
-/// [constant]: crate::syntax::C
+/// [constant]: crate::syntax::Const
 /// **Example**:
 /// ```rust
-/// # use razor_fol::syntax::C;
+/// # use razor_fol::syntax::Const;
 /// use razor_fol::c;
 ///
 /// let constant = c!(c);
 ///
-/// assert_eq!(C("c".to_string()), constant);
+/// assert_eq!(Const::from("c"), constant);
 /// ```
 #[macro_export]
 macro_rules! c {
     ($c:ident) => {
-        $crate::syntax::C::from(stringify!($c))
+        $crate::syntax::Const::from(stringify!($c))
     };
 }
 
@@ -67,7 +67,7 @@ macro_rules! c {
 ///
 /// let pred = pred!(P);
 ///
-/// assert_eq!(Pred("P".to_string()), pred);
+/// assert_eq!(Pred::from("P"), pred);
 /// ```
 #[macro_export]
 macro_rules! pred {
@@ -81,24 +81,24 @@ macro_rules! pred {
 /// [term]: crate::syntax::Term
 /// **Example**:
 /// ```rust
-/// # use razor_fol::{syntax::Term, f, v, c};
+/// # use razor_fol::{syntax::term::Complex, f, v, c};
 /// use razor_fol::term;
 ///
 /// // variable term:
 /// let v = term!(v);
 ///
-/// assert_eq!(Term::from(v!(v)), v);
+/// assert_eq!(Complex::from(v!(v)), v);
 ///
 /// // constant term (preceded by `@`):
 /// let c = term!(@c);
 ///
-/// assert_eq!(Term::from(c!(c)), c);
+/// assert_eq!(Complex::from(c!(c)), c);
 ///
 /// // complex term:
 /// let t = term!(f(x, g(@c, y)));
 ///
 /// assert_eq!(
-///     f!(f).app::<Term>(
+///     f!(f).app(
 ///         vec![v!(x).into(),
 ///         f!(g).app(vec![c!(c).into(), v!(y).into()])]),
 ///     t,
@@ -107,14 +107,10 @@ macro_rules! pred {
 #[macro_export]
 macro_rules! term {
     ($v:ident) => {
-        $crate::syntax::Term::Var {
-            variable: $crate::v!($v),
-        }
+        $crate::syntax::term::Complex::Var($crate::v!($v))
     };
     (@$c:ident) => {
-        $crate::syntax::Term::Const {
-            constant: $crate::c!($c),
-        }
+        $crate::syntax::term::Complex::Const($crate::c!($c))
     };
     ($func:ident ($($t:tt)*)) => {
         {
@@ -125,10 +121,10 @@ macro_rules! term {
 }
 
 /// Parses the input tokens into a list of [terms].
-/// This macro is primarily used by [`formula!`] to parse term tuples.
+/// This macro is primarily used by [`fof!`] to parse term tuples.
 ///
 /// [terms]: crate::syntax::Term
-/// [`formula!`]: crate::formula!
+/// [`fof!`]: crate::fof!
 /// **Example**:
 /// ```rust
 /// # use razor_fol::term;
@@ -159,14 +155,14 @@ macro_rules! terms {
         }
     };
     () => {
-        Vec::<$crate::syntax::Term>::new()
+        Vec::<$crate::syntax::term::Complex>::new()
     };
     ($($tail:tt)*) => {
         $crate::terms!(@acc ($($tail)*) -> ())
     };
 }
 
-/// Parses the input tokens as a [formula].
+/// Parses the input tokens as an [`FOF`].
 ///
 /// **Note:**
 /// The syntax of the input to this macro resembles the [compact] variation of Razor's texual
@@ -181,210 +177,220 @@ macro_rules! terms {
 /// 2. Unlike the textual form where constants are preceded by `'`, in the macro input,
 /// constants are preceded by `@`.
 ///
-/// [formula]: crate::syntax::Formula
+/// [`FOF`]: crate::syntax::FOF
 /// [compact]: https://salmans.github.io/rusty-razor/syntax/variations.html
 /// **Example**:
 /// ```rust
-/// use razor_fol::formula;
+/// use razor_fol::fof;
 ///
 /// // truth:
-/// let f_top = formula!('|');
+/// let f_top = fof!('|');
 /// assert_eq!(r"⊤", f_top.to_string());
 ///
 /// // falsehood:
-/// let f_bot = formula!(_|_);
+/// let f_bot = fof!(_|_);
 /// assert_eq!(r"⟘", f_bot.to_string());
 ///
-/// // atomic formula:
-/// let f_atom = formula!(P(@c, f(x)));
+/// // atomic first-order formula:
+/// let f_atom = fof!(P(@c, f(x)));
 /// assert_eq!(r"P('c, f(x))", f_atom.to_string());
 ///
 /// // equality:
-/// let f_eq = formula!((f(x)) = (y));
+/// let f_eq = fof!((f(x)) = (y));
 /// assert_eq!(r"f(x) = y", f_eq.to_string());
 ///
 /// // negation:
-/// let f_neg = formula!(~[P(f(x))]);
+/// let f_neg = fof!(~[P(f(x))]);
 /// assert_eq!(r"¬P(f(x))", f_neg.to_string());
 ///
 /// // conjunction:
-/// let f_and = formula!([P(x)] & [Q(f(x))]);
+/// let f_and = fof!([P(x)] & [Q(f(x))]);
 /// assert_eq!(r"P(x) ∧ Q(f(x))", f_and.to_string());
 ///
 /// // disjunction:
-/// let f_or = formula!({(x) = (y)} | {P(@a)});
-/// assert_eq!(r"(x = y) ∨ P('a)", f_or.to_string());
+/// let f_or = fof!({(x) = (y)} | {P(@a)});
+/// assert_eq!(r"x = y ∨ P('a)", f_or.to_string());
 ///
 /// // implication:
-/// let f_impl = formula!([P(x)] -> [_|_]);
+/// let f_impl = fof!([P(x)] -> [_|_]);
 /// assert_eq!(r"P(x) → ⟘", f_impl.to_string());
 ///
 /// // bi-implication:
-/// let f_iff = formula!({P(x, y)} <=> {(x) = (y)});
-/// assert_eq!(r"P(x, y) ⇔ (x = y)", f_iff.to_string());
+/// let f_iff = fof!({P(x, y)} <=> {(x) = (y)});
+/// assert_eq!(r"P(x, y) ⇔ x = y", f_iff.to_string());
 ///
 /// // existential quantifier:
-/// let f_ex = formula!(?x, y. (P(x, y)));
+/// let f_ex = fof!(?x, y. (P(x, y)));
 /// assert_eq!(r"∃ x, y. P(x, y)", f_ex.to_string());
 ///
 /// // existential quantifier:
-/// let f_for = formula!(!x. [Q(x, @b)]);
+/// let f_for = fof!(!x. [Q(x, @b)]);
 /// assert_eq!(r"∀ x. Q(x, 'b)", f_for.to_string());
 ///
-/// // complex formula:
-/// let fmla = formula!(!x, y. {[(P(x)) & (Q(y))] -> [R(x, y)]});
+/// // complex first-order formula:
+/// let fmla = fof!(!x, y. {[(P(x)) & (Q(y))] -> [R(x, y)]});
 /// assert_eq!(r"∀ x, y. ((P(x) ∧ Q(y)) → R(x, y))", fmla.to_string());
 /// ```
 #[macro_export]
-macro_rules! formula {
+macro_rules! fof {
     // Top
     ('|') => {
-        $crate::syntax::Formula::Top
+        $crate::syntax::FOF::Top
     };
     // Bottom
     (_|_) => {
-        $crate::syntax::Formula::Bottom
+        $crate::syntax::FOF::Bottom
     };
     // Atom
     ($pred:ident ($($t:tt)*)) => {
         {
             let ts = $crate::terms!($($t)*);
-            $crate::syntax::Pred(stringify!($pred).to_string()).app(ts)
+            $crate::syntax::Pred::from(stringify!($pred)).app(ts)
         }
     };
     // Equality
     (($($left:tt)*) = ($($right:tt)*)) => {
-        $crate::formula!(@equals ($($left)*) ($($right)*))
+        $crate::fof!(@equals ($($left)*) ($($right)*))
     };
     ([$($left:tt)*] = [$($right:tt)*]) => {
-        $crate::formula!(@equals ($($left)*) ($($right)*))
+        $crate::fof!(@equals ($($left)*) ($($right)*))
     };
     ({$($left:tt)*} = {$($right:tt)*}) => {
-        $crate::formula!(@equals ($($left)*) ($($right)*))
+        $crate::fof!(@equals ($($left)*) ($($right)*))
     };
     // Negation
     (~($($fmla:tt)*)) => {
-        $crate::formula!(@not ($($fmla)*))
+        $crate::fof!(@not ($($fmla)*))
     };
     (~[$($fmla:tt)*]) => {
-        $crate::formula!(@not ($($fmla)*))
+        $crate::fof!(@not ($($fmla)*))
     };
     (~{$($fmla:tt)*}) => {
-        $crate::formula!(@not ($($fmla)*))
+        $crate::fof!(@not ($($fmla)*))
     };
     // Conjunction
     (($($left:tt)*) & ($($right:tt)*)) => {
-        formula!(@and ($($left)*) ($($right)*))
+        fof!(@and ($($left)*) ($($right)*))
     };
     ([$($left:tt)*] & [$($right:tt)*]) => {
-        formula!(@and ($($left)*) ($($right)*))
+        fof!(@and ($($left)*) ($($right)*))
     };
     ({$($left:tt)*} & {$($right:tt)*}) => {
-        formula!(@and ($($left)*) ($($right)*))
+        fof!(@and ($($left)*) ($($right)*))
     };
     //Disjunction
     (($($left:tt)*) | ($($right:tt)*)) => {
-        formula!(@or ($($left)*) ($($right)*))
+        fof!(@or ($($left)*) ($($right)*))
     };
     ([$($left:tt)*] | [$($right:tt)*]) => {
-        formula!(@or ($($left)*) ($($right)*))
+        fof!(@or ($($left)*) ($($right)*))
     };
     ({$($left:tt)*} | {$($right:tt)*}) => {
-        formula!(@or ($($left)*) ($($right)*))
+        fof!(@or ($($left)*) ($($right)*))
     };
     // Implication
     (($($left:tt)*) -> ($($right:tt)*)) => {
-        formula!(@implies ($($left)*) ($($right)*))
+        fof!(@implies ($($left)*) ($($right)*))
     };
     ([$($left:tt)*] -> [$($right:tt)*]) => {
-        formula!(@implies ($($left)*) ($($right)*))
+        fof!(@implies ($($left)*) ($($right)*))
     };
     ({$($left:tt)*} -> {$($right:tt)*}) => {
-        formula!(@implies ($($left)*) ($($right)*))
+        fof!(@implies ($($left)*) ($($right)*))
     };
     // Bi-implication
     (($($left:tt)*) <=> ($($right:tt)*)) => {
-        formula!(@iff ($($left)*) ($($right)*))
+        fof!(@iff ($($left)*) ($($right)*))
     };
     ([$($left:tt)*] <=> [$($right:tt)*]) => {
-        formula!(@iff ($($left)*) ($($right)*))
+        fof!(@iff ($($left)*) ($($right)*))
     };
     ({$($left:tt)*} <=> {$($right:tt)*}) => {
-        formula!(@iff ($($left)*) ($($right)*))
+        fof!(@iff ($($left)*) ($($right)*))
     };
     // Universally Quantified
     (! $($v:ident),+ . ($($fmla:tt)*)) => {
-        formula!(@forall ($($v),+) ($($fmla)*))
+        fof!(@forall ($($v),+) ($($fmla)*))
     };
     (! $($v:ident),+ . [$($fmla:tt)*]) => {
-        formula!(@forall ($($v),+) ($($fmla)*))
+        fof!(@forall ($($v),+) ($($fmla)*))
     };
     (! $($v:ident),+ . {$($fmla:tt)*}) => {
-        formula!(@forall ($($v),+) ($($fmla)*))
+        fof!(@forall ($($v),+) ($($fmla)*))
     };
     // Existentially Quantified
     (? $($v:ident),+ . ($($fmla:tt)*)) => {
-        formula!(@exists ($($v),+) ($($fmla)*))
+        fof!(@exists ($($v),+) ($($fmla)*))
     };
     (? $($v:ident),+ . [$($fmla:tt)*]) => {
-        formula!(@exists ($($v),+) ($($fmla)*))
+        fof!(@exists ($($v),+) ($($fmla)*))
     };
     (? $($v:ident),+ . {$($fmla:tt)*}) => {
-        formula!(@exists ($($v),+) ($($fmla)*))
+        fof!(@exists ($($v),+) ($($fmla)*))
     };
     // Construction rules
     (@equals ($($left:tt)*) ($($right:tt)*)) => {
         {
             let left = $crate::term!($($left)*);
             let right = $crate::term!($($right)*);
-            $crate::syntax::Formula::Equals {left, right}
+            $crate::syntax::FOF::from($crate::syntax::formula::Equals{left, right})
         }
     };
     (@not ($($fmla:tt)*)) => {
-        $crate::syntax::Formula::Not{
-            formula: Box::new(formula!($($fmla)*)),
-        }
+        $crate::syntax::FOF::from($crate::syntax::formula::Not{ formula: fof!($($fmla)*) })
     };
     (@and ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::Formula::And{
-            left: Box::new(formula!($($left)*)),
-            right: Box::new(formula!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::And {
+                left: fof!($($left)*),
+                right: fof!($($right)*),
+            }
+        )
     };
     (@or ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::Formula::Or{
-            left: Box::new(formula!($($left)*)),
-            right: Box::new(formula!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::Or {
+                left: fof!($($left)*),
+                right: fof!($($right)*),
+            }
+        )
     };
-    (@implies ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::Formula::Implies{
-            left: Box::new(formula!($($left)*)),
-            right: Box::new(formula!($($right)*)),
-        }
+    (@implies ($($premise:tt)*) ($($consequence:tt)*)) => {
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::Implies {
+                premise: fof!($($premise)*),
+                consequence: fof!($($consequence)*),
+            }
+        )
     };
     (@iff ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::Formula::Iff{
-            left: Box::new(formula!($($left)*)),
-            right: Box::new(formula!($($right)*)),
-        }
+        $crate::syntax::FOF::from(
+            $crate::syntax::formula::Iff {
+                left: fof!($($left)*),
+                right: fof!($($right)*),
+            }
+        )
     };
     (@forall ($($v:ident),+) ($($fmla:tt)*)) => {
         {
-            let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
-            $crate::syntax::Formula::Forall{
-                variables: vs,
-                formula: Box::new(formula!($($fmla)*)),
-            }
+            let vs = vec![$($crate::syntax::Var::from(stringify!($v)),)+];
+            $crate::syntax::FOF::from(
+                $crate::syntax::formula::Forall {
+                    variables: vs,
+                    formula: fof!($($fmla)*),
+                }
+            )
         }
     };
     (@exists ($($v:ident),+) ($($fmla:tt)*)) => {
         {
-            let vs = vec![$($crate::syntax::V(stringify!($v).to_string()),)+];
-            $crate::syntax::Formula::Exists{
-                variables: vs,
-                formula: Box::new(formula!($($fmla)*)),
-            }
+            let vs = vec![$($crate::syntax::Var::from(stringify!($v)),)+];
+            $crate::syntax::FOF::from(
+                $crate::syntax::formula::Exists {
+                    variables: vs,
+                    formula: fof!($($fmla)*),
+                }
+            )
         }
     };
 }
@@ -393,83 +399,56 @@ macro_rules! formula {
 mod tests {
     #[test]
     fn test_macro() {
-        assert_eq!("⊤", formula!('|').to_string());
-        assert_eq!("⟘", formula!(_|_).to_string());
+        assert_eq!("⊤", fof!('|').to_string());
+        assert_eq!("⟘", fof!(_|_).to_string());
 
-        assert_eq!("P()", formula!(P()).to_string());
-        assert_eq!("P(x)", formula!(P(x)).to_string());
-        assert_eq!("P(x, 'c)", formula!(P(x, @c)).to_string());
-        assert_eq!("P(x, 'c, y, 'd)", formula!(P(x, @c, y, @d)).to_string());
-        assert_eq!("P(f(x))", formula!(P(f(x))).to_string());
-        assert_eq!(
-            "P(g(z), f(x, g(y)))",
-            formula!(P(g(z), f(x, g(y)))).to_string()
-        );
+        assert_eq!("P()", fof!(P()).to_string());
+        assert_eq!("P(x)", fof!(P(x)).to_string());
+        assert_eq!("P(x, 'c)", fof!(P(x, @c)).to_string());
+        assert_eq!("P(x, 'c, y, 'd)", fof!(P(x, @c, y, @d)).to_string());
+        assert_eq!("P(f(x))", fof!(P(f(x))).to_string());
+        assert_eq!("P(g(z), f(x, g(y)))", fof!(P(g(z), f(x, g(y)))).to_string());
 
-        assert_eq!("x = y", formula!((x) = (y)).to_string());
-        assert_eq!("'c = y", formula!((@c) = (y)).to_string());
+        assert_eq!("x = y", fof!((x) = (y)).to_string());
+        assert_eq!("'c = y", fof!((@c) = (y)).to_string());
         assert_eq!(
             "h() = f(x, g(y, 'c))",
-            formula!((h()) = (f(x, g(y, @c)))).to_string()
+            fof!((h()) = (f(x, g(y, @c)))).to_string()
         );
-        assert_eq!("x = y", formula!([x] = [y]).to_string());
-        assert_eq!("x = y", formula!({ x } = { y }).to_string());
+        assert_eq!("x = y", fof!([x] = [y]).to_string());
+        assert_eq!("x = y", fof!({ x } = { y }).to_string());
 
-        assert_eq!("¬P(x, 'c)", formula!(~(P(x, @c))).to_string());
-        assert_eq!("¬P(x, 'c)", formula!(~[P(x, @c)]).to_string());
-        assert_eq!("¬P(x, 'c)", formula!(~{P(x, @c)}).to_string());
+        assert_eq!("¬P(x, 'c)", fof!(~(P(x, @c))).to_string());
+        assert_eq!("¬P(x, 'c)", fof!(~[P(x, @c)]).to_string());
+        assert_eq!("¬P(x, 'c)", fof!(~{P(x, @c)}).to_string());
 
-        assert_eq!("P(x, 'c) ∧ ⊤", formula!((P(x, @c)) & ('|')).to_string());
-        assert_eq!("P(x, 'c) ∧ ⟘", formula!((P(x, @c)) & (_|_)).to_string());
+        assert_eq!("P(x, 'c) ∧ ⊤", fof!((P(x, @c)) & ('|')).to_string());
+        assert_eq!("P(x, 'c) ∧ ⟘", fof!((P(x, @c)) & (_|_)).to_string());
 
-        assert_eq!("P(x, 'c) ∧ Q(z)", formula!((P(x, @c)) & (Q(z))).to_string());
-        assert_eq!("P(x, 'c) ∧ Q(z)", formula!([P(x, @c)] & [Q(z)]).to_string());
-        assert_eq!("P(x, 'c) ∧ Q(z)", formula!({P(x, @c)} & {Q(z)}).to_string());
+        assert_eq!("P(x, 'c) ∧ Q(z)", fof!((P(x, @c)) & (Q(z))).to_string());
+        assert_eq!("P(x, 'c) ∧ Q(z)", fof!([P(x, @c)] & [Q(z)]).to_string());
+        assert_eq!("P(x, 'c) ∧ Q(z)", fof!({P(x, @c)} & {Q(z)}).to_string());
 
-        assert_eq!("P(x, 'c) ∨ Q(z)", formula!((P(x, @c)) | (Q(z))).to_string());
-        assert_eq!("P(x, 'c) ∨ Q(z)", formula!([P(x, @c)] | [Q(z)]).to_string());
-        assert_eq!("P(x, 'c) ∨ Q(z)", formula!({P(x, @c)} | {Q(z)}).to_string());
+        assert_eq!("P(x, 'c) ∨ Q(z)", fof!((P(x, @c)) | (Q(z))).to_string());
+        assert_eq!("P(x, 'c) ∨ Q(z)", fof!([P(x, @c)] | [Q(z)]).to_string());
+        assert_eq!("P(x, 'c) ∨ Q(z)", fof!({P(x, @c)} | {Q(z)}).to_string());
 
-        assert_eq!(
-            "P(x, 'c) → Q(z)",
-            formula!((P(x, @c)) -> (Q(z))).to_string()
-        );
-        assert_eq!(
-            "P(x, 'c) → Q(z)",
-            formula!([P(x, @c)] -> [Q(z)]).to_string()
-        );
-        assert_eq!(
-            "P(x, 'c) → Q(z)",
-            formula!({P(x, @c)} -> {Q(z)}).to_string()
-        );
+        assert_eq!("P(x, 'c) → Q(z)", fof!((P(x, @c)) -> (Q(z))).to_string());
+        assert_eq!("P(x, 'c) → Q(z)", fof!([P(x, @c)] -> [Q(z)]).to_string());
+        assert_eq!("P(x, 'c) → Q(z)", fof!({P(x, @c)} -> {Q(z)}).to_string());
 
-        assert_eq!(
-            "P(x, 'c) ⇔ Q(z)",
-            formula!((P(x, @c)) <=> (Q(z))).to_string()
-        );
-        assert_eq!(
-            "P(x, 'c) ⇔ Q(z)",
-            formula!([P(x, @c)] <=> [Q(z)]).to_string()
-        );
-        assert_eq!(
-            "P(x, 'c) ⇔ Q(z)",
-            formula!({P(x, @c)} <=> {Q(z)}).to_string()
-        );
+        assert_eq!("P(x, 'c) ⇔ Q(z)", fof!((P(x, @c)) <=> (Q(z))).to_string());
+        assert_eq!("P(x, 'c) ⇔ Q(z)", fof!([P(x, @c)] <=> [Q(z)]).to_string());
+        assert_eq!("P(x, 'c) ⇔ Q(z)", fof!({P(x, @c)} <=> {Q(z)}).to_string());
 
-        assert_eq!("∀ x. P(x, \'c)", formula!(!x . (P(x, @c))).to_string());
-        assert_eq!("∀ x. P(x, \'c)", formula!(!x . [P(x, @c)]).to_string());
-        assert_eq!("∀ x. P(x, \'c)", formula!(!x . {P(x, @c)}).to_string());
-        assert_eq!(
-            "∀ x, y. P(x, \'c)",
-            formula!(!x, y . (P(x, @c))).to_string()
-        );
+        assert_eq!("∀ x. P(x, \'c)", fof!(!x . (P(x, @c))).to_string());
+        assert_eq!("∀ x. P(x, \'c)", fof!(!x . [P(x, @c)]).to_string());
+        assert_eq!("∀ x. P(x, \'c)", fof!(!x . {P(x, @c)}).to_string());
+        assert_eq!("∀ x, y. P(x, \'c)", fof!(!x, y . (P(x, @c))).to_string());
 
-        assert_eq!("∃ x. P(x, \'c)", formula!(?x . (P(x, @c))).to_string());
-        assert_eq!("∃ x. P(x, \'c)", formula!(?x . [P(x, @c)]).to_string());
-        assert_eq!("∃ x. P(x, \'c)", formula!(?x . {P(x, @c)}).to_string());
-        assert_eq!(
-            "∃ x, y. P(x, \'c)",
-            formula!(?x, y . (P(x, @c))).to_string()
-        );
+        assert_eq!("∃ x. P(x, \'c)", fof!(?x . (P(x, @c))).to_string());
+        assert_eq!("∃ x. P(x, \'c)", fof!(?x . [P(x, @c)]).to_string());
+        assert_eq!("∃ x. P(x, \'c)", fof!(?x . {P(x, @c)}).to_string());
+        assert_eq!("∃ x, y. P(x, \'c)", fof!(?x, y . (P(x, @c))).to_string());
     }
 }

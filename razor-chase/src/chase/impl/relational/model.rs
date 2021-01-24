@@ -59,7 +59,7 @@ impl Model {
     // assumes that the witness term is flat
     pub(super) fn record(&mut self, witness: WitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem { element } => element,
+            WitnessTerm::Elem(e) => e,
             _ => self
                 .rewrites
                 .get(&witness)
@@ -144,22 +144,18 @@ impl Model {
         let mut rewrites = HashMap::new();
         for (term, element) in &self.rewrites {
             let new_term = match &term {
-                WitnessTerm::Elem { element } => WitnessTerm::Elem {
-                    element: *conversion_map.get(element).unwrap(),
-                },
-                WitnessTerm::Const { .. } => term.clone(),
+                WitnessTerm::Elem(e) => WitnessTerm::Elem(*conversion_map.get(e).unwrap()),
+                WitnessTerm::Const(_) => term.clone(),
                 WitnessTerm::App { function, terms } => WitnessTerm::App {
                     function: function.clone(),
                     terms: terms
                         .iter()
                         .map(|e| {
                             let e = match e {
-                                WitnessTerm::Elem { element } => element,
+                                WitnessTerm::Elem(e) => e,
                                 _ => unreachable!(),
                             };
-                            WitnessTerm::Elem {
-                                element: *conversion_map.get(e).unwrap(),
-                            }
+                            WitnessTerm::Elem(*conversion_map.get(e).unwrap())
                         })
                         .collect(),
                 },
@@ -240,8 +236,8 @@ impl ModelTrait for Model {
 
     fn element(&self, witness: &WitnessTerm) -> Option<E> {
         match witness {
-            WitnessTerm::Elem { element } => self.domain().into_iter().find(|e| e == element),
-            WitnessTerm::Const { .. } => self.rewrites.get(witness).cloned(),
+            WitnessTerm::Elem(element) => self.domain().into_iter().find(|e| e == element),
+            WitnessTerm::Const(_) => self.rewrites.get(witness).cloned(),
             WitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
@@ -331,7 +327,7 @@ fn relations_map(
         );
     }
     for p in sig.predicates().values() {
-        if p.symbol.0 == EQUALITY {
+        if p.symbol.name() == EQUALITY {
             continue; // Equality is a special case (below)
         }
         let name = predicate_instance_name(&p.symbol);

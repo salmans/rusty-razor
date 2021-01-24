@@ -156,7 +156,7 @@ impl fmt::Debug for E {
 /// Is the trait for special kind of variable-free terms that are used to witness existence of
 /// model elements. These terms are used as provenance information for models to describe *why*
 /// elements exist or facts are true in models.
-pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FApp {
+pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display {
     /// Is the type of elements that are witnessed by the witness term.
     ///
     /// **Note**: Although [`E`] is often the underlying symbol for representing model
@@ -181,7 +181,7 @@ pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display + FApp {
 /// [`Fact`]: Observation::Fact
 /// [`Pred`]: razor_fol::syntax::Pred
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct Rel(pub String);
+pub struct Rel(String);
 
 impl Rel {
     /// Applies the receiver to a list of witness terms.
@@ -254,15 +254,9 @@ impl Rel {
     }
 }
 
-impl From<&str> for Rel {
-    fn from(s: &str) -> Self {
-        Rel(s.to_owned())
-    }
-}
-
-impl From<String> for Rel {
-    fn from(s: String) -> Self {
-        Rel(s)
+impl<S: Into<String>> From<S> for Rel {
+    fn from(s: S) -> Self {
+        Rel(s.into())
     }
 }
 
@@ -275,12 +269,6 @@ impl fmt::Display for Rel {
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
-    }
-}
-
-impl From<Pred> for Rel {
-    fn from(predicate: Pred) -> Self {
-        Rel(predicate.0)
     }
 }
 
@@ -359,10 +347,10 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
 /// [bg]: self#background
 pub trait SequentTrait: Clone {
     /// Returns the *body* (premise) of the sequent as a formula.
-    fn body(&self) -> Formula;
+    fn body(&self) -> FOF;
 
     /// Returns the *head* (consequence) of the sequent as a formula.
-    fn head(&self) -> Formula;
+    fn head(&self) -> FOF;
 }
 
 /// Is the trait of objects that convert an initial theory to sequents and provide the initial
@@ -376,7 +364,7 @@ pub trait PreProcessorEx {
 
     /// Given a theory, returns an iterator of [sequents][SequentTrait] and an initial
     /// [model][ModelTrait] by applying the necessary pre-processing.
-    fn pre_process(&self, theory: &Theory) -> (Vec<Self::Sequent>, Self::Model);
+    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model);
 }
 
 /// Strategy is the trait of algorithms for choosing sequents in the context of an implementation
@@ -534,7 +522,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// [the Chase]: self#the-chase
 ///
 /// ```rust
-/// use razor_fol::syntax::Theory;
+/// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
 ///     SchedulerTrait, StrategyTrait, chase_all,
 ///     r#impl::basic,
@@ -545,7 +533,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// use std::convert::TryInto;
 ///
 /// // parse the theory:
-/// let theory: Theory = r#"
+/// let theory: Theory<FOF> = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
 ///   R(x) -> exists y . S(x, y);
@@ -607,7 +595,7 @@ where
 /// [chase-step]: self#chase-step
 ///
 /// ```rust
-/// use razor_fol::syntax::Theory;
+/// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
 ///     SchedulerTrait, StrategyTrait, chase_step,
 ///     r#impl::basic,
@@ -618,7 +606,7 @@ where
 /// use std::convert::TryInto;
 ///
 /// // parse the theory:
-/// let theory: Theory = r#"
+/// let theory: Theory<FOF> = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
 ///   R(x) -> exists y . S(x, y);
@@ -744,7 +732,7 @@ mod test_chase {
 
     #[test]
     fn test_rel() {
-        assert_eq!(_R_(), R().into());
+        assert_eq!(_R_(), R().name().into());
         assert_eq!("R", _R_().to_string());
     }
 }
