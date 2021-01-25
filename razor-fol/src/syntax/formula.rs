@@ -48,10 +48,10 @@ pub trait Formula {
     /// ```    
     fn signature(&self) -> Result<Sig, Error>;
 
-    /// Returns a list of free the variable symbols present in the receiver.
+    /// Returns a list of free the variable symbols present in `self`.
     ///
     /// **Note**: In the list of variables, each variable symbol appears only once
-    /// even if it is present at multiple positions of the receiver.
+    /// even if it is present at multiple positions of `self`.
     ///
     /// **Example**:
     /// ```rust
@@ -75,10 +75,10 @@ pub trait Formula {
     /// ```    
     fn free_vars(&self) -> Vec<&Var>;
 
-    /// Applies a transformation function `f` on the terms of the receiver.
+    /// Applies a transformation function `f` on the terms of `self`.
     fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self;
 
-    /// Recursively applies a [`Renaming`] on the variable terms of the receiver.
+    /// Recursively applies a [`Renaming`] on the variable terms of `self`.
     fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
@@ -86,7 +86,7 @@ pub trait Formula {
         self.transform_term(&|t: &Self::Term| t.rename_var(renaming))
     }
 
-    /// Recursively applies a [`Substitution`] on the variable terms of the receiver.
+    /// Recursively applies a [`Substitution`] on the variable terms of `self`.
     fn substitute(&self, sub: &impl Substitution<Self::Term>) -> Self
     where
         Self: Sized,

@@ -103,7 +103,7 @@ impl AttributeList {
         Self::new(vec![])
     }
 
-    /// Returns the set union of the attributes in the receiver and those in `other`.
+    /// Returns the set union of the attributes in `self` and those in `other`.
     pub fn union(&self, other: &[Attribute]) -> AttributeList {
         Self::new(
             self.iter()
@@ -113,7 +113,7 @@ impl AttributeList {
         )
     }
 
-    /// Returns the attributes that are present in both the receiver and `other`.
+    /// Returns the attributes that are present in both `self` and `other`.
     pub fn intersect(&self, other: &[Attribute]) -> AttributeList {
         Self::new(
             self.iter()
@@ -123,7 +123,7 @@ impl AttributeList {
         )
     }
 
-    /// Returns a new `AttributeList` containing the universal attributes in the receiver.
+    /// Returns a new `AttributeList` containing the universal attributes in `self`.
     pub fn universals(&self) -> AttributeList {
         Self::new(
             self.attributes()
@@ -133,7 +133,7 @@ impl AttributeList {
         )
     }
 
-    /// Returns the list of attributes wrapped inside the receiver.
+    /// Returns the list of attributes wrapped inside `self`.
     pub fn attributes(&self) -> &[Attribute] {
         &self.0
     }

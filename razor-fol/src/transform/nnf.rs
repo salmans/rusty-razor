@@ -93,7 +93,7 @@ impl From<Literal<Complex>> for NNF {
 
 /// Is the trait of [`Formula`] types that can be transformed to [`NNF`].
 pub trait ToNNF: Formula {
-    /// Transforms the receiver formula to a Negation Normal Form (NNF).
+    /// Transforms `self` to a Negation Normal Form (NNF).
     ///
     /// **Example**:
     /// ```rust

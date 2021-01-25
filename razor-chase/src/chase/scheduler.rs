@@ -1,4 +1,4 @@
-//! Implements various schedulers for scheduling branches of the Chase.
+//! Implements various schedulers for scheduling branches of the chase.
 //!
 //! The schedulers are instances of [`SchedulerTrait`].
 //!
@@ -65,9 +65,9 @@ where
     }
 }
 
-/// Schedules branches of the Chase in a first-in-first-out manner.
+/// Schedules branches of the chase in a first-in-first-out manner.
 pub struct FIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item = &'s S>> {
-    /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
+    /// Is a queue to store the chase branches (a [model] together with a [strategy]) in a
     /// first-in-first-out fashion.
     ///
     /// [model]: crate::chase::ModelTrait
@@ -118,9 +118,9 @@ where
     }
 }
 
-/// Schedules branches of the Chase in a last-in-first-out manner.
+/// Schedules branches of the chase in a last-in-first-out manner.
 pub struct LIFO<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item = &'s S>> {
-    /// Is a queue to store the Chase branches (a [model] together with a [strategy]) in a
+    /// Is a queue to store the chase branches (a [model] together with a [strategy]) in a
     /// last-in-first-out fashion.
     ///
     /// [model]: crate::chase::ModelTrait

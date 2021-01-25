@@ -35,7 +35,7 @@ impl From<CNFClauseSet> for CNF {
 
 /// Is the trait of [`Formula`] types that can be transformed to [`CNF`].
 pub trait ToCNF: Formula {
-    /// Transform the receiver formula to a Conjunctive Normal Form (CNF).
+    /// Transform `self` to a Conjunctive Normal Form (CNF).
     ///
     /// **Example**:
     /// ```rust
@@ -73,13 +73,13 @@ impl<T: ToCNF> From<T> for CNF {
 }
 
 impl CNF {
-    /// Returns the clauses of the receiver CNF.
+    /// Returns the clauses of `self`.
     #[inline(always)]
     pub fn clauses(&self) -> &BTreeSet<CNFClause> {
         &self.0
     }
 
-    /// Consumes the receiver and returns the underlying set of clauses.
+    /// Consumes `self` and returns the underlying set of clauses.
     pub fn into_clauses(self) -> BTreeSet<CNFClause> {
         self.0.into_clauses()
     }

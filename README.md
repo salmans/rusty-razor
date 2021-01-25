@@ -1,7 +1,7 @@
 # rusty-razor
 
 Rusty Razor is a tool for constructing finite models for first-order theories. The model-finding algorithm is inspired
-by [The Chase](https://en.wikipedia.org/wiki/Chase_(algorithm)) for database systems. Given a first-order theory,
+by [the chase](https://en.wikipedia.org/wiki/Chase_(algorithm)) for database systems. Given a first-order theory,
 Razor constructs a set of *homomorphically minimal* models for the theory.
 
 Check out Razor's [documentation](https://salmans.github.io/rusty-razor/intro.html) for more information about the project and introductory examples.

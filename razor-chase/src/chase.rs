@@ -1,9 +1,9 @@
-//! Provides a framework and interfaces to various components that are used for implementing the
-//! Chase. It also implements entrypoints for running the Chase.
+//! Provides a framework and interfaces to various components that are used for implementing
+//! the chase. It also implements entrypoints for running the chase.
 //!
 //! ## Background
-//! Razor implements a variant of [the Chase] algorithm to construct models for first-order theories with
-//! equality. The Chase operates on *[geometric theories]*, theories that contain a syntactic
+//! Razor implements a variant of [the chase] algorithm to construct models for first-order theories with
+//! equality. The chase operates on *[geometric theories]*, theories that contain a syntactic
 //! variation of first-order formulae which we refer to as the Geometric Normal Form (GNF). Formulae
 //! in GNF have the following shape:
 //!
@@ -19,7 +19,7 @@
 //! where A<sub>k</sub>s are (positive) atomic formulae (possibly including equality) and free
 //! variables are assumed to be universally qualified over the entire formula.
 //!
-//! In the context of a [run of the Chase], we refer to formulae in the their GNF as
+//! In the context of a [run of the chase], we refer to formulae in the their GNF as
 //! [*sequents*][SequentTrait]. The premise (left side) and the consequence (right side) of the
 //! implication are respectively said to be the *body* and the *head* of the sequent.
 //!
@@ -28,26 +28,26 @@
 //! *equisatisfiable* to the original theory via [standard syntactic manipulation].
 //! In fact, for every model *N* of the original theory, there exists a model *M* of the geometric
 //! theory such that there is a homomorphism from *M* to *N*. This is an important result that
-//! enables Razor to utilize the Chase to construct homomorphically minimal models of a given
+//! enables Razor to utilize the chase to construct homomorphically minimal models of a given
 //! first-order theory.
 //!
-//! In the context of a model-finding application, the models that the Chase produces are desirable
+//! In the context of a model-finding application, the models that the chase produces are desirable
 //! since they contain minimum amount of information, thus they induce minimal distraction.
 //! As a direct consequence of semi-decidability of satisfiability in first-order logic
 //! (see [Gödel's incompleteness theorems][godel]), satisfiability of geometric theories is
 //! semi-decidable as well.
 //!
 //! **Note**: A comprehensive discussion on the properties of the models that are constructed by
-//! the Chase is out of the scope of this document.
+//! the chase is out of the scope of this document.
 //!
-//! [the Chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
+//! [the chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
-//! [run of the Chase]: self#chase_all
+//! [run of the chase]: self#chase_all
 //! [standard syntactic manipulation]: razor_fol::transform::CNF::gnf()
 //! [godel]: https://en.wikipedia.org/wiki/Gödel%27s_incompleteness_theorems
 //!
 //! ## The Chase
-//! Given a geometric theory and starting with an empty model, a run of Chase consists of repeated
+//! Given a geometric theory and starting with an empty model, a run of the chase consists of repeated
 //! applications of [chase-step]s by which the model is augmented with *necessary* pieces of
 //! information until there is a contradiction or the model satisfies the theory. Within
 //! Razor's implementation, instances of any type that implements [ModelTrait] can serve as a
@@ -70,35 +70,35 @@
 //! evaluate the sequent in the model.
 //!
 //!     2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
-//! the Chase fails on the given model.
+//! the chase fails on the given model.
 //!
 //!     2.2. If the head of the sequent contains more than one disjunct (with at least one
-//! non-trivial disjunction), the Chase branches and satisfies each disjunct independently on clones
-//! of the model. Razor uses instances of [SchedulerTrait] to schedule various branches of the Chase
-//! for future Chase steps.
+//! non-trivial disjunction), the chase branches and satisfies each disjunct independently on clones
+//! of the model. Razor uses instances of [SchedulerTrait] to schedule various branches of the chase
+//! for future chase steps.
 //!
 //!     2.3. If no sequent can be found such that its body and head are respectively true and false
-//! in the model, the model already satisfies the theory and will be returned as an output of the
-//! Chase.
+//! in the model, the model already satisfies the theory and will be returned as an output of
+//! the chase.
 //!
 //! ### Termination
 //! As a result of semi-decidability of geometric theories, it can be shown if a geometric theory
-//! is unsatisfiable, a run of the Chase on the theory always terminates, although it may take
+//! is unsatisfiable, a run of the chase on the theory always terminates, although it may take
 //! a very very long time.
-//! However, when the theory is satisfiable, a run of the Chase may not terminate, producing
+//! However, when the theory is satisfiable, a run of the chase may not terminate, producing
 //! infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
-//! in practice, Razor can *bound* the size of models created by the Chase to guarantee termination.
+//! in practice, Razor can *bound* the size of models created by the chase to guarantee termination.
 //! Razor uses instances of types that implement [BounderTrait] to implement various strategies to
 //! cap the size of search space for models.
 //!
 //! ## Implementation
-//! The primary motivation for implementing Razor is to study the Chase and improve its performance
+//! The primary motivation for implementing Razor is to study the chase and improve its performance
 //! for practical applications. The flexible (but somehow complex) design of Razor allows for
 //! experimenting with various data structures to represent [models][ModelTrait] and
 //! [sequents][SequentTrait], [evaluating][EvaluatorTrait] sequents in models using a variety
 //! of algorithms, testing different ideas for [scheduling][SchedulerTrait] branches of
-//! the Chase and devising various [strategies][StrategyTrait] for selecting sequents. Also,
-//! because of theoretical and non-theoretical consequences of non-termination of the Chase,
+//! the chase and devising various [strategies][StrategyTrait] for selecting sequents. Also,
+//! because of theoretical and non-theoretical consequences of non-termination of the chase,
 //! Razor is going to explore a variety of ideas for limiting the search space by
 //! [bounding][BounderTrait] the size of models:
 //!
@@ -120,7 +120,7 @@ use either::Either;
 pub struct E(pub i32);
 
 impl E {
-    /// Identifies the receiver with `other` element by collapsing their indices.
+    /// Identifies `self` with `other` element by collapsing their indices.
     /// ```rust
     /// # use razor_chase::chase::E;
     /// let mut e_1 = E::from(1);
@@ -165,7 +165,7 @@ pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display {
     /// example.
     type ElementType;
 
-    /// Returns an equational [`Observation`] between the receiver and the give witness term.
+    /// Returns an equational [`Observation`] between `self` and the give witness term.
     fn equals(self, rhs: Self) -> Observation<Self> {
         Observation::Identity {
             left: self,
@@ -184,7 +184,7 @@ pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display {
 pub struct Rel(String);
 
 impl Rel {
-    /// Applies the receiver to a list of witness terms.
+    /// Applies `self` to a list of witness terms.
     pub fn app<T: WitnessTermTrait>(self, terms: Vec<T>) -> Observation<T> {
         Observation::Fact {
             relation: self,
@@ -192,7 +192,7 @@ impl Rel {
         }
     }
 
-    /// Applies the (nullary) receiver.
+    /// Applies the (nullary) `self`.
     pub fn app0<T: WitnessTermTrait>(self) -> Observation<T> {
         Observation::Fact {
             relation: self,
@@ -200,7 +200,7 @@ impl Rel {
         }
     }
 
-    /// Applies the (unary) receiver on a witness term.
+    /// Applies the (unary) `self` on a witness term.
     pub fn app1<T: WitnessTermTrait>(self, first: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
@@ -208,7 +208,7 @@ impl Rel {
         }
     }
 
-    /// Applies the (binary) receiver on two witness terms.
+    /// Applies the (binary) `self` on two witness terms.
     pub fn app2<T: WitnessTermTrait>(self, first: T, second: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
@@ -216,7 +216,7 @@ impl Rel {
         }
     }
 
-    /// Applies the (ternary) receiver on three witness terms.
+    /// Applies the (ternary) `self` on three witness terms.
     pub fn app3<T: WitnessTermTrait>(self, first: T, second: T, third: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
@@ -224,7 +224,7 @@ impl Rel {
         }
     }
 
-    /// Applies the (4-ary) receiver on four witness terms.
+    /// Applies the (4-ary) `self` on four witness terms.
     pub fn app4<T: WitnessTermTrait>(
         self,
         first: T,
@@ -238,7 +238,7 @@ impl Rel {
         }
     }
 
-    /// Applies the (5-ary) receiver on five witness terms.
+    /// Applies the (5-ary) `self` on five witness terms.
     pub fn app5<T: WitnessTermTrait>(
         self,
         first: T,
@@ -304,33 +304,33 @@ impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
     }
 }
 
-/// Is the trait for various implementations of first-order models that are constructed by the
-/// Chase.
+/// Is the trait for various implementations of first-order models that are constructed by
+/// the chase.
 pub trait ModelTrait: Clone + fmt::Display + ToString {
     /// Is the type of witness terms, denoting elements of this model.
     /// [`ElementType`](`WitnessTermTrait::ElementType`)
     /// is the type of elements for this model.
     type TermType: WitnessTermTrait;
 
-    /// Returns a unique ID for the receiver.
+    /// Returns a unique ID for `self`.
     fn get_id(&self) -> u64;
 
-    /// Returns the domain of the receiver. The domain of a model consists of all elements in the
+    /// Returns the domain of `self`. The domain of a model consists of all elements in the
     /// model.
     fn domain(&self) -> Vec<<Self::TermType as WitnessTermTrait>::ElementType>;
 
-    /// Returns the set of relational [`Fact`]s that are true in the receiver.
+    /// Returns the set of relational [`Fact`]s that are true in `self`.
     ///
     /// [`Fact`]: Observation::Fact
     fn facts(&self) -> Vec<Observation<Self::TermType>>;
 
-    /// Returns a set of all witness terms in the receiver that are denoted by `element`.
+    /// Returns a set of all witness terms in `self` that are denoted by `element`.
     fn witness(
         &self,
         element: &<Self::TermType as WitnessTermTrait>::ElementType,
     ) -> Vec<Self::TermType>;
 
-    /// Returns the element in the receiver that is denoted by `witness`.
+    /// Returns the element in `self` that is denoted by `witness`.
     fn element(
         &self,
         witness: &Self::TermType,
@@ -342,7 +342,7 @@ pub trait ModelTrait: Clone + fmt::Display + ToString {
 }
 
 /// Is the trait for types that represents a geometric sequent in the context of an
-/// [implementation of the Chase][bg].
+/// [implementation of the chase][bg].
 ///
 /// [bg]: self#background
 pub trait SequentTrait: Clone {
@@ -367,8 +367,9 @@ pub trait PreProcessorEx {
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model);
 }
 
-/// Strategy is the trait of algorithms for choosing sequents in the context of an implementation
-/// of the Chase. Strategy instances provide the next sequent to be evaluated by the Chase.
+/// Strategy is the trait of algorithms for choosing sequents in the context of an
+/// implementation of the chase. Strategy instances provide the next sequent to be
+/// evaluated by the chase.
 ///
 /// **Note**: See [here] for more information about how strategy instances are used.
 ///
@@ -378,12 +379,12 @@ pub trait StrategyTrait: Clone + Iterator {
     fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self;
 }
 
-/// Bounder is the trait of algorithms for [bounding] the size of models generated by the Chase.
+/// Bounder is the trait of algorithms for [bounding] the size of models generated by the chase.
 ///
 /// [bounding]: self#termination
 pub trait BounderTrait {
     /// Returns true if the given observation is outside of the bounds set for the given model
-    /// according to the algorithm implemented by the receiver. If the result is true, the Chase
+    /// according to the algorithm implemented by `self`. If the result is true, the chase
     /// stops processing the model.
     fn bound<M: ModelTrait>(&self, model: &M, observation: &Observation<M::TermType>) -> bool;
 }
@@ -400,7 +401,7 @@ pub trait EvaluatorTrait<'s, Stg: StrategyTrait<Item = &'s Self::Sequent>, B: Bo
     type Model: ModelTrait;
 
     /// Applies a [chase-step] by evaluating the sequents of `strategy` in `model` and produces
-    /// extensions of `model`, corresponding to new branches of the Chase. New models that do not
+    /// extensions of `model`, corresponding to new branches of the chase. New models that do not
     /// reach the bound provided by `bounder` are returned as `open_models` in the resulting
     /// [`EvaluateResult`]. New models that reach the bound provided by `bounder` are returned
     /// as `bounded_models` in the return value.
@@ -440,24 +441,24 @@ impl<M: ModelTrait> EvaluateResult<M> {
         }
     }
 
-    /// Returns true if the receiver contains no models (neither `open_models` nor `bounded_models`)
+    /// Returns true if `self` contains no models (neither `open_models` nor `bounded_models`)
     /// and false otherwise.
     pub fn empty(&self) -> bool {
         self.open_models.is_empty() && self.bounded_models.is_empty()
     }
 
-    /// Appends `model` to the list of `open_models` of the receiver.
+    /// Appends `model` to the list of `open_models` of `self`.
     pub fn append_open_model(&mut self, model: M) {
         self.open_models.push(model);
     }
 
-    /// Appends `model` to the list of `bounded_models` of the receiver.
+    /// Appends `model` to the list of `bounded_models` of `self`.
     pub fn append_bounded_model(&mut self, model: M) {
         self.bounded_models.push(model);
     }
 
-    /// Appends the value in `model` to the list of `open_models` or `bounded_models` of the
-    /// receiver if `model` is respectively a left or a right value.
+    /// Appends the value in `model` to the list of `open_models` or `bounded_models` of
+    /// `self` if `model` is respectively a left or a right value.
     pub fn append(&mut self, model: Either<M, M>) {
         match model {
             Either::Left(m) => self.append_open_model(m),
@@ -465,7 +466,7 @@ impl<M: ModelTrait> EvaluateResult<M> {
         };
     }
 
-    /// Consumes the receiver and returns a tuple of its open and bounded models.
+    /// Consumes `self` and returns a tuple of its open and bounded models.
     pub fn into_models(self) -> (Vec<M>, Vec<M>) {
         (self.open_models, self.bounded_models)
     }
@@ -494,11 +495,11 @@ impl<M: ModelTrait> From<(Vec<M>, Vec<M>)> for EvaluateResult<M> {
     }
 }
 
-/// Is the trait of algorithms for scheduling various branches of the Chase. A branch of the Chase
+/// Is the trait of algorithms for scheduling various branches of the chase. A branch of the chase
 /// is represented with a [model][ModelTrait] together with a [strategy][StrategyTrait] for
 /// scheduling sequents to be evaluated in the model.
 ///
-/// **Note**: See [here] for more information about scheduling branches of the Chase.
+/// **Note**: See [here] for more information about scheduling branches of the chase.
 ///
 /// [here]: self#implementation
 pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyTrait<Item = &'s S>>
@@ -507,19 +508,19 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
     fn empty(&self) -> bool;
 
     /// Schedules a [model][ModelTrait] and its associated [strategy][StrategyTrait] as a
-    /// branch of the Chase.
+    /// branch of the chase.
     fn add(&mut self, model: M, strategy: Stg);
 
-    /// Removes the next scheduled item from the receiver and returns its associated
+    /// Removes the next scheduled item from `self` and returns its associated
     /// [model][ModelTrait] and [strategy][StrategyTrait].
     fn remove(&mut self) -> Option<(M, Stg)>;
 }
 
 /// Given a [`scheduler`][SchedulerTrait], an [`evaluator`][EvaluatorTrait] and possibly a
-/// [`bounder`][BounderTrait], runs an implementation independent run of [the Chase] and
+/// [`bounder`][BounderTrait], runs an implementation independent run of [the chase] and
 /// returns *all* resulting models. The return value is empty if the theory is not satisfiable.
 ///
-/// [the Chase]: self#the-chase
+/// [the chase]: self#the-chase
 ///
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
@@ -552,7 +553,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// let strategy = Linear::new(sequents.iter()); // use the `Linear` strategy
 /// let mut scheduler = FIFO::new();  // schedule branches in first-in-first-out manner
 ///
-/// // run unbounded model-finding (note that the Chase terminates on the given theory):
+/// // run unbounded model-finding (note that the chase terminates on the given theory):
 /// let bounder: Option<&DomainSize> = None;
 /// scheduler.add(basic::Model::new(), strategy); // schedule the initial (empty) model
 /// let models = chase_all(&mut scheduler, &evaluator, bounder);
@@ -625,7 +626,7 @@ where
 /// let strategy = Linear::new(sequents.iter()); // use the `Linear` strategy
 /// let mut scheduler = FIFO::new();  // schedule branches in first-in-first-out manner
 ///
-/// // run unbounded model-finding (note that the Chase terminates on the given theory):
+/// // run unbounded model-finding (note that the chase terminates on the given theory):
 /// let bounder: Option<&DomainSize> = None;
 /// scheduler.add(basic::Model::new(), strategy); // schedule the initial (empty) model
 ///

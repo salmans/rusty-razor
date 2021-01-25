@@ -1,6 +1,6 @@
 //! Contains all implementations of models, sequents and evaluators.
 //!
-//! The module implements different versions of the Chase and various instances of
+//! The module implements different versions of the chase and various instances of
 //! [`ModelTrait`], [`SequentTrait`] and [`EvaluatorTrait`]
 //!
 //! [`ModelTrait`]: crate::chase::ModelTrait

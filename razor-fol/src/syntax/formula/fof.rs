@@ -151,7 +151,7 @@ impl FOF {
         Forall { variables, formula }.into()
     }
 
-    /// Returns a conjunction of the receiver and `other`.
+    /// Returns a conjunction of `self` and `other`.
     #[inline(always)]
     pub fn and(self, other: Self) -> Self {
         And {
@@ -161,7 +161,7 @@ impl FOF {
         .into()
     }
 
-    /// Returns a disjunction of the receiver and `other`.
+    /// Returns a disjunction of `self` and `other`.
     #[inline(always)]
     pub fn or(self, other: Self) -> Self {
         Or {
@@ -171,7 +171,7 @@ impl FOF {
         .into()
     }
 
-    /// Returns an implication between the receiver and `other`.
+    /// Returns an implication between `self` and `other`.
     #[inline(always)]
     pub fn implies(self, other: Self) -> Self {
         Implies {
@@ -181,7 +181,7 @@ impl FOF {
         .into()
     }
 
-    /// Returns a bi-implication between the receiver and `other`.
+    /// Returns a bi-implication between `self` and `other`.
     #[inline(always)]
     pub fn iff(self, other: Self) -> Self {
         Iff {

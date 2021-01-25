@@ -26,12 +26,12 @@ type FlatLiteral = Atomic<Variable>;
 pub struct FlatClause(Vec<FlatLiteral>);
 
 impl FlatClause {
-    /// Returns the list of literals of the receiver.
+    /// Returns the list of literals of `self`.
     pub fn literals(&self) -> &[FlatLiteral] {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of literals.
+    /// Consumes `self` and returns its underlying list of literals.
     pub fn into_literals(self) -> Vec<FlatLiteral> {
         self.0
     }
@@ -142,12 +142,12 @@ where
 }
 
 impl Relational {
-    /// Returns the clauses of the receiver.
+    /// Returns the clauses of `self`.
     pub fn clauses(&self) -> &[FlatClause] {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying clauses.
+    /// Consumes `self` and returns its underlying clauses.
     pub fn into_clauses(self) -> Vec<FlatClause> {
         self.0
     }
@@ -222,12 +222,12 @@ pub trait ToRelational: Formula {
         CG: FnMut(&Const) -> Pred,
         FG: FnMut(&Func) -> Pred;
 
-    /// Applies the relationalization algorithm on the receiver and returns a relational formula.    
+    /// Applies the relationalization algorithm on `self` and returns a relational formula.    
     ///
     /// **Note:**
     /// The underlying algorithm works on first-order formulae that are negation and quantifier-free:
     /// `¬`, `→`, `⇔`, `∃`, `∀` are not allowed as connectives. The transformation consists of applying
-    /// the following rewrites on the receiver:
+    /// the following rewrites on `self`:
     ///   * A constant `'c` rewrites to a predicate `C(x)`.
     ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
     /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.

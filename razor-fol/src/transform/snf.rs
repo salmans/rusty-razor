@@ -108,7 +108,7 @@ pub trait ToSNF: Formula {
         CG: FnMut() -> Const,
         FG: FnMut() -> Func;
 
-    /// Transforms the receiver formula to a Skolem Normal Form (SNF).
+    /// Transforms `self` to a Skolem Normal Form (SNF).
     ///
     /// **Example**:
     /// ```rust

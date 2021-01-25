@@ -93,19 +93,19 @@ impl<T: Term> FormulaEx for Literal<T> {
 pub struct Clause<T: Term>(BTreeSet<Literal<T>>);
 
 impl<T: Term> Clause<T> {
-    /// Returns the literals of the receiver clause.
+    /// Returns the literals of `self` clause.
     pub fn literals(&self) -> &BTreeSet<Literal<T>> {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of [`Literal`]s.
+    /// Consumes `self` and returns its underlying list of [`Literal`]s.
     pub fn into_literals(self) -> BTreeSet<Literal<T>> {
         self.0
     }
 }
 
 impl<T: Term + Ord + Clone> Clause<T> {
-    /// Returns a clause containing all literals in the receiver and `other`.
+    /// Returns a clause containing all literals in `self` and `other`.
     pub fn union(&self, other: &Self) -> Self {
         self.0.union(&other.0).cloned().into()
     }
@@ -191,19 +191,19 @@ where
 }
 
 impl<T: Term> ClauseSet<T> {
-    /// Returns the clauses of the receiver.
+    /// Returns the clauses of `self`.
     pub fn clauses(&self) -> &BTreeSet<Clause<T>> {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying set of clauses.
+    /// Consumes `self` and returns its underlying set of clauses.
     pub fn into_clauses(self) -> BTreeSet<Clause<T>> {
         self.0
     }
 }
 
 impl<T: Term + Ord + Clone> ClauseSet<T> {
-    /// Returns a clause set, containing all clauses in the receiver and `other`.    
+    /// Returns a clause set, containing all clauses in `self` and `other`.
     pub fn union(&self, other: &Self) -> Self {
         self.0.union(&other.0).cloned().into()
     }

@@ -70,7 +70,7 @@ trait TupleMap: FnMut(&Tuple) -> Tuple + 'static {}
 impl<F: FnMut(&Tuple) -> Tuple + 'static> TupleMap for F {}
 
 impl AttributeList {
-    /// Makes a `TupleMap` closure that given a `Tuple` over the attributes of the receiver,
+    /// Makes a `TupleMap` closure that given a `Tuple` over the attributes of `self`,
     /// returns a `Tuple` projected by `attributes`.
     fn project(&self, attributes: &AttributeList) -> impl TupleMap {
         let mut key_indices = Vec::new();
@@ -135,7 +135,7 @@ impl SubExpression {
         )
     }
 
-    // Returns the receiver's `expression`.
+    // Returns the `self`'s `expression`.
     fn expression(&self) -> &Mono<Tuple> {
         &self.expression
     }
@@ -144,12 +144,12 @@ impl SubExpression {
         self.expression = expression;
     }
 
-    /// Returns the receiver's `raw` expression.
+    /// Returns the `self`'s `raw` expression.
     fn raw(&self) -> &RawExpression {
         &self.raw
     }
 
-    /// Consumes the receiver and returns its `expression`.
+    /// Consumes `self` and returns its `expression`.
     fn into_mono(self) -> Mono<Tuple> {
         self.expression
     }
@@ -198,7 +198,7 @@ impl<'d> Convertor<'d> {
         .map(SubExpression::into_mono)
     }
 
-    // Memoizes `sub_expr` if the receiver is a memoizing instance.
+    // Memoizes `sub_expr` if `self` is a memoizing instance.
     fn memoize(&mut self, sub_expr: &mut SubExpression) -> Result<(), codd::Error> {
         if let Some(database) = &mut self.database {
             if !self.views.contains_key(sub_expr.raw()) {

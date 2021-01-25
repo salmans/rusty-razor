@@ -21,7 +21,7 @@ impl Func {
         &self.0
     }
 
-    /// Applies the receiver on a list of terms. The length of `terms` must be equal to
+    /// Applies `self` on a list of terms. The length of `terms` must be equal to
     /// the (assumed) arity of the function.
     ///
     /// **Note**: the definition of [`Func`] does not impose restriction on the
@@ -125,7 +125,7 @@ impl Pred {
         &self.0
     }
 
-    /// Applies the receiver on a list of arguments. The length of `terms` must be equal to
+    /// Applies `self` on a list of arguments. The length of `terms` must be equal to
     /// the (assumed) arity of the predicate.
     ///
     /// **Note**: the definition of [`Pred`] does not impose restriction on the arity

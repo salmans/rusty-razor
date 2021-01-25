@@ -22,7 +22,7 @@ pub(super) enum Symbol {
 }
 
 impl Symbol {
-    /// Creates a witness term from the receiver symbol, given a list of arguments `E`.
+    /// Creates a witness term from `self`, given a list of arguments `E`.
     pub fn witness(&self, args: &[E]) -> Result<WitnessTerm, Error> {
         match self {
             Symbol::Const(symbol) => {
@@ -44,7 +44,7 @@ impl Symbol {
         }
     }
 
-    /// Creates an observation from the receiver symbol with a slice of `E` as arguments.
+    /// Creates an observation from `self` with a slice of `E` as arguments.
     pub fn observation(&self, args: &[E]) -> Option<Observation<WitnessTerm>> {
         match self {
             Symbol::Pred { symbol, arity } => {
