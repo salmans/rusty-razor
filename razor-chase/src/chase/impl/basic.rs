@@ -1,11 +1,11 @@
-//! Provides a "basic" implementation of the Chase.
+//! Provides a "basic" implementation of the chase.
 //!
 //! This implementation is used as a reference for the correctness of other implementations
-//! of the [Chase].
+//! of the [chase].
 //!
 //! **Note**: The performance of `chase::impl::basic` is not a concern.
 //!
-//! [Chase]: crate::chase#the-chase
+//! [chase]: crate::chase#the-chase
 //!
 use crate::chase::*;
 use either::Either;
@@ -194,7 +194,7 @@ impl Model {
         }
     }
 
-    /// Applies the rewrite rules in `equality_history` of the receiver to reduce an element to
+    /// Applies the rewrite rules in `equality_history` of `self` to reduce an element to
     /// the representative element of the equational class to which it belongs.
     fn history(&self, element: &E) -> E {
         let mut result = element;
@@ -218,11 +218,11 @@ impl Model {
         element
     }
 
-    /// Records the given `witness` in the receiver model and returns the element, denoted by
+    /// Records the given `witness` in `self` and returns the element, denoted by
     /// `witness`.
     ///
     /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
-    /// `witness` and adds them to the domain of the receiver.
+    /// `witness` and adds them to the domain of `self`.
     fn record(&mut self, witness: &WitnessTerm) -> E {
         match witness {
             WitnessTerm::Elem(element) => {
@@ -255,7 +255,7 @@ impl Model {
         }
     }
 
-    /// Replaces all instances of `from` with `to` in the `rewrite` of the receiver and is used
+    /// Replaces all instances of `from` with `to` in the `rewrite` of `self` and is used
     /// when augmenting the model with an `Identity` [`Observation`].
     ///
     /// **Note**: When augmenting a model with an `Identity`, we simply replace all instances of one
@@ -295,7 +295,7 @@ impl Model {
         self.rewrites = new_rewrite;
     }
 
-    /// Replaces all instances of `from` with `to` in the `facts` of the receiver and is used
+    /// Replaces all instances of `from` with `to` in the `facts` of `self` and is used
     /// when augmenting the model with an `Identity` [`Observation`].
     ///
     /// **Note**: When augmenting a model with an identity, we simply replace all instances of one
@@ -339,7 +339,7 @@ impl Model {
             .collect();
     }
 
-    /// Augments the receiver with `observation`, making `observation`true in the receiver.
+    /// Augments `self` with `observation`, making `observation` true in `self`.
     fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
@@ -370,7 +370,7 @@ impl Model {
         }
     }
 
-    /// Returns true if `observation` is true in the receiver; otherwise, returns false.
+    /// Returns true if `observation` is true in `self`; otherwise, returns false.
     fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {

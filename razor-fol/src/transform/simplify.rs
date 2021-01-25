@@ -2,8 +2,7 @@
 use crate::syntax::{FOF::*, *};
 
 impl FOF {
-    /// Applies a number of syntactic transformations to simplify the receiver
-    /// first-order formula.
+    /// Applies a number of syntactic transformations to simplify `self`.
     ///
     /// **Example**:
     /// ```rust

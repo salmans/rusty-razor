@@ -8,10 +8,10 @@ pub trait Term {
     /// the underlying signature is inconsistent.
     fn signature(&self) -> Result<Sig, Error>;
 
-    /// Returns a list of variable symbols in the receiver.
+    /// Returns a list of variable symbols in `self`.
     ///
     /// **Note**: In the list of variables, each variable symbol appears only once
-    /// even if it is present at multiple positions of the receiver.
+    /// even if it is present at multiple positions of `self`.
     ///
     /// **Example**:
     /// ```rust
@@ -28,10 +28,10 @@ pub trait Term {
     /// ```
     fn vars(&self) -> Vec<&Var>;
 
-    /// Applies a transformation function `f` recursively on the subterms of the receiver.
+    /// Applies a transformation function `f` recursively on the subterms of `self`.
     fn transform(&self, f: &impl Fn(&Self) -> Self) -> Self;
 
-    /// Applies a [`Renaming`] on the variable terms of the receiver.
+    /// Applies a [`Renaming`] on the variable terms of `self`.
     ///
     /// **Example**:
     /// ```rust
@@ -69,7 +69,7 @@ pub trait Term {
         self.transform(&|t: &Self| t.rename_var(renaming))
     }
 
-    /// Applies a [`Substitution`] on the variable subterms of the receiver.
+    /// Applies a [`Substitution`] on the variable subterms of `self`.
     ///
     /// **Example**:
     /// ```rust
@@ -176,7 +176,7 @@ pub enum Complex {
 }
 
 impl Complex {
-    /// Returns an [equation] (formula) between the receiver and `term`.
+    /// Returns an [equation] (formula) between `self` and `term`.
     ///
     /// [equation]: crate::syntax::FOF::Equals
     pub fn equals(self, term: Self) -> FOF {

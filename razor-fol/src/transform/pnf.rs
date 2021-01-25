@@ -83,7 +83,7 @@ impl From<QFF> for PNF {
 
 /// Is the trait of [`Formula`] types that can be transformed to [`PNF`].
 pub trait ToPNF: Formula {
-    /// Transforms the receiver formula to a Prenex Normal Form (PNF).
+    /// Transforms `self` to a Prenex Normal Form (PNF).
     ///
     /// **Example**:
     /// ```rust

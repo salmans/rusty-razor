@@ -75,12 +75,12 @@ impl Sig {
         Ok(sig)
     }
 
-    /// Inserts a new [`Const`] in the receiver signature.
+    /// Inserts a new [`Const`] in `self`.
     pub(crate) fn add_constant(&mut self, constant: Const) {
         self.constants.insert(constant);
     }
 
-    /// Inserts the signature [`FuncSig`] of a function [`Func`] to the reciever.
+    /// Inserts the signature [`FuncSig`] of a function [`Func`] to `self`.
     pub(crate) fn add_function(&mut self, function: FuncSig) -> Result<(), Error> {
         if let Some(sig) = self.functions.get(function.symbol.name()) {
             if *sig != function {
@@ -96,7 +96,7 @@ impl Sig {
         Ok(())
     }
 
-    /// Inserts the signature [`PredSig`] of a predicate [`Pred`] to the reciever.
+    /// Inserts the signature [`PredSig`] of a predicate [`Pred`] to `self`.
     pub(crate) fn add_predicate(&mut self, predicate: PredSig) -> Result<(), Error> {
         if let Some(sig) = self.predicates.get(predicate.symbol.name()) {
             if *sig != predicate {
@@ -112,7 +112,7 @@ impl Sig {
         Ok(())
     }
 
-    /// Returns a signature that combines the receiver with of `other`.
+    /// Returns a signature that combines `self` with of `other`.
     pub(crate) fn merge(self, other: Self) -> Result<Self, Error> {
         let mut sig = self;
 
@@ -134,13 +134,13 @@ impl Sig {
         &self.constants
     }
 
-    /// Returns the function signatures in the receiver in the form of a map from
+    /// Returns the function signatures in `self` in the form of a map from
     /// function names to [`FuncSig`].
     pub fn functions(&self) -> &HashMap<String, FuncSig> {
         &self.functions
     }
 
-    /// Returns the predicate signatures in the receiver in the form of a map from
+    /// Returns the predicate signatures in `self` in the form of a map from
     /// predicate names to [`PredSig`].    
     pub fn predicates(&self) -> &HashMap<String, PredSig> {
         &self.predicates

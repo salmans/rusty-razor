@@ -24,19 +24,19 @@ type PosLiteral = Atomic<Complex>;
 pub struct PCF(BTreeSet<PosLiteral>);
 
 impl PCF {
-    /// Returns the positive literals of the receiver clause.
+    /// Returns the positive literals of `self`.
     #[inline(always)]
     pub fn literals(&self) -> &BTreeSet<PosLiteral> {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying list of positive literals.
+    /// Consumes `self` and returns its underlying list of positive literals.
     pub fn into_literals(self) -> BTreeSet<PosLiteral> {
         self.0
     }
 
-    /// Returns a new clause, resulting from joining the positive literals of the
-    /// receiver and `other`.
+    /// Returns a new clause, resulting from joining the positive literals of `self`
+    /// and `other`.
     pub fn union(&self, other: &Self) -> Self {
         self.0.union(&other.0).cloned().into()
     }
@@ -136,19 +136,19 @@ impl From<&PCF> for FOF {
 pub struct PCFSet(BTreeSet<PCF>);
 
 impl PCFSet {
-    /// Returns the clauses of the receiver.
+    /// Returns the clauses of `self`.
     #[inline(always)]
     pub fn clauses(&self) -> &BTreeSet<PCF> {
         &self.0
     }
 
-    /// Consumes the receiver and returns its underlying set of clauses.
+    /// Consumes `self` and returns its underlying set of clauses.
     pub fn into_clauses(self) -> BTreeSet<PCF> {
         self.0
     }
 
     /// Returns a new positive clause set, containing clauses obtained by pairwise unioning
-    /// of the clauses in the receiver and `other`.
+    /// of the clauses in `self` and `other`.
     pub fn cross_union(&self, other: &Self) -> Self {
         self.iter()
             .flat_map(|h1| other.iter().map(move |h2| h1.union(&h2)))
@@ -156,7 +156,7 @@ impl PCFSet {
     }
 
     /// Returns a new PCF set obtained by removing pcfs that are proper supersets of
-    /// some other pcfs in the receiver.
+    /// some other pcfs in `self`.
     pub fn simplify(&self) -> Self {
         self.iter()
             .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_subset(c1)))
@@ -254,19 +254,19 @@ pub struct GNF {
 }
 
 impl GNF {
-    /// Returns the body of the receiver GNF.
+    /// Returns the body of `self`.
     #[inline(always)]
     pub fn body(&self) -> &PCF {
         &self.body
     }
 
-    /// Returns the head of the receiver GNF.
+    /// Returns the head of `self`.
     #[inline(always)]
     pub fn head(&self) -> &PCFSet {
         &self.head
     }
 
-    /// Consumes the receiver and returns its body and head.
+    /// Consumes `self` and returns its body and head.
     pub fn into_body_and_head(self) -> (PCF, PCFSet) {
         (self.body, self.head)
     }
@@ -281,7 +281,7 @@ impl From<(PCF, PCFSet)> for GNF {
 
 /// Is the trait of [`Formula`] types that can be transformed to a list of [`GNF`]s.
 pub trait ToGNF: Formula {
-    /// Transforms the receiver [`Formula`] to a list of formulae in Geometric Normal
+    /// Transforms `self` to a list of formulae in Geometric Normal
     /// Form (GNF).
     ///
     /// **Example**:

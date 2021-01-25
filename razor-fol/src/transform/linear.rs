@@ -6,8 +6,7 @@ use std::collections::HashMap;
 
 impl Relational {
     /// Is similar to [`Relational::linear`] but uses a custom closure to create new variable
-    /// terms, resulting from removing variables that appear in multiple positions of the
-    /// receiver.
+    /// terms, resulting from removing variables that appear in multiple positions of `self`.
     ///
     /// **Example**:
     /// ```rust
@@ -50,7 +49,7 @@ impl Relational {
     }
 
     /// Returns a new [`Relational`] instance, resulting from replacing any varialbe `v` that
-    /// appears in more than one position of the receiver with a fresh variable `y` and
+    /// appears in more than one position of `self` with a fresh variable `y` and
     /// conjoined with an equation `v = y`.
     ///
     /// **Example**:

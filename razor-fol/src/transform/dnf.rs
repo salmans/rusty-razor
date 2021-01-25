@@ -35,7 +35,7 @@ impl From<DNFClauseSet> for DNF {
 
 /// Is the trait of [`Formula`] types that can be transformed to [`DNF`].
 pub trait ToDNF: Formula {
-    /// Transform the receiver formula to a Disjunctive Normal Form (DNF).
+    /// Transform `self` to a Disjunctive Normal Form (DNF).
     ///
     /// **Example**:
     /// ```rust
@@ -77,13 +77,13 @@ impl<T: ToDNF> From<T> for DNF {
 }
 
 impl DNF {
-    /// Returns the clauses of the receiver DNF.
+    /// Returns the clauses of `self`.
     #[inline(always)]
     pub fn clauses(&self) -> &BTreeSet<DNFClause> {
         &self.0
     }
 
-    /// Consumes the receiver and returns the underlying clauses.
+    /// Consumes `self` and returns the underlying clauses.
     pub fn into_clauses(self) -> BTreeSet<DNFClause> {
         self.0.into_clauses()
     }

@@ -1,12 +1,12 @@
-//! Provides a fast implementation of the Chase by using references to elements of the model to
+//! Provides a fast implementation of the chase by using references to elements of the model to
 //! avoid additional operations for equational reasoning.
 //!
-//! `chase::impl::reference` is an implementation of the [Chase] that uses references to [`E`]
+//! `chase::impl::reference` is an implementation of the [chase] that uses references to [`E`]
 //! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a faster
 //! equational reasoning where the information content of a model does not need to be rewritten
 //! when the model is augmented by an [`Identity`].
 //!
-//! [Chase]: crate::chase#the-chase
+//! [chase]: crate::chase#the-chase
 //! [`E`]: crate::chase::E
 //! [`Identity`]: crate::chase::Observation::Identity
 use crate::chase::{
@@ -36,7 +36,7 @@ use std::{
 pub struct Element(Rc<Cell<E>>);
 
 impl Element {
-    /// Creates a deep clone of the receiver by cloning the object [`E`] to which the internal
+    /// Creates a deep clone of `self` by cloning the object [`E`] to which the internal
     /// reference is pointing.
     ///
     /// **Note**: `deep_copy` is used when cloning a [`Model`] since identifying two elements in the
@@ -212,12 +212,12 @@ impl Model {
         self.domain.iter().unique().collect()
     }
 
-    /// Looks up `element` in the `domain` of the receiver model.
+    /// Looks up `element` in the `domain` of `self`.
     fn lookup_element(&self, element: &Element) -> Option<&Element> {
         self.domain.iter().find(|e| e == &element)
     }
 
-    /// Looks up `witness` in the `rewrites` of the receiver model.
+    /// Looks up `witness` in the `rewrites` of `self`.
     fn lookup_witness(&self, witness: &WitnessTerm) -> Option<&Element> {
         self.rewrites
             .iter()
@@ -250,7 +250,7 @@ impl Model {
         }
     }
 
-    /// Applies the rewrite rules in `equality_history` of the receiver to reduce an element to
+    /// Applies the rewrite rules in `equality_history` of `self` to reduce an element to
     /// the representative element of the equational class to which it belongs.
     fn history(&self, element: &Element) -> Element {
         let mut result = element;
@@ -275,11 +275,11 @@ impl Model {
         element
     }
 
-    /// Records the given `witness` in the receiver model and returns the element, denoted by
+    /// Records the given `witness` in `self` and returns the element, denoted by
     /// `witness`.
     ///
     /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
-    /// `witness` and adds them to the domain of the receiver.
+    /// `witness` and adds them to the domain of `self`.
     fn record(&mut self, witness: &WitnessTerm) -> Element {
         match witness {
             WitnessTerm::Elem(e) => {
@@ -308,7 +308,7 @@ impl Model {
         }
     }
 
-    /// Augments the receiver with `observation`, making `observation`true in the receiver.
+    /// Augments `self` with `observation`, making `observation`true in `self`.
     pub fn observe(&mut self, observation: &Observation<WitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
@@ -334,7 +334,7 @@ impl Model {
         }
     }
 
-    /// Returns true if `observation` is true in the receiver; otherwise, returns false.
+    /// Returns true if `observation` is true in `self`; otherwise, returns false.
     pub fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {

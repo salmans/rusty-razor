@@ -4,7 +4,7 @@ use crate::syntax::{formula::*, Var};
 
 impl Relational {
     /// Given a list of variables `range`, ensures that every variable in `range` appears at
-    /// least once in the formula represented by the receiver. This is done by conjoining
+    /// least once in the formula represented by `self`. This is done by conjoining
     /// atomic formulae in the form of `RR(v)` where `RR` is a "range-restriction" predicate
     /// with `symbol` as the predicate symbol.
     ///
