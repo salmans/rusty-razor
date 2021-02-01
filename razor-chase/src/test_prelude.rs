@@ -184,12 +184,6 @@ impl fmt::Debug for basic::Sequent {
     }
 }
 
-impl fmt::Debug for basic::Model {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 #[allow(dead_code)]
 pub fn assert_eq_vectors<T: Ord + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> () {
     assert!(first.iter().sorted() == second.iter().sorted());

@@ -124,7 +124,8 @@ impl Model {
 
     fn rewrite_model(&mut self, rewrite: &Rewrite<E>) {
         let mut conversion_map = HashMap::new();
-        for (count, item) in rewrite.normal_forms().into_iter().enumerate() {
+        let normal_forms = rewrite.normal_forms().into_iter().sorted();
+        for (count, item) in normal_forms.into_iter().enumerate() {
             conversion_map.insert(item, E(count as i32));
         }
 
@@ -209,7 +210,7 @@ impl ModelTrait for Model {
         let mut result = Vec::new();
         for (symbol, relation) in &self.relations {
             match symbol {
-                Symbol::Domain => {}
+                Symbol::Domain | Symbol::Equality => {}
                 _ => {
                     let observations = Vec::new();
                     let tuples = self.database.evaluate(relation).unwrap();
@@ -277,7 +278,7 @@ impl Clone for Model {
     }
 }
 
-impl fmt::Display for Model {
+impl fmt::Debug for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
         let elements: Vec<String> = self

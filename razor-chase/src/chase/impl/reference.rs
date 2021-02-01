@@ -134,7 +134,7 @@ impl fmt::Display for WitnessTerm {
             WitnessTerm::Const(c) => write!(f, "{}", c),
             WitnessTerm::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}[{}]", function, ts.join(", "))
+                write!(f, "{}({})", function, ts.join(", "))
             }
         }
     }
@@ -465,7 +465,7 @@ impl Clone for Model {
     }
 }
 
-impl fmt::Display for Model {
+impl fmt::Debug for Model {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self
             .domain()

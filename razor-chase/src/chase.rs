@@ -306,7 +306,7 @@ impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
 
 /// Is the trait for various implementations of first-order models that are constructed by
 /// the chase.
-pub trait ModelTrait: Clone + fmt::Display + ToString {
+pub trait ModelTrait: Clone {
     /// Is the type of witness terms, denoting elements of this model.
     /// [`ElementType`](`WitnessTermTrait::ElementType`)
     /// is the type of elements for this model.
@@ -567,7 +567,7 @@ pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
 ) -> Vec<M>
 where
     S: 's + SequentTrait,
-    M: ModelTrait,
+    M: ModelTrait + std::fmt::Debug,
     Stg: StrategyTrait<Item = &'s S>,
     Sch: SchedulerTrait<'s, S, M, Stg>,
     E: EvaluatorTrait<'s, Stg, B, Sequent = S, Model = M>,
@@ -651,7 +651,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
     mut incomplete_consumer: impl FnMut(M),
 ) where
     S: 's + SequentTrait,
-    M: ModelTrait,
+    M: ModelTrait + std::fmt::Debug,
     Stg: StrategyTrait<Item = &'s S>,
     Sch: SchedulerTrait<'s, S, M, Stg>,
     E: EvaluatorTrait<'s, Stg, B, Sequent = S, Model = M>,
@@ -675,7 +675,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
                     event = super::trace::EXTEND,
                     model_id = &m.get_id(),
                     parent = base_id,
-                    model = %m,
+                    model = ?m,
                 );
                 scheduler.add(m, strategy.clone());
             });
@@ -685,7 +685,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
                     event = super::trace::BOUND,
                     model_id = &m.get_id(),
                     parent = base_id,
-                    model = %m,
+                    model = ?m,
                 );
                 incomplete_consumer(m);
             });
@@ -694,7 +694,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
             info!(
                 event = super::trace::MODEL,
                 model_id = &base_id,
-                model = %base_model,
+                model = ?base_model,
             );
             consumer(base_model);
         }
@@ -703,7 +703,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
         info!(
             event = super::trace::FAIL,
             model_id = &base_id,
-            model = %base_model,
+            model = ?base_model,
         );
     }
 }

@@ -1,8 +1,7 @@
 pub mod utils;
 
 use crate::utils::terminal::{
-    Terminal, INFO_ATTRIBUTE, INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_ELEMENTS_COLOR,
-    MODEL_FACTS_COLOR,
+    Terminal, INFO_ATTRIBUTE, INFO_COLOR, LOGO_TOP_COLOR, MODEL_DOMAIN_COLOR, MODEL_FACTS_COLOR,
 };
 use anyhow::Error;
 use itertools::Itertools;
@@ -26,16 +25,16 @@ use structopt::StructOpt;
 extern crate tracing;
 
 const ASCII_ART: &str = r#"
-      ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-      ╟▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▌
-   ╫▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▌
-   ╫▓▓▀▀▓   ▓▓▀▀▓▓▓▓▓▀▀▀▓▓▓▓▓▀▀▓   ▓▓▀▀▓▓▌
-   ╫▓▓                                 ▓▓▌
-   ╫▓▓▄▄▓   ▓▓▄▄▓▓▓▓▓▄▄▄▓▓▓▓▓▄▄▓   ▓▓▄▄▓▓▌
-   ╟▓▓▓▓▓▓▓▓▓▓▓▓ Rusty Razor ▓▓▓▓▓▓▓▓▓▓▓▓▌
-      ╫▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▌
-      ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-            "#;
+       ───────────────────────────────
+       ███████████████████████████████
+       ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
+     █▀▀█   ██▀▀█████▀▀▀█████▀▀█   ██▀▀█
+     █                                 █
+     █▄▄█   ██▄▄█████▄▄▄█████▄▄█   ██▄▄█
+       ██████ rusty razor  1.0 ███████
+       ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
+       ───────────────────────────────
+"#;
 
 #[derive(StructOpt)]
 enum BoundCommand {
@@ -203,7 +202,7 @@ fn process_solve(
         })
         .reset();
 
-    theory.formulae().iter().for_each(|f| println!("  {}", f));
+    theory.formulae().iter().for_each(|f| println!("{}", f));
 
     println!();
     println!();
@@ -228,7 +227,7 @@ fn process_solve(
         info!(
             event = EXTEND,
             model_id = &init_model.get_id(),
-            model = %init_model,
+            model = ?init_model,
         );
         scheduler.add(init_model, strategy);
         while !scheduler.empty() {
@@ -293,27 +292,18 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
     term.foreground(INFO_COLOR)
         .attribute(INFO_ATTRIBUTE)
         .apply(|| {
-            print!("Domain: ");
+            println!("{}.\n", count);
+            println!("Domain:");
         })
         .reset();
     let domain = model.domain().iter().map(|e| e.to_string()).collect_vec();
-    print_list(color, MODEL_DOMAIN_COLOR, &domain);
-    println!("\n");
-
-    let elements: Vec<String> = model
-        .domain()
-        .iter()
-        .sorted()
-        .iter()
-        .map(|e| {
-            let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
-            let witnesses = witnesses.into_iter().sorted();
-            format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
+    // print_list(color, MODEL_DOMAIN_COLOR, &domain);
+    term.foreground(MODEL_DOMAIN_COLOR)
+        .attribute(term::Attr::Bold)
+        .apply(|| {
+            print!("{}", domain.join(", "));
         })
-        .collect();
-
-    term.apply(|| print!("Elements: "));
-    print_list(color, MODEL_ELEMENTS_COLOR, &elements);
+        .reset();
     println!("\n");
 
     let facts: Vec<String> = model
@@ -326,34 +316,21 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
             }
             Observation::Identity { left, right } => format!("{} = {}", left, right),
         })
-        .collect();
+        .sorted();
 
-    term.apply(|| print!("Facts: "));
-    print_list(color, MODEL_FACTS_COLOR, &facts);
-    println!("\n");
+    term.foreground(INFO_COLOR).apply(|| print!("Facts:\n"));
+    // print_list(color, MODEL_FACTS_COLOR, &facts);
+    term.foreground(MODEL_FACTS_COLOR)
+        .attribute(term::Attr::Bold)
+        .apply(|| {
+            print!("{}", facts.join("\n"));
+        })
+        .reset();
 
     term.foreground(INFO_COLOR)
         .attribute(INFO_ATTRIBUTE)
         .apply(|| {
-            println!("\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n");
-        })
-        .reset();
-}
-
-fn print_list<T: std::fmt::Display>(color: bool, text_color: term::color::Color, list: &[T]) {
-    let mut term = Terminal::new(color);
-    term.foreground(text_color)
-        .attribute(term::Attr::Bold)
-        .apply(|| {
-            let last = list.len() - 1;
-            let mut index = 0;
-            for x in list {
-                print!("{}", x);
-                if index != last {
-                    print!(", ");
-                    index += 1;
-                }
-            }
+            println!("\n\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -");
         })
         .reset();
 }
