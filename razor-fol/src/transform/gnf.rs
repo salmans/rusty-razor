@@ -3,7 +3,7 @@ transforming a [`CNF`] to a [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */
-use super::{ToCNF, CNF};
+use super::{ToCNF, ToSNF, CNF};
 use crate::syntax::{
     formula::{
         clause::{Clause, Literal},
@@ -370,7 +370,7 @@ fn gnf(clause: &Clause<Complex>) -> GNF {
     (body, head).into()
 }
 
-impl<T: ToGNF> Theory<T> {
+impl<T: ToSNF> Theory<T> {
     /// Transforms the given theory to a *geometric theory* of formulae in
     /// Geometric Normal Form ([`GNF`]).
     ///
@@ -388,7 +388,28 @@ impl<T: ToGNF> Theory<T> {
     pub fn gnf(&self) -> Theory<GNF> {
         use std::convert::TryFrom;
 
-        let formulae = self.formulae().iter().flat_map(|f| f.gnf()).collect_vec();
+        let mut c_counter = 0;
+        let mut f_counter = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        let formulae = self
+            .formulae()
+            .iter()
+            .flat_map(|f| {
+                f.snf_with(&mut const_generator, &mut fn_generator)
+                    .cnf()
+                    .gnf()
+            })
+            .collect_vec();
         // Assuming that the conversion does not change the signature of the theory,
         // so it's safe to unwrap:
         Theory::try_from(contract(formulae)).unwrap()
@@ -1191,6 +1212,18 @@ mod tests {
         {
             let theory: Theory<FOF> = "(T() and V()) or (U() and V());".parse().unwrap();
             assert_eq!("⊤ → ((T() ∧ V()) ∨ (U() ∧ V()))", theory.gnf().to_string());
+        }
+        {
+            let theory: Theory<FOF> = r#"
+P(x) -> ? y. P(y); 
+Q(x, y) -> ?z. Q(y, z);
+"#
+            .parse()
+            .unwrap();
+            assert_eq!(
+                "P(x) → P(f#0(x))\nQ(x, y) → Q(y, f#1(x, y))",
+                theory.gnf().to_string()
+            );
         }
     }
 }
