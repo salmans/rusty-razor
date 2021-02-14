@@ -7,7 +7,7 @@ use crate::syntax::{
     Const, Error, Formula, Func, Pred, Sig, Var, FOF,
 };
 use itertools::Itertools;
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, iter::FromIterator, ops::Deref};
 
 // Atomic formula over flat terms to build relational formulae
 type FlatLiteral = Atomic<Variable>;
@@ -51,12 +51,25 @@ impl From<FlatLiteral> for FlatClause {
     }
 }
 
-impl<I> From<I> for FlatClause
-where
-    I: IntoIterator<Item = FlatLiteral>,
-{
-    fn from(value: I) -> Self {
-        Self(value.into_iter().collect())
+impl FromIterator<FlatLiteral> for FlatClause {
+    fn from_iter<T: IntoIterator<Item = FlatLiteral>>(iter: T) -> Self {
+        Self(Vec::from_iter(iter))
+    }
+}
+
+impl IntoIterator for FlatClause {
+    type Item = FlatLiteral;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl From<Vec<FlatLiteral>> for FlatClause {
+    fn from(value: Vec<FlatLiteral>) -> Self {
+        Self(value)
     }
 }
 
@@ -82,7 +95,7 @@ impl Formula for FlatClause {
     }
 
     fn transform_term(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
-        self.0.iter().map(|lit| lit.transform_term(f)).into()
+        self.0.iter().map(|lit| lit.transform_term(f)).collect()
     }
 }
 
@@ -128,16 +141,29 @@ pub struct Relational(Vec<FlatClause>);
 
 impl From<FlatClause> for Relational {
     fn from(value: FlatClause) -> Self {
-        vec![value].into_iter().into()
+        vec![value].into()
     }
 }
 
-impl<I> From<I> for Relational
-where
-    I: IntoIterator<Item = FlatClause>,
-{
-    fn from(value: I) -> Self {
-        Self(value.into_iter().collect())
+impl FromIterator<FlatClause> for Relational {
+    fn from_iter<T: IntoIterator<Item = FlatClause>>(iter: T) -> Self {
+        Self(Vec::from_iter(iter))
+    }
+}
+
+impl IntoIterator for Relational {
+    type Item = FlatClause;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl From<Vec<FlatClause>> for Relational {
+    fn from(value: Vec<FlatClause>) -> Self {
+        Self(value)
     }
 }
 
@@ -164,6 +190,51 @@ impl Deref for Relational {
 impl Default for Relational {
     fn default() -> Self {
         Vec::<FlatClause>::new().into()
+    }
+}
+
+struct FlatteningContext<'t, VG, CG, FG>
+where
+    VG: FnMut() -> Var,
+    CG: FnMut(&Const) -> Pred,
+    FG: FnMut(&Func) -> Pred,
+{
+    var_generator: &'t mut VG,
+    const_generator: &'t mut CG,
+    fn_generator: &'t mut FG,
+}
+
+impl<'t, VG, CG, FG> FlatteningContext<'t, VG, CG, FG>
+where
+    VG: FnMut() -> Var,
+    CG: FnMut(&Const) -> Pred,
+    FG: FnMut(&Func) -> Pred,
+{
+    fn new(
+        var_generator: &'t mut VG,
+        const_generator: &'t mut CG,
+        fn_generator: &'t mut FG,
+    ) -> Self {
+        Self {
+            var_generator,
+            const_generator,
+            fn_generator,
+        }
+    }
+
+    #[inline(always)]
+    fn next_var(&mut self) -> Var {
+        (self.var_generator)()
+    }
+
+    #[inline(always)]
+    fn const_pred(&mut self, c: &Const) -> Pred {
+        (self.const_generator)(c)
+    }
+
+    #[inline(always)]
+    fn fn_pred(&mut self, f: &Func) -> Pred {
+        (self.fn_generator)(f)
     }
 }
 
@@ -285,7 +356,10 @@ impl ToRelational for PCF {
             generated_vars.push(v.clone());
             v
         };
-        let flattened = flatten_clause(self, &mut var_generator_ex, const_generator, fn_generator);
+        let flattened = flatten_clause(
+            self,
+            &mut FlatteningContext::new(&mut var_generator_ex, const_generator, fn_generator),
+        );
         let relational: Relational = flattened.into();
         simplify_equations(&relational, &mut generated_vars)
     }
@@ -310,8 +384,10 @@ impl ToRelational for PCFSet {
             generated_vars.push(v.clone());
             v
         };
-        let flattened =
-            flatten_clause_set(self, &mut var_generator_ex, const_generator, fn_generator);
+        let flattened = flatten_clause_set(
+            self,
+            &mut FlatteningContext::new(&mut var_generator_ex, const_generator, fn_generator),
+        );
         simplify_equations(&flattened, &mut generated_vars)
     }
 }
@@ -332,7 +408,10 @@ impl Formula for Relational {
     }
 
     fn transform_term(&self, f: &impl Fn(&Variable) -> Variable) -> Self {
-        self.0.iter().map(|clause| clause.transform_term(f)).into()
+        self.0
+            .iter()
+            .map(|clause| clause.transform_term(f))
+            .collect()
     }
 }
 
@@ -363,9 +442,7 @@ impl std::fmt::Display for Relational {
 // variable for the term. Nothing needs to be done if the input term is a variable.
 fn flatten_term<VG, CG, FG>(
     term: &Complex,
-    var_generator: &mut VG,
-    const_generator: &mut CG,
-    fn_generator: &mut FG,
+    context: &mut FlatteningContext<VG, CG, FG>,
 ) -> (Option<FlatClause>, Var)
 where
     VG: FnMut() -> Var,
@@ -375,9 +452,9 @@ where
     match term {
         Complex::Var(v) => (None, v.clone()),
         Complex::Const(c) => {
-            let var = var_generator();
+            let var = context.next_var();
             let terms = vec![var.clone().into()];
-            let predicate = const_generator(c);
+            let predicate = context.const_pred(c);
             let atom = Atom { predicate, terms };
             (Some(vec![atom.into()].into()), var)
         }
@@ -386,8 +463,7 @@ where
             let mut terms = terms
                 .iter()
                 .map(|t| {
-                    let (clauses, var) =
-                        flatten_term(t, var_generator, const_generator, fn_generator);
+                    let (clauses, var) = flatten_term(t, context);
                     if let Some(cs) = clauses {
                         conjuncts.extend(cs.into_literals());
                     }
@@ -395,10 +471,10 @@ where
                 })
                 .collect::<Vec<Variable>>();
 
-            let var = var_generator();
+            let var = context.next_var();
             terms.push(var.clone().into());
 
-            let predicate = fn_generator(function);
+            let predicate = context.fn_pred(function);
             let atom = Atom { predicate, terms };
 
             // !!! This is preserving the topological order among variables:
@@ -411,9 +487,7 @@ where
 // Applies top level flattening on the input clause set of type `PCFSet`.
 fn flatten_clause_set<VG, CG, FG>(
     clause_set: &PCFSet,
-    var_generator: &mut VG,
-    const_generator: &mut CG,
-    fn_generator: &mut FG,
+    context: &mut FlatteningContext<VG, CG, FG>,
 ) -> Relational
 where
     VG: FnMut() -> Var,
@@ -422,16 +496,14 @@ where
 {
     clause_set
         .iter()
-        .map(|clause| flatten_clause(clause, var_generator, const_generator, fn_generator))
-        .into()
+        .map(|clause| flatten_clause(clause, context))
+        .collect()
 }
 
 // A helper to generate new flat variable terms and equations to extend the original formula.
 fn make_equations<VG, CG, FG>(
     terms: &[Complex],
-    var_generator: &mut VG,
-    const_generator: &mut CG,
-    fn_generator: &mut FG,
+    context: &mut FlatteningContext<VG, CG, FG>,
 ) -> (Vec<Atomic<Variable>>, Vec<Variable>)
 where
     VG: FnMut() -> Var,
@@ -442,7 +514,7 @@ where
     let terms = terms
         .iter()
         .map(|t| {
-            let (clauses, var) = flatten_term(t, var_generator, const_generator, fn_generator);
+            let (clauses, var) = flatten_term(t, context);
             if let Some(cs) = clauses {
                 conjuncts.extend(cs.into_literals());
             }
@@ -455,53 +527,44 @@ where
 // Applies top level flattening on the input clause set.
 fn flatten_clause<VG, CG, FG>(
     clause: &PCF,
-    var_generator: &mut VG,
-    const_generator: &mut CG,
-    fn_generator: &mut FG,
+    context: &mut FlatteningContext<VG, CG, FG>,
 ) -> FlatClause
 where
     VG: FnMut() -> Var,
     CG: FnMut(&Const) -> Pred,
     FG: FnMut(&Func) -> Pred,
 {
-    clause
-        .iter()
-        .flat_map(|lit| match lit {
-            Atomic::Atom(this) => {
-                let (mut conjuncts, flat_terms) =
-                    make_equations(&this.terms, var_generator, const_generator, fn_generator);
+    let clause = clause.iter().flat_map(|lit| match lit {
+        Atomic::Atom(this) => {
+            let (mut conjuncts, flat_terms) = make_equations(&this.terms, context);
 
-                // !!! To preserve the topological order among variables,
-                // append the new atom to the end:
-                conjuncts.push(
-                    Atom {
-                        predicate: this.predicate.clone(),
-                        terms: flat_terms,
-                    }
-                    .into(),
-                );
-                conjuncts
-            }
-            Atomic::Equals(this) => {
-                // left at index 0 and right at index 1:
-                let (mut conjuncts, mut flat_terms) = make_equations(
-                    &[this.left.clone(), this.right.clone()],
-                    var_generator,
-                    const_generator,
-                    fn_generator,
-                );
+            // !!! To preserve the topological order among variables,
+            // append the new atom to the end:
+            conjuncts.push(
+                Atom {
+                    predicate: this.predicate.clone(),
+                    terms: flat_terms,
+                }
+                .into(),
+            );
+            conjuncts
+        }
+        Atomic::Equals(this) => {
+            // left at index 0 and right at index 1:
+            let (mut conjuncts, mut flat_terms) =
+                make_equations(&[this.left.clone(), this.right.clone()], context);
 
-                assert_eq!(2, flat_terms.len());
-                let left = flat_terms.remove(0);
-                let right = flat_terms.remove(0);
+            assert_eq!(2, flat_terms.len());
+            let left = flat_terms.remove(0);
+            let right = flat_terms.remove(0);
 
-                // !!! To preserve the topological order among variables,
-                // append the new equation to the end:
-                conjuncts.push(Equals { left, right }.into());
-                conjuncts
-            }
-        })
-        .into()
+            // !!! To preserve the topological order among variables,
+            // append the new equation to the end:
+            conjuncts.push(Equals { left, right }.into());
+            conjuncts
+        }
+    });
+    clause.collect()
 }
 
 // As a helper for `simplify_equations` collects a set of rewrite rules as entries of a map, corresponding
@@ -571,9 +634,9 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut [Var]) 
                         true
                     }
                 })
-                .into()
+                .collect()
         })
-        .into()
+        .collect()
 }
 
 #[cfg(test)]
@@ -610,9 +673,11 @@ mod tests {
             .map(|f| {
                 flatten_clause_set(
                     f,
-                    &mut var_generator,
-                    &mut const_generator,
-                    &mut fn_generator,
+                    &mut FlatteningContext::new(
+                        &mut var_generator,
+                        &mut const_generator,
+                        &mut fn_generator,
+                    ),
                 )
             })
             .map(FOF::from)
@@ -741,6 +806,47 @@ mod tests {
                 terms: vec![term!(x), term!(f(x))],
             })]);
             assert_eq!("$f(x, ?0) ∧ P(x, ?0)", clause_set.relational().to_string());
+        }
+        {
+            let clause_set = PCFSet::from(vec![PCF::from(Equals {
+                left: term!(f(x)),
+                right: term!(f(x)),
+            })]);
+            assert_eq!("$f(x, ?1) ∧ $f(x, ?1)", clause_set.relational().to_string());
+        }
+        {
+            let clause_set = PCFSet::from(vec![PCF::from(vec![
+                Atom {
+                    predicate: Pred::from("P"),
+                    terms: vec![term!(f(x, y))],
+                }
+                .into(),
+                Atom {
+                    predicate: Pred::from("Q"),
+                    terms: vec![term!(f(x, y))],
+                }
+                .into(),
+            ])]);
+            assert_eq!(
+                "(($f(x, y, ?0) ∧ P(?0)) ∧ $f(x, y, ?1)) ∧ Q(?1)",
+                clause_set.relational().to_string()
+            );
+        }
+        {
+            let clause_set = PCFSet::from(vec![
+                PCF::from(Atom {
+                    predicate: Pred::from("P"),
+                    terms: vec![term!(f(x, y))],
+                }),
+                PCF::from(Atom {
+                    predicate: Pred::from("Q"),
+                    terms: vec![term!(f(x, y))],
+                }),
+            ]);
+            assert_eq!(
+                "($f(x, y, ?0) ∧ P(?0)) ∨ ($f(x, y, ?1) ∧ Q(?1))",
+                clause_set.relational().to_string()
+            );
         }
     }
 

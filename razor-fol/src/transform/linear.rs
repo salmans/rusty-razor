@@ -43,9 +43,9 @@ impl Relational {
                             true
                         }
                     })
-                    .into()
+                    .collect()
             })
-            .into()
+            .collect()
     }
 
     /// Returns a new [`Relational`] instance, resulting from replacing any varialbe `v` that
@@ -145,9 +145,9 @@ where
                         equations
                     }
                 })
-                .into()
+                .collect()
         })
-        .into()
+        .collect()
 }
 
 #[cfg(test)]

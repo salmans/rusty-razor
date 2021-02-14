@@ -13,7 +13,7 @@ use crate::syntax::{
     Error, Sig, Theory, Var, FOF,
 };
 use itertools::Itertools;
-use std::{collections::BTreeSet, ops::Deref};
+use std::{collections::BTreeSet, iter::FromIterator, ops::Deref};
 
 // A positive literal is simply an atomic formula.
 type PosLiteral = Atomic<Complex>;
@@ -38,7 +38,7 @@ impl PCF {
     /// Returns a new clause, resulting from joining the positive literals of `self`
     /// and `other`.
     pub fn union(&self, other: &Self) -> Self {
-        self.0.union(&other.0).cloned().into()
+        self.0.union(&other.0).cloned().collect()
     }
 }
 
@@ -52,36 +52,49 @@ impl Deref for PCF {
 
 impl From<PosLiteral> for PCF {
     fn from(value: PosLiteral) -> Self {
-        vec![value].into_iter().into()
+        vec![value].into_iter().collect()
     }
 }
 
 impl From<Atom<Complex>> for PCF {
     fn from(value: Atom<Complex>) -> Self {
         let literal = Atomic::from(value);
-        vec![literal].into_iter().into()
+        vec![literal].into_iter().collect()
     }
 }
 
 impl From<Equals<Complex>> for PCF {
     fn from(value: Equals<Complex>) -> Self {
         let literal = Atomic::from(value);
-        vec![literal].into_iter().into()
+        vec![literal].into_iter().collect()
     }
 }
 
-impl<I> From<I> for PCF
-where
-    I: IntoIterator<Item = PosLiteral>,
-{
-    fn from(value: I) -> Self {
+impl FromIterator<PosLiteral> for PCF {
+    fn from_iter<T: IntoIterator<Item = PosLiteral>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for PCF {
+    type Item = PosLiteral;
+
+    type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl From<Vec<PosLiteral>> for PCF {
+    fn from(value: Vec<PosLiteral>) -> Self {
         Self(value.into_iter().collect())
     }
 }
 
 impl Default for PCF {
     fn default() -> Self {
-        Vec::<PosLiteral>::new().into()
+        Self(BTreeSet::new())
     }
 }
 
@@ -104,7 +117,7 @@ impl Formula for PCF {
     }
 
     fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        self.iter().map(|lit| lit.transform_term(f)).into()
+        self.iter().map(|lit| lit.transform_term(f)).collect()
     }
 }
 
@@ -152,7 +165,7 @@ impl PCFSet {
     pub fn cross_union(&self, other: &Self) -> Self {
         self.iter()
             .flat_map(|h1| other.iter().map(move |h2| h1.union(&h2)))
-            .into()
+            .collect()
     }
 
     /// Returns a new PCF set obtained by removing pcfs that are proper supersets of
@@ -161,21 +174,34 @@ impl PCFSet {
         self.iter()
             .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_subset(c1)))
             .cloned()
-            .into()
+            .collect()
     }
 }
 
 impl From<PCF> for PCFSet {
     fn from(value: PCF) -> Self {
-        vec![value].into_iter().into()
+        vec![value].into_iter().collect()
     }
 }
 
-impl<I> From<I> for PCFSet
-where
-    I: IntoIterator<Item = PCF>,
-{
-    fn from(value: I) -> Self {
+impl FromIterator<PCF> for PCFSet {
+    fn from_iter<T: IntoIterator<Item = PCF>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for PCFSet {
+    type Item = PCF;
+
+    type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl From<Vec<PCF>> for PCFSet {
+    fn from(value: Vec<PCF>) -> Self {
         Self(value.into_iter().collect())
     }
 }
@@ -190,7 +216,7 @@ impl Deref for PCFSet {
 
 impl Default for PCFSet {
     fn default() -> Self {
-        Vec::<PCF>::new().into()
+        Self(BTreeSet::new())
     }
 }
 
@@ -213,7 +239,7 @@ impl Formula for PCFSet {
     }
 
     fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
-        self.iter().map(|lit| lit.transform_term(f)).into()
+        self.iter().map(|lit| lit.transform_term(f)).collect()
     }
 }
 

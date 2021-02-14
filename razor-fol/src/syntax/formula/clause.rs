@@ -1,7 +1,7 @@
 use super::{Atom, Atomic, Equals, Formula, FormulaEx, Not};
 use crate::syntax::{Error, Sig, Term, Var};
 use itertools::Itertools;
-use std::{collections::BTreeSet, hash::Hash, ops::Deref};
+use std::{collections::BTreeSet, hash::Hash, iter::FromIterator, ops::Deref};
 
 /// A literal is either an [`Atomic`] formula or its negation.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -107,7 +107,7 @@ impl<T: Term> Clause<T> {
 impl<T: Term + Ord + Clone> Clause<T> {
     /// Returns a clause containing all literals in `self` and `other`.
     pub fn union(&self, other: &Self) -> Self {
-        self.0.union(&other.0).cloned().into()
+        self.0.union(&other.0).cloned().collect()
     }
 }
 
@@ -121,16 +121,37 @@ impl<T: Term> Deref for Clause<T> {
 
 impl<T: Term + Ord> From<Literal<T>> for Clause<T> {
     fn from(value: Literal<T>) -> Self {
-        vec![value].into_iter().into()
+        vec![value].into_iter().collect()
     }
 }
 
-impl<T, I> From<I> for Clause<T>
+impl<T> FromIterator<Literal<T>> for Clause<T>
 where
     T: Term + Ord,
-    I: IntoIterator<Item = Literal<T>>,
 {
-    fn from(value: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = Literal<T>>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl<T> IntoIterator for Clause<T>
+where
+    T: Term,
+{
+    type Item = Literal<T>;
+
+    type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<T> From<Vec<Literal<T>>> for Clause<T>
+where
+    T: Term + Ord,
+{
+    fn from(value: Vec<Literal<T>>) -> Self {
         Self(value.into_iter().collect())
     }
 }
@@ -157,7 +178,7 @@ impl<T: Term + Ord> Formula for Clause<T> {
     }
 
     fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
-        self.0.iter().map(|lit| lit.transform_term(f)).into()
+        self.0.iter().map(|lit| lit.transform_term(f)).collect()
     }
 }
 
@@ -176,17 +197,38 @@ pub struct ClauseSet<T: Term>(BTreeSet<Clause<T>>);
 
 impl<T: Term + Ord> From<Clause<T>> for ClauseSet<T> {
     fn from(value: Clause<T>) -> Self {
-        vec![value].into_iter().into()
+        vec![value].into()
     }
 }
 
-impl<T, I> From<I> for ClauseSet<T>
+impl<T> FromIterator<Clause<T>> for ClauseSet<T>
 where
     T: Term + Ord,
-    I: IntoIterator<Item = Clause<T>>,
 {
-    fn from(value: I) -> Self {
-        Self(value.into_iter().collect())
+    fn from_iter<I: IntoIterator<Item = Clause<T>>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl<T> IntoIterator for ClauseSet<T>
+where
+    T: Term + Ord,
+{
+    type Item = Clause<T>;
+
+    type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<T> From<Vec<Clause<T>>> for ClauseSet<T>
+where
+    T: Term + Ord,
+{
+    fn from(value: Vec<Clause<T>>) -> Self {
+        value.into_iter().collect()
     }
 }
 
@@ -205,7 +247,7 @@ impl<T: Term> ClauseSet<T> {
 impl<T: Term + Ord + Clone> ClauseSet<T> {
     /// Returns a clause set, containing all clauses in `self` and `other`.
     pub fn union(&self, other: &Self) -> Self {
-        self.0.union(&other.0).cloned().into()
+        self.0.union(&other.0).cloned().collect()
     }
 
     /// Returns a new clause set obtained by removing clauses that are proper supersets of
@@ -214,7 +256,7 @@ impl<T: Term + Ord + Clone> ClauseSet<T> {
         self.iter()
             .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_subset(c1)))
             .cloned()
-            .into()
+            .collect()
     }
 
     /// Returns a new clause set obtained by removing clauses that are proper subsets of
@@ -223,7 +265,7 @@ impl<T: Term + Ord + Clone> ClauseSet<T> {
         self.iter()
             .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_superset(c1)))
             .cloned()
-            .into()
+            .collect()
     }
 }
 
@@ -237,7 +279,7 @@ impl<T: Term> Deref for ClauseSet<T> {
 
 impl<T: Term + Ord> Default for ClauseSet<T> {
     fn default() -> Self {
-        BTreeSet::<Clause<T>>::new().into()
+        Self(BTreeSet::new())
     }
 }
 
@@ -257,7 +299,10 @@ impl<T: Term + Ord> Formula for ClauseSet<T> {
     }
 
     fn transform_term(&self, f: &impl Fn(&T) -> T) -> Self {
-        self.0.iter().map(|clause| clause.transform_term(f)).into()
+        self.0
+            .iter()
+            .map(|clause| clause.transform_term(f))
+            .collect()
     }
 }
 

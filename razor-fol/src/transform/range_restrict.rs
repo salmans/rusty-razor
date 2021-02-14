@@ -34,7 +34,7 @@ impl Relational {
                 literals.extend(restrict(&range, symbol).into_literals());
                 literals.into()
             })
-            .into()
+            .collect()
     }
 }
 
