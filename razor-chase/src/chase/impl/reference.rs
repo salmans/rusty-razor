@@ -725,6 +725,8 @@ mod test_reference {
     use std::collections::HashSet;
     use std::fs;
 
+    static IGNORE_TEST: [&'static str; 1] = ["thy24.raz"];
+
     #[test]
     fn test_next_assignment() {
         {
@@ -793,7 +795,11 @@ mod test_reference {
     #[test]
     fn test() {
         for item in fs::read_dir("../theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
+            let file = item.unwrap();
+            if IGNORE_TEST.contains(&file.file_name().into_string().unwrap().as_str()) {
+                continue;
+            }
+            let theory = read_theory_from_file(file.path().display().to_string().as_str());
             let basic_models = solve_basic(&theory);
             let test_models = run_test(&theory);
             let basic_models: HashSet<String> = basic_models

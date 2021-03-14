@@ -1047,7 +1047,7 @@ mod test_basic {
             sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[[P(x, z), Q(x)] -> [[Q(x)], [R(z), S(z)]]]",
+            "[[P(x, z), Q(x)] -> [[Q(x)], [R(z)]], [P(x, z), Q(x)] -> [[Q(x)], [S(z)]]]",
             sequents(
                 "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
                     .parse::<FOF>()
@@ -1056,7 +1056,7 @@ mod test_basic {
             ),
         );
         assert_debug_string(
-            "[[D(x, y, z)] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]]",
+"[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [P(z)], [Q(y)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[P(y)], [P(z)], [Q(x)]], [D(x, y, z)] -> [[P(y)], [Q(x)], [Q(z)]], [D(x, y, z)] -> [[P(z)], [Q(x)], [Q(y)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
             sequents(
                 "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
                     .parse::<FOF>()
@@ -1215,7 +1215,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {e#0, e#1, e#2}\nFacts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\'a -> e#0\n\'b -> e#1\n\'c -> e#2",
+"Domain: {e#0, e#1, e#2}\nFacts: <P(e#0, e#0)>, <P(e#1, e#2)>, <Q(e#0)>\n\'c -> e#0\n\'a -> e#1\n\'b -> e#2",            
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy17.raz"
             )))
@@ -1326,33 +1326,13 @@ mod test_basic {
             )))
         );
         assert_eq!(
-            "Domain: {}\n\
-        Facts: <T()>, <V()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <U()>, <V()>\n",
+"Domain: {}\nFacts: <T()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <T()>, <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <T()>, <U()>, <V()>\n",            
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy28.raz"
             )))
         );
         assert_eq!(
-            "Domain: {}\n\
-        Facts: <P()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <R()>, <T()>, <V()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <R()>, <U()>, <V()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <S()>, <W()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <S()>, <X()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <S()>, <Y()>\n",
+"Domain: {}\nFacts: <P()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <S()>, <W()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <S()>, <X()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <S()>, <Y()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <T()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <T()>, <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <T()>, <U()>, <V()>\n",            
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy29.raz"
             )))
