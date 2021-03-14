@@ -11,11 +11,12 @@ impl Relational {
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::{ToGNF, ToRelational};
+    /// # use std::convert::TryFrom;
+    /// use razor_fol::transform::{GNF, ToRelational};
     ///
     /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnfs = fof.gnf();
-    /// let gnf_head = gnfs[0].head();
+    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let gnf_head = gnf.head();
     /// let relational = gnf_head.relational();
     /// let mut generator = |name: &str, count| format!("V:{}:{}", name, count).into();    
     /// let linear = relational.linear_with(&mut generator);
@@ -55,11 +56,12 @@ impl Relational {
     /// **Example**:
     /// ```rust
     /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::{ToGNF, ToRelational};
+    /// # use std::convert::TryFrom;
+    /// use razor_fol::transform::{GNF, ToRelational};
     ///
     /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnfs = fof.gnf();
-    /// let gnf_head = gnfs[0].head();
+    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let gnf_head = gnf.head();
     /// let relational = gnf_head.relational();
     /// let linear = relational.linear();
     /// assert_eq!(    
@@ -152,16 +154,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{fof, syntax::FOF, transform::PCFSet};
+    use crate::{fof, syntax::FOF, transform::PcfSet};
 
     // Assumes the input in GNF
-    fn clause_set(fof: FOF) -> Vec<PCFSet> {
-        use crate::transform::ToGNF;
+    fn clause_set(fof: FOF) -> PcfSet {
+        use std::convert::TryFrom;
 
-        fof.gnf()
-            .into_iter()
-            .map(|f| f.into_body_and_head().1)
-            .collect()
+        PcfSet::try_from(fof).unwrap()
     }
 
     fn linear(fof: FOF) -> String {
@@ -177,46 +176,36 @@ mod tests {
 
     #[test]
     fn test_linear() {
-        // Note: the body of sequents in the tests below are needed to satisfy
-        // the requirement that heads of geometric sequents with no free variables
-        // in their head gets contracted; otherwise, these tests wouldn't not
-        // be interesting.
-        assert_eq!("[]", linear(fof!('|')));
-        assert_eq!("[false]", linear(fof!(_|_)));
+        assert_eq!("[true]", linear(fof!('|')));
+        assert_eq!("[]", linear(fof!(_|_)));
         assert_eq!("[P()]", linear(fof!(P())));
         assert_eq!("[P(x, y)]", linear(fof!(P(x, y))));
         assert_eq!("[x = ~x:0 & P(x, ~x:0)]", linear(fof!(P(x, x))));
         assert_eq!(
             "[(P(x, y) & x = ~x:0) & Q(~x:0)]",
-            linear(fof!({P(x, y)} -> {[P(x, y)] & [Q(x)]}))
+            linear(fof!([P(x, y)] & [Q(x)]))
         );
         assert_eq!(
             "[((P(x, y) & x = ~x:0) & y = ~y:0) & Q(~x:0, ~y:0)]",
-            linear(fof!({P(x, y)} -> {[P(x, y)] & [Q(x, y)]}))
+            linear(fof!([P(x, y)] & [Q(x, y)]))
         );
         assert_eq!(
             "[((P(x) & x = ~x:0) & y = ~y:0) & Q(y, ~x:0, ~y:0)]",
-            linear(fof!({P(x, y)} -> {[P(x)] & [Q(y, x, y)]}))
+            linear(fof!([P(x)] & [Q(y, x, y)]))
         );
         assert_eq!(
             "[(((P(x) & x = ~x:0) & Q(~x:0)) & x = ~x:1) & R(~x:1)]",
-            linear(fof!([P(x)] -> [{ [P(x)] & [Q(x)] } & { R(x) }]))
+            linear(fof!({ [P(x)] & [Q(x)] } & { R(x) }))
+        );
+        assert_eq!("[P(x, y), Q(x)]", linear(fof!([P(x, y)] | [Q(x)])));
+        assert_eq!("[P(x, y), Q(x, y)]", linear(fof!([P(x, y)] | [Q(x, y)])));
+        assert_eq!(
+            "[P(x), y = ~y:0 & Q(y, x, ~y:0)]",
+            linear(fof!([P(x)] | [Q(y, x, y)]))
         );
         assert_eq!(
-            "[P(x, y) | (x = ~x:0 & Q(~x:0))]",
-            linear(fof!({P(x, y)} -> {[P(x, y)] | [Q(x)]}))
-        );
-        assert_eq!(
-            "[P(x, y) | ((x = ~x:0 & y = ~y:0) & Q(~x:0, ~y:0))]",
-            linear(fof!({P(x, y)} -> {[P(x, y)] | [Q(x, y)]}))
-        );
-        assert_eq!(
-            "[P(x) | ((x = ~x:0 & y = ~y:0) & Q(y, ~x:0, ~y:0))]",
-            linear(fof!({P(x, y)} -> {[P(x)] | [Q(y, x, y)]}))
-        );
-        assert_eq!(
-            "[(P(x) | (x = ~x:0 & Q(~x:0))) | (x = ~x:1 & R(~x:1))]",
-            linear(fof!([P(x)] -> [{ [P(x)] | [Q(x)] } | { R(x) }]))
+            "[P(x), Q(x), R(x)]",
+            linear(fof!({ [P(x)] | [Q(x)] } | { R(x) }))
         );
     }
 }

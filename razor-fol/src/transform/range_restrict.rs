@@ -13,11 +13,12 @@ impl Relational {
     ///    
     /// **Example**:
     /// ```rust
-    /// use razor_fol::{syntax::FOF, transform::{ToGNF, ToRelational}, v};
+    /// # use std::convert::TryFrom;
+    /// use razor_fol::{syntax::FOF, transform::{GNF, ToRelational}, v};
     ///
     /// let fof = "R(x, y) -> P(x) & Q(y)".parse::<FOF>().unwrap();
-    /// let gnfs = fof.gnf();
-    /// let gnf_head = gnfs[0].head();
+    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let gnf_head = gnf.head();
     /// let relational = gnf_head.relational();
     /// let range_restricted = relational.range_restrict(&vec![v!(x), v!(z)], "RR");
     /// assert_eq!(r"(P(x) ∧ Q(y)) ∧ RR(z)", range_restricted.to_string());
@@ -59,18 +60,15 @@ mod test {
     use crate::{
         fof,
         syntax::{Var, FOF},
-        transform::PCFSet,
+        transform::PcfSet,
         v,
     };
 
     // Assumes the input in GNF
-    fn clause_set(fof: FOF) -> Vec<PCFSet> {
-        use crate::transform::ToGNF;
+    fn clause_set(fof: FOF) -> PcfSet {
+        use std::convert::TryFrom;
 
-        fof.gnf()
-            .into_iter()
-            .map(|f| f.into_body_and_head().1)
-            .collect()
+        PcfSet::try_from(fof).unwrap()
     }
 
     fn rr(fof: FOF, range: &[Var]) -> String {
@@ -86,9 +84,9 @@ mod test {
 
     #[test]
     fn test_range_restrict() {
-        assert_eq!("[]", rr(fof!('|'), &vec![]));
-        assert_eq!("[]", rr(fof!('|'), &vec![v!(x), v!(y)]));
-        assert_eq!("[false]", rr(fof!(_|_), &vec![]));
+        assert_eq!("[true]", rr(fof!('|'), &vec![]));
+        assert_eq!("[RR(x) & RR(y)]", rr(fof!('|'), &vec![v!(x), v!(y)]));
+        assert_eq!("[]", rr(fof!(_|_), &vec![]));
 
         assert_eq!("[P(x)]", rr(fof!(P(x)), &vec![]));
         assert_eq!(
@@ -96,26 +94,20 @@ mod test {
             rr(fof!(P(w, x, y)), &vec![v!(x), v!(y), v!(z)])
         );
 
-        assert_eq!(
-            "[P(x) & Q(y)]",
-            rr(fof!({R(x, y)} -> {[P(x)] & [Q(y)]}), &vec![])
-        );
+        assert_eq!("[P(x) & Q(y)]", rr(fof!([P(x)] & [Q(y)]), &vec![]));
         assert_eq!(
             "[((P(v, w) & Q(x)) & RR(y)) & RR(z)]",
             rr(
-                fof!({R(v, w, x)} -> {[P(v, w)] & [Q(x)]}),
+                fof!([P(v, w)] & [Q(x)]),
                 &vec![v!(v), v!(w), v!(x), v!(y), v!(z)],
             )
             .to_string()
         );
 
-        assert_eq!(
-            "[P(x) | Q(y)]",
-            rr(fof!({R(x, y)} -> {[P(x)] | [Q(y)]}), &vec![])
-        );
+        assert_eq!("[P(x), Q(y)]", rr(fof!([P(x)] | [Q(y)]), &vec![]));
 
         assert_eq!(
-            "[(P(x) & RR(y)) | (Q(y) & RR(x))]",
+            "[P(x) & RR(y), Q(y) & RR(x)]",
             rr(fof!([P(x)] | [Q(y)]), &vec![v!(x), v!(y)])
         );
     }

@@ -1,60 +1,28 @@
 /*! Defines theories of formulae. */
 
 use super::{Error, Formula, Sig};
-use std::{convert::TryFrom, fmt, ops::Deref};
+use std::{fmt, iter::FromIterator, ops::Deref};
 
 /// is a first-order theory, containing a set of first-order formulae.
 #[derive(Clone)]
-pub struct Theory<T: Formula> {
-    /// is the signature of the theory, containing constants, function symbols, and predicates.
-    signature: Sig,
-
-    /// is the list of first-order formulae in this theory.
-    formulae: Vec<T>,
-}
+pub struct Theory<T: Formula>(Vec<T>);
 
 impl<T: Formula> Theory<T> {
-    /// Returns a reference to the signature of this theory.
-    pub fn signature(&self) -> &Sig {
-        &self.signature
-    }
-
     /// Returns the formulae of this theory.
     pub fn formulae(&self) -> &[T] {
-        &self.formulae
+        &self.0
     }
 
     /// Extends this theory with additional formulae. It fails if the signature of the
     /// new formulae is inconsistent with the signature of this theory.
-    pub fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) -> Result<(), Error> {
-        self.formulae.extend(iter);
-
-        // recalculating the signature:
-        self.signature = Sig::from_signatures(
-            self.formulae()
-                .iter()
-                .map(|f| f.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )?;
-        Ok(())
+    pub fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        self.0.extend(iter);
     }
 }
 
-impl<T: Formula> TryFrom<Vec<T>> for Theory<T> {
-    type Error = Error;
-
-    fn try_from(formulae: Vec<T>) -> Result<Self, Error> {
-        let signature = Sig::from_signatures(
-            formulae
-                .iter()
-                .map(|f| f.signature())
-                .collect::<Result<Vec<_>, _>>()?,
-        )?;
-
-        Ok(Theory {
-            signature,
-            formulae,
-        })
+impl<T: Formula> FromIterator<T> for Theory<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 
@@ -62,13 +30,48 @@ impl<T: Formula> Deref for Theory<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        &self.formulae
+        &self.0
+    }
+}
+
+impl<T: Formula> IntoIterator for Theory<T> {
+    type Item = T;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<T: Formula> Formula for Theory<T> {
+    type Term = T::Term;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        Sig::from_signatures(
+            self.iter()
+                .map(|c| c.signature())
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    }
+
+    fn free_vars(&self) -> Vec<&super::Var> {
+        use itertools::Itertools;
+
+        self.iter()
+            .flat_map(|lit| lit.free_vars())
+            .unique()
+            .collect()
+    }
+
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+        Self(self.iter().map(|lit| lit.transform_term(f)).collect())
     }
 }
 
 impl<T: Formula + fmt::Display> fmt::Display for Theory<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let fs: Vec<String> = self.formulae.iter().map(|t| t.to_string()).collect();
+        let fs: Vec<String> = self.iter().map(|t| t.to_string()).collect();
         write!(f, "{}", fs.join("\n"))
     }
 }
@@ -98,48 +101,49 @@ mod tests {
             ∀ x, y. (x = y → y = x)\n\
             ∀ x, y, z. ((x = y ∧ y = z) → x = z)";
 
-        let theory = Theory::try_from(formulae).unwrap();
+        let theory: Theory<_> = formulae.into_iter().collect();
         assert_eq!(expected, &theory.to_string());
-        assert_eq!(&expected_sig, &theory.signature);
+        assert_eq!(expected_sig, theory.signature().unwrap());
     }
 
     #[test]
     fn theory_extend() {
         {
-            let mut theory = Theory::try_from(vec![fof!(P(f(@c)))]).unwrap();
+            let mut theory: Theory<_> = vec![fof!(P(f(@c)))].into_iter().collect();
             let formulae = vec![fof!(Q(x))];
-
-            assert!(theory.extend(formulae).is_ok());
+            theory.extend(formulae);
 
             assert_eq!(
                 "P(f(\'c))\n\
                  Q(x)",
                 &theory.to_string()
             );
-            assert_eq!(1, theory.signature().constants().len());
-            assert_eq!(1, theory.signature().functions().len());
-            assert_eq!(2, theory.signature().predicates().len());
+            let signature = theory.signature().unwrap();
+            assert_eq!(1, signature.constants().len());
+            assert_eq!(1, signature.functions().len());
+            assert_eq!(2, signature.predicates().len());
         }
         {
-            let mut theory = Theory::try_from(vec![fof!(P(f(@c)))]).unwrap();
+            let mut theory: Theory<_> = vec![fof!(P(f(@c)))].into_iter().collect();
             let formulae = vec![fof!(P(x))];
-
-            assert!(theory.extend(formulae).is_ok());
+            theory.extend(formulae);
 
             assert_eq!(
                 "P(f(\'c))\n\
                  P(x)",
                 &theory.to_string()
             );
-            assert_eq!(1, theory.signature().constants().len());
-            assert_eq!(1, theory.signature().functions().len());
-            assert_eq!(1, theory.signature().predicates().len());
+            let signature = theory.signature().unwrap();
+            assert_eq!(1, signature.constants().len());
+            assert_eq!(1, signature.functions().len());
+            assert_eq!(1, signature.predicates().len());
         }
         {
-            let mut theory = Theory::try_from(vec![fof!(P(f(@c)))]).unwrap();
+            let mut theory: Theory<_> = vec![fof!(P(f(@c)))].into_iter().collect();
             let formulae = vec![fof!(P(x, y))];
+            theory.extend(formulae);
 
-            assert!(theory.extend(formulae).is_err());
+            assert!(theory.signature().is_err());
         }
     }
 }

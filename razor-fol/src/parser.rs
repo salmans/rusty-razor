@@ -38,7 +38,6 @@
 //! [`FromStr`]: std::str::FromStr
 //! [`parse`]: ::std::str#parse
 use super::syntax::{FOF::*, *};
-use core::convert::TryFrom;
 use nom::{types::CompleteStr, *};
 use nom_locate::LocatedSpan;
 use std::str::FromStr;
@@ -430,12 +429,13 @@ named!(pub theory<Span, Result<Theory<FOF>, Error>>,
             value!((), sp!(eof!()))
         ),
         |(fs, _)| {
-            let formulae: Vec<FOF> = fs.into_iter()
+            let theory: Theory<FOF> = fs.into_iter()
                 .filter_map(|f| f)
                 .collect();
-            Theory::try_from(formulae).map_err(|e| Error::Syntax{
-                source: e
-            })
+            theory.signature().map_err(|e| Error::Syntax {
+                source: e,
+            })?; // validating the signature
+            Ok(theory)
         }
     )
 );
