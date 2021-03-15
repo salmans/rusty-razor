@@ -525,13 +525,12 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
-///     SchedulerTrait, StrategyTrait, chase_all,
+///     PreProcessorEx, SchedulerTrait, StrategyTrait, chase_all,
 ///     r#impl::basic,
 ///     strategy::Linear,
 ///     scheduler::FIFO,
 ///     bounder::DomainSize,
 /// };
-/// use std::convert::TryInto;
 ///
 /// // parse the theory:
 /// let theory: Theory<FOF> = r#"
@@ -540,14 +539,9 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 ///   R(x) -> exists y . S(x, y);
 /// "#.parse().unwrap();
 ///
-/// let geometric_theory = theory.gnf(); // convert the theory to geometric
-///
-/// // create sequents for the geometric theory:
-/// let sequents: Vec<basic::Sequent> = geometric_theory
-///     .formulae()
-///     .iter()
-///     .map(|f| f.try_into().unwrap())
-///     .collect();
+/// // preprocess the theory to get geometric sequents and an initial (empty) model:
+/// let pre_processor = basic::PreProcessor;
+/// let (sequents, init_model) = pre_processor.pre_process(&theory);
 ///
 /// let evaluator = basic::Evaluator {};
 /// let strategy = Linear::new(sequents.iter()); // use the `Linear` strategy
@@ -555,7 +549,7 @@ pub trait SchedulerTrait<'s, S: 's + SequentTrait, M: ModelTrait, Stg: StrategyT
 ///
 /// // run unbounded model-finding (note that the chase terminates on the given theory):
 /// let bounder: Option<&DomainSize> = None;
-/// scheduler.add(basic::Model::new(), strategy); // schedule the initial (empty) model
+/// scheduler.add(init_model, strategy); // schedule the initial (empty) model
 /// let models = chase_all(&mut scheduler, &evaluator, bounder);
 ///
 /// assert_eq!(2, models.len()); // two models are found
@@ -598,7 +592,7 @@ where
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
-///     SchedulerTrait, StrategyTrait, chase_step,
+///     PreProcessorEx, SchedulerTrait, StrategyTrait, chase_step,
 ///     r#impl::basic,
 ///     strategy::Linear,
 ///     scheduler::FIFO,
@@ -613,14 +607,9 @@ where
 ///   R(x) -> exists y . S(x, y);
 /// "#.parse().unwrap();
 ///
-/// let geometric_theory = theory.gnf(); // convert the theory to geometric
-///
-/// // create sequents for the geometric theory:
-/// let sequents: Vec<basic::Sequent> = geometric_theory
-///     .formulae()
-///     .iter()
-///     .map(|f| f.try_into().unwrap())
-///     .collect();
+/// // preprocess the theory to get geometric sequents and an initial (empty) model:
+/// let pre_processor = basic::PreProcessor;
+/// let (sequents, init_model) = pre_processor.pre_process(&theory);
 ///
 /// let evaluator = basic::Evaluator {};
 /// let strategy = Linear::new(sequents.iter()); // use the `Linear` strategy
@@ -628,7 +617,7 @@ where
 ///
 /// // run unbounded model-finding (note that the chase terminates on the given theory):
 /// let bounder: Option<&DomainSize> = None;
-/// scheduler.add(basic::Model::new(), strategy); // schedule the initial (empty) model
+/// scheduler.add(init_model, strategy); // schedule the initial (empty) model
 ///
 /// let mut counter = 0;       // a counter to count the number of models
 /// while !scheduler.empty() {

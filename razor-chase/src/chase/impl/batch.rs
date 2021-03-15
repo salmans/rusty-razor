@@ -215,7 +215,6 @@ pub type Model = reference::Model;
 #[cfg(test)]
 mod test_batch {
     use super::{next_assignment, Evaluator};
-    use crate::chase::r#impl::basic::Sequent;
     use crate::chase::r#impl::reference::Model;
     use crate::chase::{
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
@@ -276,20 +275,17 @@ mod test_batch {
     }
 
     fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        use std::convert::TryInto;
+        use crate::chase::r#impl::reference::PreProcessor;
+        use crate::chase::PreProcessorEx;
 
-        let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory
-            .formulae()
-            .iter()
-            .map(|f| f.try_into().unwrap())
-            .collect();
+        let pre_processor = PreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = Evaluator;
         let strategy = Fair::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        scheduler.add(Model::new(), strategy);
+        scheduler.add(init_model, strategy);
         chase_all(&mut scheduler, &evaluator, bounder)
     }
 

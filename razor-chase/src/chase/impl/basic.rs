@@ -509,8 +509,8 @@ pub struct Sequent {
     head_fof: FOF,
 }
 
-impl From<&GNF> for Sequent {
-    fn from(gnf: &GNF) -> Self {
+impl From<GNF> for Sequent {
+    fn from(gnf: GNF) -> Self {
         let gnf_body = gnf.body();
         let gnf_head = gnf.head();
         let free_vars = gnf.free_vars().into_iter().cloned().collect();
@@ -567,17 +567,29 @@ impl PreProcessorEx for PreProcessor {
     type Model = Model;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use std::convert::TryInto;
+        use razor_fol::transform::ToGNF;
+        use razor_fol::transform::ToSNF;
 
-        (
-            theory
-                .gnf()
-                .formulae()
-                .iter()
-                .map(|f| f.try_into().unwrap())
-                .collect(),
-            Model::new(),
-        )
+        let mut c_counter: u32 = 0;
+        let mut f_counter: u32 = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        let geo_theory = theory
+            .iter()
+            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
+            .flat_map(|f| f.gnf())
+            .map(Sequent::from)
+            .collect();
+        (geo_theory, Model::new())
     }
 }
 
@@ -1003,7 +1015,7 @@ mod test_basic {
 
     // Assumes that `fof` is in GNF, so it converts to a single GNF
     fn sequents(gnfs: Vec<GNF>) -> Vec<Sequent> {
-        gnfs.iter().map(Sequent::from).collect()
+        gnfs.into_iter().map(Sequent::from).collect()
     }
 
     #[test]
@@ -1283,7 +1295,7 @@ mod test_basic {
             )))
         );
         assert_eq!(
-"Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\'c#0, \'c#1, \'c#2 -> e#0",            
+            "Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\'c#0, \'c#1, \'c#2 -> e#0",            
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy23.raz"
             )))
@@ -1456,7 +1468,8 @@ mod test_basic {
                 "../theories/core/thy46.raz"
             )))
         );
-        assert_eq!("Domain: {e#0}\nFacts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\'c#0, \'c#1, \'c#2, \'c#3 -> e#0",            
+        assert_eq!(
+            "Domain: {e#0}\nFacts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\'c#0, \'c#1, \'c#2, \'c#3 -> e#0",            
             print_basic_models(solve_basic(&read_theory_from_file(
                 "../theories/core/thy47.raz"
             )))

@@ -1,9 +1,9 @@
-use super::{expression::Convertor, model::Model, sequent::Sequent};
+use super::{constants::*, expression::Convertor, model::Model, sequent::Sequent};
 use crate::chase::PreProcessorEx;
 use itertools::Itertools;
 use razor_fol::{
     syntax::{formula::*, term::Complex, Sig, Theory, Var, FOF},
-    transform::{PCFSet, GNF, PCF},
+    transform::{PcfSet, GNF, PCF},
 };
 
 /// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
@@ -28,22 +28,39 @@ impl PreProcessorEx for PreProcessor {
     type Model = Model;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        let mut theory = theory.gnf();
-        theory
-            .extend(equality_axioms())
-            .expect("failed to add equality axioms");
-        theory
-            .extend(integrity_axioms(theory.signature()))
-            .expect("failed to add function integrity axioms");
+        use razor_fol::transform::ToGNF;
+        use razor_fol::transform::ToSNF;
 
-        let mut model = Model::new(&theory.signature());
+        let mut c_counter: u32 = 0;
+        let mut f_counter: u32 = 0;
+        let mut const_generator = || {
+            let name = skolem_constant_name(c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = skolem_function_name(f_counter);
+            f_counter += 1;
+            name.into()
+        };
+        let mut geo_theory: Theory<_> = theory
+            .iter()
+            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
+            .flat_map(|f| f.gnf())
+            .collect();
+
+        geo_theory.extend(equality_axioms());
+        let sig = geo_theory.signature().expect("invalid theory signature");
+        geo_theory.extend(integrity_axioms(&sig));
+
+        let mut model = Model::new(&sig);
         let mut convertor = if self.memoize {
             Convertor::memoizing(model.database_mut())
         } else {
             Convertor::new()
         };
 
-        let sequents = theory
+        let sequents = geo_theory
             .formulae()
             .iter()
             .map(|fmla| Sequent::new(&fmla, &mut convertor).unwrap())
@@ -88,7 +105,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PCFSet::from(PCF::from(x_y))).into();
+        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PcfSet::from(PCF::from(x_y))).into();
         result.push(gnf);
     }
 
@@ -129,7 +146,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(left), PCFSet::from(PCF::from(right))).into();
+        let gnf: GNF = (PCF::from(left), PcfSet::from(PCF::from(right))).into();
         result.push(gnf);
     }
 

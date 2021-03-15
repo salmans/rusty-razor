@@ -509,17 +509,29 @@ impl PreProcessorEx for PreProcessor {
     type Model = Model;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use std::convert::TryInto;
+        use razor_fol::transform::ToGNF;
+        use razor_fol::transform::ToSNF;
 
-        (
-            theory
-                .gnf()
-                .formulae()
-                .iter()
-                .map(|f| f.try_into().unwrap())
-                .collect(),
-            Model::new(),
-        )
+        let mut c_counter: u32 = 0;
+        let mut f_counter: u32 = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        let geo_theory = theory
+            .iter()
+            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
+            .flat_map(|f| f.gnf())
+            .map(Sequent::from)
+            .collect();
+        (geo_theory, Model::new())
     }
 }
 
@@ -715,7 +727,7 @@ pub type Literal = basic::Literal;
 
 #[cfg(test)]
 mod test_reference {
-    use super::{next_assignment, Evaluator, Model, Sequent};
+    use super::{next_assignment, Evaluator, Model};
     use crate::chase::{
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
         StrategyTrait,
@@ -775,20 +787,16 @@ mod test_reference {
     }
 
     fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        use std::convert::TryInto;
+        use crate::chase::PreProcessorEx;
 
-        let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory
-            .formulae()
-            .iter()
-            .map(|f| f.try_into().unwrap())
-            .collect();
+        let pre_processor = super::PreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = Evaluator;
         let strategy = Fair::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        scheduler.add(Model::new(), strategy);
+        scheduler.add(init_model, strategy);
         chase_all(&mut scheduler, &evaluator, bounder)
     }
 

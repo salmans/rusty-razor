@@ -3,14 +3,14 @@ transforming a [`CNF`] to a [`GNF`].
 
 [`CNF`]: crate::transform::CNF
 */
-use super::{ToCNF, ToSNF, CNF};
+use super::{ToCNF, CNF};
 use crate::syntax::{
     formula::{
         clause::{Clause, Literal},
         *,
     },
     term::Complex,
-    Error, Sig, Theory, Var, FOF,
+    Error, Sig, Var, FOF,
 };
 use itertools::Itertools;
 use std::{collections::BTreeSet, convert::TryFrom, iter::FromIterator, ops::Deref};
@@ -467,48 +467,6 @@ fn gnf(clause: &Clause<Complex>) -> GNF {
     (body, head).into()
 }
 
-impl<T: ToSNF> Theory<T> {
-    /// Transforms the given theory to a *geometric theory* of formulae in
-    /// Geometric Normal Form ([`GNF`]).
-    ///
-    /// **Example**:
-    /// ```rust
-    /// # use razor_fol::syntax::{FOF, Theory};
-    ///
-    /// let theory: Theory<FOF> = r#"
-    ///     not P(x) or Q(x);
-    ///     Q(x) -> exists y. R(x, y);
-    /// "#.parse().unwrap();
-    /// assert_eq!(r#"P(x) → Q(x)
-    /// Q(x) → R(x, f#0(x))"#, theory.gnf().to_string());
-    /// ```
-    pub fn gnf(&self) -> Theory<GNF> {
-        let mut c_counter = 0;
-        let mut f_counter = 0;
-        let mut const_generator = || {
-            let name = format!("c#{}", c_counter);
-            c_counter += 1;
-            name.into()
-        };
-        let mut fn_generator = || {
-            let name = format!("f#{}", f_counter);
-            f_counter += 1;
-            name.into()
-        };
-
-        let formulae = self
-            .formulae()
-            .iter()
-            .flat_map(|f| {
-                f.snf_with(&mut const_generator, &mut fn_generator)
-                    .cnf()
-                    .gnf()
-            })
-            .collect_vec();
-        formulae.into_iter().collect()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -516,7 +474,7 @@ mod tests {
         assert_debug_strings, assert_eq_sorted_vecs, fof,
         syntax::{
             signature::{FuncSig, PredSig},
-            Sig, Theory, EQ_SYM,
+            Sig, EQ_SYM,
         },
         term, v,
     };
@@ -1244,41 +1202,6 @@ mod tests {
         {
             let gnf = GNF::try_from(fof!({P(x, x)} -> {P(x)})).unwrap();
             assert!(gnf.signature().is_err());
-        }
-    }
-
-    #[test]
-    fn test_gnf_theory() {
-        {
-            let theory: Theory<FOF> = "P('a); P('b);".parse().unwrap();
-            assert_eq!("⊤ → P(\'a)\n⊤ → P(\'b)", theory.gnf().to_string());
-        }
-        {
-            let theory: Theory<FOF> = "P('a); P(x);".parse().unwrap();
-            assert_eq!("⊤ → P(\'a)\n⊤ → P(x)", theory.gnf().to_string());
-        }
-        {
-            let theory: Theory<FOF> = "P('a); P(x); P('b);".parse().unwrap();
-            assert_eq!("⊤ → P(\'a)\n⊤ → P(x)\n⊤ → P(\'b)", theory.gnf().to_string(),);
-        }
-        {
-            let theory: Theory<FOF> = "(T() and V()) or (U() and V());".parse().unwrap();
-            assert_eq!(
-                "⊤ → (T() ∨ U())\n⊤ → (T() ∨ V())\n⊤ → (U() ∨ V())\n⊤ → V()",
-                theory.gnf().to_string()
-            );
-        }
-        {
-            let theory: Theory<FOF> = r#"
-P(x) -> ? y. P(y); 
-Q(x, y) -> ?z. Q(y, z);
-"#
-            .parse()
-            .unwrap();
-            assert_eq!(
-                "P(x) → P(f#0(x))\nQ(x, y) → Q(y, f#1(x, y))",
-                theory.gnf().to_string()
-            );
         }
     }
 }
