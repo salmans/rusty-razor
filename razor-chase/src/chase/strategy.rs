@@ -5,38 +5,39 @@
 //! [`StrategyTrait`]: crate::chase::StrategyTrait
 use crate::chase::{SequentTrait, StrategyTrait};
 use razor_fol::syntax::{Formula, FOF};
+use std::iter::FromIterator;
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
 ///
 /// [sequent]: crate::chase::SequentTrait
-pub struct Linear<'s, S: SequentTrait> {
+pub struct Linear<S: SequentTrait> {
     /// Is the list of all [sequents] in this strategy.
     ///
     /// [sequents]: crate::chase::SequentTrait
-    sequents: Vec<&'s S>,
+    sequents: Vec<S>,
 
     /// Is an internal index, keeping track of the next sequent to return.
     index: usize,
 }
 
-impl<'s, S: SequentTrait> Linear<'s, S> {
+impl<'s, S: SequentTrait> Linear<S> {
     #[inline(always)]
     fn reset(&mut self) {
         self.index = 0;
     }
 }
 
-impl<'s, S: SequentTrait> Iterator for Linear<'s, S> {
-    type Item = &'s S;
+impl<S: SequentTrait> Iterator for Linear<S> {
+    type Item = S;
 
-    fn next(&mut self) -> Option<&'s S> {
+    fn next(&mut self) -> Option<S> {
         self.index += 1;
-        self.sequents.get(self.index - 1).copied()
+        self.sequents.get(self.index - 1).cloned()
     }
 }
 
-impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
+impl<'s, S: SequentTrait> Clone for Linear<S> {
     fn clone(&self) -> Self {
         Self {
             sequents: self.sequents.clone(),
@@ -45,10 +46,10 @@ impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
     }
 }
 
-impl<'s, S: SequentTrait> StrategyTrait for Linear<'s, S> {
-    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
+impl<S: SequentTrait> FromIterator<S> for Linear<S> {
+    fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         Linear {
-            sequents: sequents.into_iter().collect(),
+            sequents: iter.into_iter().collect(),
             index: 0,
         }
     }
@@ -75,10 +76,10 @@ pub struct Fair<'s, S: SequentTrait> {
     full_circle: bool,
 }
 
-impl<'s, S: SequentTrait> StrategyTrait for Fair<'s, S> {
-    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
+impl<'s, S: SequentTrait> FromIterator<&'s S> for Fair<'s, S> {
+    fn from_iter<T: IntoIterator<Item = &'s S>>(iter: T) -> Self {
         Fair {
-            sequents: sequents.into_iter().collect(),
+            sequents: iter.into_iter().collect(),
             index: 0,
             start: 0,
             full_circle: false,
@@ -94,7 +95,7 @@ impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
             return None;
         }
         self.full_circle = true;
-        let result = self.sequents.get(self.index).copied();
+        let result = self.sequents.get(self.index).cloned();
         self.index = (self.index + 1) % self.sequents.len();
         result
     }
@@ -117,11 +118,11 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
 /// [strategy]: crate::chase::StrategyTrait
 /// [sequents]: crate::chase::SequentTrait
 #[derive(Clone)]
-pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
+pub struct Bootstrap<S: SequentTrait, Stg: StrategyTrait<S>> {
     /// Is the list of initial [sequents] (sequents with empty body).
     ///
     /// [sequents]: crate::chase::SequentTrait
-    initial_sequents: Vec<&'s S>,
+    initial_sequents: Vec<S>,
 
     /// Is the underlying [strategy] wrapped by this instance.
     ///
@@ -129,25 +130,23 @@ pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
     strategy: Stg,
 }
 
-impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait
-    for Bootstrap<'s, S, Stg>
-{
-    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
-        let (initial_sequents, rest) = sequents
+impl<S: SequentTrait, Stg: StrategyTrait<S>> FromIterator<S> for Bootstrap<S, Stg> {
+    fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
+        let (initial_sequents, rest) = iter
             .into_iter()
             .partition(|s| s.body() == FOF::Top && s.head().free_vars().is_empty());
 
         Bootstrap {
             initial_sequents,
-            strategy: Stg::new(rest),
+            strategy: rest.into_iter().collect(),
         }
     }
 }
 
-impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> Iterator for Bootstrap<'s, S, Stg> {
-    type Item = &'s S;
+impl<S: SequentTrait, Stg: StrategyTrait<S>> Iterator for Bootstrap<S, Stg> {
+    type Item = S;
 
-    fn next(&mut self) -> Option<&'s S> {
+    fn next(&mut self) -> Option<S> {
         if !self.initial_sequents.is_empty() {
             Some(self.initial_sequents.remove(0))
         } else {
@@ -163,11 +162,11 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> Iterator for Bootstr
 /// [strategy]: crate::chase::StrategyTrait
 /// [sequents]: crate::chase::SequentTrait
 #[derive(Clone)]
-pub struct FailFast<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
+pub struct FailFast<S: SequentTrait, Stg: StrategyTrait<S>> {
     /// Keeps track of failing [sequents] (sequents with empty head) by a [`Linear`] strategy.
     ///
     /// [sequents]: crate::chase::SequentTrait
-    fail_strategy: Linear<'s, S>,
+    fail_strategy: Linear<S>,
 
     /// Is the underlying [strategy] wrapped by this instance.
     ///
@@ -175,22 +174,22 @@ pub struct FailFast<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
     strategy: Stg,
 }
 
-impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait for FailFast<'s, S, Stg> {
-    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
+impl<S: SequentTrait, Stg: StrategyTrait<S>> FromIterator<S> for FailFast<S, Stg> {
+    fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         let (fail_sequents, rest): (Vec<_>, _) =
-            sequents.into_iter().partition(|s| s.head() == FOF::Bottom);
+            iter.into_iter().partition(|s| s.head() == FOF::Bottom);
 
         Self {
-            fail_strategy: Linear::new(fail_sequents),
-            strategy: Stg::new(rest),
+            fail_strategy: fail_sequents.into_iter().collect(),
+            strategy: rest.into_iter().collect(),
         }
     }
 }
 
-impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> Iterator for FailFast<'s, S, Stg> {
-    type Item = &'s S;
+impl<S: SequentTrait, Stg: StrategyTrait<S>> Iterator for FailFast<S, Stg> {
+    type Item = S;
 
-    fn next(&mut self) -> Option<&'s S> {
+    fn next(&mut self) -> Option<S> {
         self.fail_strategy.next().or_else(|| {
             self.fail_strategy.reset();
             self.strategy.next()
@@ -206,7 +205,7 @@ mod test_fair {
         r#impl::basic::{Evaluator, Model, PreProcessor},
         scheduler::FIFO,
         strategy::Fair,
-        ModelTrait, PreProcessorEx, SchedulerTrait, StrategyTrait,
+        ModelTrait, PreProcessorEx, SchedulerTrait,
     };
     use crate::test_prelude::{read_theory_from_file, solve_basic};
     use itertools::Itertools;
@@ -241,7 +240,7 @@ mod test_fair {
         let preprocessor = PreProcessor;
         let (sequents, init_model) = preprocessor.pre_process(theory);
         let evaluator = Evaluator;
-        let strategy = Fair::new(sequents.iter());
+        let strategy: Fair<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
@@ -269,9 +268,9 @@ mod test_bootstrap {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, PreProcessor, Sequent},
+        r#impl::basic::{Evaluator, Model, PreProcessor},
         strategy::{Bootstrap, Fair},
-        PreProcessorEx, SchedulerTrait, StrategyTrait,
+        PreProcessorEx, SchedulerTrait,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -282,7 +281,7 @@ mod test_bootstrap {
         let pre_processor = PreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = Evaluator;
-        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+        let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
@@ -314,9 +313,9 @@ mod test_fail_fast {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, PreProcessor, Sequent},
+        r#impl::basic::{Evaluator, Model, PreProcessor},
         strategy::{FailFast, Fair},
-        PreProcessorEx, SchedulerTrait, StrategyTrait,
+        PreProcessorEx, SchedulerTrait,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -327,7 +326,7 @@ mod test_fail_fast {
         let pre_processor = PreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = Evaluator;
-        let strategy: FailFast<Sequent, Fair<Sequent>> = FailFast::new(sequents.iter());
+        let strategy: FailFast<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);

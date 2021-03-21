@@ -31,7 +31,7 @@ use std::{collections::HashMap, iter};
 /// Simple evaluator that evaluates a Sequnet in a Model.
 pub struct Evaluator;
 
-impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
+impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
     for Evaluator
 {
     type Sequent = Sequent;
@@ -218,7 +218,6 @@ mod test_batch {
     use crate::chase::r#impl::reference::Model;
     use crate::chase::{
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
-        StrategyTrait,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -282,7 +281,7 @@ mod test_batch {
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = Evaluator;
-        let strategy = Fair::new(sequents.iter());
+        let strategy: Fair<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);

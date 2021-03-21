@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 pub struct Evaluator;
 
-impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
+impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
     for Evaluator
 {
     type Sequent = Sequent;
@@ -55,7 +55,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
 }
 
 #[inline(always)]
-fn next_sequent<'s, S: StrategyTrait<Item = &'s Sequent>>(
+fn next_sequent<'s, S: StrategyTrait<&'s Sequent>>(
     strategy: &mut S,
     model: &Model,
 ) -> Option<(&'s Sequent, Vec<NamedTuple<'s>>)> {

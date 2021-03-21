@@ -73,7 +73,7 @@ mod tests {
             chase_all,
             scheduler::FIFO,
             strategy::{Bootstrap, Fair},
-            PreProcessorEx, SchedulerTrait, StrategyTrait,
+            PreProcessorEx, SchedulerTrait,
         },
         test_prelude::*,
     };
@@ -84,7 +84,7 @@ mod tests {
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = Evaluator;
-        let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+        let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);

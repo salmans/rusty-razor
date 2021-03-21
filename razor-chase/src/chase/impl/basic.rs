@@ -600,7 +600,7 @@ impl PreProcessorEx for PreProcessor {
 /// [chase-step]: crate::chase#chase-step
 pub struct Evaluator;
 
-impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
+impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
     for Evaluator
 {
     type Sequent = Sequent;

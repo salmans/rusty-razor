@@ -218,7 +218,7 @@ pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::Model> {
     let (sequents, init_model) = pre_processor.pre_process(theory);
 
     let evaluator = basic::Evaluator;
-    let strategy = Linear::new(sequents.iter());
+    let strategy: Linear<_> = sequents.iter().collect();
 
     let mut scheduler = FIFO::new();
     let bounder: Option<&DomainSize> = None;
@@ -230,7 +230,7 @@ pub fn solve_domain_bounded_basic(theory: &Theory<FOF>, bound: usize) -> Vec<bas
     let pre_processor = basic::PreProcessor;
     let (sequents, init_model) = pre_processor.pre_process(theory);
     let evaluator = basic::Evaluator;
-    let strategy = Linear::new(sequents.iter());
+    let strategy: Linear<_> = sequents.iter().collect();
     let mut scheduler = FIFO::new();
     let bounder = DomainSize::from(bound);
     let bounder: Option<&DomainSize> = Some(&bounder);
