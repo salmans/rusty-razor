@@ -20,12 +20,10 @@ pub struct Linear<'s, S: SequentTrait> {
     index: usize,
 }
 
-impl<'s, S: SequentTrait> StrategyTrait for Linear<'s, S> {
-    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
-        Linear {
-            sequents: sequents.into_iter().collect(),
-            index: 0,
-        }
+impl<'s, S: SequentTrait> Linear<'s, S> {
+    #[inline(always)]
+    fn reset(&mut self) {
+        self.index = 0;
     }
 }
 
@@ -42,6 +40,15 @@ impl<'s, S: SequentTrait> Clone for Linear<'s, S> {
     fn clone(&self) -> Self {
         Self {
             sequents: self.sequents.clone(),
+            index: 0,
+        }
+    }
+}
+
+impl<'s, S: SequentTrait> StrategyTrait for Linear<'s, S> {
+    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
+        Linear {
+            sequents: sequents.into_iter().collect(),
             index: 0,
         }
     }
@@ -111,12 +118,12 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
 /// [sequents]: crate::chase::SequentTrait
 #[derive(Clone)]
 pub struct Bootstrap<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
-    /// Keeps track of the initial [sequents] (sequents with empty body) internally.
+    /// Is the list of initial [sequents] (sequents with empty body).
     ///
     /// [sequents]: crate::chase::SequentTrait
     initial_sequents: Vec<&'s S>,
 
-    /// Is the underlying [strategy] wrapped inside this instance.
+    /// Is the underlying [strategy] wrapped by this instance.
     ///
     /// [strategy]: crate::chase::StrategyTrait
     strategy: Stg,
@@ -146,6 +153,48 @@ impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> Iterator for Bootstr
         } else {
             self.strategy.next()
         }
+    }
+}
+
+/// Behaves like its underlying [strategy] but prioritizes all failing [sequents] (sequents with
+/// empty head) before returning the next (non-failing) sequent. By using this strategy, the chase
+/// would drop an inconsistent model as soon as possible.
+///
+/// [strategy]: crate::chase::StrategyTrait
+/// [sequents]: crate::chase::SequentTrait
+#[derive(Clone)]
+pub struct FailFast<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> {
+    /// Keeps track of failing [sequents] (sequents with empty head) by a [`Linear`] strategy.
+    ///
+    /// [sequents]: crate::chase::SequentTrait
+    fail_strategy: Linear<'s, S>,
+
+    /// Is the underlying [strategy] wrapped by this instance.
+    ///
+    /// [strategy]: crate::chase::StrategyTrait
+    strategy: Stg,
+}
+
+impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> StrategyTrait for FailFast<'s, S, Stg> {
+    fn new<I: IntoIterator<Item = Self::Item>>(sequents: I) -> Self {
+        let (fail_sequents, rest): (Vec<_>, _) =
+            sequents.into_iter().partition(|s| s.head() == FOF::Bottom);
+
+        Self {
+            fail_strategy: Linear::new(fail_sequents),
+            strategy: Stg::new(rest),
+        }
+    }
+}
+
+impl<'s, S: SequentTrait, Stg: StrategyTrait<Item = &'s S>> Iterator for FailFast<'s, S, Stg> {
+    type Item = &'s S;
+
+    fn next(&mut self) -> Option<&'s S> {
+        self.fail_strategy.next().or_else(|| {
+            self.fail_strategy.reset();
+            self.strategy.next()
+        })
     }
 }
 
@@ -234,6 +283,51 @@ mod test_bootstrap {
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = Evaluator;
         let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+        let mut scheduler = FIFO::new();
+        let bounder: Option<&DomainSize> = None;
+        scheduler.add(init_model, strategy);
+        chase_all(&mut scheduler, &evaluator, bounder)
+    }
+
+    #[test]
+    fn test() {
+        for item in fs::read_dir("../theories/core").unwrap() {
+            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
+            let basic_models = solve_basic(&theory);
+            let test_models = run_test(&theory);
+            let basic_models: HashSet<String> = basic_models
+                .into_iter()
+                .map(|m| print_basic_model(m))
+                .collect();
+            let test_models: HashSet<String> = test_models
+                .into_iter()
+                .map(|m| print_basic_model(m))
+                .collect();
+            assert_eq!(basic_models, test_models);
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_fail_fast {
+    use crate::chase::scheduler::FIFO;
+    use crate::chase::{
+        bounder::DomainSize,
+        chase_all,
+        r#impl::basic::{Evaluator, Model, PreProcessor, Sequent},
+        strategy::{FailFast, Fair},
+        PreProcessorEx, SchedulerTrait, StrategyTrait,
+    };
+    use crate::test_prelude::*;
+    use razor_fol::syntax::{Theory, FOF};
+    use std::collections::HashSet;
+    use std::fs;
+
+    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
+        let pre_processor = PreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
+        let evaluator = Evaluator;
+        let strategy: FailFast<Sequent, Fair<Sequent>> = FailFast::new(sequents.iter());
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);

@@ -11,7 +11,7 @@ use razor_chase::{
         chase_step,
         r#impl::relational::{Evaluator, Model, PreProcessor, Sequent},
         scheduler::Dispatch,
-        strategy::{Bootstrap, Fair},
+        strategy::{Bootstrap, FailFast, Fair},
         ModelTrait, Observation, PreProcessorEx, SchedulerTrait, StrategyTrait,
     },
     trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
@@ -207,11 +207,12 @@ fn process_solve(
     println!();
     println!();
 
-    let pre_processor = PreProcessor::new(false);
+    let pre_processor = PreProcessor::new(true);
     let (sequents, init_model) = pre_processor.pre_process(&theory);
 
     let evaluator = Evaluator;
-    let strategy: Bootstrap<Sequent, Fair<Sequent>> = Bootstrap::new(sequents.iter());
+    let strategy: Bootstrap<Sequent, FailFast<Sequent, Fair<Sequent>>> =
+        Bootstrap::new(sequents.iter());
     let bounder = bound.map(|b| match b {
         BoundCommand::Domain { size } => DomainSize::from(size),
     });
