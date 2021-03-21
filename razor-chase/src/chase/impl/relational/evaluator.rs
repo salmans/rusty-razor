@@ -3,7 +3,7 @@ use crate::chase::{BounderTrait, EvaluateResult, EvaluatorTrait, StrategyTrait};
 use super::{
     empty_named_tuple,
     model::Model,
-    sequent::{Atom, Branch, Sequent},
+    sequent::{Branch, Sequent, SymbolicAtom},
     symbol::Symbol,
     Error, NamedTuple, Tuple,
 };
@@ -41,7 +41,7 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                 .into_iter()
                 .flat_map(|m| {
                     info!(event = crate::trace::EVALUATE, sequent = %sequent, mapping = ?tuple);
-                    let (os, bs) = balance_tuple(&tuple, sequent.branches(), &m, bounder)
+                    let (os, bs) = balance(&tuple, sequent.branches(), &m, bounder)
                         .unwrap()
                         .into_models();
                     bounded.extend(bs);
@@ -70,7 +70,7 @@ fn next_sequent<'s, S: StrategyTrait<Item = &'s Sequent>>(
 }
 
 #[inline(always)]
-fn balance_tuple<B: BounderTrait>(
+fn balance<B: BounderTrait>(
     tuple: &NamedTuple,
     branches: &[Branch],
     parent: &Model,
@@ -98,7 +98,7 @@ fn balance_tuple<B: BounderTrait>(
         for atom in branch {
             let symbol = atom.symbol();
             if let Some(ts) = symbol_tuples.remove(symbol) {
-                model.insert(symbol, ts.into()).unwrap()
+                model.insert(symbol, ts.into()).unwrap();
             }
         }
         model
@@ -128,7 +128,7 @@ fn balance_tuple<B: BounderTrait>(
 #[inline(always)]
 fn balance_atom<'t, B: BounderTrait>(
     model: &mut Model,
-    atom: &'t Atom,
+    atom: &'t SymbolicAtom,
     tuple: &NamedTuple,
     existentials: &mut NamedTuple<'t>,
     bounder: Option<&B>,

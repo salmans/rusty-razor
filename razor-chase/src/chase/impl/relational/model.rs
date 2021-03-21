@@ -68,6 +68,14 @@ impl Model {
         }
     }
 
+    // assumes that the witness term is flat and `element` is already in the domain
+    #[inline(always)]
+    fn record_to(&mut self, witness: WitnessTerm, element: E) {
+        if !self.rewrites.contains_key(&witness) {
+            self.rewrites.insert(witness, element);
+        }
+    }
+
     /// Evaluates a sequent in the model.
     pub(super) fn evaluate<'a>(&self, sequent: &'a Sequent) -> Vec<NamedTuple<'a>> {
         let tuples = self.database.evaluate(sequent.expression()).unwrap();
@@ -89,6 +97,25 @@ impl Model {
         symbol: &Symbol,
         mut tuples: codd::Tuples<Tuple>,
     ) -> Result<(), Error> {
+        // record result of function applications as a witness term to minimize
+        // creating new elements later on:
+        match symbol {
+            Symbol::Const(_) => {
+                for t in tuples.iter() {
+                    self.record_to(symbol.witness(&[])?, t[0]);
+                }
+            }
+            Symbol::Func { arity, .. } => {
+                for t in tuples.iter() {
+                    self.record_to(
+                        symbol.witness(&t[0..(*arity as usize)])?,
+                        t[*arity as usize],
+                    );
+                }
+            }
+            _ => {}
+        }
+
         if let Some(relation) = self.relations.get(symbol) {
             if let Symbol::Equality = symbol {
                 let to_add = tuples.iter().map(|t| vec![t[1], t[0]]).collect_vec();
