@@ -16,6 +16,8 @@ pub use evaluator::Evaluator;
 pub use model::Model;
 pub use pre_processor::PreProcessor;
 pub use sequent::Sequent;
+
+use razor_fol::syntax::{formula::Atom, term::Variable};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -33,7 +35,7 @@ fn empty_named_tuple<'a>() -> NamedTuple<'a> {
 /// Is the type of errors arising from inconsistencies in the syntax of formulae.
 #[derive(Error, Debug)]
 pub enum Error {
-    /// Is an error returned when an unsupported operation is performed on an expression.
+    /// Is returned when an unsupported operation is performed on an expression.
     #[error("missing symbol `{symbol:?}`")]
     MissingSymbol { symbol: String },
 
@@ -44,13 +46,22 @@ pub enum Error {
         source: codd::Error,
     },
 
-    /// Is an error returned when a witness term cannot be constructed.
+    /// Is returned when a witness term cannot be constructed.
     #[error("cannot create witness term for symbol `{symbol:?}`")]
     BadWitnessTerm { symbol: String },
 
-    /// Is an error returned when a relational attribute cannot be constructed.
+    /// Is returned when a relational attribute cannot be constructed.
     #[error("invalid attribute name `{name:?}`")]
     BadAttributeName { name: String },
+
+    /// Is returned when a relationalized atom is of a wrong arity.
+    #[error("invalid relational function application `{atom:?}`")]
+    BadRelationalAtom { atom: Atom<Variable> },
+
+    /// Is returned when an existential variable is not the output
+    /// of one of the previous functional literals in the head of a sequent.
+    #[error("existential variable with no origin `{var:?}`")]
+    BadExistentialVariable { var: Variable },
 }
 
 #[cfg(test)]

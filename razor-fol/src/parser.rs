@@ -309,7 +309,7 @@ named!(p_atom<Span, FOF>,
         // composite term:
         map!(
             pair!(p_pred, sp!(p_term_args)),
-            |(p, ts): (Pred, Vec<term::Complex>)| p.app(ts)
+            |(p, ts): (Pred, Vec<term::Complex>)| p.app(ts).into()
         ) |
         delimited!(sp!(tag!(L_PAREN)),
             return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula),
