@@ -60,10 +60,10 @@ macro_rules! run_unbounded {
 fn bench_batch(c: &mut Criterion) {
     run_unbounded!(
         "batch",
-        pre_processor = reference::RefPreProcessor,
+        pre_processor = collapse::ColPreProcessor,
         evaluator = batch::BatchEvaluator,
-        sequent = reference::RefSequent,
-        model = reference::RefModel,
+        sequent = collapse::ColSequent,
+        model = collapse::ColModel,
         c
     );
 }

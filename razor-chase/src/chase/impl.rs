@@ -8,5 +8,5 @@
 //! [`Evaluator`]: crate::chase::Evaluator
 pub mod basic;
 pub mod batch;
-pub mod reference;
+pub mod collapse;
 pub mod relational;

@@ -1,5 +1,5 @@
 use crate::chase::{bounder::DomainSize, scheduler::FIFO, strategy::Linear};
-use crate::chase::{r#impl::basic, r#impl::reference, *};
+use crate::chase::{r#impl::basic, r#impl::collapse, *};
 use itertools::Itertools;
 use razor_fol::syntax::{term::Complex, Const, Func, Pred, Theory, Var, FOF};
 use std::{fmt, fs::File, io::Read};
@@ -265,7 +265,7 @@ pub fn print_basic_models(models: Vec<basic::BasicModel>) -> String {
     models.join("\n-- -- -- -- -- -- -- -- -- --\n")
 }
 
-pub fn print_reference_model(model: reference::RefModel) -> String {
+pub fn print_collapse_model(model: collapse::ColModel) -> String {
     let elements: Vec<String> = model
         .domain()
         .iter()

@@ -1,23 +1,23 @@
-//! Improves `chase::impl::reference` by evaluating the sequent provided by the strategy
+//! Improves `collapse` by evaluating the sequent provided by the strategy
 //! against all assignments from the free variables of the sequent to the elements of the
 //! model in which it is being evaluated.
 //!
-//! [`RefEvaluator`] extends the [`Model`] that it processes in a [chase-step]
+//! [`ColEvaluator`] extends the [`Model`] that it processes in a [chase-step]
 //! only for one assignment from the free variables of the [`Sequent`] that it is
 //! evaluating to the elements of the [`Model`]. [`BatchEvaluator`] is the only
-//! different component between [`reference`] and [`batch`] implementations.
+//! different component between [`collapse`] and [`batch`] implementations.
 //!
-//! [`reference`]: crate::chase::impl::reference
+//! [`collapse`]: crate::chase::impl::collapse
 //! [`Sequent`]: crate::chase::impl::basic::BasicSequent
 //! [chase-step]: crate::chase#chase-step
-//! [`Model`]: crate::chase::impl::reference::RefModel
-//! [`RefEvaluator`]: crate::chase::impl::reference::RefEvaluator
+//! [`Model`]: crate::chase::impl::collapse::ColModel
+//! [`ColEvaluator`]: crate::chase::impl::collapse::ColEvaluator
 //! [`batch`]: self
 
 use crate::chase::{
     r#impl::{
-        basic, reference,
-        reference::{Element, RefWitnessTerm},
+        basic, collapse,
+        collapse::{ColWitnessTerm, Element},
     },
     Bounder, EvaluateResult, Evaluator, Observation, Rel, Strategy,
 };
@@ -127,8 +127,8 @@ impl<'s, Stg: Strategy<&'s BatchSequent>, B: Bounder> Evaluator<'s, Stg, B> for 
 // observations.
 fn make_extend<'m>(
     model: &'m BatchModel,
-) -> impl FnMut(&'m Vec<Observation<RefWitnessTerm>>) -> Either<BatchModel, BatchModel> {
-    move |os: &'m Vec<Observation<RefWitnessTerm>>| {
+) -> impl FnMut(&'m Vec<Observation<ColWitnessTerm>>) -> Either<BatchModel, BatchModel> {
+    move |os: &'m Vec<Observation<ColWitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
         Either::Left(model)
@@ -142,8 +142,8 @@ fn make_extend<'m>(
 fn make_bounded_extend<'m, B: Bounder>(
     bounder: &'m B,
     model: &'m BatchModel,
-) -> impl FnMut(&'m Vec<Observation<RefWitnessTerm>>) -> Either<BatchModel, BatchModel> {
-    move |os: &Vec<Observation<RefWitnessTerm>>| {
+) -> impl FnMut(&'m Vec<Observation<ColWitnessTerm>>) -> Either<BatchModel, BatchModel> {
+    move |os: &Vec<Observation<ColWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
         os.iter().foreach(|o| {
@@ -167,13 +167,13 @@ fn make_bounded_extend<'m, B: Bounder>(
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
     assignment_func: impl Fn(&Var) -> Element,
-) -> impl Fn(&Literal) -> Observation<RefWitnessTerm> {
+) -> impl Fn(&Literal) -> Observation<ColWitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| RefWitnessTerm::witness(t, &assignment_func))
+                .map(|t| ColWitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -181,8 +181,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = RefWitnessTerm::witness(&this.left, &assignment_func);
-            let right = RefWitnessTerm::witness(&this.right, &assignment_func);
+            let left = ColWitnessTerm::witness(&this.left, &assignment_func);
+            let right = ColWitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -205,14 +205,14 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 }
 
 pub type BatchSequent = basic::BasicSequent;
-pub type BatchPreProcessor = reference::RefPreProcessor;
+pub type BatchPreProcessor = collapse::ColPreProcessor;
 pub type Literal = basic::Literal;
-pub type BatchModel = reference::RefModel;
+pub type BatchModel = collapse::ColModel;
 
 #[cfg(test)]
 mod test_batch {
     use super::{next_assignment, BatchEvaluator};
-    use crate::chase::r#impl::reference::RefModel;
+    use crate::chase::r#impl::collapse::ColModel;
     use crate::chase::{
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, Scheduler,
     };
@@ -270,11 +270,11 @@ mod test_batch {
         }
     }
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<RefModel> {
-        use crate::chase::r#impl::reference::RefPreProcessor;
+    fn run_test(theory: &Theory<FOF>) -> Vec<ColModel> {
+        use crate::chase::r#impl::collapse::ColPreProcessor;
         use crate::chase::PreProcessor;
 
-        let pre_processor = RefPreProcessor;
+        let pre_processor = ColPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = BatchEvaluator;
@@ -302,7 +302,7 @@ mod test_batch {
                 .collect();
             let test_models: HashSet<String> = test_models
                 .into_iter()
-                .map(|m| print_reference_model(m))
+                .map(|m| print_collapse_model(m))
                 .collect();
             assert_eq!(basic_models, test_models);
         }

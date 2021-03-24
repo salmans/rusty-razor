@@ -159,10 +159,9 @@ impl fmt::Debug for E {
 pub trait WitnessTerm: Clone + PartialEq + Eq + fmt::Display {
     /// Is the type of elements that are witnessed by the witness term.
     ///
-    /// **Note**: Although [`E`] is often the underlying symbol for representing model
-    /// elements, models may implement their own element types based on or independent from `E`.
-    /// See [`impl::reference::RefModel`](self::impl::reference::RefModel) for an
-    /// example.
+    /// **Note**: Although [`E`] is often the underlying symbol for representing elements,
+    /// models may implement their own element types based on or independent from `E`.
+    /// See [`ColModel`](self::impl::collapse::ColModel) for an example.
     type ElementType;
 
     /// Returns an equational [`Observation`] between `self` and the give witness term.
