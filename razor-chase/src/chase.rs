@@ -20,7 +20,7 @@
 //! variables are assumed to be universally qualified over the entire formula.
 //!
 //! In the context of a [run of the chase], we refer to formulae in the their GNF as
-//! [*sequents*][SequentTrait]. The premise (left side) and the consequence (right side) of the
+//! [*sequents*][Sequent]. The premise (left side) and the consequence (right side) of the
 //! implication are respectively said to be the *body* and the *head* of the sequent.
 //!
 //! ### Satisfiability of Geometric Theories
@@ -50,7 +50,7 @@
 //! Given a geometric theory and starting with an empty model, a run of the chase consists of repeated
 //! applications of [chase-step]s by which the model is augmented with *necessary* pieces of
 //! information until there is a contradiction or the model satisfies the theory. Within
-//! Razor's implementation, instances of any type that implements [ModelTrait] can serve as a
+//! Razor's implementation, instances of any type that implements [Model] can serve as a
 //! first-order model. Also, inspired by [Steven Vickers][vickers], we refer to the units of
 //! information that augment models as [observation][Observation]s.
 //!
@@ -61,12 +61,12 @@
 //! Given a geometric theory and an existing model, a chase-step proceeds as follows:
 //!
 //! 1. A sequent from the theory is selected to be evaluated against the model. Razor uses an
-//! instance of [StrategyTrait] to select the sequent.
+//! instance of [Strategy] to select the sequent.
 //!
 //! 2. The selected sequent is evaluated against the model: given an assignment from the free
 //! variables of the sequent to the elements of the model, if the body of the sequent is true and
 //! its head is not true in the model, new observations are added to the model to make the
-//! sequent's head true. Instances of any type that implements [EvaluatorTrait] may be used to
+//! sequent's head true. Instances of any type that implements [Evaluator] may be used to
 //! evaluate the sequent in the model.
 //!
 //!     2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
@@ -74,7 +74,7 @@
 //!
 //!     2.2. If the head of the sequent contains more than one disjunct (with at least one
 //! non-trivial disjunction), the chase branches and satisfies each disjunct independently on clones
-//! of the model. Razor uses instances of [SchedulerTrait] to schedule various branches of the chase
+//! of the model. Razor uses instances of [Scheduler] to schedule various branches of the chase
 //! for future chase steps.
 //!
 //!     2.3. If no sequent can be found such that its body and head are respectively true and false
@@ -88,19 +88,19 @@
 //! However, when the theory is satisfiable, a run of the chase may not terminate, producing
 //! infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
 //! in practice, Razor can *bound* the size of models created by the chase to guarantee termination.
-//! Razor uses instances of types that implement [BounderTrait] to implement various strategies to
+//! Razor uses instances of types that implement [Bounder] to implement various strategies to
 //! cap the size of search space for models.
 //!
 //! ## Implementation
 //! The primary motivation for implementing Razor is to study the chase and improve its performance
 //! for practical applications. The flexible (but somehow complex) design of Razor allows for
-//! experimenting with various data structures to represent [models][ModelTrait] and
-//! [sequents][SequentTrait], [evaluating][EvaluatorTrait] sequents in models using a variety
-//! of algorithms, testing different ideas for [scheduling][SchedulerTrait] branches of
-//! the chase and devising various [strategies][StrategyTrait] for selecting sequents. Also,
+//! experimenting with various data structures to represent [models][Model] and
+//! [sequents][Sequent], [evaluating][Evaluator] sequents in models using a variety
+//! of algorithms, testing different ideas for [scheduling][Scheduler] branches of
+//! the chase and devising various [strategies][Strategy] for selecting sequents. Also,
 //! because of theoretical and non-theoretical consequences of non-termination of the chase,
 //! Razor is going to explore a variety of ideas for limiting the search space by
-//! [bounding][BounderTrait] the size of models:
+//! [bounding][Bounder] the size of models:
 //!
 //! Interesting combinations of these various options are constantly benchmarked and the
 //! configuration with the best average performance is used by the Rusty Razor application.
@@ -156,12 +156,12 @@ impl fmt::Debug for E {
 /// Is the trait for special kind of variable-free terms that are used to witness existence of
 /// model elements. These terms are used as provenance information for models to describe *why*
 /// elements exist or facts are true in models.
-pub trait WitnessTermTrait: Clone + PartialEq + Eq + fmt::Display {
+pub trait WitnessTerm: Clone + PartialEq + Eq + fmt::Display {
     /// Is the type of elements that are witnessed by the witness term.
     ///
     /// **Note**: Although [`E`] is often the underlying symbol for representing model
     /// elements, models may implement their own element types based on or independent from `E`.
-    /// See [`impl::reference::Model`](self::impl::reference::Model) for an
+    /// See [`impl::reference::RefModel`](self::impl::reference::RefModel) for an
     /// example.
     type ElementType;
 
@@ -185,7 +185,7 @@ pub struct Rel(String);
 
 impl Rel {
     /// Applies `self` to a list of witness terms.
-    pub fn app<T: WitnessTermTrait>(self, terms: Vec<T>) -> Observation<T> {
+    pub fn app<T: WitnessTerm>(self, terms: Vec<T>) -> Observation<T> {
         Observation::Fact {
             relation: self,
             terms,
@@ -193,7 +193,7 @@ impl Rel {
     }
 
     /// Applies the (nullary) `self`.
-    pub fn app0<T: WitnessTermTrait>(self) -> Observation<T> {
+    pub fn app0<T: WitnessTerm>(self) -> Observation<T> {
         Observation::Fact {
             relation: self,
             terms: vec![],
@@ -201,7 +201,7 @@ impl Rel {
     }
 
     /// Applies the (unary) `self` on a witness term.
-    pub fn app1<T: WitnessTermTrait>(self, first: T) -> Observation<T> {
+    pub fn app1<T: WitnessTerm>(self, first: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
             terms: vec![first],
@@ -209,7 +209,7 @@ impl Rel {
     }
 
     /// Applies the (binary) `self` on two witness terms.
-    pub fn app2<T: WitnessTermTrait>(self, first: T, second: T) -> Observation<T> {
+    pub fn app2<T: WitnessTerm>(self, first: T, second: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
             terms: vec![first, second],
@@ -217,7 +217,7 @@ impl Rel {
     }
 
     /// Applies the (ternary) `self` on three witness terms.
-    pub fn app3<T: WitnessTermTrait>(self, first: T, second: T, third: T) -> Observation<T> {
+    pub fn app3<T: WitnessTerm>(self, first: T, second: T, third: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
             terms: vec![first, second, third],
@@ -225,13 +225,7 @@ impl Rel {
     }
 
     /// Applies the (4-ary) `self` on four witness terms.
-    pub fn app4<T: WitnessTermTrait>(
-        self,
-        first: T,
-        second: T,
-        third: T,
-        fourth: T,
-    ) -> Observation<T> {
+    pub fn app4<T: WitnessTerm>(self, first: T, second: T, third: T, fourth: T) -> Observation<T> {
         Observation::Fact {
             relation: self,
             terms: vec![first, second, third, fourth],
@@ -239,7 +233,7 @@ impl Rel {
     }
 
     /// Applies the (5-ary) `self` on five witness terms.
-    pub fn app5<T: WitnessTermTrait>(
+    pub fn app5<T: WitnessTerm>(
         self,
         first: T,
         second: T,
@@ -272,21 +266,21 @@ impl fmt::Debug for Rel {
     }
 }
 
-/// Represents positive units of information by which [`Model`][ModelTrait]s are
+/// Represents positive units of information by which [`Model`][Model]s are
 /// constructed. Once a `Model` is augmented by an observation, the observation remains
 /// true in the model.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub enum Observation<T: WitnessTermTrait> {
+pub enum Observation<T: WitnessTerm> {
     /// Is a relational fact, indicating that an atomic formula is true about a list of model
-    /// elements, denoted by a list of [witness terms][WitnessTermTrait].
+    /// elements, denoted by a list of [witness terms][WitnessTerm].
     Fact { relation: Rel, terms: Vec<T> },
 
     /// Is an equational fact, corresponding to an identity between two model elements,
-    /// denoted by a two [witness terms][WitnessTermTrait].
+    /// denoted by a two [witness terms][WitnessTerm].
     Identity { left: T, right: T },
 }
 
-impl<T: WitnessTermTrait> fmt::Display for Observation<T> {
+impl<T: WitnessTerm> fmt::Display for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Observation::Fact { relation, terms } => {
@@ -298,7 +292,7 @@ impl<T: WitnessTermTrait> fmt::Display for Observation<T> {
     }
 }
 
-impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
+impl<T: WitnessTerm> fmt::Debug for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -306,18 +300,18 @@ impl<T: WitnessTermTrait> fmt::Debug for Observation<T> {
 
 /// Is the trait for various implementations of first-order models that are constructed by
 /// the chase.
-pub trait ModelTrait: Clone {
+pub trait Model: Clone {
     /// Is the type of witness terms, denoting elements of this model.
-    /// [`ElementType`](`WitnessTermTrait::ElementType`)
+    /// [`ElementType`](`WitnessTerm::ElementType`)
     /// is the type of elements for this model.
-    type TermType: WitnessTermTrait;
+    type TermType: WitnessTerm;
 
     /// Returns a unique ID for `self`.
     fn get_id(&self) -> u64;
 
     /// Returns the domain of `self`. The domain of a model consists of all elements in the
     /// model.
-    fn domain(&self) -> Vec<<Self::TermType as WitnessTermTrait>::ElementType>;
+    fn domain(&self) -> Vec<<Self::TermType as WitnessTerm>::ElementType>;
 
     /// Returns the set of relational [`Fact`]s that are true in `self`.
     ///
@@ -327,14 +321,14 @@ pub trait ModelTrait: Clone {
     /// Returns a set of all witness terms in `self` that are denoted by `element`.
     fn witness(
         &self,
-        element: &<Self::TermType as WitnessTermTrait>::ElementType,
+        element: &<Self::TermType as WitnessTerm>::ElementType,
     ) -> Vec<Self::TermType>;
 
     /// Returns the element in `self` that is denoted by `witness`.
     fn element(
         &self,
         witness: &Self::TermType,
-    ) -> Option<<Self::TermType as WitnessTermTrait>::ElementType>;
+    ) -> Option<<Self::TermType as WitnessTerm>::ElementType>;
 
     /// Is called when the chase is returning a model, asking the model to do any postprocessing
     /// needed.
@@ -345,7 +339,7 @@ pub trait ModelTrait: Clone {
 /// [implementation of the chase][bg].
 ///
 /// [bg]: self#background
-pub trait SequentTrait: Clone {
+pub trait Sequent: Clone {
     /// Returns the *body* (premise) of the sequent as a formula.
     fn body(&self) -> FOF;
 
@@ -353,7 +347,7 @@ pub trait SequentTrait: Clone {
     fn head(&self) -> FOF;
 }
 
-impl<S: SequentTrait> SequentTrait for &S {
+impl<S: Sequent> Sequent for &S {
     fn body(&self) -> FOF {
         (*self).body()
     }
@@ -365,15 +359,15 @@ impl<S: SequentTrait> SequentTrait for &S {
 
 /// Is the trait of objects that convert an initial theory to sequents and provide the initial
 /// (empty) model for a particular implementation.
-pub trait PreProcessorEx {
-    /// Is the type of [sequents][SequentTrait] created by this preprocessor.
+pub trait PreProcessor {
+    /// Is the type of [sequents][Sequent] created by this preprocessor.
     type Sequent;
 
-    /// Is the type of the initial [model][ModelTrait], created by this preprocessor.
+    /// Is the type of the initial [model][Model], created by this preprocessor.
     type Model;
 
-    /// Given a theory, returns an iterator of [sequents][SequentTrait] and an initial
-    /// [model][ModelTrait] by applying the necessary pre-processing.
+    /// Given a theory, returns an iterator of [sequents][Sequent] and an initial
+    /// [model][Model] by applying the necessary pre-processing.
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model);
 }
 
@@ -382,11 +376,11 @@ pub trait PreProcessorEx {
 /// evaluated by the chase.
 ///
 /// **Note**: See [here](self#implementation) for more information about how strategy instances are used.
-pub trait StrategyTrait<S: SequentTrait>: Clone + Iterator<Item = S> + FromIterator<S> {}
+pub trait Strategy<S: Sequent>: Clone + Iterator<Item = S> + FromIterator<S> {}
 
-impl<S, Stg> StrategyTrait<S> for Stg
+impl<S, Stg> Strategy<S> for Stg
 where
-    S: SequentTrait,
+    S: Sequent,
     Stg: Clone + Iterator<Item = S> + FromIterator<S>,
 {
 }
@@ -394,23 +388,23 @@ where
 /// Bounder is the trait of algorithms for [bounding] the size of models generated by the chase.
 ///
 /// [bounding]: self#termination
-pub trait BounderTrait {
+pub trait Bounder {
     /// Returns true if the given observation is outside of the bounds set for the given model
     /// according to the algorithm implemented by `self`. If the result is true, the chase
     /// stops processing the model.
-    fn bound<M: ModelTrait>(&self, model: &M, observation: &Observation<M::TermType>) -> bool;
+    fn bound<M: Model>(&self, model: &M, observation: &Observation<M::TermType>) -> bool;
 }
 
-/// Is the trait of algorithms that evaluate an implementation of [SequentTrait] in an
-/// implementation of [ModelTrait] within a [chase-step].
+/// Is the trait of algorithms that evaluate an implementation of [Sequent] in an
+/// implementation of [Model] within a [chase-step].
 ///
 /// [chase-step]: self#chase-step
-pub trait EvaluatorTrait<'s, Stg: StrategyTrait<&'s Self::Sequent>, B: BounderTrait> {
-    /// The type of [sequents][SequentTrait] that are accepted by this evaluator.
-    type Sequent: SequentTrait + 's;
+pub trait Evaluator<'s, Stg: Strategy<&'s Self::Sequent>, B: Bounder> {
+    /// The type of [sequents][Sequent] that are accepted by this evaluator.
+    type Sequent: Sequent + 's;
 
-    /// The type of [models][ModelTrait] that can be processed by this evaluator.
-    type Model: ModelTrait;
+    /// The type of [models][Model] that can be processed by this evaluator.
+    type Model: Model;
 
     /// Applies a [chase-step] by evaluating the sequents of `strategy` in `model` and produces
     /// extensions of `model`, corresponding to new branches of the chase. New models that do not
@@ -429,22 +423,22 @@ pub trait EvaluatorTrait<'s, Stg: StrategyTrait<&'s Self::Sequent>, B: BounderTr
     ) -> Option<EvaluateResult<Self::Model>>;
 }
 
-/// Is result of [evaluating][EvaluatorTrait] a model in a [chase-step].
+/// Is result of [evaluating][Evaluator] a model in a [chase-step].
 ///
 /// [chase-step]: self#chase-step
-pub struct EvaluateResult<M: ModelTrait> {
+pub struct EvaluateResult<M: Model> {
     /// Is a list of all not-bounded extensions of a model after [evaluation].
     ///
-    /// [evaluation]: EvaluatorTrait::evaluate()
+    /// [evaluation]: Evaluator::evaluate()
     open_models: Vec<M>,
 
     /// Is a list of bounded extensions of a model after a [evaluation].
     ///
-    /// [evaluation]: EvaluatorTrait::evaluate()
+    /// [evaluation]: Evaluator::evaluate()
     bounded_models: Vec<M>,
 }
 
-impl<M: ModelTrait> EvaluateResult<M> {
+impl<M: Model> EvaluateResult<M> {
     /// Returns an empty instance of [`EvaluateResult`].
     pub fn new() -> Self {
         Self {
@@ -484,13 +478,13 @@ impl<M: ModelTrait> EvaluateResult<M> {
     }
 }
 
-impl<M: ModelTrait> Default for EvaluateResult<M> {
+impl<M: Model> Default for EvaluateResult<M> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<M: ModelTrait> From<Vec<Either<M, M>>> for EvaluateResult<M> {
+impl<M: Model> From<Vec<Either<M, M>>> for EvaluateResult<M> {
     fn from(models: Vec<Either<M, M>>) -> Self {
         let mut result = EvaluateResult::new();
         models.into_iter().for_each(|m| result.append(m));
@@ -498,7 +492,7 @@ impl<M: ModelTrait> From<Vec<Either<M, M>>> for EvaluateResult<M> {
     }
 }
 
-impl<M: ModelTrait> From<(Vec<M>, Vec<M>)> for EvaluateResult<M> {
+impl<M: Model> From<(Vec<M>, Vec<M>)> for EvaluateResult<M> {
     fn from(models: (Vec<M>, Vec<M>)) -> Self {
         let mut result = EvaluateResult::new();
         result.open_models = models.0;
@@ -508,27 +502,27 @@ impl<M: ModelTrait> From<(Vec<M>, Vec<M>)> for EvaluateResult<M> {
 }
 
 /// Is the trait of algorithms for scheduling various branches of the chase. A branch of the chase
-/// is represented with a [model][ModelTrait] together with a [strategy][StrategyTrait] for
+/// is represented with a [model][Model] together with a [strategy][Strategy] for
 /// scheduling sequents to be evaluated in the model.
 ///
 /// **Note**: See [here] for more information about scheduling branches of the chase.
 ///
 /// [here]: self#implementation
-pub trait SchedulerTrait<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> {
+pub trait Scheduler<S: Sequent, M: Model, Stg: Strategy<S>> {
     /// Returns true if the scheduler is empty and false otherwise.
     fn empty(&self) -> bool;
 
-    /// Schedules a [model][ModelTrait] and its associated [strategy][StrategyTrait] as a
+    /// Schedules a [model][Model] and its associated [strategy][Strategy] as a
     /// branch of the chase.
     fn add(&mut self, model: M, strategy: Stg);
 
     /// Removes the next scheduled item from `self` and returns its associated
-    /// [model][ModelTrait] and [strategy][StrategyTrait].
+    /// [model][Model] and [strategy][Strategy].
     fn remove(&mut self) -> Option<(M, Stg)>;
 }
 
-/// Given a [`scheduler`][SchedulerTrait], an [`evaluator`][EvaluatorTrait] and possibly a
-/// [`bounder`][BounderTrait], runs an implementation independent run of [the chase] and
+/// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator] and possibly a
+/// [`bounder`][Bounder], runs an implementation independent run of [the chase] and
 /// returns *all* resulting models. The return value is empty if the theory is not satisfiable.
 ///
 /// [the chase]: self#the-chase
@@ -536,7 +530,7 @@ pub trait SchedulerTrait<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> 
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
-///     PreProcessorEx, SchedulerTrait, StrategyTrait, chase_all,
+///     PreProcessor, Scheduler, Strategy, chase_all,
 ///     r#impl::basic,
 ///     strategy::Linear,
 ///     scheduler::FIFO,
@@ -551,10 +545,10 @@ pub trait SchedulerTrait<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> 
 /// "#.parse().unwrap();
 ///
 /// // preprocess the theory to get geometric sequents and an initial (empty) model:
-/// let pre_processor = basic::PreProcessor;
+/// let pre_processor = basic::BasicPreProcessor;
 /// let (sequents, init_model) = pre_processor.pre_process(&theory);
 ///
-/// let evaluator = basic::Evaluator {};
+/// let evaluator = basic::BasicEvaluator {};
 /// let strategy: Linear<_> = sequents.iter().collect(); // use the `Linear` strategy
 /// let mut scheduler = FIFO::new();  // schedule branches in first-in-first-out manner
 ///
@@ -571,12 +565,12 @@ pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
     bounder: Option<&B>,
 ) -> Vec<M>
 where
-    S: 's + SequentTrait,
-    M: ModelTrait + std::fmt::Debug,
-    Stg: StrategyTrait<&'s S>,
-    Sch: SchedulerTrait<&'s S, M, Stg>,
-    E: EvaluatorTrait<'s, Stg, B, Sequent = S, Model = M>,
-    B: BounderTrait,
+    S: 's + Sequent,
+    M: Model + std::fmt::Debug,
+    Stg: Strategy<&'s S>,
+    Sch: Scheduler<&'s S, M, Stg>,
+    E: Evaluator<'s, Stg, B, Sequent = S, Model = M>,
+    B: Bounder,
 {
     let mut result: Vec<M> = Vec::new();
     while !scheduler.empty() {
@@ -591,8 +585,8 @@ where
     result
 }
 
-/// Given a [`scheduler`][SchedulerTrait], an [`evaluator`][EvaluatorTrait], possibly a
-/// [`bounder`][BounderTrait] and a `consumer` closure, runs an implementation independent
+/// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator], possibly a
+/// [`bounder`][Bounder] and a `consumer` closure, runs an implementation independent
 /// [chase-step]. Satisfying models of the theory that are produced
 /// by the `chase-step` will be consumed by the `consumer`. In contrast, `incomplete_consumer`
 /// (if provided) consumes incomplete non-models of the theory that are rejected by the
@@ -603,7 +597,7 @@ where
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
-///     PreProcessorEx, SchedulerTrait, StrategyTrait, chase_step,
+///     PreProcessor, Scheduler, Strategy, chase_step,
 ///     r#impl::basic,
 ///     strategy::Linear,
 ///     scheduler::FIFO,
@@ -619,10 +613,10 @@ where
 /// "#.parse().unwrap();
 ///
 /// // preprocess the theory to get geometric sequents and an initial (empty) model:
-/// let pre_processor = basic::PreProcessor;
+/// let pre_processor = basic::BasicPreProcessor;
 /// let (sequents, init_model) = pre_processor.pre_process(&theory);
 ///
-/// let evaluator = basic::Evaluator {};
+/// let evaluator = basic::BasicEvaluator {};
 /// let strategy: Linear<_> = sequents.iter().collect(); // use the `Linear` strategy
 /// let mut scheduler = FIFO::new();  // schedule branches in first-in-first-out manner
 ///
@@ -650,12 +644,12 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
     mut consumer: impl FnMut(M),
     mut incomplete_consumer: impl FnMut(M),
 ) where
-    S: 's + SequentTrait,
-    M: ModelTrait + std::fmt::Debug,
-    Stg: StrategyTrait<&'s S>,
-    Sch: SchedulerTrait<&'s S, M, Stg>,
-    E: EvaluatorTrait<'s, Stg, B, Sequent = S, Model = M>,
-    B: BounderTrait,
+    S: 's + Sequent,
+    M: Model + std::fmt::Debug,
+    Stg: Strategy<&'s S>,
+    Sch: Scheduler<&'s S, M, Stg>,
+    E: Evaluator<'s, Stg, B, Sequent = S, Model = M>,
+    B: Bounder,
 {
     let (base_model, mut strategy) = scheduler.remove().unwrap();
     let base_id = &base_model.get_id();

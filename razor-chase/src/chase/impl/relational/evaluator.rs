@@ -1,21 +1,19 @@
-use crate::chase::{BounderTrait, EvaluateResult, EvaluatorTrait, StrategyTrait};
+use crate::chase::{Bounder, EvaluateResult, Evaluator, Strategy};
 
 use super::{
     empty_named_tuple,
-    model::Model,
-    sequent::{Branch, Sequent, SymbolicAtom},
+    model::RelModel,
+    sequent::{Branch, RelSequent, SymbolicAtom},
     symbol::Symbol,
     Error, NamedTuple, Tuple,
 };
 use std::collections::HashMap;
 
-pub struct Evaluator;
+pub struct RelEvaluator;
 
-impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
-    for Evaluator
-{
-    type Sequent = Sequent;
-    type Model = Model;
+impl<'s, Stg: Strategy<&'s RelSequent>, B: Bounder> Evaluator<'s, Stg, B> for RelEvaluator {
+    type Sequent = RelSequent;
+    type Model = RelModel;
 
     fn evaluate(
         &self,
@@ -55,10 +53,10 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
 }
 
 #[inline(always)]
-fn next_sequent<'s, S: StrategyTrait<&'s Sequent>>(
+fn next_sequent<'s, S: Strategy<&'s RelSequent>>(
     strategy: &mut S,
-    model: &Model,
-) -> Option<(&'s Sequent, Vec<NamedTuple<'s>>)> {
+    model: &RelModel,
+) -> Option<(&'s RelSequent, Vec<NamedTuple<'s>>)> {
     strategy.find_map(|s| {
         let ts = model.evaluate(s);
         if ts.is_empty() {
@@ -70,12 +68,12 @@ fn next_sequent<'s, S: StrategyTrait<&'s Sequent>>(
 }
 
 #[inline(always)]
-fn balance<B: BounderTrait>(
+fn balance<B: Bounder>(
     tuple: &NamedTuple,
     branches: &[Branch],
-    parent: &Model,
+    parent: &RelModel,
     bounder: Option<&B>,
-) -> Result<EvaluateResult<Model>, Error> {
+) -> Result<EvaluateResult<RelModel>, Error> {
     let mut result = EvaluateResult::new();
 
     for branch in branches.iter() {
@@ -126,8 +124,8 @@ fn balance<B: BounderTrait>(
 }
 
 #[inline(always)]
-fn balance_atom<'t, B: BounderTrait>(
-    model: &mut Model,
+fn balance_atom<'t, B: Bounder>(
+    model: &mut RelModel,
     atom: &'t SymbolicAtom,
     tuple: &NamedTuple,
     existentials: &mut NamedTuple<'t>,

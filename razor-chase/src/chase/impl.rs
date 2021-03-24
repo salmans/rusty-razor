@@ -1,11 +1,11 @@
 //! Contains all implementations of models, sequents and evaluators.
 //!
 //! The module implements different versions of the chase and various instances of
-//! [`ModelTrait`], [`SequentTrait`] and [`EvaluatorTrait`]
+//! [`Model`], [`Sequent`] and [`Evaluator`]
 //!
-//! [`ModelTrait`]: crate::chase::ModelTrait
-//! [`SequentTrait`]: crate::chase::SequentTrait
-//! [`EvaluatorTrait`]: crate::chase::EvaluatorTrait
+//! [`Model`]: crate::chase::Model
+//! [`Sequent`]: crate::chase::Sequent
+//! [`Evaluator`]: crate::chase::Evaluator
 pub mod basic;
 pub mod batch;
 pub mod reference;

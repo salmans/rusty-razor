@@ -6,7 +6,7 @@ use razor_chase::chase::{
     r#impl::*,
     scheduler::FIFO,
     strategy::{Bootstrap, Fair},
-    PreProcessorEx, SchedulerTrait, StrategyTrait,
+    PreProcessor, Scheduler, Strategy,
 };
 use razor_fol::syntax::Theory;
 use std::{fs, io::Read};
@@ -60,10 +60,10 @@ macro_rules! run_unbounded {
 fn bench_batch(c: &mut Criterion) {
     run_unbounded!(
         "batch",
-        pre_processor = reference::PreProcessor,
-        evaluator = batch::Evaluator,
-        sequent = reference::Sequent,
-        model = reference::Model,
+        pre_processor = reference::RefPreProcessor,
+        evaluator = batch::BatchEvaluator,
+        sequent = reference::RefSequent,
+        model = reference::RefModel,
         c
     );
 }
@@ -71,10 +71,10 @@ fn bench_batch(c: &mut Criterion) {
 fn bench_relational(c: &mut Criterion) {
     run_unbounded!(
         "relational",
-        pre_processor = relational::PreProcessor::new(false),
-        evaluator = relational::Evaluator,
-        sequent = relational::Sequent,
-        model = relational::Model,
+        pre_processor = relational::RelPreProcessor::new(false),
+        evaluator = relational::RelEvaluator,
+        sequent = relational::RelSequent,
+        model = relational::RelModel,
         c
     );
 }
@@ -82,10 +82,10 @@ fn bench_relational(c: &mut Criterion) {
 fn bench_relational_memoized(c: &mut Criterion) {
     run_unbounded!(
         "relational_memoized",
-        pre_processor = relational::PreProcessor::new(true),
-        evaluator = relational::Evaluator,
-        sequent = relational::Sequent,
-        model = relational::Model,
+        pre_processor = relational::RelPreProcessor::new(true),
+        evaluator = relational::RelEvaluator,
+        sequent = relational::RelSequent,
+        model = relational::RelModel,
         c
     );
 }

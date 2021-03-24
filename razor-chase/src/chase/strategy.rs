@@ -1,34 +1,34 @@
 //! Implements various strategies for selecting sequents in a chase-step.
 //!
-//! The strategies are instances of [`StrategyTrait`].
+//! The strategies are instances of [`Strategy`].
 //!
-//! [`StrategyTrait`]: crate::chase::StrategyTrait
-use crate::chase::{SequentTrait, StrategyTrait};
+//! [`Strategy`]: crate::chase::Strategy
+use crate::chase::{Sequent, Strategy};
 use razor_fol::syntax::{Formula, FOF};
 use std::iter::FromIterator;
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
 /// called on this strategy.
 ///
-/// [sequent]: crate::chase::SequentTrait
-pub struct Linear<S: SequentTrait> {
+/// [sequent]: crate::chase::Sequent
+pub struct Linear<S: Sequent> {
     /// Is the list of all [sequents] in this strategy.
     ///
-    /// [sequents]: crate::chase::SequentTrait
+    /// [sequents]: crate::chase::Sequent
     sequents: Vec<S>,
 
     /// Is an internal index, keeping track of the next sequent to return.
     index: usize,
 }
 
-impl<'s, S: SequentTrait> Linear<S> {
+impl<'s, S: Sequent> Linear<S> {
     #[inline(always)]
     fn reset(&mut self) {
         self.index = 0;
     }
 }
 
-impl<S: SequentTrait> Iterator for Linear<S> {
+impl<S: Sequent> Iterator for Linear<S> {
     type Item = S;
 
     fn next(&mut self) -> Option<S> {
@@ -37,7 +37,7 @@ impl<S: SequentTrait> Iterator for Linear<S> {
     }
 }
 
-impl<'s, S: SequentTrait> Clone for Linear<S> {
+impl<'s, S: Sequent> Clone for Linear<S> {
     fn clone(&self) -> Self {
         Self {
             sequents: self.sequents.clone(),
@@ -46,7 +46,7 @@ impl<'s, S: SequentTrait> Clone for Linear<S> {
     }
 }
 
-impl<S: SequentTrait> FromIterator<S> for Linear<S> {
+impl<S: Sequent> FromIterator<S> for Linear<S> {
     fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         Linear {
             sequents: iter.into_iter().collect(),
@@ -58,11 +58,11 @@ impl<S: SequentTrait> FromIterator<S> for Linear<S> {
 /// Avoids starving [sequents] by doing a round robin. The internal state of the
 /// strategy is preserved when cloned; thus, the cloned strategy preserves fairness.
 ///
-/// [sequents]: crate::chase::SequentTrait
-pub struct Fair<'s, S: SequentTrait> {
+/// [sequents]: crate::chase::Sequent
+pub struct Fair<'s, S: Sequent> {
     /// Is the list of all [sequents] in this strategy.
     ///
-    /// [sequents]: crate::chase::StrategyTrait
+    /// [sequents]: crate::chase::Strategy
     sequents: Vec<&'s S>,
 
     /// Is an internal index, keeping track of the next sequent to return.
@@ -76,7 +76,7 @@ pub struct Fair<'s, S: SequentTrait> {
     full_circle: bool,
 }
 
-impl<'s, S: SequentTrait> FromIterator<&'s S> for Fair<'s, S> {
+impl<'s, S: Sequent> FromIterator<&'s S> for Fair<'s, S> {
     fn from_iter<T: IntoIterator<Item = &'s S>>(iter: T) -> Self {
         Fair {
             sequents: iter.into_iter().collect(),
@@ -87,7 +87,7 @@ impl<'s, S: SequentTrait> FromIterator<&'s S> for Fair<'s, S> {
     }
 }
 
-impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
+impl<'s, S: Sequent> Iterator for Fair<'s, S> {
     type Item = &'s S;
 
     fn next(&mut self) -> Option<&'s S> {
@@ -101,7 +101,7 @@ impl<'s, S: SequentTrait> Iterator for Fair<'s, S> {
     }
 }
 
-impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
+impl<'s, S: Sequent> Clone for Fair<'s, S> {
     fn clone(&self) -> Self {
         Self {
             sequents: self.sequents.clone(),
@@ -115,22 +115,22 @@ impl<'s, S: SequentTrait> Clone for Fair<'s, S> {
 /// Behaves like the [strategy] that it wraps but chooses the initial [sequents] (sequents with
 /// empty body) only once at the beginning.
 ///
-/// [strategy]: crate::chase::StrategyTrait
-/// [sequents]: crate::chase::SequentTrait
+/// [strategy]: crate::chase::Strategy
+/// [sequents]: crate::chase::Sequent
 #[derive(Clone)]
-pub struct Bootstrap<S: SequentTrait, Stg: StrategyTrait<S>> {
+pub struct Bootstrap<S: Sequent, Stg: Strategy<S>> {
     /// Is the list of initial [sequents] (sequents with empty body).
     ///
-    /// [sequents]: crate::chase::SequentTrait
+    /// [sequents]: crate::chase::Sequent
     initial_sequents: Vec<S>,
 
     /// Is the underlying [strategy] wrapped by this instance.
     ///
-    /// [strategy]: crate::chase::StrategyTrait
+    /// [strategy]: crate::chase::Strategy
     strategy: Stg,
 }
 
-impl<S: SequentTrait, Stg: StrategyTrait<S>> FromIterator<S> for Bootstrap<S, Stg> {
+impl<S: Sequent, Stg: Strategy<S>> FromIterator<S> for Bootstrap<S, Stg> {
     fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         let (initial_sequents, rest) = iter
             .into_iter()
@@ -143,7 +143,7 @@ impl<S: SequentTrait, Stg: StrategyTrait<S>> FromIterator<S> for Bootstrap<S, St
     }
 }
 
-impl<S: SequentTrait, Stg: StrategyTrait<S>> Iterator for Bootstrap<S, Stg> {
+impl<S: Sequent, Stg: Strategy<S>> Iterator for Bootstrap<S, Stg> {
     type Item = S;
 
     fn next(&mut self) -> Option<S> {
@@ -159,22 +159,22 @@ impl<S: SequentTrait, Stg: StrategyTrait<S>> Iterator for Bootstrap<S, Stg> {
 /// empty head) before returning the next (non-failing) sequent. By using this strategy, the chase
 /// would drop an inconsistent model as soon as possible.
 ///
-/// [strategy]: crate::chase::StrategyTrait
-/// [sequents]: crate::chase::SequentTrait
+/// [strategy]: crate::chase::Strategy
+/// [sequents]: crate::chase::Sequent
 #[derive(Clone)]
-pub struct FailFast<S: SequentTrait, Stg: StrategyTrait<S>> {
+pub struct FailFast<S: Sequent, Stg: Strategy<S>> {
     /// Keeps track of failing [sequents] (sequents with empty head) by a [`Linear`] strategy.
     ///
-    /// [sequents]: crate::chase::SequentTrait
+    /// [sequents]: crate::chase::Sequent
     fail_strategy: Linear<S>,
 
     /// Is the underlying [strategy] wrapped by this instance.
     ///
-    /// [strategy]: crate::chase::StrategyTrait
+    /// [strategy]: crate::chase::Strategy
     strategy: Stg,
 }
 
-impl<S: SequentTrait, Stg: StrategyTrait<S>> FromIterator<S> for FailFast<S, Stg> {
+impl<S: Sequent, Stg: Strategy<S>> FromIterator<S> for FailFast<S, Stg> {
     fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         let (fail_sequents, rest): (Vec<_>, _) =
             iter.into_iter().partition(|s| s.head() == FOF::Bottom);
@@ -186,7 +186,7 @@ impl<S: SequentTrait, Stg: StrategyTrait<S>> FromIterator<S> for FailFast<S, Stg
     }
 }
 
-impl<S: SequentTrait, Stg: StrategyTrait<S>> Iterator for FailFast<S, Stg> {
+impl<S: Sequent, Stg: Strategy<S>> Iterator for FailFast<S, Stg> {
     type Item = S;
 
     fn next(&mut self) -> Option<S> {
@@ -202,10 +202,10 @@ mod test_fair {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, PreProcessor},
+        r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         scheduler::FIFO,
         strategy::Fair,
-        ModelTrait, PreProcessorEx, SchedulerTrait,
+        Model, PreProcessor, Scheduler,
     };
     use crate::test_prelude::{read_theory_from_file, solve_basic};
     use itertools::Itertools;
@@ -213,7 +213,7 @@ mod test_fair {
     use std::collections::HashSet;
     use std::fs;
 
-    pub fn print_model(model: Model) -> String {
+    pub fn print_model(model: BasicModel) -> String {
         let elements: Vec<String> = model
             .domain()
             .iter()
@@ -236,10 +236,10 @@ mod test_fair {
         )
     }
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        let preprocessor = PreProcessor;
+    fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+        let preprocessor = BasicPreProcessor;
         let (sequents, init_model) = preprocessor.pre_process(theory);
-        let evaluator = Evaluator;
+        let evaluator = BasicEvaluator;
         let strategy: Fair<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
@@ -268,19 +268,19 @@ mod test_bootstrap {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, PreProcessor},
+        r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         strategy::{Bootstrap, Fair},
-        PreProcessorEx, SchedulerTrait,
+        PreProcessor, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        let pre_processor = PreProcessor;
+    fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
-        let evaluator = Evaluator;
+        let evaluator = BasicEvaluator;
         let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
@@ -313,19 +313,19 @@ mod test_fail_fast {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, PreProcessor},
+        r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         strategy::{FailFast, Fair},
-        PreProcessorEx, SchedulerTrait,
+        PreProcessor, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        let pre_processor = PreProcessor;
+    fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
-        let evaluator = Evaluator;
+        let evaluator = BasicEvaluator;
         let strategy: FailFast<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;

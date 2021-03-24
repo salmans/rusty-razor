@@ -178,7 +178,7 @@ pub fn _S_() -> Rel {
     Rel::from("S")
 }
 
-impl fmt::Debug for basic::Sequent {
+impl fmt::Debug for basic::BasicSequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -213,11 +213,11 @@ pub fn read_theory_from_file(filename: &str) -> Theory<FOF> {
     contents.parse().unwrap()
 }
 
-pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::Model> {
-    let pre_processor = basic::PreProcessor;
+pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::BasicModel> {
+    let pre_processor = basic::BasicPreProcessor;
     let (sequents, init_model) = pre_processor.pre_process(theory);
 
-    let evaluator = basic::Evaluator;
+    let evaluator = basic::BasicEvaluator;
     let strategy: Linear<_> = sequents.iter().collect();
 
     let mut scheduler = FIFO::new();
@@ -226,10 +226,10 @@ pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::Model> {
     chase_all(&mut scheduler, &evaluator, bounder)
 }
 
-pub fn solve_domain_bounded_basic(theory: &Theory<FOF>, bound: usize) -> Vec<basic::Model> {
-    let pre_processor = basic::PreProcessor;
+pub fn solve_domain_bounded_basic(theory: &Theory<FOF>, bound: usize) -> Vec<basic::BasicModel> {
+    let pre_processor = basic::BasicPreProcessor;
     let (sequents, init_model) = pre_processor.pre_process(theory);
-    let evaluator = basic::Evaluator;
+    let evaluator = basic::BasicEvaluator;
     let strategy: Linear<_> = sequents.iter().collect();
     let mut scheduler = FIFO::new();
     let bounder = DomainSize::from(bound);
@@ -238,7 +238,7 @@ pub fn solve_domain_bounded_basic(theory: &Theory<FOF>, bound: usize) -> Vec<bas
     chase_all(&mut scheduler, &evaluator, bounder)
 }
 
-pub fn print_basic_model(model: basic::Model) -> String {
+pub fn print_basic_model(model: basic::BasicModel) -> String {
     let elements: Vec<String> = model
         .domain()
         .iter()
@@ -260,12 +260,12 @@ pub fn print_basic_model(model: basic::Model) -> String {
     )
 }
 
-pub fn print_basic_models(models: Vec<basic::Model>) -> String {
+pub fn print_basic_models(models: Vec<basic::BasicModel>) -> String {
     let models: Vec<String> = models.into_iter().map(|m| print_basic_model(m)).collect();
     models.join("\n-- -- -- -- -- -- -- -- -- --\n")
 }
 
-pub fn print_reference_model(model: reference::Model) -> String {
+pub fn print_reference_model(model: reference::RefModel) -> String {
     let elements: Vec<String> = model
         .domain()
         .iter()

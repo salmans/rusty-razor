@@ -1,7 +1,4 @@
-//! Implements [the chase] based on relational algebra.
-//!
-//! [the chase]: crate::chase#the-chase
-//!
+//! Provides an implementation of the chase based on relational algebra.
 mod attribute;
 mod constants;
 mod evaluator;
@@ -12,10 +9,10 @@ mod rewrite;
 mod sequent;
 mod symbol;
 
-pub use evaluator::Evaluator;
-pub use model::Model;
-pub use pre_processor::PreProcessor;
-pub use sequent::Sequent;
+pub use evaluator::RelEvaluator;
+pub use model::RelModel;
+pub use pre_processor::RelPreProcessor;
+pub use sequent::RelSequent;
 
 use razor_fol::syntax::{formula::Atom, term::Variable};
 use std::collections::HashMap;
@@ -73,17 +70,17 @@ mod tests {
             chase_all,
             scheduler::FIFO,
             strategy::{Bootstrap, Fair},
-            PreProcessorEx, SchedulerTrait,
+            PreProcessor, Scheduler,
         },
         test_prelude::*,
     };
     use razor_fol::syntax::{Theory, FOF};
     use std::fs;
 
-    fn run(theory: &Theory<FOF>, pre_processor: &PreProcessor) -> Vec<Model> {
+    fn run(theory: &Theory<FOF>, pre_processor: &RelPreProcessor) -> Vec<RelModel> {
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
-        let evaluator = Evaluator;
+        let evaluator = RelEvaluator;
         let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
@@ -99,7 +96,7 @@ mod tests {
             let theory = read_theory_from_file(&path);
             let basic_models = solve_basic(&theory);
 
-            let test_models = run(&theory, &PreProcessor::new(true));
+            let test_models = run(&theory, &RelPreProcessor::new(true));
             assert_eq!(basic_models.len(), test_models.len());
         }
     }
@@ -110,8 +107,8 @@ mod tests {
             let path = item.unwrap().path().display().to_string();
             let theory = read_theory_from_file(&path);
 
-            let simple_models = run(&theory, &PreProcessor::new(false));
-            let memoized_models = run(&theory, &PreProcessor::new(true));
+            let simple_models = run(&theory, &RelPreProcessor::new(false));
+            let memoized_models = run(&theory, &RelPreProcessor::new(true));
             assert_eq!(simple_models.len(), memoized_models.len());
         }
     }

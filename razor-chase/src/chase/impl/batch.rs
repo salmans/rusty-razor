@@ -2,26 +2,24 @@
 //! against all assignments from the free variables of the sequent to the elements of the
 //! model in which it is being evaluated.
 //!
-//! [`chase::impl::reference::Evaluator`] extends the [`Model`] that it processes in a
-//! [chase-step] only for one assignment from the free variables of the [`Sequent`] that it is
-//! evaluating to the elements of the [`Model`]. [`chase::impl::batch::Evaluator`] is the only
-//! different component between [`chase::impl::reference`] and [`chase::impl::batch`].
+//! [`RefEvaluator`] extends the [`Model`] that it processes in a [chase-step]
+//! only for one assignment from the free variables of the [`Sequent`] that it is
+//! evaluating to the elements of the [`Model`]. [`BatchEvaluator`] is the only
+//! different component between [`reference`] and [`batch`] implementations.
 //!
-//! [`chase::impl::reference`]: crate::chase::impl::reference
-//! [`Sequent`]: crate::chase::impl::basic::Sequent
+//! [`reference`]: crate::chase::impl::reference
+//! [`Sequent`]: crate::chase::impl::basic::BasicSequent
 //! [chase-step]: crate::chase#chase-step
-//! [`chase::impl::reference::Evaluator`]: crate::chase::impl::reference::Evaluator
-//! [`Model`]: crate::chase::impl::reference::Model
-//! [`chase::impl::batch::Evaluator`]: crate::chase::impl::batch::Evaluator
-//! [`chase::impl::reference`]: crate::chase::impl::reference
-//! [`chase::impl::batch`]: crate::chase::impl::batch
+//! [`Model`]: crate::chase::impl::reference::RefModel
+//! [`RefEvaluator`]: crate::chase::impl::reference::RefEvaluator
+//! [`batch`]: self
 
 use crate::chase::{
     r#impl::{
         basic, reference,
-        reference::{Element, WitnessTerm},
+        reference::{Element, RefWitnessTerm},
     },
-    BounderTrait, EvaluateResult, EvaluatorTrait, Observation, Rel, StrategyTrait,
+    Bounder, EvaluateResult, Evaluator, Observation, Rel, Strategy,
 };
 use either::Either;
 use itertools::Itertools;
@@ -29,20 +27,18 @@ use razor_fol::syntax::{formula::Atomic, Var};
 use std::{collections::HashMap, iter};
 
 /// Simple evaluator that evaluates a Sequnet in a Model.
-pub struct Evaluator;
+pub struct BatchEvaluator;
 
-impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
-    for Evaluator
-{
-    type Sequent = Sequent;
-    type Model = Model;
+impl<'s, Stg: Strategy<&'s BatchSequent>, B: Bounder> Evaluator<'s, Stg, B> for BatchEvaluator {
+    type Sequent = BatchSequent;
+    type Model = BatchModel;
 
     fn evaluate(
         &self,
-        initial_model: &Model,
+        initial_model: &BatchModel,
         strategy: &mut Stg,
         bounder: Option<&B>,
-    ) -> Option<EvaluateResult<Model>> {
+    ) -> Option<EvaluateResult<BatchModel>> {
         let mut result = EvaluateResult::new();
 
         let domain: Vec<&Element> = initial_model.domain_ref();
@@ -95,17 +91,18 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
                         }
 
                         // extending all extensions of this model with the new observations:
-                        let models: Vec<Either<Model, Model>> = result
+                        let models: Vec<Either<BatchModel, BatchModel>> = result
                             .open_models
                             .iter()
                             .flat_map(|m| {
-                                let ms: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
-                                    let extend = make_bounded_extend(bounder, m);
-                                    head.iter().map(extend).collect()
-                                } else {
-                                    let extend = make_extend(m);
-                                    head.iter().map(extend).collect()
-                                };
+                                let ms: Vec<Either<BatchModel, BatchModel>> =
+                                    if let Some(bounder) = bounder {
+                                        let extend = make_bounded_extend(bounder, m);
+                                        head.iter().map(extend).collect()
+                                    } else {
+                                        let extend = make_extend(m);
+                                        head.iter().map(extend).collect()
+                                    };
                                 ms
                             })
                             .collect();
@@ -129,9 +126,9 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &'m Vec<Observation<WitnessTerm>>| {
+    model: &'m BatchModel,
+) -> impl FnMut(&'m Vec<Observation<RefWitnessTerm>>) -> Either<BatchModel, BatchModel> {
+    move |os: &'m Vec<Observation<RefWitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
         Either::Left(model)
@@ -142,11 +139,11 @@ fn make_extend<'m>(
 // observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
 // bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
 // `Either::Left` has reached the bounds provided by `bounder`.
-fn make_bounded_extend<'m, B: BounderTrait>(
+fn make_bounded_extend<'m, B: Bounder>(
     bounder: &'m B,
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &Vec<Observation<WitnessTerm>>| {
+    model: &'m BatchModel,
+) -> impl FnMut(&'m Vec<Observation<RefWitnessTerm>>) -> Either<BatchModel, BatchModel> {
+    move |os: &Vec<Observation<RefWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
         os.iter().foreach(|o| {
@@ -170,13 +167,13 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
     assignment_func: impl Fn(&Var) -> Element,
-) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+) -> impl Fn(&Literal) -> Observation<RefWitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .map(|t| RefWitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -184,8 +181,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = WitnessTerm::witness(&this.left, &assignment_func);
-            let right = WitnessTerm::witness(&this.right, &assignment_func);
+            let left = RefWitnessTerm::witness(&this.left, &assignment_func);
+            let right = RefWitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -207,17 +204,17 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
     false
 }
 
-pub type Sequent = basic::Sequent;
-pub type PreProcessor = reference::PreProcessor;
+pub type BatchSequent = basic::BasicSequent;
+pub type BatchPreProcessor = reference::RefPreProcessor;
 pub type Literal = basic::Literal;
-pub type Model = reference::Model;
+pub type BatchModel = reference::RefModel;
 
 #[cfg(test)]
 mod test_batch {
-    use super::{next_assignment, Evaluator};
-    use crate::chase::r#impl::reference::Model;
+    use super::{next_assignment, BatchEvaluator};
+    use crate::chase::r#impl::reference::RefModel;
     use crate::chase::{
-        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -273,14 +270,14 @@ mod test_batch {
         }
     }
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        use crate::chase::r#impl::reference::PreProcessor;
-        use crate::chase::PreProcessorEx;
+    fn run_test(theory: &Theory<FOF>) -> Vec<RefModel> {
+        use crate::chase::r#impl::reference::RefPreProcessor;
+        use crate::chase::PreProcessor;
 
-        let pre_processor = PreProcessor;
+        let pre_processor = RefPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
-        let evaluator = Evaluator;
+        let evaluator = BatchEvaluator;
         let strategy: Fair<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;

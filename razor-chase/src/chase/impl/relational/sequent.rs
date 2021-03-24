@@ -5,7 +5,7 @@ use super::{
     symbol::Symbol,
     Error, Tuple,
 };
-use crate::chase::SequentTrait;
+use crate::chase::Sequent;
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::{
@@ -55,7 +55,7 @@ pub(super) type Branch = Vec<SymbolicAtom>;
 
 /// Represents a sequent for the chase.
 #[derive(Clone)]
-pub struct Sequent {
+pub struct RelSequent {
     /// Is the branches in the head of the sequent, used to infer new facts that must be true
     /// in the a `Model`.
     branches: Vec<Branch>,
@@ -75,7 +75,7 @@ pub struct Sequent {
     head_formula: FOF,
 }
 
-impl Sequent {
+impl RelSequent {
     /// Returns the relational expression of the sequent.
     #[inline]
     pub fn expression(&self) -> &rel_exp::Mono<Tuple> {
@@ -122,12 +122,10 @@ impl Sequent {
 
         let expression = if branches.is_empty() {
             body_expression // Failing sequent
+        } else if branches[0].is_empty() {
+            rel_exp::Mono::from(rel_exp::Empty::new()) // Tautology
         } else {
-            if branches[0].is_empty() {
-                rel_exp::Mono::from(rel_exp::Empty::new()) // Tautology
-            } else {
-                rel_exp::Mono::from(rel_exp::Difference::new(body_expression, head_expression))
-            }
+            rel_exp::Mono::from(rel_exp::Difference::new(body_expression, head_expression))
         };
 
         Ok(Self {
@@ -140,7 +138,7 @@ impl Sequent {
     }
 }
 
-impl SequentTrait for Sequent {
+impl Sequent for RelSequent {
     fn body(&self) -> FOF {
         self.body_formula.clone()
     }
@@ -336,7 +334,7 @@ fn topo_sort(clause: FlatClause) -> Result<FlatClause, Error> {
                             .get(var)
                             .ok_or(Error::BadExistentialVariable { var: var.clone() })?;
                         nodes.iter().for_each(|n| {
-                            graph.add_edge(n.clone(), node, ());
+                            graph.add_edge(*n, node, ());
                         });
                     }
                 }
@@ -347,7 +345,7 @@ fn topo_sort(clause: FlatClause) -> Result<FlatClause, Error> {
                         .get(left)
                         .ok_or(Error::BadExistentialVariable { var: left.clone() })?;
                     nodes.iter().for_each(|n| {
-                        graph.add_edge(n.clone(), node, ());
+                        graph.add_edge(*n, node, ());
                     });
                 }
                 if is_existential_variable(right.name()) {
@@ -355,7 +353,7 @@ fn topo_sort(clause: FlatClause) -> Result<FlatClause, Error> {
                         .get(right)
                         .ok_or(Error::BadExistentialVariable { var: right.clone() })?;
                     nodes.iter().for_each(|n| {
-                        graph.add_edge(n.clone(), node, ());
+                        graph.add_edge(*n, node, ());
                     });
                 }
             }
@@ -386,7 +384,7 @@ fn clause_remove_skolem(clause: FlatClause) -> FlatClause {
         .collect()
 }
 
-impl std::fmt::Display for Sequent {
+impl std::fmt::Display for RelSequent {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{} -> {}", self.body_formula, self.head_formula)
     }

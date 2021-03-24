@@ -1,15 +1,15 @@
 //! Implements various schedulers for scheduling branches of the chase.
 //!
-//! The schedulers are instances of [`SchedulerTrait`].
+//! The schedulers are instances of [`Scheduler`].
 //!
-//! [`SchedulerTrait`]: crate::chase::SchedulerTrait
-use crate::chase::{ModelTrait, SchedulerTrait, SequentTrait, StrategyTrait};
+//! [`Scheduler`]: crate::chase::Scheduler
+use crate::chase::{Model, Scheduler, Sequent, Strategy};
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 
 /// Is a wrapper around other implementations of scheduler, preferred over a trait object that may
 /// contain different implementations where a choice among schedulers is desirable.
-pub enum Dispatch<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> {
+pub enum Dispatch<S: Sequent, M: Model, Stg: Strategy<S>> {
     /// Wraps a [`FIFO`] scheduler, implementing a first-in-first-out algorithm.
     FIFO { scheduler: FIFO<S, M, Stg> },
 
@@ -22,9 +22,9 @@ pub enum Dispatch<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> {
 
 impl<S, M, Stg> Dispatch<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     /// Returns a [`FIFO`], wrapped in a `Dispatch` scheduler.
     pub fn new_fifo() -> Self {
@@ -42,11 +42,11 @@ where
     }
 }
 
-impl<S, M, Stg> SchedulerTrait<S, M, Stg> for Dispatch<S, M, Stg>
+impl<S, M, Stg> Scheduler<S, M, Stg> for Dispatch<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     fn empty(&self) -> bool {
         match self {
@@ -80,21 +80,21 @@ where
 }
 
 /// Schedules branches of the chase in a first-in-first-out manner.
-pub struct FIFO<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> {
+pub struct FIFO<S: Sequent, M: Model, Stg: Strategy<S>> {
     /// Is a queue to store the chase branches (a [model] together with a [strategy]) in a
     /// first-in-first-out fashion.
     ///
-    /// [model]: crate::chase::ModelTrait
-    /// [strategy]: crate::chase::StrategyTrait
+    /// [model]: crate::chase::Model
+    /// [strategy]: crate::chase::Strategy
     queue: VecDeque<(M, Stg)>,
     _marker: PhantomData<S>,
 }
 
 impl<S, M, Stg> FIFO<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     pub fn new() -> Self {
         FIFO {
@@ -106,20 +106,20 @@ where
 
 impl<S, M, Stg> Default for FIFO<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S, M, Stg> SchedulerTrait<S, M, Stg> for FIFO<S, M, Stg>
+impl<S, M, Stg> Scheduler<S, M, Stg> for FIFO<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     fn empty(&self) -> bool {
         self.queue.is_empty()
@@ -135,21 +135,21 @@ where
 }
 
 /// Schedules branches of the chase in a last-in-first-out manner.
-pub struct LIFO<S: SequentTrait, M: ModelTrait, Stg: StrategyTrait<S>> {
+pub struct LIFO<S: Sequent, M: Model, Stg: Strategy<S>> {
     /// Is a queue to store the chase branches (a [model] together with a [strategy]) in a
     /// last-in-first-out fashion.
     ///
-    /// [model]: crate::chase::ModelTrait
-    /// [strategy]: crate::chase::StrategyTrait
+    /// [model]: crate::chase::Model
+    /// [strategy]: crate::chase::Strategy
     queue: VecDeque<(M, Stg)>,
     _marker: PhantomData<S>,
 }
 
 impl<S, M, Stg> LIFO<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     pub fn new() -> Self {
         LIFO {
@@ -161,20 +161,20 @@ where
 
 impl<S, M, Stg> Default for LIFO<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S, M, Stg> SchedulerTrait<S, M, Stg> for LIFO<S, M, Stg>
+impl<S, M, Stg> Scheduler<S, M, Stg> for LIFO<S, M, Stg>
 where
-    S: SequentTrait,
-    M: ModelTrait,
-    Stg: StrategyTrait<S>,
+    S: Sequent,
+    M: Model,
+    Stg: Strategy<S>,
 {
     fn empty(&self) -> bool {
         self.queue.is_empty()
@@ -195,19 +195,19 @@ mod test_lifo {
     use crate::chase::{
         bounder::DomainSize,
         chase_all,
-        r#impl::basic::{Evaluator, Model, PreProcessor},
+        r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         strategy::Linear,
-        PreProcessorEx, SchedulerTrait,
+        PreProcessor, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
     use std::fs;
 
-    pub fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        let pre_processor = PreProcessor;
+    pub fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
-        let evaluator = Evaluator;
+        let evaluator = BasicEvaluator;
         let strategy: Linear<_> = sequents.iter().collect();
         let mut scheduler = LIFO::new();
         let bounder: Option<&DomainSize> = None;

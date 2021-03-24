@@ -22,13 +22,13 @@ use std::{
 // Is a *positive* literal apearing in the body and the head of sequents
 pub type Literal = Atomic<Complex>;
 
-/// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
+/// Is a straight forward implementation for [`WitnessTerm`], where elements are of type
 /// [`E`].
 ///
-/// [`WitnessTermTrait`]: crate::chase::WitnessTermTrait
+/// [`WitnessTerm`]: crate::chase::WitnessTerm
 /// [`E`]: crate::chase::E
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
-pub enum WitnessTerm {
+pub enum BasicWitnessTerm {
     /// Wraps an instance of [`E`], witnessing itself.
     ///
     /// [`E`]: crate::chase::E
@@ -47,7 +47,7 @@ pub enum WitnessTerm {
     App { function: Func, terms: Vec<Self> },
 }
 
-impl WitnessTerm {
+impl BasicWitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
     fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
@@ -66,15 +66,15 @@ impl WitnessTerm {
 
     /// Builds a term by applying `function` on `args` as arguments.
     pub fn apply(function: Func, terms: Vec<Self>) -> Self {
-        WitnessTerm::App { function, terms }
+        BasicWitnessTerm::App { function, terms }
     }
 }
 
-impl WitnessTermTrait for WitnessTerm {
+impl WitnessTerm for BasicWitnessTerm {
     type ElementType = E;
 }
 
-impl fmt::Display for WitnessTerm {
+impl fmt::Display for BasicWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Elem(e) => write!(f, "{}", e),
@@ -87,40 +87,40 @@ impl fmt::Display for WitnessTerm {
     }
 }
 
-impl fmt::Debug for WitnessTerm {
+impl fmt::Debug for BasicWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
 
-impl From<Const> for WitnessTerm {
+impl From<Const> for BasicWitnessTerm {
     fn from(constant: Const) -> Self {
         Self::Const(constant)
     }
 }
 
-impl From<&Const> for WitnessTerm {
+impl From<&Const> for BasicWitnessTerm {
     fn from(constant: &Const) -> Self {
         Self::from(constant.clone())
     }
 }
 
-impl From<E> for WitnessTerm {
+impl From<E> for BasicWitnessTerm {
     fn from(element: E) -> Self {
-        WitnessTerm::Elem(element)
+        BasicWitnessTerm::Elem(element)
     }
 }
 
-impl From<&E> for WitnessTerm {
+impl From<&E> for BasicWitnessTerm {
     fn from(element: &E) -> Self {
         Self::from(*element)
     }
 }
 
-/// Is a basic instance of [`ModelTrait`] with terms of type [`WitnessTerm`].
+/// Is a basic instance of [`Model`] with terms of type [`WitnessTerm`].
 ///
-/// [`ModelTrait`]: crate::chase::ModelTrait
-pub struct Model {
+/// [`Model`]: crate::chase::Model
+pub struct BasicModel {
     /// Is a unique identifier for this model.
     id: u64,
 
@@ -131,10 +131,10 @@ pub struct Model {
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
-    rewrites: HashMap<WitnessTerm, E>,
+    rewrites: HashMap<BasicWitnessTerm, E>,
 
     /// Contains a list of relational facts that are true in this model.
-    facts: HashSet<Observation<WitnessTerm>>,
+    facts: HashSet<Observation<BasicWitnessTerm>>,
 
     /// Maintains a list of rewrite rules from elements to elements with which they have been
     /// identified.
@@ -154,7 +154,7 @@ pub struct Model {
     equality_history: HashMap<E, E>,
 }
 
-impl Model {
+impl BasicModel {
     /// Creates a new empty instance of this model.
     pub fn new() -> Self {
         Self {
@@ -172,20 +172,22 @@ impl Model {
     }
 
     /// Returns a reference to an element witnessed by the given witness term.
-    fn element_ref(&self, witness: &WitnessTerm) -> Option<&E> {
+    fn element_ref(&self, witness: &BasicWitnessTerm) -> Option<&E> {
         match witness {
-            WitnessTerm::Elem(element) => self.domain_ref().into_iter().find(|e| e.eq(&element)),
-            WitnessTerm::Const(_) => self.rewrites.get(witness),
-            WitnessTerm::App { function, terms } => {
+            BasicWitnessTerm::Elem(element) => {
+                self.domain_ref().into_iter().find(|e| e.eq(&element))
+            }
+            BasicWitnessTerm::Const(_) => self.rewrites.get(witness),
+            BasicWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    self.rewrites.get(&WitnessTerm::App {
+                    self.rewrites.get(&BasicWitnessTerm::App {
                         function: (*function).clone(),
                         terms,
                     })
@@ -211,7 +213,7 @@ impl Model {
 
     /// Creates a new element for the given `witness` and records that `witness` denotes the new
     /// element.
-    fn new_element(&mut self, witness: WitnessTerm) -> E {
+    fn new_element(&mut self, witness: BasicWitnessTerm) -> E {
         let element = E(self.element_index);
         self.element_index += 1;
         self.rewrites.insert(witness, element);
@@ -223,9 +225,9 @@ impl Model {
     ///
     /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
     /// `witness` and adds them to the domain of `self`.
-    fn record(&mut self, witness: &WitnessTerm) -> E {
+    fn record(&mut self, witness: &BasicWitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem(element) => {
+            BasicWitnessTerm::Elem(element) => {
                 let element = self.history(element);
                 if self.domain().iter().any(|e| element.eq(e)) {
                     element
@@ -233,16 +235,17 @@ impl Model {
                     unreachable!("missing element `{}`", element)
                 }
             }
-            WitnessTerm::Const(_) => {
+            BasicWitnessTerm::Const(_) => {
                 if let Some(e) = self.rewrites.get(&witness) {
                     *e
                 } else {
                     self.new_element(witness.clone())
                 }
             }
-            WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
-                let witness = WitnessTerm::App {
+            BasicWitnessTerm::App { function, terms } => {
+                let terms: Vec<BasicWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
+                let witness = BasicWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 };
@@ -263,17 +266,17 @@ impl Model {
     /// one.
     ///
     /// [`Observation`]: crate::chase::Observation
-    /// [witness term]: crate::chase::WitnessTermTrait
+    /// [witness term]: crate::chase::WitnessTerm
     fn reduce_rewrites(&mut self, from: &E, to: &E) {
-        let mut new_rewrite: HashMap<WitnessTerm, E> = HashMap::new();
+        let mut new_rewrite: HashMap<BasicWitnessTerm, E> = HashMap::new();
         self.rewrites.iter().for_each(|(k, v)| {
             // k is a flat term and cannot be an element:
-            let key = if let WitnessTerm::App { function, terms } = k {
-                let mut new_terms: Vec<WitnessTerm> = Vec::new();
+            let key = if let BasicWitnessTerm::App { function, terms } = k {
+                let mut new_terms: Vec<BasicWitnessTerm> = Vec::new();
                 terms.iter().for_each(|t| {
-                    if let WitnessTerm::Elem(element) = t {
+                    if let BasicWitnessTerm::Elem(element) = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem(*from));
+                            new_terms.push(BasicWitnessTerm::Elem(*from));
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -281,7 +284,7 @@ impl Model {
                         new_terms.push(t.clone());
                     }
                 });
-                WitnessTerm::App {
+                BasicWitnessTerm::App {
                     function: function.clone(),
                     terms: new_terms,
                 }
@@ -303,7 +306,7 @@ impl Model {
     /// one.
     ///
     /// [`Observation`]: crate::chase::Observation
-    /// [witness term]: crate::chase::WitnessTermTrait
+    /// [witness term]: crate::chase::WitnessTerm
     fn reduce_facts(&mut self, from: &E, to: &E) {
         self.facts = self
             .facts
@@ -314,10 +317,10 @@ impl Model {
                     ref terms,
                 } = f
                 {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .iter()
                         .map(|t| {
-                            if let WitnessTerm::Elem(element) = t {
+                            if let BasicWitnessTerm::Elem(element) = t {
                                 if element == to {
                                     from.clone().into()
                                 } else {
@@ -340,10 +343,11 @@ impl Model {
     }
 
     /// Augments `self` with `observation`, making `observation` true in `self`.
-    fn observe(&mut self, observation: &Observation<WitnessTerm>) {
+    fn observe(&mut self, observation: &Observation<BasicWitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<BasicWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -371,14 +375,14 @@ impl Model {
     }
 
     /// Returns true if `observation` is true in `self`; otherwise, returns false.
-    fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
+    fn is_observed(&self, observation: &Observation<BasicWitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
@@ -397,13 +401,13 @@ impl Model {
     }
 }
 
-impl Default for Model {
+impl Default for BasicModel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for Model {
+impl Clone for BasicModel {
     fn clone(&self) -> Self {
         Self {
             id: rand::random(),
@@ -417,8 +421,8 @@ impl Clone for Model {
     }
 }
 
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
+impl Model for BasicModel {
+    type TermType = BasicWitnessTerm;
 
     fn get_id(&self) -> u64 {
         self.id
@@ -438,7 +442,7 @@ impl ModelTrait for Model {
             .collect()
     }
 
-    fn witness(&self, element: &E) -> Vec<WitnessTerm> {
+    fn witness(&self, element: &E) -> Vec<BasicWitnessTerm> {
         self.rewrites
             .iter()
             .filter(|(_, e)| *e == element)
@@ -447,7 +451,7 @@ impl ModelTrait for Model {
             .collect()
     }
 
-    fn element(&self, witness: &WitnessTerm) -> Option<E> {
+    fn element(&self, witness: &BasicWitnessTerm) -> Option<E> {
         self.element_ref(witness).cloned()
     }
 
@@ -456,7 +460,7 @@ impl ModelTrait for Model {
     }
 }
 
-impl fmt::Debug for Model {
+impl fmt::Debug for BasicModel {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
         let elements: Vec<String> = self
@@ -485,7 +489,7 @@ impl fmt::Debug for Model {
 /// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
 /// head.
 #[derive(Clone)]
-pub struct Sequent {
+pub struct BasicSequent {
     /// Is the list of free variables in the sequent and is used for memoization.
     pub free_vars: Vec<Var>,
 
@@ -509,7 +513,7 @@ pub struct Sequent {
     head_fof: FOF,
 }
 
-impl From<GNF> for Sequent {
+impl From<GNF> for BasicSequent {
     fn from(gnf: GNF) -> Self {
         let gnf_body = gnf.body();
         let gnf_head = gnf.head();
@@ -531,7 +535,7 @@ impl From<GNF> for Sequent {
     }
 }
 
-impl fmt::Display for Sequent {
+impl fmt::Display for BasicSequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let body: Vec<String> = self.body.iter().map(|l| l.to_string()).collect();
         let head: Vec<String> = self
@@ -546,7 +550,7 @@ impl fmt::Display for Sequent {
     }
 }
 
-impl SequentTrait for Sequent {
+impl Sequent for BasicSequent {
     fn body(&self) -> FOF {
         self.body_fof.clone()
     }
@@ -556,15 +560,15 @@ impl SequentTrait for Sequent {
     }
 }
 
-/// A simple instance of [`PreProcessorEx`] that converts the input theory to a vector of [`Sequent`] following
+/// A simple instance of [`PreProcessor`] that converts the input theory to a vector of [`Sequent`] following
 /// the standard conversion to geometric normal form. Also provides the empty [`Model`];
 ///
-/// [`PreProcessorEx`]: crate::chase::PreProcessorEx
-pub struct PreProcessor;
+/// [`PreProcessor`]: crate::chase::PreProcessor
+pub struct BasicPreProcessor;
 
-impl PreProcessorEx for PreProcessor {
-    type Sequent = Sequent;
-    type Model = Model;
+impl PreProcessor for BasicPreProcessor {
+    type Sequent = BasicSequent;
+    type Model = BasicModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         use razor_fol::transform::ToGNF;
@@ -587,31 +591,29 @@ impl PreProcessorEx for PreProcessor {
             .iter()
             .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
             .flat_map(|f| f.gnf())
-            .map(Sequent::from)
+            .map(BasicSequent::from)
             .collect();
-        (geo_theory, Model::new())
+        (geo_theory, BasicModel::new())
     }
 }
 
-/// Is a reference implementation of [`EvaluatorTrait`] for evaluating a basic [`Sequent`] in a basic [`Model`]
+/// Is a reference implementation of [`Evaluator`] for evaluating a basic [`Sequent`] in a basic [`Model`]
 /// within a [chase-step].
 ///
-/// [`EvaluatorTrait`]: crate::chase::EvaluatorTrait
+/// [`Evaluator`]: crate::chase::Evaluator
 /// [chase-step]: crate::chase#chase-step
-pub struct Evaluator;
+pub struct BasicEvaluator;
 
-impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
-    for Evaluator
-{
-    type Sequent = Sequent;
-    type Model = Model;
+impl<'s, Stg: Strategy<&'s BasicSequent>, B: Bounder> Evaluator<'s, Stg, B> for BasicEvaluator {
+    type Sequent = BasicSequent;
+    type Model = BasicModel;
 
     fn evaluate(
         &self,
-        initial_model: &Model,
+        initial_model: &BasicModel,
         strategy: &mut Stg,
         bounder: Option<&B>,
-    ) -> Option<EvaluateResult<Model>> {
+    ) -> Option<EvaluateResult<BasicModel>> {
         let domain: Vec<&E> = initial_model.domain_ref().clone();
         let domain_size = domain.len();
         for sequent in strategy {
@@ -639,9 +641,9 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> =
+                let body: Vec<Observation<BasicWitnessTerm>> =
                     sequent.body.iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                let head: Vec<Vec<Observation<BasicWitnessTerm>>> = sequent
                     .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
@@ -658,13 +660,14 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
                         return None; // the chase fails if the head is empty (false)
                     } else {
                         // if there is a bounder, only extend models that are not out of the given bound:
-                        let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
-                            let extend = make_bounded_extend(bounder, initial_model);
-                            head.iter().map(extend).collect()
-                        } else {
-                            let extend = make_extend(initial_model);
-                            head.iter().map(extend).collect()
-                        };
+                        let models: Vec<Either<BasicModel, BasicModel>> =
+                            if let Some(bounder) = bounder {
+                                let extend = make_bounded_extend(bounder, initial_model);
+                                head.iter().map(extend).collect()
+                            } else {
+                                let extend = make_extend(initial_model);
+                                head.iter().map(extend).collect()
+                            };
 
                         let result = EvaluateResult::from(models);
                         if !result.empty() {
@@ -686,9 +689,9 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &'m Vec<Observation<WitnessTerm>>| {
+    model: &'m BasicModel,
+) -> impl FnMut(&'m Vec<Observation<BasicWitnessTerm>>) -> Either<BasicModel, BasicModel> {
+    move |os: &'m Vec<Observation<BasicWitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
         Either::Left(model)
@@ -699,11 +702,11 @@ fn make_extend<'m>(
 // observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
 // bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
 // `Either::Left` has reached the bounds provided by `bounder`.
-fn make_bounded_extend<'m, B: BounderTrait>(
+fn make_bounded_extend<'m, B: Bounder>(
     bounder: &'m B,
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &Vec<Observation<WitnessTerm>>| {
+    model: &'m BasicModel,
+) -> impl FnMut(&'m Vec<Observation<BasicWitnessTerm>>) -> Either<BasicModel, BasicModel> {
+    move |os: &Vec<Observation<BasicWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
         os.iter().foreach(|o| {
@@ -727,13 +730,13 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
     assignment_func: impl Fn(&Var) -> E,
-) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+) -> impl Fn(&Literal) -> Observation<BasicWitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .map(|t| BasicWitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -741,8 +744,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = WitnessTerm::witness(&this.left, &assignment_func);
-            let right = WitnessTerm::witness(&this.right, &assignment_func);
+            let left = BasicWitnessTerm::witness(&this.left, &assignment_func);
+            let right = BasicWitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -772,41 +775,41 @@ mod test_basic {
     use std::iter::FromIterator;
 
     // Witness Elements
-    pub fn _e_0() -> WitnessTerm {
+    pub fn _e_0() -> BasicWitnessTerm {
         e_0().into()
     }
 
-    pub fn _e_1() -> WitnessTerm {
+    pub fn _e_1() -> BasicWitnessTerm {
         e_1().into()
     }
 
-    pub fn _e_2() -> WitnessTerm {
+    pub fn _e_2() -> BasicWitnessTerm {
         e_2().into()
     }
 
-    pub fn _e_3() -> WitnessTerm {
+    pub fn _e_3() -> BasicWitnessTerm {
         e_3().into()
     }
 
-    pub fn _e_4() -> WitnessTerm {
+    pub fn _e_4() -> BasicWitnessTerm {
         e_4().into()
     }
 
     // Witness Constants
-    pub fn _a_() -> WitnessTerm {
-        WitnessTerm::Const(_a())
+    pub fn _a_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_a())
     }
 
-    pub fn _b_() -> WitnessTerm {
-        WitnessTerm::Const(_b())
+    pub fn _b_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_b())
     }
 
-    pub fn _c_() -> WitnessTerm {
-        WitnessTerm::Const(_c())
+    pub fn _c_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_c())
     }
 
-    pub fn _d_() -> WitnessTerm {
-        WitnessTerm::Const(_d())
+    pub fn _d_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_d())
     }
 
     #[test]
@@ -827,30 +830,37 @@ mod test_basic {
 
     #[test]
     fn test_empty_model() {
-        let model = Model::new();
+        let model = BasicModel::new();
         let empty_domain: Vec<E> = Vec::new();
-        let empty_facts: Vec<Observation<WitnessTerm>> = Vec::new();
+        let empty_facts: Vec<Observation<BasicWitnessTerm>> = Vec::new();
         assert_eq!(empty_domain, model.domain());
         assert_eq_sets(&empty_facts, &model.facts());
     }
 
     #[test]
     fn test_witness_app() {
-        let f_0 = WitnessTerm::apply(f(), vec![]);
+        let f_0 = BasicWitnessTerm::apply(f(), vec![]);
         assert_eq!("f()", f_0.to_string());
-        assert_eq!("f('c)", WitnessTerm::apply(f(), vec![_c_()]).to_string());
-        let g_0 = WitnessTerm::apply(g(), vec![]);
-        assert_eq!("f(g())", WitnessTerm::apply(f(), vec![g_0]).to_string());
+        assert_eq!(
+            "f('c)",
+            BasicWitnessTerm::apply(f(), vec![_c_()]).to_string()
+        );
+        let g_0 = BasicWitnessTerm::apply(g(), vec![]);
+        assert_eq!(
+            "f(g())",
+            BasicWitnessTerm::apply(f(), vec![g_0]).to_string()
+        );
         assert_eq!(
             "f('c, g('d))",
-            WitnessTerm::apply(f(), vec![_c_(), WitnessTerm::apply(g(), vec![_d_()])]).to_string()
+            BasicWitnessTerm::apply(f(), vec![_c_(), BasicWitnessTerm::apply(g(), vec![_d_()])])
+                .to_string()
         );
     }
 
     #[test]
     fn test_observe() {
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app0());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app0()].into_iter()),
@@ -859,7 +869,7 @@ mod test_basic {
             assert!(model.is_observed(&_R_().app0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app1(_c_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
             assert_eq_sets(
@@ -872,23 +882,23 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_a_().equals(_b_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
-            let empty_facts: Vec<Observation<WitnessTerm>> = Vec::new();
+            let empty_facts: Vec<Observation<BasicWitnessTerm>> = Vec::new();
             assert_eq_sets(&empty_facts, &model.facts());
             assert_eq_sets(&Vec::from_iter(vec![_a_(), _b_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_a_().equals(_a_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
-            let empty_facts: Vec<Observation<WitnessTerm>> = Vec::new();
+            let empty_facts: Vec<Observation<BasicWitnessTerm>> = Vec::new();
             assert_eq_sets(&empty_facts, &model.facts());
             assert_eq_sets(&Vec::from_iter(vec![_a_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_P_().app1(_a_()));
             model.observe(&_Q_().app1(_b_()));
             model.observe(&_a_().equals(_b_()));
@@ -906,23 +916,23 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![_a_(), _b_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
-            model.observe(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()])));
+            let mut model = BasicModel::new();
+            model.observe(&_R_().app1(BasicWitnessTerm::apply(f(), vec![_c_()])));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app1(_e_1())].into_iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app1(_e_1())));
-            assert!(model.is_observed(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()]))));
+            assert!(model.is_observed(&_R_().app1(BasicWitnessTerm::apply(f(), vec![_c_()]))));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
+                &Vec::from_iter(vec![BasicWitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
@@ -935,10 +945,10 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![_b_()]), &model.witness(&e_1()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app2(
-                WitnessTerm::apply(f(), vec![_c_()]),
-                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])]),
+                BasicWitnessTerm::apply(f(), vec![_c_()]),
+                BasicWitnessTerm::apply(g(), vec![BasicWitnessTerm::apply(f(), vec![_c_()])]),
             ));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1(), e_2()]), &model.domain());
             assert_eq_sets(
@@ -947,24 +957,23 @@ mod test_basic {
             );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
             assert!(model.is_observed(&_R_().app2(
-                WitnessTerm::apply(f(), vec![_c_()]),
-                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])])
+                BasicWitnessTerm::apply(f(), vec![_c_()]),
+                BasicWitnessTerm::apply(g(), vec![BasicWitnessTerm::apply(f(), vec![_c_()])])
             )));
-            assert!(
-                model.is_observed(&_R_().app(vec![WitnessTerm::apply(f(), vec![_c_()]), _e_2()]))
-            );
+            assert!(model
+                .is_observed(&_R_().app(vec![BasicWitnessTerm::apply(f(), vec![_c_()]), _e_2()])));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
+                &Vec::from_iter(vec![BasicWitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
             assert_eq_sets(
-                &Vec::from_iter(vec![WitnessTerm::apply(g(), vec![_e_1()])]),
+                &Vec::from_iter(vec![BasicWitnessTerm::apply(g(), vec![_e_1()])]),
                 &model.witness(&e_2()),
             );
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app(vec![_a_(), _b_()]));
             model.observe(&_S_().app(vec![_c_(), _d_()]));
             assert_eq_sets(
@@ -979,11 +988,11 @@ mod test_basic {
             );
         }
         {
-            let mut model = Model::new();
-            model.observe(&_R_().app(vec![_a_(), WitnessTerm::apply(f(), vec![_a_()])]));
+            let mut model = BasicModel::new();
+            model.observe(&_R_().app(vec![_a_(), BasicWitnessTerm::apply(f(), vec![_a_()])]));
             model.observe(&_S_().app(vec![_b_()]));
             model.observe(&_R_().app(vec![
-                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_a_()])]),
+                BasicWitnessTerm::apply(g(), vec![BasicWitnessTerm::apply(f(), vec![_a_()])]),
                 _b_(),
             ]));
             model.observe(&_S_().app(vec![_c_()]));
@@ -1009,13 +1018,13 @@ mod test_basic {
     #[test]
     #[should_panic]
     fn test_observe_missing_element() {
-        let mut model = Model::new();
+        let mut model = BasicModel::new();
         model.observe(&_R_().app1(_e_0()));
     }
 
     // Assumes that `fof` is in GNF, so it converts to a single GNF
-    fn sequents(gnfs: Vec<GNF>) -> Vec<Sequent> {
-        gnfs.into_iter().map(Sequent::from).collect()
+    fn sequents(gnfs: Vec<GNF>) -> Vec<BasicSequent> {
+        gnfs.into_iter().map(BasicSequent::from).collect()
     }
 
     #[test]

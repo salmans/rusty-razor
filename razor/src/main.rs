@@ -9,10 +9,10 @@ use razor_chase::{
     chase::{
         bounder::DomainSize,
         chase_step,
-        r#impl::relational::{Evaluator, Model, PreProcessor},
+        r#impl::relational::{RelEvaluator, RelModel, RelPreProcessor},
         scheduler::Dispatch,
         strategy::{Bootstrap, FailFast, Fair},
-        ModelTrait, Observation, PreProcessorEx, SchedulerTrait,
+        Model, Observation, PreProcessor, Scheduler,
     },
     trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
 };
@@ -207,10 +207,10 @@ fn process_solve(
     println!();
     println!();
 
-    let pre_processor = PreProcessor::new(true);
+    let pre_processor = RelPreProcessor::new(true);
     let (sequents, init_model) = pre_processor.pre_process(&theory);
 
-    let evaluator = Evaluator;
+    let evaluator = RelEvaluator;
     let strategy: Bootstrap<_, FailFast<_, Fair<_>>> = sequents.iter().collect();
     let bounder = bound.map(|b| match b {
         BoundCommand::Domain { size } => DomainSize::from(size),
@@ -285,7 +285,7 @@ pub fn read_theory_from_file(filename: &str) -> Result<Theory<FOF>, Error> {
         .map_err(|e| Error::new(e).context("failed to parse the input theory"))
 }
 
-fn print_model(model: Model, color: bool, count: &mut i32) {
+fn print_model(model: RelModel, color: bool, count: &mut i32) {
     *count += 1;
 
     let mut term = Terminal::new(color);
@@ -318,7 +318,7 @@ fn print_model(model: Model, color: bool, count: &mut i32) {
         })
         .sorted();
 
-    term.foreground(INFO_COLOR).apply(|| print!("Facts:\n"));
+    term.foreground(INFO_COLOR).apply(|| println!("Facts:"));
     // print_list(color, MODEL_FACTS_COLOR, &facts);
     term.foreground(MODEL_FACTS_COLOR)
         .attribute(term::Attr::Bold)

@@ -66,7 +66,7 @@ pub(super) fn existential_variable_name(index: u32) -> String {
 // Creates names for existential variables used for linearization.
 #[inline]
 pub(super) fn linear_variable_name(name: &str, index: u32) -> String {
-    format!("{}{}{}{}", EQUATIONAL_PREFIX, name, SEPERATOR, index).into()
+    format!("{}{}{}{}", EQUATIONAL_PREFIX, name, SEPERATOR, index)
 }
 
 // Returns true if a flat (variable) term corresponds to an existential quantifier or the

@@ -1,17 +1,17 @@
-//! Provides a fast implementation of the chase by using references to elements of the model to
-//! avoid additional operations for equational reasoning.
+//! Provides a fast implementation of the chase by using references to elements of the
+//! model to avoid additional operations for equational reasoning.
 //!
-//! `chase::impl::reference` is an implementation of the [chase] that uses references to [`E`]
-//! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a faster
-//! equational reasoning where the information content of a model does not need to be rewritten
-//! when the model is augmented by an [`Identity`].
+//! [`reference`] is an implementation of the [chase] that uses references to [`E`]
+//! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a
+//! faster equational reasoning where the information content of a model does not need to
+//! be rewritten when the model is augmented by an [`Identity`].
 //!
 //! [chase]: crate::chase#the-chase
-//! [`E`]: crate::chase::E
 //! [`Identity`]: crate::chase::Observation::Identity
+//! [`reference`]: self
 use crate::chase::{
-    r#impl::basic, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation,
-    PreProcessorEx, Rel, StrategyTrait, WitnessTermTrait, E,
+    r#impl::basic, Bounder, EvaluateResult, Evaluator, Model, Observation, PreProcessor, Rel,
+    Strategy, WitnessTerm, E,
 };
 use either::Either;
 use itertools::Itertools;
@@ -31,7 +31,7 @@ use std::{
 /// implementation of [`Model`].
 ///
 /// [`E`]: crate::chase::E
-/// [`ElementType`]: crate::chase::WitnessTermTrait::ElementType
+/// [`ElementType`]: crate::chase::WitnessTerm::ElementType
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Element(Rc<Cell<E>>);
 
@@ -76,13 +76,13 @@ impl fmt::Debug for Element {
     }
 }
 
-/// Implements [`WitnessTermTrait`], with [`Element`] as the [`ElementType`] and serves as witness
+/// Implements [`WitnessTerm`], with [`Element`] as the [`ElementType`] and serves as witness
 /// terms for [`Model`].
 ///
-/// [`WitnessTermTrait`]: crate::chase::WitnessTermTrait
-/// [`ElementType`]: crate::chase::WitnessTermTrait::ElementType
+/// [`WitnessTerm`]: crate::chase::WitnessTerm
+/// [`ElementType`]: crate::chase::WitnessTerm::ElementType
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum WitnessTerm {
+pub enum RefWitnessTerm {
     /// Wraps an instance of [`Element`], witnessing itself.
     Elem(Element),
 
@@ -98,23 +98,23 @@ pub enum WitnessTerm {
     /// [`Func`]: razor_fol::syntax::Func
     App {
         function: Func,
-        terms: Vec<WitnessTerm>,
+        terms: Vec<RefWitnessTerm>,
     },
 }
 
-impl WitnessTerm {
+impl RefWitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> WitnessTerm {
+    pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> RefWitnessTerm {
         match term {
-            Complex::Const(c) => WitnessTerm::Const(c.clone()),
-            Complex::Var(v) => WitnessTerm::Elem(lookup(&v)),
+            Complex::Const(c) => RefWitnessTerm::Const(c.clone()),
+            Complex::Var(v) => RefWitnessTerm::Elem(lookup(&v)),
             Complex::App { function, terms } => {
                 let terms = terms
                     .iter()
-                    .map(|t| WitnessTerm::witness(t, lookup))
+                    .map(|t| RefWitnessTerm::witness(t, lookup))
                     .collect();
-                WitnessTerm::App {
+                RefWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 }
@@ -123,16 +123,16 @@ impl WitnessTerm {
     }
 }
 
-impl WitnessTermTrait for WitnessTerm {
+impl WitnessTerm for RefWitnessTerm {
     type ElementType = Element;
 }
 
-impl fmt::Display for WitnessTerm {
+impl fmt::Display for RefWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            WitnessTerm::Elem(e) => write!(f, "{}", e.get()),
-            WitnessTerm::Const(c) => write!(f, "{}", c),
-            WitnessTerm::App { function, terms } => {
+            RefWitnessTerm::Elem(e) => write!(f, "{}", e.get()),
+            RefWitnessTerm::Const(c) => write!(f, "{}", c),
+            RefWitnessTerm::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", function, ts.join(", "))
             }
@@ -140,24 +140,24 @@ impl fmt::Display for WitnessTerm {
     }
 }
 
-impl From<Const> for WitnessTerm {
+impl From<Const> for RefWitnessTerm {
     fn from(constant: Const) -> Self {
-        WitnessTerm::Const(constant)
+        RefWitnessTerm::Const(constant)
     }
 }
 
-impl From<Element> for WitnessTerm {
+impl From<Element> for RefWitnessTerm {
     fn from(element: Element) -> Self {
-        WitnessTerm::Elem(element)
+        RefWitnessTerm::Elem(element)
     }
 }
 
-/// Is an instance of [`ModelTrait`] with terms of type [`WitnessTerm`], using references to [`E`]
+/// Is an instance of [`Model`] with terms of type [`WitnessTerm`], using references to [`E`]
 /// wrapped in objects of type [`Element`] for efficient equational reasoning.
 ///
-/// [`ModelTrait`]: crate::chase::ModelTrait
+/// [`Model`]: crate::chase::Model
 /// [`E`]: crate::chase::E
-pub struct Model {
+pub struct RefModel {
     /// Is a unique identifier for this model.
     id: u64,
 
@@ -171,10 +171,10 @@ pub struct Model {
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
-    rewrites: Vec<(WitnessTerm, Element)>,
+    rewrites: Vec<(RefWitnessTerm, Element)>,
 
     /// Contains a list of relational facts that are true in this model.
-    facts: HashSet<Observation<WitnessTerm>>,
+    facts: HashSet<Observation<RefWitnessTerm>>,
 
     /// Maintains a list of rewrite rules from elements to elements with which they have been
     /// identified.
@@ -194,7 +194,7 @@ pub struct Model {
     equality_history: HashMap<Element, Element>,
 }
 
-impl Model {
+impl RefModel {
     /// Creates a new empty instance of this model.
     pub fn new() -> Self {
         Self {
@@ -218,7 +218,7 @@ impl Model {
     }
 
     /// Looks up `witness` in the `rewrites` of `self`.
-    fn lookup_witness(&self, witness: &WitnessTerm) -> Option<&Element> {
+    fn lookup_witness(&self, witness: &RefWitnessTerm) -> Option<&Element> {
         self.rewrites
             .iter()
             .find(|&x| &x.0 == witness)
@@ -226,21 +226,21 @@ impl Model {
     }
 
     /// Returns a reference to an element witnessed by the given witness term.
-    fn element_ref(&self, witness: &WitnessTerm) -> Option<&Element> {
+    fn element_ref(&self, witness: &RefWitnessTerm) -> Option<&Element> {
         match witness {
-            WitnessTerm::Elem(e) => self.lookup_element(&e),
-            WitnessTerm::Const(_) => self.lookup_witness(witness),
-            WitnessTerm::App { function, terms } => {
+            RefWitnessTerm::Elem(e) => self.lookup_element(&e),
+            RefWitnessTerm::Const(_) => self.lookup_witness(witness),
+            RefWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&Element>> =
                     terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<RefWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    let term = WitnessTerm::App {
+                    let term = RefWitnessTerm::App {
                         function: (*function).clone(),
                         terms,
                     };
@@ -267,7 +267,7 @@ impl Model {
 
     /// Creates a new element for the given `witness`, appends the element to the domain of the
     /// model and records that `witness` denotes the new element.
-    fn new_element(&mut self, witness: WitnessTerm) -> Element {
+    fn new_element(&mut self, witness: RefWitnessTerm) -> Element {
         let element = Element::from(E(self.element_index));
         self.element_index += 1;
         self.domain.push(element.clone());
@@ -280,22 +280,23 @@ impl Model {
     ///
     /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
     /// `witness` and adds them to the domain of `self`.
-    fn record(&mut self, witness: &WitnessTerm) -> Element {
+    fn record(&mut self, witness: &RefWitnessTerm) -> Element {
         match witness {
-            WitnessTerm::Elem(e) => {
+            RefWitnessTerm::Elem(e) => {
                 let element = self.history(e);
                 self.lookup_element(&element).unwrap().clone()
             }
-            WitnessTerm::Const(_) => {
+            RefWitnessTerm::Const(_) => {
                 if let Some(e) = self.lookup_witness(witness) {
                     e.clone()
                 } else {
                     self.new_element(witness.clone())
                 }
             }
-            WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
-                let witness = WitnessTerm::App {
+            RefWitnessTerm::App { function, terms } => {
+                let terms: Vec<RefWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
+                let witness = RefWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 };
@@ -309,10 +310,11 @@ impl Model {
     }
 
     /// Augments `self` with `observation`, making `observation`true in `self`.
-    pub fn observe(&mut self, observation: &Observation<WitnessTerm>) {
+    pub fn observe(&mut self, observation: &Observation<RefWitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<RefWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -335,7 +337,7 @@ impl Model {
     }
 
     /// Returns true if `observation` is true in `self`; otherwise, returns false.
-    pub fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
+    pub fn is_observed(&self, observation: &Observation<RefWitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<Option<&Element>> =
@@ -343,7 +345,7 @@ impl Model {
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<RefWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
@@ -362,14 +364,14 @@ impl Model {
     }
 }
 
-impl Default for Model {
+impl Default for RefModel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
+impl Model for RefModel {
+    type TermType = RefWitnessTerm;
 
     fn get_id(&self) -> u64 {
         self.id
@@ -410,31 +412,31 @@ impl ModelTrait for Model {
     }
 }
 
-impl Clone for Model {
+impl Clone for RefModel {
     fn clone(&self) -> Self {
         let domain: Vec<Element> = self.domain.iter().map(|e| e.deep_clone()).collect();
         let map_element = |e: &Element| domain.iter().find(|&x| x == e).unwrap().clone();
-        let map_term = |w: &WitnessTerm| match w {
-            WitnessTerm::Elem(e) => WitnessTerm::Elem(map_element(e)),
-            WitnessTerm::Const(_) => w.clone(),
-            WitnessTerm::App { function, terms } => {
+        let map_term = |w: &RefWitnessTerm| match w {
+            RefWitnessTerm::Elem(e) => RefWitnessTerm::Elem(map_element(e)),
+            RefWitnessTerm::Const(_) => w.clone(),
+            RefWitnessTerm::App { function, terms } => {
                 let terms = terms
                     .iter()
                     .map(|t| {
-                        if let WitnessTerm::Elem(e) = t {
-                            WitnessTerm::Elem(map_element(e))
+                        if let RefWitnessTerm::Elem(e) = t {
+                            RefWitnessTerm::Elem(map_element(e))
                         } else {
                             unreachable!("expecting an element, found `{}`", t)
                         }
                     })
                     .collect();
-                WitnessTerm::App {
+                RefWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 }
             }
         };
-        let map_observation = |o: &Observation<WitnessTerm>| {
+        let map_observation = |o: &Observation<RefWitnessTerm>| {
             if let Observation::Fact { relation, terms } = o {
                 Observation::Fact {
                     relation: relation.clone(),
@@ -444,15 +446,15 @@ impl Clone for Model {
                 unreachable!("expecting a fact, found `{}`", o)
             }
         };
-        let rewrites: Vec<(WitnessTerm, Element)> = self
+        let rewrites: Vec<(RefWitnessTerm, Element)> = self
             .rewrites
             .iter()
             .map(|(k, v)| (map_term(k), map_element(v)))
             .collect();
 
-        let facts: HashSet<Observation<WitnessTerm>> =
+        let facts: HashSet<Observation<RefWitnessTerm>> =
             HashSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
-        Model {
+        RefModel {
             id: rand::random(),
             element_index: self.element_index,
             domain,
@@ -465,7 +467,7 @@ impl Clone for Model {
     }
 }
 
-impl fmt::Debug for Model {
+impl fmt::Debug for RefModel {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self
             .domain()
@@ -501,12 +503,12 @@ impl fmt::Debug for Model {
 
 /// Is the [preprocessor] instance for this implementation.
 ///
-/// [preprocessor]: crate::chase::PreProcessorEx
-pub struct PreProcessor;
+/// [preprocessor]: crate::chase::PreProcessor
+pub struct RefPreProcessor;
 
-impl PreProcessorEx for PreProcessor {
-    type Sequent = Sequent;
-    type Model = Model;
+impl PreProcessor for RefPreProcessor {
+    type Sequent = RefSequent;
+    type Model = RefModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         use razor_fol::transform::ToGNF;
@@ -529,29 +531,27 @@ impl PreProcessorEx for PreProcessor {
             .iter()
             .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
             .flat_map(|f| f.gnf())
-            .map(Sequent::from)
+            .map(RefSequent::from)
             .collect();
-        (geo_theory, Model::new())
+        (geo_theory, RefModel::new())
     }
 }
 
-/// Evaluates a [`Sequent`] in a [`Model`] within a [chase-step].
+/// Evaluates a [`RefSequent`] in a [`Model`] within a [chase-step].
 ///
 /// [chase-step]: crate::chase#chase-step
-pub struct Evaluator;
+pub struct RefEvaluator;
 
-impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
-    for Evaluator
-{
-    type Sequent = Sequent;
-    type Model = Model;
+impl<'s, Stg: Strategy<&'s RefSequent>, B: Bounder> Evaluator<'s, Stg, B> for RefEvaluator {
+    type Sequent = RefSequent;
+    type Model = RefModel;
 
     fn evaluate(
         &self,
-        initial_model: &Model,
+        initial_model: &RefModel,
         strategy: &mut Stg,
         bounder: Option<&B>,
-    ) -> Option<EvaluateResult<Model>> {
+    ) -> Option<EvaluateResult<RefModel>> {
         let domain: Vec<&Element> = initial_model.domain_ref();
         let domain_size = domain.len();
         for sequent in strategy {
@@ -580,9 +580,9 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> =
+                let body: Vec<Observation<RefWitnessTerm>> =
                     sequent.body.iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                let head: Vec<Vec<Observation<RefWitnessTerm>>> = sequent
                     .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
@@ -601,7 +601,8 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
                         return None; // the chase fails if the head is empty (FALSE)
                     } else {
                         // if there is a bounder, only extend models that are not out of the given bound:
-                        let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
+                        let models: Vec<Either<RefModel, RefModel>> = if let Some(bounder) = bounder
+                        {
                             let extend = make_bounded_extend(bounder, initial_model);
                             head.iter().map(extend).collect()
                         } else {
@@ -629,9 +630,9 @@ impl<'s, Stg: StrategyTrait<&'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, St
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &'m Vec<Observation<WitnessTerm>>| {
+    model: &'m RefModel,
+) -> impl FnMut(&'m Vec<Observation<RefWitnessTerm>>) -> Either<RefModel, RefModel> {
+    move |os: &'m Vec<Observation<RefWitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
         Either::Left(model)
@@ -642,11 +643,11 @@ fn make_extend<'m>(
 // observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
 // bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
 // `Either::Left` has reached the bounds provided by `bounder`.
-fn make_bounded_extend<'m, B: BounderTrait>(
+fn make_bounded_extend<'m, B: Bounder>(
     bounder: &'m B,
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &Vec<Observation<WitnessTerm>>| {
+    model: &'m RefModel,
+) -> impl FnMut(&'m Vec<Observation<RefWitnessTerm>>) -> Either<RefModel, RefModel> {
+    move |os: &Vec<Observation<RefWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
         os.iter().foreach(|o| {
@@ -670,13 +671,13 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
     assignment_func: impl Fn(&Var) -> Element,
-) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+) -> impl Fn(&Literal) -> Observation<RefWitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .map(|t| RefWitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -684,8 +685,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = WitnessTerm::witness(&this.left, &assignment_func);
-            let right = WitnessTerm::witness(&this.right, &assignment_func);
+            let left = RefWitnessTerm::witness(&this.left, &assignment_func);
+            let right = RefWitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -707,14 +708,14 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
     false
 }
 
-/// Is a type synonym for [`basic::Sequent`].
+/// Is a type synonym for [`basic::BasicSequent`].
 ///
 /// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
 ///
-/// [`basic::Sequent`]: crate::chase::impl::basic::Sequent
+/// [`basic::BasicSequent`]: crate::chase::impl::basic::BasicSequent
 /// [`chase::impl::reference`]: crate::chase::impl::reference
 /// [`chase::impl::basic`]: crate::chase::impl::basic
-pub type Sequent = basic::Sequent;
+pub type RefSequent = basic::BasicSequent;
 
 /// Is a type synonym for [`basic::Literal`].
 ///
@@ -727,9 +728,9 @@ pub type Literal = basic::Literal;
 
 #[cfg(test)]
 mod test_reference {
-    use super::{next_assignment, Evaluator, Model};
+    use super::{next_assignment, RefEvaluator, RefModel};
     use crate::chase::{
-        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -785,13 +786,13 @@ mod test_reference {
         }
     }
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        use crate::chase::PreProcessorEx;
+    fn run_test(theory: &Theory<FOF>) -> Vec<RefModel> {
+        use crate::chase::PreProcessor;
 
-        let pre_processor = super::PreProcessor;
+        let pre_processor = super::RefPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
-        let evaluator = Evaluator;
+        let evaluator = RefEvaluator;
         let strategy: Fair<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;

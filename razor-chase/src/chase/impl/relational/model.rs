@@ -1,19 +1,19 @@
 use super::{
-    constants::*, empty_named_tuple, rewrite::Rewrite, sequent::Sequent, symbol::Symbol, Error,
+    constants::*, empty_named_tuple, rewrite::Rewrite, sequent::RelSequent, symbol::Symbol, Error,
     NamedTuple, Tuple,
 };
-use crate::chase::{r#impl::basic::WitnessTerm, ModelTrait, Observation, E};
+use crate::chase::{r#impl::basic::BasicWitnessTerm, Model, Observation, E};
 use codd::expression as rel_exp;
 use itertools::Itertools;
 use razor_fol::syntax::Sig;
 use std::{collections::HashMap, fmt};
 
-/// Implements an instance of [`ModelTrait`] with an underlying database.
-/// It uses [`WitnessTerm`] from the basic implementation to represent observations.
+/// Implements an instance of [`Model`] with an underlying database.
+/// It uses [`BasicWitnessTerm`] from the basic implementation to represent observations.
 ///
-/// [`ModelTrait`]: crate::chase::ModelTrait
-/// [`WitnessTerm`]: crate::chase::impl::basic::WitnessTerm
-pub struct Model {
+/// [`Model`]: crate::chase::Model
+/// [`WitnessTerm`]: crate::chase::impl::basic::BasicWitnessTerm
+pub struct RelModel {
     /// Is a unique identifier for this model.
     id: u64,
 
@@ -24,7 +24,7 @@ pub struct Model {
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any complex sub-terms
     /// that consist of functions applications.
-    rewrites: HashMap<WitnessTerm, E>,
+    rewrites: HashMap<BasicWitnessTerm, E>,
 
     /// Stores the information contained in this model.
     database: codd::Database,
@@ -33,7 +33,7 @@ pub struct Model {
     relations: HashMap<Symbol, rel_exp::Relation<Tuple>>,
 }
 
-impl Model {
+impl RelModel {
     /// Creates a new model over the given `signature`.
     pub fn new(signature: &Sig) -> Self {
         let mut database = codd::Database::new();
@@ -49,7 +49,7 @@ impl Model {
 
     /// Creates a new element for the given `witness` and records that `witness`
     /// denotes the new element.
-    fn new_element(&mut self, witness: WitnessTerm) -> E {
+    fn new_element(&mut self, witness: BasicWitnessTerm) -> E {
         let element = E(self.element_index);
         self.element_index += 1;
         self.rewrites.insert(witness, element);
@@ -57,9 +57,9 @@ impl Model {
     }
 
     // assumes that the witness term is flat
-    pub(super) fn record(&mut self, witness: WitnessTerm) -> E {
+    pub(super) fn record(&mut self, witness: BasicWitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem(e) => e,
+            BasicWitnessTerm::Elem(e) => e,
             _ => self
                 .rewrites
                 .get(&witness)
@@ -68,16 +68,8 @@ impl Model {
         }
     }
 
-    // assumes that the witness term is flat and `element` is already in the domain
-    #[inline(always)]
-    fn record_to(&mut self, witness: WitnessTerm, element: E) {
-        if !self.rewrites.contains_key(&witness) {
-            self.rewrites.insert(witness, element);
-        }
-    }
-
     /// Evaluates a sequent in the model.
-    pub(super) fn evaluate<'a>(&self, sequent: &'a Sequent) -> Vec<NamedTuple<'a>> {
+    pub(super) fn evaluate<'a>(&self, sequent: &'a RelSequent) -> Vec<NamedTuple<'a>> {
         let tuples = self.database.evaluate(sequent.expression()).unwrap();
         tuples
             .into_tuples()
@@ -102,15 +94,14 @@ impl Model {
         match symbol {
             Symbol::Const(_) => {
                 for t in tuples.iter() {
-                    self.record_to(symbol.witness(&[])?, t[0]);
+                    self.rewrites.entry(symbol.witness(&[])?).or_insert(t[0]);
                 }
             }
             Symbol::Func { arity, .. } => {
                 for t in tuples.iter() {
-                    self.record_to(
-                        symbol.witness(&t[0..(*arity as usize)])?,
-                        t[*arity as usize],
-                    );
+                    self.rewrites
+                        .entry(symbol.witness(&t[0..(*arity as usize)])?)
+                        .or_insert(t[*arity as usize]);
                 }
             }
             _ => {}
@@ -172,18 +163,20 @@ impl Model {
         let mut rewrites = HashMap::new();
         for (term, element) in &self.rewrites {
             let new_term = match &term {
-                WitnessTerm::Elem(e) => WitnessTerm::Elem(*conversion_map.get(e).unwrap()),
-                WitnessTerm::Const(_) => term.clone(),
-                WitnessTerm::App { function, terms } => WitnessTerm::App {
+                BasicWitnessTerm::Elem(e) => {
+                    BasicWitnessTerm::Elem(*conversion_map.get(e).unwrap())
+                }
+                BasicWitnessTerm::Const(_) => term.clone(),
+                BasicWitnessTerm::App { function, terms } => BasicWitnessTerm::App {
                     function: function.clone(),
                     terms: terms
                         .iter()
                         .map(|e| {
                             let e = match e {
-                                WitnessTerm::Elem(e) => e,
+                                BasicWitnessTerm::Elem(e) => e,
                                 _ => unreachable!(),
                             };
-                            WitnessTerm::Elem(*conversion_map.get(e).unwrap())
+                            BasicWitnessTerm::Elem(*conversion_map.get(e).unwrap())
                         })
                         .collect(),
                 },
@@ -217,8 +210,8 @@ impl Model {
     }
 }
 
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
+impl Model for RelModel {
+    type TermType = BasicWitnessTerm;
 
     fn get_id(&self) -> u64 {
         self.id
@@ -253,7 +246,7 @@ impl ModelTrait for Model {
         result
     }
 
-    fn witness(&self, element: &E) -> Vec<WitnessTerm> {
+    fn witness(&self, element: &E) -> Vec<BasicWitnessTerm> {
         self.rewrites
             .iter()
             .filter(|(_, e)| *e == element)
@@ -262,21 +255,21 @@ impl ModelTrait for Model {
             .collect()
     }
 
-    fn element(&self, witness: &WitnessTerm) -> Option<E> {
+    fn element(&self, witness: &BasicWitnessTerm) -> Option<E> {
         match witness {
-            WitnessTerm::Elem(element) => self.domain().into_iter().find(|e| e == element),
-            WitnessTerm::Const(_) => self.rewrites.get(witness).cloned(),
-            WitnessTerm::App { function, terms } => {
+            BasicWitnessTerm::Elem(element) => self.domain().into_iter().find(|e| e == element),
+            BasicWitnessTerm::Const(_) => self.rewrites.get(witness).cloned(),
+            BasicWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<E>> = terms.iter().map(|t| self.element(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
                     self.rewrites
-                        .get(&WitnessTerm::App {
+                        .get(&BasicWitnessTerm::App {
                             function: (*function).clone(),
                             terms,
                         })
@@ -293,7 +286,7 @@ impl ModelTrait for Model {
     }
 }
 
-impl Clone for Model {
+impl Clone for RelModel {
     fn clone(&self) -> Self {
         Self {
             id: rand::random(),
@@ -305,7 +298,7 @@ impl Clone for Model {
     }
 }
 
-impl fmt::Debug for Model {
+impl fmt::Debug for RelModel {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
         let elements: Vec<String> = self
