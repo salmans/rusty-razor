@@ -1,0 +1,4 @@
+Domain: {e#0, e#1}
+Facts: <P(e#0, e#1)>
+'a -> e#0
+'b -> e#1

@@ -202,9 +202,8 @@ mod test_lifo {
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
-    use std::fs;
 
-    pub fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    pub fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
@@ -217,19 +216,28 @@ mod test_lifo {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
-            let basic_models = solve_basic(&theory);
-            let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            let test_models: HashSet<String> = test_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            assert_eq!(basic_models, test_models);
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

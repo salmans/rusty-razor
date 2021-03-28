@@ -75,7 +75,6 @@ mod tests {
         test_prelude::*,
     };
     use razor_fol::syntax::{Theory, FOF};
-    use std::fs;
 
     fn run(theory: &Theory<FOF>, pre_processor: &RelPreProcessor) -> Vec<RelModel> {
         let (sequents, init_model) = pre_processor.pre_process(theory);
@@ -90,26 +89,50 @@ mod tests {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let path = item.unwrap().path().display().to_string();
-
-            let theory = read_theory_from_file(&path);
-            let basic_models = solve_basic(&theory);
-
-            let test_models = run(&theory, &RelPreProcessor::new(true));
-            assert_eq!(basic_models.len(), test_models.len());
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected_len = read_file(path.with_extension("model").to_str().unwrap())
+                    .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                    .filter(|s| !s.is_empty())
+                    .map(|_| ())
+                    .collect::<Vec<_>>()
+                    .len();
+                let result_len = run(&theory, &RelPreProcessor::new(false)).len();
+                assert_eq!(
+                    expected_len,
+                    result_len,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 
     #[test]
     fn test_materialized() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let path = item.unwrap().path().display().to_string();
-            let theory = read_theory_from_file(&path);
-
-            let simple_models = run(&theory, &RelPreProcessor::new(false));
-            let memoized_models = run(&theory, &RelPreProcessor::new(true));
-            assert_eq!(simple_models.len(), memoized_models.len());
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected = run(&theory, &RelPreProcessor::new(false))
+                    .into_iter()
+                    .map(|m| format!("{:?}", m))
+                    .collect::<Vec<_>>();
+                let result = run(&theory, &RelPreProcessor::new(true))
+                    .into_iter()
+                    .map(|m| format!("{:?}", m))
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

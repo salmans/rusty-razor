@@ -205,38 +205,13 @@ mod test_fair {
         r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         scheduler::FIFO,
         strategy::Fair,
-        Model, PreProcessor, Scheduler,
+        PreProcessor, Scheduler,
     };
-    use crate::test_prelude::{read_theory_from_file, solve_basic};
-    use itertools::Itertools;
+    use crate::test_prelude::{print_basic_model, read_file, read_theory_from_file};
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
-    use std::fs;
 
-    pub fn print_model(model: BasicModel) -> String {
-        let elements: Vec<String> = model
-            .domain()
-            .iter()
-            .sorted()
-            .iter()
-            .map(|e| {
-                let witnesses: Vec<String> =
-                    model.witness(e).iter().map(|w| w.to_string()).collect();
-                let witnesses = witnesses.into_iter().sorted();
-                format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
-            })
-            .collect();
-        let domain: Vec<String> = model.domain().iter().map(|e| e.to_string()).collect();
-        let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
-        format!(
-            "Domain: {{{}}}\nFacts: {}\n{}",
-            domain.into_iter().sorted().join(", "),
-            facts.into_iter().sorted().join(", "),
-            elements.join("\n")
-        )
-    }
-
-    fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
         let preprocessor = BasicPreProcessor;
         let (sequents, init_model) = preprocessor.pre_process(theory);
         let evaluator = BasicEvaluator;
@@ -249,16 +224,29 @@ mod test_fair {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
-            let basic_models = solve_basic(&theory);
-            let test_models = run_test(&theory);
-            let basic_models: HashSet<String> =
-                basic_models.into_iter().map(|m| print_model(m)).collect();
-            let test_models: HashSet<String> =
-                test_models.into_iter().map(|m| print_model(m)).collect();
-            assert_eq!(basic_models, test_models);
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }
 
@@ -275,9 +263,8 @@ mod test_bootstrap {
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
-    use std::fs;
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
@@ -290,20 +277,29 @@ mod test_bootstrap {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
-            let basic_models = solve_basic(&theory);
-            let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            let test_models: HashSet<String> = test_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            assert_eq!(basic_models, test_models);
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }
 
@@ -320,9 +316,8 @@ mod test_fail_fast {
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
-    use std::fs;
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
@@ -335,19 +330,28 @@ mod test_fail_fast {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
-            let basic_models = solve_basic(&theory);
-            let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            let test_models: HashSet<String> = test_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            assert_eq!(basic_models, test_models);
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

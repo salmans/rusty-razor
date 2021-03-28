@@ -571,17 +571,19 @@ where
     E: Evaluator<'s, Stg, B, Sequent = S, Model = M>,
     B: Bounder,
 {
-    let mut result: Vec<M> = Vec::new();
+    let mut complete = Vec::new();
+    let mut incomplete = Vec::new();
     while !scheduler.empty() {
         chase_step(
             scheduler,
             evaluator,
             bounder,
-            |m| result.push(m.finalize()),
-            |_| {},
+            |m| complete.push(m.finalize()),
+            |m| incomplete.push(m.finalize()),
         );
     }
-    result
+    complete.extend(incomplete);
+    complete
 }
 
 /// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator], possibly a

@@ -730,12 +730,11 @@ pub type Literal = basic::Literal;
 mod test_collapse {
     use super::{next_assignment, ColEvaluator, ColModel};
     use crate::chase::{
-        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, Scheduler,
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
-    use std::fs;
 
     static IGNORE_TEST: [&'static str; 1] = ["thy24.raz"];
 
@@ -786,14 +785,14 @@ mod test_collapse {
         }
     }
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<ColModel> {
+    fn run(theory: &Theory<FOF>) -> Vec<ColModel> {
         use crate::chase::PreProcessor;
 
         let pre_processor = super::ColPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = ColEvaluator;
-        let strategy: Fair<_> = sequents.iter().collect();
+        let strategy: Linear<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
@@ -802,23 +801,31 @@ mod test_collapse {
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let file = item.unwrap();
-            if IGNORE_TEST.contains(&file.file_name().into_string().unwrap().as_str()) {
-                continue;
-            }
-            let theory = read_theory_from_file(file.path().display().to_string().as_str());
-            let basic_models = solve_basic(&theory);
-            let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            let test_models: HashSet<String> = test_models
-                .into_iter()
-                .map(|m| print_collapse_model(m))
-                .collect();
-            assert_eq!(basic_models, test_models);
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| {
+                IGNORE_TEST.contains(&path.file_name().and_then(|f| f.to_str()).unwrap())
+            })
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_collapse_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

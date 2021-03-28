@@ -770,6 +770,9 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 #[cfg(test)]
 mod test_basic {
     use super::*;
+    use crate::chase::{
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
+    };
     use crate::test_prelude::*;
     use razor_fol::transform::ToGNF;
     use std::iter::FromIterator;
@@ -1087,485 +1090,85 @@ mod test_basic {
         );
     }
 
+    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
+
+        let evaluator = BasicEvaluator;
+        let strategy: Linear<_> = sequents.iter().collect();
+
+        let mut scheduler = FIFO::new();
+        let bounder: Option<&DomainSize> = None;
+        scheduler.add(init_model, strategy);
+        chase_all(&mut scheduler, &evaluator, bounder)
+    }
+
+    fn run_domain_bounded(theory: &Theory<FOF>, bound: usize) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
+        let evaluator = BasicEvaluator;
+        let strategy: Linear<_> = sequents.iter().collect();
+        let mut scheduler = FIFO::new();
+        let bounder = DomainSize::from(bound);
+        let bounder: Option<&DomainSize> = Some(&bounder);
+        scheduler.add(init_model, strategy);
+        chase_all(&mut scheduler, &evaluator, bounder)
+    }
+
     #[test]
     fn test_core() {
-        assert_eq!(
-            "Domain: {e#0}\n\
-                      Facts: <P(e#0)>\n\
-                      'a -> e#0",
-            print_basic_models(solve_basic(&&read_theory_from_file(
-                "../theories/core/thy0.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <P(e#0)>, <P(e#1)>\n\
-                       'a -> e#0\n\
-                       'b -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy1.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>\n\
-                       'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy2.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <R(e#0, e#1)>\n\
-                       'c#0 -> e#0\n\
-                       'c#1 -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy3.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                Facts: \n\
-                'a, 'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy4.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <P(e#0, e#1)>\n\
-                       'a -> e#0\n\
-                       'b -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy5.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <P(e#1)>\n\
-                       'a -> e#0\n\
-                       f(e#0) -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy6.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>\n\
-                       'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy7.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>\n\
-                       'a -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <Q(e#0)>\n\
-                       'b -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <R(e#0)>\n\
-                       'c -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy8.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>\n\
-                       'a, 'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy9.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <R(e#0)>\n\
-                       'a -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <Q(e#0)>, <S(e#0)>\n\
-                       'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy10.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-                       Facts: \n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy11.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-                       Facts: \n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy12.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy13.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <Q(e#0)>\n\
-                       'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy14.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy15.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0, e#0)>, <Q(e#0)>\n\
-                       'c -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy16.raz"
-            )))
-        );
-        assert_eq!(
-"Domain: {e#0, e#1, e#2}\nFacts: <P(e#0, e#0)>, <P(e#1, e#2)>, <Q(e#0)>\n\'c -> e#0\n\'a -> e#1\n\'b -> e#2",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy17.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2}\n\
-                       Facts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\
-                       'a -> e#0\n\
-                       'b -> e#1\n\
-                       'c -> e#2",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy18.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: \n\
-                       'a -> e#0\n\
-                       f(e#0) -> e#1\n\
-                       f(e#1) -> e#2\n\
-                       f(e#2) -> e#3\n\
-                       f(e#3) -> e#4\n\
-                       f(e#4) -> e#5\n\
-                       f(e#5) -> e#6\n\
-                       f(e#6) -> e#7\n\
-                       f(e#7) -> e#8\n\
-                       f(e#8) -> e#9\n\
-                       'b, f(e#9) -> e#10",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy19.raz"
-            )))
-        );
-        assert_eq!("Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
-                       'a -> e#0\n\
-                       f(e#0) -> e#1\n\
-                       f(e#1) -> e#2\n\
-                       f(e#2) -> e#3\n\
-                       f(e#3) -> e#4\n\
-                       f(e#4) -> e#5\n\
-                       f(e#5) -> e#6\n\
-                       f(e#6) -> e#7\n\
-                       f(e#7) -> e#8\n\
-                       f(e#8) -> e#9\n\
-                       'b, f(e#9) -> e#10", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy20.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>\n\
-                       'a -> e#0\n\
-                       f(e#0) -> e#1\n\
-                       f(e#1) -> e#2\n\
-                       f(e#2) -> e#3\n\
-                       f(e#3) -> e#4\n\
-                       f(e#4) -> e#5\n\
-                       f(e#5) -> e#6\n\
-                       f(e#6) -> e#7\n\
-                       f(e#7) -> e#8\n\
-                       f(e#8) -> e#9\n\
-                       'b, f(e#9) -> e#10", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy21.raz"))));
-        assert_eq!(
-            "Domain: {e#0}\n\
-                Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>\n\
-                'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy22.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\'c#0, \'c#1, \'c#2 -> e#0",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy23.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>, <T(e#0)>\n\
-                       'c#0, 'c#1, 'c#2, 'c#3 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy24.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2, e#3}\n\
-                       Facts: <P(e#0)>, <Q(e#1)>, <R(e#2)>, <S(e#3)>\n\
-                       'c#0 -> e#0\n\
-                       'c#1 -> e#1\n\
-                       'c#2 -> e#2\n\
-                       'c#3 -> e#3",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy25.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>\n\
-                       'c#0 -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <P(e#0)>\n\
-                       'c#1 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy26.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy27.raz"
-            )))
-        );
-        assert_eq!(
-"Domain: {}\nFacts: <T()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <T()>, <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <T()>, <U()>, <V()>\n",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy28.raz"
-            )))
-        );
-        assert_eq!(
-"Domain: {}\nFacts: <P()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <S()>, <W()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <S()>, <X()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <S()>, <Y()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <T()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <T()>, <U()>, <V()>\n\n-- -- -- -- -- -- -- -- -- --\nDomain: {}\nFacts: <Q()>, <R()>, <T()>, <U()>, <V()>\n",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy29.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy30.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <Q(e#0, e#0)>, <R(e#0)>, <U(e#0)>\n\
-                       'c#0 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy31.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-        Facts: <Q(e#0, e#1)>, <R(e#0)>\n\
-        'c#0 -> e#0\n\
-        f#0(e#0) -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy32.raz"
-            )))
-        );
-        assert_eq!(
-"Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#12(e#4, e#5) -> e#6\nf#13(e#4, e#5) -> e#7\nf#28(e#6, e#7) -> e#8\nf#29(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#12(e#4, e#5) -> e#6\nf#13(e#4, e#5) -> e#7\nf#28(e#6, e#7) -> e#8\nf#29(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#12(e#4, e#5) -> e#6\nf#13(e#4, e#5) -> e#7\nf#32(e#6, e#7) -> e#8\nf#33(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#12(e#4, e#5) -> e#6\nf#13(e#4, e#5) -> e#7\nf#32(e#6, e#7) -> e#8\nf#33(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#16(e#4, e#5) -> e#6\nf#17(e#4, e#5) -> e#7\nf#36(e#6, e#7) -> e#8\nf#37(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#16(e#4, e#5) -> e#6\nf#17(e#4, e#5) -> e#7\nf#36(e#6, e#7) -> e#8\nf#37(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#16(e#4, e#5) -> e#6\nf#17(e#4, e#5) -> e#7\nf#40(e#6, e#7) -> e#8\nf#41(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#4(e#2, e#3) -> e#4\nf#5(e#2, e#3) -> e#5\nf#16(e#4, e#5) -> e#6\nf#17(e#4, e#5) -> e#7\nf#40(e#6, e#7) -> e#8\nf#41(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#20(e#4, e#5) -> e#6\nf#21(e#4, e#5) -> e#7\nf#44(e#6, e#7) -> e#8\nf#45(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#20(e#4, e#5) -> e#6\nf#21(e#4, e#5) -> e#7\nf#44(e#6, e#7) -> e#8\nf#45(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#20(e#4, e#5) -> e#6\nf#21(e#4, e#5) -> e#7\nf#48(e#6, e#7) -> e#8\nf#49(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#20(e#4, e#5) -> e#6\nf#21(e#4, e#5) -> e#7\nf#48(e#6, e#7) -> e#8\nf#49(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#24(e#4, e#5) -> e#6\nf#25(e#4, e#5) -> e#7\nf#52(e#6, e#7) -> e#8\nf#53(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#24(e#4, e#5) -> e#6\nf#25(e#4, e#5) -> e#7\nf#52(e#6, e#7) -> e#8\nf#53(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#24(e#4, e#5) -> e#6\nf#25(e#4, e#5) -> e#7\nf#56(e#6, e#7) -> e#8\nf#57(e#6, e#7) -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0(e#0, e#1) -> e#2\nf#1(e#0, e#1) -> e#3\nf#8(e#2, e#3) -> e#4\nf#9(e#2, e#3) -> e#5\nf#24(e#4, e#5) -> e#6\nf#25(e#4, e#5) -> e#7\nf#56(e#6, e#7) -> e#8\nf#57(e#6, e#7) -> e#9",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy36.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy37.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\nFacts: <R(e#0, e#0, e#0)>\n'c#0, 'c#1, 'c#2 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy38.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6}\n\
-                       Facts: <Q(e#1)>, <R(e#1, e#6)>\n\
-                       'c#0 -> e#0\n\
-                       f(e#0) -> e#1\n\
-                       f(e#1) -> e#2\n\
-                       f(e#2) -> e#3\n\
-                       f(e#3) -> e#4\n\
-                       f(e#4) -> e#5\n\
-                       f(e#5) -> e#6",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy39.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#1)>, <Q(e#1)>, <R(e#0, e#1)>, <R(e#1, e#3)>, <S(e#4)>\n\
-        'c#0 -> e#0\n\
-        f(e#0) -> e#1\n\
-        f(e#1) -> e#2\n\
-        f(e#2) -> e#3\n\
-        f#0(e#1) -> e#4",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy40.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-                       Facts: \n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy41.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy42.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-        Facts: <P(e#0)>, <P(e#1)>, <Q(e#0)>, <Q(e#1)>\n\
-        'a -> e#0\n\
-        'b -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy43.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: <P(e#0)>, <Q(e#0)>\n\
-        'a -> e#0\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0}\n\
-        Facts: <P(e#0)>, <R(e#0)>\n\
-        'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy44.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-             Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
-             'a -> e#0\n\'b -> e#1\n\
-             -- -- -- -- -- -- -- -- -- --\n\
-             Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>\n\
-             'a, \
-             'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy45.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0, e#0)>\n\'c#0, \'c#1 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy46.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\nFacts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\'c#0, \'c#1, \'c#2, \'c#3 -> e#0",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy47.raz"
-            )))
-        );
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 
     #[test]
     fn test_bounded() {
-        //        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
-        //        'a -> e#0\n\
-        //        f[e#0] -> e#1\n\
-        //        f[e#1] -> e#2\n\
-        //        f[e#2] -> e#3\n\
-        //        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 5)));
-        //        assert_eq!("Domain: {e#0, e#1, e#10, e#11, e#12, e#13, e#14, e#15, e#16, e#17, e#18, e#19, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#10)>, <P(e#11)>, <P(e#12)>, <P(e#13)>, <P(e#14)>, <P(e#15)>, <P(e#16)>, <P(e#17)>, <P(e#18)>, <P(e#19)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
-        //        'a -> e#0\n\
-        //        f[e#0] -> e#1\n\
-        //        f[e#1] -> e#2\n\
-        //        f[e#2] -> e#3\n\
-        //        f[e#3] -> e#4\n\
-        //        f[e#4] -> e#5\n\
-        //        f[e#5] -> e#6\n\
-        //        f[e#6] -> e#7\n\
-        //        f[e#7] -> e#8\n\
-        //        f[e#8] -> e#9\n\
-        //        f[e#9] -> e#10\n\
-        //        f[e#10] -> e#11\n\
-        //        f[e#11] -> e#12\n\
-        //        f[e#12] -> e#13\n\
-        //        f[e#13] -> e#14\n\
-        //        f[e#14] -> e#15\n\
-        //        f[e#15] -> e#16\n\
-        //        f[e#16] -> e#17\n\
-        //        f[e#17] -> e#18\n\
-        //        f[e#18] -> e#19", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 20)));
-        //        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
-        //        'a -> e#0\n\
-        //        f[e#0] -> e#1\n\
-        //        f[e#1] -> e#2\n\
-        //        f[e#2] -> e#3\n\
-        //        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy2.raz"), 5)));
-        assert_eq!(
-            r#"Domain: {e#0}
-Facts: <P(e#0)>, <Q(e#0)>
-'c#0 -> e#0"#,
-            print_basic_models(solve_domain_bounded_basic(
-                &read_theory_from_file("../theories/bounded/thy3.raz"),
-                5
-            ))
-        );
-        assert_eq!(
-            r#"Domain: {e#0}
-Facts: <P(e#0)>, <Q(e#0)>
-'a -> e#0
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1}
-Facts: <P(e#0)>, <P(e#1)>, <Q(e#1)>
-'a -> e#0
-f#0(e#0) -> e#1
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1, e#2}
-Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <Q(e#2)>
-'a -> e#0
-f#0(e#0) -> e#1
-f#0(e#1) -> e#2
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1, e#2, e#3}
-Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <Q(e#3)>
-'a -> e#0
-f#0(e#0) -> e#1
-f#0(e#1) -> e#2
-f#0(e#2) -> e#3
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1, e#2, e#3, e#4}
-Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <Q(e#4)>
-'a -> e#0
-f#0(e#0) -> e#1
-f#0(e#1) -> e#2
-f#0(e#2) -> e#3
-f#0(e#3) -> e#4"#,
-            print_basic_models(solve_domain_bounded_basic(
-                &read_theory_from_file("../theories/bounded/thy4.raz"),
-                5
-            ))
-        );
+        std::fs::read_dir("../theories/bounded")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let config = read_file(path.with_extension("config").to_str().unwrap())
+                    .parse::<usize>()
+                    .unwrap();
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run_domain_bounded(&theory, config)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

@@ -1,4 +1,3 @@
-use crate::chase::{bounder::DomainSize, scheduler::FIFO, strategy::Linear};
 use crate::chase::{r#impl::basic, r#impl::collapse, *};
 use itertools::Itertools;
 use razor_fol::syntax::{term::Complex, Const, Func, Pred, Theory, Var, FOF};
@@ -203,39 +202,18 @@ pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
     debug_assert_eq!(expected, strings.join("\n"));
 }
 
-pub fn read_theory_from_file(filename: &str) -> Theory<FOF> {
+pub fn read_file(filename: &str) -> String {
     let mut f = File::open(filename).expect("file not found");
 
-    let mut contents = String::new();
-    f.read_to_string(&mut contents)
+    let mut content = String::new();
+    f.read_to_string(&mut content)
         .expect("something went wrong reading the file");
-
-    contents.parse().unwrap()
+    content
 }
 
-pub fn solve_basic(theory: &Theory<FOF>) -> Vec<basic::BasicModel> {
-    let pre_processor = basic::BasicPreProcessor;
-    let (sequents, init_model) = pre_processor.pre_process(theory);
-
-    let evaluator = basic::BasicEvaluator;
-    let strategy: Linear<_> = sequents.iter().collect();
-
-    let mut scheduler = FIFO::new();
-    let bounder: Option<&DomainSize> = None;
-    scheduler.add(init_model, strategy);
-    chase_all(&mut scheduler, &evaluator, bounder)
-}
-
-pub fn solve_domain_bounded_basic(theory: &Theory<FOF>, bound: usize) -> Vec<basic::BasicModel> {
-    let pre_processor = basic::BasicPreProcessor;
-    let (sequents, init_model) = pre_processor.pre_process(theory);
-    let evaluator = basic::BasicEvaluator;
-    let strategy: Linear<_> = sequents.iter().collect();
-    let mut scheduler = FIFO::new();
-    let bounder = DomainSize::from(bound);
-    let bounder: Option<&DomainSize> = Some(&bounder);
-    scheduler.add(init_model, strategy);
-    chase_all(&mut scheduler, &evaluator, bounder)
+pub fn read_theory_from_file(filename: &str) -> Theory<FOF> {
+    let content = read_file(filename);
+    content.parse().unwrap()
 }
 
 pub fn print_basic_model(model: basic::BasicModel) -> String {
@@ -258,11 +236,6 @@ pub fn print_basic_model(model: basic::BasicModel) -> String {
         facts.into_iter().sorted().join(", "),
         elements.join("\n")
     )
-}
-
-pub fn print_basic_models(models: Vec<basic::BasicModel>) -> String {
-    let models: Vec<String> = models.into_iter().map(|m| print_basic_model(m)).collect();
-    models.join("\n-- -- -- -- -- -- -- -- -- --\n")
 }
 
 pub fn print_collapse_model(model: collapse::ColModel) -> String {
