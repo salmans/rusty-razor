@@ -1,17 +1,17 @@
-//! Provides a fast implementation of the chase by using references to elements of the model to
-//! avoid additional operations for equational reasoning.
+//! Provides an implementation of the chase by collapsing references to elements
+//! of the model to avoid equational reasoning computation.
 //!
-//! `chase::impl::reference` is an implementation of the [chase] that uses references to [`E`]
-//! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a faster
-//! equational reasoning where the information content of a model does not need to be rewritten
-//! when the model is augmented by an [`Identity`].
+//! [`collapse`] is an implementation of the [chase] that uses references to [`E`]
+//! wrapped in [`Element`] as the [`Model`] elements. Using object references allows for a
+//! faster equational reasoning where the information content of a model does not need to
+//! be rewritten when the model is augmented by an [`Identity`].
 //!
 //! [chase]: crate::chase#the-chase
-//! [`E`]: crate::chase::E
 //! [`Identity`]: crate::chase::Observation::Identity
+//! [`collapse`]: self
 use crate::chase::{
-    r#impl::basic, BounderTrait, EvaluateResult, EvaluatorTrait, ModelTrait, Observation,
-    PreProcessorEx, Rel, StrategyTrait, WitnessTermTrait, E,
+    r#impl::basic, Bounder, EvaluateResult, Evaluator, Model, Observation, PreProcessor, Rel,
+    Strategy, WitnessTerm, E,
 };
 use either::Either;
 use itertools::Itertools;
@@ -31,7 +31,7 @@ use std::{
 /// implementation of [`Model`].
 ///
 /// [`E`]: crate::chase::E
-/// [`ElementType`]: crate::chase::WitnessTermTrait::ElementType
+/// [`ElementType`]: crate::chase::WitnessTerm::ElementType
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Element(Rc<Cell<E>>);
 
@@ -76,13 +76,13 @@ impl fmt::Debug for Element {
     }
 }
 
-/// Implements [`WitnessTermTrait`], with [`Element`] as the [`ElementType`] and serves as witness
+/// Implements [`WitnessTerm`], with [`Element`] as the [`ElementType`] and serves as witness
 /// terms for [`Model`].
 ///
-/// [`WitnessTermTrait`]: crate::chase::WitnessTermTrait
-/// [`ElementType`]: crate::chase::WitnessTermTrait::ElementType
+/// [`WitnessTerm`]: crate::chase::WitnessTerm
+/// [`ElementType`]: crate::chase::WitnessTerm::ElementType
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum WitnessTerm {
+pub enum ColWitnessTerm {
     /// Wraps an instance of [`Element`], witnessing itself.
     Elem(Element),
 
@@ -98,23 +98,23 @@ pub enum WitnessTerm {
     /// [`Func`]: razor_fol::syntax::Func
     App {
         function: Func,
-        terms: Vec<WitnessTerm>,
+        terms: Vec<ColWitnessTerm>,
     },
 }
 
-impl WitnessTerm {
+impl ColWitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
-    pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> WitnessTerm {
+    pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> ColWitnessTerm {
         match term {
-            Complex::Const(c) => WitnessTerm::Const(c.clone()),
-            Complex::Var(v) => WitnessTerm::Elem(lookup(&v)),
+            Complex::Const(c) => ColWitnessTerm::Const(c.clone()),
+            Complex::Var(v) => ColWitnessTerm::Elem(lookup(&v)),
             Complex::App { function, terms } => {
                 let terms = terms
                     .iter()
-                    .map(|t| WitnessTerm::witness(t, lookup))
+                    .map(|t| ColWitnessTerm::witness(t, lookup))
                     .collect();
-                WitnessTerm::App {
+                ColWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 }
@@ -123,41 +123,41 @@ impl WitnessTerm {
     }
 }
 
-impl WitnessTermTrait for WitnessTerm {
+impl WitnessTerm for ColWitnessTerm {
     type ElementType = Element;
 }
 
-impl fmt::Display for WitnessTerm {
+impl fmt::Display for ColWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            WitnessTerm::Elem(e) => write!(f, "{}", e.get()),
-            WitnessTerm::Const(c) => write!(f, "{}", c),
-            WitnessTerm::App { function, terms } => {
+            ColWitnessTerm::Elem(e) => write!(f, "{}", e.get()),
+            ColWitnessTerm::Const(c) => write!(f, "{}", c),
+            ColWitnessTerm::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}[{}]", function, ts.join(", "))
+                write!(f, "{}({})", function, ts.join(", "))
             }
         }
     }
 }
 
-impl From<Const> for WitnessTerm {
+impl From<Const> for ColWitnessTerm {
     fn from(constant: Const) -> Self {
-        WitnessTerm::Const(constant)
+        ColWitnessTerm::Const(constant)
     }
 }
 
-impl From<Element> for WitnessTerm {
+impl From<Element> for ColWitnessTerm {
     fn from(element: Element) -> Self {
-        WitnessTerm::Elem(element)
+        ColWitnessTerm::Elem(element)
     }
 }
 
-/// Is an instance of [`ModelTrait`] with terms of type [`WitnessTerm`], using references to [`E`]
+/// Is an instance of [`Model`] with terms of type [`WitnessTerm`], using references to [`E`]
 /// wrapped in objects of type [`Element`] for efficient equational reasoning.
 ///
-/// [`ModelTrait`]: crate::chase::ModelTrait
+/// [`Model`]: crate::chase::Model
 /// [`E`]: crate::chase::E
-pub struct Model {
+pub struct ColModel {
     /// Is a unique identifier for this model.
     id: u64,
 
@@ -171,10 +171,10 @@ pub struct Model {
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
-    rewrites: Vec<(WitnessTerm, Element)>,
+    rewrites: Vec<(ColWitnessTerm, Element)>,
 
     /// Contains a list of relational facts that are true in this model.
-    facts: HashSet<Observation<WitnessTerm>>,
+    facts: HashSet<Observation<ColWitnessTerm>>,
 
     /// Maintains a list of rewrite rules from elements to elements with which they have been
     /// identified.
@@ -194,7 +194,7 @@ pub struct Model {
     equality_history: HashMap<Element, Element>,
 }
 
-impl Model {
+impl ColModel {
     /// Creates a new empty instance of this model.
     pub fn new() -> Self {
         Self {
@@ -218,7 +218,7 @@ impl Model {
     }
 
     /// Looks up `witness` in the `rewrites` of `self`.
-    fn lookup_witness(&self, witness: &WitnessTerm) -> Option<&Element> {
+    fn lookup_witness(&self, witness: &ColWitnessTerm) -> Option<&Element> {
         self.rewrites
             .iter()
             .find(|&x| &x.0 == witness)
@@ -226,21 +226,21 @@ impl Model {
     }
 
     /// Returns a reference to an element witnessed by the given witness term.
-    fn element_ref(&self, witness: &WitnessTerm) -> Option<&Element> {
+    fn element_ref(&self, witness: &ColWitnessTerm) -> Option<&Element> {
         match witness {
-            WitnessTerm::Elem(e) => self.lookup_element(&e),
-            WitnessTerm::Const(_) => self.lookup_witness(witness),
-            WitnessTerm::App { function, terms } => {
+            ColWitnessTerm::Elem(e) => self.lookup_element(&e),
+            ColWitnessTerm::Const(_) => self.lookup_witness(witness),
+            ColWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&Element>> =
                     terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<ColWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    let term = WitnessTerm::App {
+                    let term = ColWitnessTerm::App {
                         function: (*function).clone(),
                         terms,
                     };
@@ -267,7 +267,7 @@ impl Model {
 
     /// Creates a new element for the given `witness`, appends the element to the domain of the
     /// model and records that `witness` denotes the new element.
-    fn new_element(&mut self, witness: WitnessTerm) -> Element {
+    fn new_element(&mut self, witness: ColWitnessTerm) -> Element {
         let element = Element::from(E(self.element_index));
         self.element_index += 1;
         self.domain.push(element.clone());
@@ -280,22 +280,23 @@ impl Model {
     ///
     /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
     /// `witness` and adds them to the domain of `self`.
-    fn record(&mut self, witness: &WitnessTerm) -> Element {
+    fn record(&mut self, witness: &ColWitnessTerm) -> Element {
         match witness {
-            WitnessTerm::Elem(e) => {
+            ColWitnessTerm::Elem(e) => {
                 let element = self.history(e);
                 self.lookup_element(&element).unwrap().clone()
             }
-            WitnessTerm::Const(_) => {
+            ColWitnessTerm::Const(_) => {
                 if let Some(e) = self.lookup_witness(witness) {
                     e.clone()
                 } else {
                     self.new_element(witness.clone())
                 }
             }
-            WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
-                let witness = WitnessTerm::App {
+            ColWitnessTerm::App { function, terms } => {
+                let terms: Vec<ColWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
+                let witness = ColWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 };
@@ -309,10 +310,11 @@ impl Model {
     }
 
     /// Augments `self` with `observation`, making `observation`true in `self`.
-    pub fn observe(&mut self, observation: &Observation<WitnessTerm>) {
+    pub fn observe(&mut self, observation: &Observation<ColWitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<ColWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -335,7 +337,7 @@ impl Model {
     }
 
     /// Returns true if `observation` is true in `self`; otherwise, returns false.
-    pub fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
+    pub fn is_observed(&self, observation: &Observation<ColWitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<Option<&Element>> =
@@ -343,7 +345,7 @@ impl Model {
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<ColWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
@@ -362,14 +364,14 @@ impl Model {
     }
 }
 
-impl Default for Model {
+impl Default for ColModel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
+impl Model for ColModel {
+    type TermType = ColWitnessTerm;
 
     fn get_id(&self) -> u64 {
         self.id
@@ -410,31 +412,31 @@ impl ModelTrait for Model {
     }
 }
 
-impl Clone for Model {
+impl Clone for ColModel {
     fn clone(&self) -> Self {
         let domain: Vec<Element> = self.domain.iter().map(|e| e.deep_clone()).collect();
         let map_element = |e: &Element| domain.iter().find(|&x| x == e).unwrap().clone();
-        let map_term = |w: &WitnessTerm| match w {
-            WitnessTerm::Elem(e) => WitnessTerm::Elem(map_element(e)),
-            WitnessTerm::Const(_) => w.clone(),
-            WitnessTerm::App { function, terms } => {
+        let map_term = |w: &ColWitnessTerm| match w {
+            ColWitnessTerm::Elem(e) => ColWitnessTerm::Elem(map_element(e)),
+            ColWitnessTerm::Const(_) => w.clone(),
+            ColWitnessTerm::App { function, terms } => {
                 let terms = terms
                     .iter()
                     .map(|t| {
-                        if let WitnessTerm::Elem(e) = t {
-                            WitnessTerm::Elem(map_element(e))
+                        if let ColWitnessTerm::Elem(e) = t {
+                            ColWitnessTerm::Elem(map_element(e))
                         } else {
                             unreachable!("expecting an element, found `{}`", t)
                         }
                     })
                     .collect();
-                WitnessTerm::App {
+                ColWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 }
             }
         };
-        let map_observation = |o: &Observation<WitnessTerm>| {
+        let map_observation = |o: &Observation<ColWitnessTerm>| {
             if let Observation::Fact { relation, terms } = o {
                 Observation::Fact {
                     relation: relation.clone(),
@@ -444,15 +446,15 @@ impl Clone for Model {
                 unreachable!("expecting a fact, found `{}`", o)
             }
         };
-        let rewrites: Vec<(WitnessTerm, Element)> = self
+        let rewrites: Vec<(ColWitnessTerm, Element)> = self
             .rewrites
             .iter()
             .map(|(k, v)| (map_term(k), map_element(v)))
             .collect();
 
-        let facts: HashSet<Observation<WitnessTerm>> =
+        let facts: HashSet<Observation<ColWitnessTerm>> =
             HashSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
-        Model {
+        ColModel {
             id: rand::random(),
             element_index: self.element_index,
             domain,
@@ -465,7 +467,7 @@ impl Clone for Model {
     }
 }
 
-impl fmt::Display for Model {
+impl fmt::Debug for ColModel {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self
             .domain()
@@ -501,45 +503,55 @@ impl fmt::Display for Model {
 
 /// Is the [preprocessor] instance for this implementation.
 ///
-/// [preprocessor]: crate::chase::PreProcessorEx
-pub struct PreProcessor;
+/// [preprocessor]: crate::chase::PreProcessor
+pub struct ColPreProcessor;
 
-impl PreProcessorEx for PreProcessor {
-    type Sequent = Sequent;
-    type Model = Model;
+impl PreProcessor for ColPreProcessor {
+    type Sequent = ColSequent;
+    type Model = ColModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use std::convert::TryInto;
+        use razor_fol::transform::ToGNF;
+        use razor_fol::transform::ToSNF;
 
-        (
-            theory
-                .gnf()
-                .formulae()
-                .iter()
-                .map(|f| f.try_into().unwrap())
-                .collect(),
-            Model::new(),
-        )
+        let mut c_counter: u32 = 0;
+        let mut f_counter: u32 = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        let geo_theory = theory
+            .iter()
+            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
+            .flat_map(|f| f.gnf())
+            .map(ColSequent::from)
+            .collect();
+        (geo_theory, ColModel::new())
     }
 }
 
-/// Evaluates a [`Sequent`] in a [`Model`] within a [chase-step].
+/// Evaluates a [`ColSequent`] in a [`Model`] within a [chase-step].
 ///
 /// [chase-step]: crate::chase#chase-step
-pub struct Evaluator;
+pub struct ColEvaluator;
 
-impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
-    for Evaluator
-{
-    type Sequent = Sequent;
-    type Model = Model;
+impl<'s, Stg: Strategy<&'s ColSequent>, B: Bounder> Evaluator<'s, Stg, B> for ColEvaluator {
+    type Sequent = ColSequent;
+    type Model = ColModel;
 
     fn evaluate(
         &self,
-        initial_model: &Model,
+        initial_model: &ColModel,
         strategy: &mut Stg,
         bounder: Option<&B>,
-    ) -> Option<EvaluateResult<Model>> {
+    ) -> Option<EvaluateResult<ColModel>> {
         let domain: Vec<&Element> = initial_model.domain_ref();
         let domain_size = domain.len();
         for sequent in strategy {
@@ -568,9 +580,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> =
+                let body: Vec<Observation<ColWitnessTerm>> =
                     sequent.body.iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                let head: Vec<Vec<Observation<ColWitnessTerm>>> = sequent
                     .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
@@ -589,7 +601,8 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                         return None; // the chase fails if the head is empty (FALSE)
                     } else {
                         // if there is a bounder, only extend models that are not out of the given bound:
-                        let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
+                        let models: Vec<Either<ColModel, ColModel>> = if let Some(bounder) = bounder
+                        {
                             let extend = make_bounded_extend(bounder, initial_model);
                             head.iter().map(extend).collect()
                         } else {
@@ -617,9 +630,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &'m Vec<Observation<WitnessTerm>>| {
+    model: &'m ColModel,
+) -> impl FnMut(&'m Vec<Observation<ColWitnessTerm>>) -> Either<ColModel, ColModel> {
+    move |os: &'m Vec<Observation<ColWitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
         Either::Left(model)
@@ -630,11 +643,11 @@ fn make_extend<'m>(
 // observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
 // bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
 // `Either::Left` has reached the bounds provided by `bounder`.
-fn make_bounded_extend<'m, B: BounderTrait>(
+fn make_bounded_extend<'m, B: Bounder>(
     bounder: &'m B,
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &Vec<Observation<WitnessTerm>>| {
+    model: &'m ColModel,
+) -> impl FnMut(&'m Vec<Observation<ColWitnessTerm>>) -> Either<ColModel, ColModel> {
+    move |os: &Vec<Observation<ColWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
         os.iter().foreach(|o| {
@@ -658,13 +671,13 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
     assignment_func: impl Fn(&Var) -> Element,
-) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+) -> impl Fn(&Literal) -> Observation<ColWitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .map(|t| ColWitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -672,8 +685,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = WitnessTerm::witness(&this.left, &assignment_func);
-            let right = WitnessTerm::witness(&this.right, &assignment_func);
+            let left = ColWitnessTerm::witness(&this.left, &assignment_func);
+            let right = ColWitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -695,35 +708,35 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
     false
 }
 
-/// Is a type synonym for [`basic::Sequent`].
+/// Is a type synonym for [`basic::BasicSequent`].
 ///
-/// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
+/// **Note**: [`collapse`] uses the same sequent type as [`basic`].
 ///
-/// [`basic::Sequent`]: crate::chase::impl::basic::Sequent
-/// [`chase::impl::reference`]: crate::chase::impl::reference
-/// [`chase::impl::basic`]: crate::chase::impl::basic
-pub type Sequent = basic::Sequent;
+/// [`basic::BasicSequent`]: crate::chase::impl::basic::BasicSequent
+/// [`collapse`]: self
+/// [`basic`]: crate::chase::impl::basic
+pub type ColSequent = basic::BasicSequent;
 
 /// Is a type synonym for [`basic::Literal`].
 ///
-/// **Note**: [`chase::impl::reference`] uses the same sequent type as [`chase::impl::basic`].
+/// **Note**: [`collapse`] uses the same sequent type as [`basic`].
 ///
 /// [`basic::Literal`]: crate::chase::impl::basic::Literal
-/// [`chase::impl::reference`]: crate::chase::impl::reference
-/// [`chase::impl::basic`]: crate::chase::impl::basic
+/// [`collapse`]: self
+/// [`basic`]: crate::chase::impl::basic
 pub type Literal = basic::Literal;
 
 #[cfg(test)]
-mod test_reference {
-    use super::{next_assignment, Evaluator, Model, Sequent};
+mod test_collapse {
+    use super::{next_assignment, ColEvaluator, ColModel};
     use crate::chase::{
-        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Fair, SchedulerTrait,
-        StrategyTrait,
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
     use std::collections::HashSet;
-    use std::fs;
+
+    static IGNORE_TEST: [&'static str; 1] = ["thy24.raz"];
 
     #[test]
     fn test_next_assignment() {
@@ -772,39 +785,47 @@ mod test_reference {
         }
     }
 
-    fn run_test(theory: &Theory<FOF>) -> Vec<Model> {
-        use std::convert::TryInto;
+    fn run(theory: &Theory<FOF>) -> Vec<ColModel> {
+        use crate::chase::PreProcessor;
 
-        let geometric_theory = theory.gnf();
-        let sequents: Vec<Sequent> = geometric_theory
-            .formulae()
-            .iter()
-            .map(|f| f.try_into().unwrap())
-            .collect();
+        let pre_processor = super::ColPreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
 
-        let evaluator = Evaluator;
-        let strategy = Fair::new(sequents.iter());
+        let evaluator = ColEvaluator;
+        let strategy: Linear<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
         let bounder: Option<&DomainSize> = None;
-        scheduler.add(Model::new(), strategy);
+        scheduler.add(init_model, strategy);
         chase_all(&mut scheduler, &evaluator, bounder)
     }
 
     #[test]
     fn test() {
-        for item in fs::read_dir("../theories/core").unwrap() {
-            let theory = read_theory_from_file(item.unwrap().path().display().to_string().as_str());
-            let basic_models = solve_basic(&theory);
-            let test_models = run_test(&theory);
-            let basic_models: HashSet<String> = basic_models
-                .into_iter()
-                .map(|m| print_basic_model(m))
-                .collect();
-            let test_models: HashSet<String> = test_models
-                .into_iter()
-                .map(|m| print_reference_model(m))
-                .collect();
-            assert_eq!(basic_models, test_models);
-        }
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| {
+                IGNORE_TEST.contains(&path.file_name().and_then(|f| f.to_str()).unwrap())
+            })
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_collapse_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

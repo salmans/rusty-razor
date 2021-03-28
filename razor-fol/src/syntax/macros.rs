@@ -245,7 +245,9 @@ macro_rules! fof {
     ($pred:ident ($($t:tt)*)) => {
         {
             let ts = $crate::terms!($($t)*);
-            $crate::syntax::Pred::from(stringify!($pred)).app(ts)
+            $crate::syntax::FOF::from(
+                $crate::syntax::Pred::from(stringify!($pred)).app(ts)
+            )
         }
     };
     // Equality

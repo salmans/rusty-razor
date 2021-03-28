@@ -1,5 +1,5 @@
 use super::Error;
-use crate::chase::{r#impl::basic::WitnessTerm, Observation, Rel, WitnessTermTrait, E};
+use crate::chase::{r#impl::basic::BasicWitnessTerm, Observation, Rel, WitnessTerm, E};
 use razor_fol::syntax;
 
 /// Is the symbol associated to a relational instance.
@@ -23,7 +23,7 @@ pub(super) enum Symbol {
 
 impl Symbol {
     /// Creates a witness term from `self`, given a list of arguments `E`.
-    pub fn witness(&self, args: &[E]) -> Result<WitnessTerm, Error> {
+    pub fn witness(&self, args: &[E]) -> Result<BasicWitnessTerm, Error> {
         match self {
             Symbol::Const(symbol) => {
                 assert!(args.is_empty());
@@ -32,7 +32,7 @@ impl Symbol {
             Symbol::Func { symbol, arity } => {
                 assert_eq!(args.len() as u8, *arity);
 
-                let witness = WitnessTerm::apply(
+                let witness = BasicWitnessTerm::apply(
                     symbol.clone(),
                     args.iter().map(|e| e.clone().into()).collect(),
                 );
@@ -45,31 +45,31 @@ impl Symbol {
     }
 
     /// Creates an observation from `self` with a slice of `E` as arguments.
-    pub fn observation(&self, args: &[E]) -> Option<Observation<WitnessTerm>> {
+    pub fn observation(&self, args: &[E]) -> Option<Observation<BasicWitnessTerm>> {
         match self {
             Symbol::Pred { symbol, arity } => {
                 assert_eq!(args.len() as u8, *arity);
                 Some(
                     Rel::from(symbol.name())
-                        .app(args.iter().map(|e| WitnessTerm::from(*e)).collect()),
+                        .app(args.iter().map(|e| BasicWitnessTerm::from(*e)).collect()),
                 )
             }
             Symbol::Equality => {
                 assert_eq!(args.len(), 2);
-                Some(WitnessTerm::from(args[0]).equals(args[1].into()))
+                Some(BasicWitnessTerm::from(args[0]).equals(args[1].into()))
             }
             Symbol::Const(c) => {
                 assert_eq!(args.len(), 1);
-                Some(WitnessTerm::from(c.clone()).equals(WitnessTerm::from(args[0])))
+                Some(BasicWitnessTerm::from(c.clone()).equals(BasicWitnessTerm::from(args[0])))
             }
             Symbol::Func { symbol, ref arity } => {
                 assert_eq!(args.len() as u8, arity + 1);
                 let last = args[*arity as usize];
-                let app = WitnessTerm::apply(
+                let app = BasicWitnessTerm::apply(
                     symbol.clone(),
                     args[0..(*arity as usize)]
                         .iter()
-                        .map(WitnessTerm::from)
+                        .map(BasicWitnessTerm::from)
                         .collect(),
                 );
                 Some(app.equals(last.into()))

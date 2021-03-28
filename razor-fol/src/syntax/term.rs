@@ -113,7 +113,6 @@ pub trait Substitution<T: Term> {
     fn apply(&self, v: &Var) -> T;
 }
 
-/// Any function from [`Var`] to [`Term`] is a substitution.
 impl<F, T> Substitution<T> for F
 where
     T: Term,
@@ -124,8 +123,16 @@ where
     }
 }
 
-/// Any map from [`Var`] to [`Term`] is a substitution.
 impl<T> Substitution<T> for HashMap<&Var, T>
+where
+    T: Term + Clone + From<Var>,
+{
+    fn apply(&self, v: &Var) -> T {
+        self.get(v).cloned().unwrap_or_else(|| v.clone().into())
+    }
+}
+
+impl<T> Substitution<T> for HashMap<Var, T>
 where
     T: Term + Clone + From<Var>,
 {
@@ -144,7 +151,6 @@ pub trait Renaming {
     fn apply(&self, v: &Var) -> Var;
 }
 
-/// Any function from [`Var`] to [`Term`] is a variable renaming.
 impl<F> Renaming for F
 where
     F: Fn(&Var) -> Var,
@@ -154,7 +160,6 @@ where
     }
 }
 
-/// Any map from [`Var`] to [`Term`] is a variable renaming.
 impl Renaming for HashMap<&Var, Var> {
     fn apply(&self, v: &Var) -> Var {
         self.get(v).cloned().unwrap_or_else(|| v.clone())
@@ -299,7 +304,7 @@ impl fmt::Debug for Complex {
 }
 
 /// Is a flat [`Term`] type, consisting of variables only.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Debug)]
 pub struct Variable(Var);
 
 impl Variable {

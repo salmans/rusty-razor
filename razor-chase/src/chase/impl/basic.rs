@@ -22,13 +22,13 @@ use std::{
 // Is a *positive* literal apearing in the body and the head of sequents
 pub type Literal = Atomic<Complex>;
 
-/// Is a straight forward implementation for [`WitnessTermTrait`], where elements are of type
+/// Is a straight forward implementation for [`WitnessTerm`], where elements are of type
 /// [`E`].
 ///
-/// [`WitnessTermTrait`]: crate::chase::WitnessTermTrait
+/// [`WitnessTerm`]: crate::chase::WitnessTerm
 /// [`E`]: crate::chase::E
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
-pub enum WitnessTerm {
+pub enum BasicWitnessTerm {
     /// Wraps an instance of [`E`], witnessing itself.
     ///
     /// [`E`]: crate::chase::E
@@ -47,7 +47,7 @@ pub enum WitnessTerm {
     App { function: Func, terms: Vec<Self> },
 }
 
-impl WitnessTerm {
+impl BasicWitnessTerm {
     /// Given a `term` and an assignment function `assign` from variables of the term to elements
     /// of a [`Model`], constructs a [`WitnessTerm`].
     fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
@@ -66,61 +66,61 @@ impl WitnessTerm {
 
     /// Builds a term by applying `function` on `args` as arguments.
     pub fn apply(function: Func, terms: Vec<Self>) -> Self {
-        WitnessTerm::App { function, terms }
+        BasicWitnessTerm::App { function, terms }
     }
 }
 
-impl WitnessTermTrait for WitnessTerm {
+impl WitnessTerm for BasicWitnessTerm {
     type ElementType = E;
 }
 
-impl fmt::Display for WitnessTerm {
+impl fmt::Display for BasicWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Elem(e) => write!(f, "{}", e),
             Self::Const(c) => write!(f, "{}", c),
             Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-                write!(f, "{}[{}]", function, ts.join(", "))
+                write!(f, "{}({})", function, ts.join(", "))
             }
         }
     }
 }
 
-impl fmt::Debug for WitnessTerm {
+impl fmt::Debug for BasicWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
 
-impl From<Const> for WitnessTerm {
+impl From<Const> for BasicWitnessTerm {
     fn from(constant: Const) -> Self {
         Self::Const(constant)
     }
 }
 
-impl From<&Const> for WitnessTerm {
+impl From<&Const> for BasicWitnessTerm {
     fn from(constant: &Const) -> Self {
         Self::from(constant.clone())
     }
 }
 
-impl From<E> for WitnessTerm {
+impl From<E> for BasicWitnessTerm {
     fn from(element: E) -> Self {
-        WitnessTerm::Elem(element)
+        BasicWitnessTerm::Elem(element)
     }
 }
 
-impl From<&E> for WitnessTerm {
+impl From<&E> for BasicWitnessTerm {
     fn from(element: &E) -> Self {
         Self::from(*element)
     }
 }
 
-/// Is a basic instance of [`ModelTrait`] with terms of type [`WitnessTerm`].
+/// Is a basic instance of [`Model`] with terms of type [`WitnessTerm`].
 ///
-/// [`ModelTrait`]: crate::chase::ModelTrait
-pub struct Model {
+/// [`Model`]: crate::chase::Model
+pub struct BasicModel {
     /// Is a unique identifier for this model.
     id: u64,
 
@@ -131,10 +131,10 @@ pub struct Model {
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
-    rewrites: HashMap<WitnessTerm, E>,
+    rewrites: HashMap<BasicWitnessTerm, E>,
 
     /// Contains a list of relational facts that are true in this model.
-    facts: HashSet<Observation<WitnessTerm>>,
+    facts: HashSet<Observation<BasicWitnessTerm>>,
 
     /// Maintains a list of rewrite rules from elements to elements with which they have been
     /// identified.
@@ -154,7 +154,7 @@ pub struct Model {
     equality_history: HashMap<E, E>,
 }
 
-impl Model {
+impl BasicModel {
     /// Creates a new empty instance of this model.
     pub fn new() -> Self {
         Self {
@@ -172,20 +172,22 @@ impl Model {
     }
 
     /// Returns a reference to an element witnessed by the given witness term.
-    fn element_ref(&self, witness: &WitnessTerm) -> Option<&E> {
+    fn element_ref(&self, witness: &BasicWitnessTerm) -> Option<&E> {
         match witness {
-            WitnessTerm::Elem(element) => self.domain_ref().into_iter().find(|e| e.eq(&element)),
-            WitnessTerm::Const(_) => self.rewrites.get(witness),
-            WitnessTerm::App { function, terms } => {
+            BasicWitnessTerm::Elem(element) => {
+                self.domain_ref().into_iter().find(|e| e.eq(&element))
+            }
+            BasicWitnessTerm::Const(_) => self.rewrites.get(witness),
+            BasicWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
-                    self.rewrites.get(&WitnessTerm::App {
+                    self.rewrites.get(&BasicWitnessTerm::App {
                         function: (*function).clone(),
                         terms,
                     })
@@ -211,7 +213,7 @@ impl Model {
 
     /// Creates a new element for the given `witness` and records that `witness` denotes the new
     /// element.
-    fn new_element(&mut self, witness: WitnessTerm) -> E {
+    fn new_element(&mut self, witness: BasicWitnessTerm) -> E {
         let element = E(self.element_index);
         self.element_index += 1;
         self.rewrites.insert(witness, element);
@@ -223,9 +225,9 @@ impl Model {
     ///
     /// **Note**: `record` creates new elements that are denoted by `witness` and all sub-terms of
     /// `witness` and adds them to the domain of `self`.
-    fn record(&mut self, witness: &WitnessTerm) -> E {
+    fn record(&mut self, witness: &BasicWitnessTerm) -> E {
         match witness {
-            WitnessTerm::Elem(element) => {
+            BasicWitnessTerm::Elem(element) => {
                 let element = self.history(element);
                 if self.domain().iter().any(|e| element.eq(e)) {
                     element
@@ -233,16 +235,17 @@ impl Model {
                     unreachable!("missing element `{}`", element)
                 }
             }
-            WitnessTerm::Const(_) => {
+            BasicWitnessTerm::Const(_) => {
                 if let Some(e) = self.rewrites.get(&witness) {
                     *e
                 } else {
                     self.new_element(witness.clone())
                 }
             }
-            WitnessTerm::App { function, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
-                let witness = WitnessTerm::App {
+            BasicWitnessTerm::App { function, terms } => {
+                let terms: Vec<BasicWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
+                let witness = BasicWitnessTerm::App {
                     function: function.clone(),
                     terms,
                 };
@@ -263,17 +266,17 @@ impl Model {
     /// one.
     ///
     /// [`Observation`]: crate::chase::Observation
-    /// [witness term]: crate::chase::WitnessTermTrait
+    /// [witness term]: crate::chase::WitnessTerm
     fn reduce_rewrites(&mut self, from: &E, to: &E) {
-        let mut new_rewrite: HashMap<WitnessTerm, E> = HashMap::new();
+        let mut new_rewrite: HashMap<BasicWitnessTerm, E> = HashMap::new();
         self.rewrites.iter().for_each(|(k, v)| {
             // k is a flat term and cannot be an element:
-            let key = if let WitnessTerm::App { function, terms } = k {
-                let mut new_terms: Vec<WitnessTerm> = Vec::new();
+            let key = if let BasicWitnessTerm::App { function, terms } = k {
+                let mut new_terms: Vec<BasicWitnessTerm> = Vec::new();
                 terms.iter().for_each(|t| {
-                    if let WitnessTerm::Elem(element) = t {
+                    if let BasicWitnessTerm::Elem(element) = t {
                         if element == to {
-                            new_terms.push(WitnessTerm::Elem(*from));
+                            new_terms.push(BasicWitnessTerm::Elem(*from));
                         } else {
                             new_terms.push(t.clone());
                         }
@@ -281,7 +284,7 @@ impl Model {
                         new_terms.push(t.clone());
                     }
                 });
-                WitnessTerm::App {
+                BasicWitnessTerm::App {
                     function: function.clone(),
                     terms: new_terms,
                 }
@@ -303,7 +306,7 @@ impl Model {
     /// one.
     ///
     /// [`Observation`]: crate::chase::Observation
-    /// [witness term]: crate::chase::WitnessTermTrait
+    /// [witness term]: crate::chase::WitnessTerm
     fn reduce_facts(&mut self, from: &E, to: &E) {
         self.facts = self
             .facts
@@ -314,10 +317,10 @@ impl Model {
                     ref terms,
                 } = f
                 {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .iter()
                         .map(|t| {
-                            if let WitnessTerm::Elem(element) = t {
+                            if let BasicWitnessTerm::Elem(element) = t {
                                 if element == to {
                                     from.clone().into()
                                 } else {
@@ -340,10 +343,11 @@ impl Model {
     }
 
     /// Augments `self` with `observation`, making `observation` true in `self`.
-    fn observe(&mut self, observation: &Observation<WitnessTerm>) {
+    fn observe(&mut self, observation: &Observation<BasicWitnessTerm>) {
         match observation {
             Observation::Fact { relation, terms } => {
-                let terms: Vec<WitnessTerm> = terms.iter().map(|t| self.record(t).into()).collect();
+                let terms: Vec<BasicWitnessTerm> =
+                    terms.iter().map(|t| self.record(t).into()).collect();
                 let observation = Observation::Fact {
                     relation: relation.clone(),
                     terms,
@@ -371,14 +375,14 @@ impl Model {
     }
 
     /// Returns true if `observation` is true in `self`; otherwise, returns false.
-    fn is_observed(&self, observation: &Observation<WitnessTerm>) -> bool {
+    fn is_observed(&self, observation: &Observation<BasicWitnessTerm>) -> bool {
         match observation {
             Observation::Fact { relation, terms } => {
                 let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<WitnessTerm> = terms
+                    let terms: Vec<BasicWitnessTerm> = terms
                         .into_iter()
                         .map(|e| e.unwrap().clone().into())
                         .collect();
@@ -397,13 +401,13 @@ impl Model {
     }
 }
 
-impl Default for Model {
+impl Default for BasicModel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for Model {
+impl Clone for BasicModel {
     fn clone(&self) -> Self {
         Self {
             id: rand::random(),
@@ -417,8 +421,8 @@ impl Clone for Model {
     }
 }
 
-impl ModelTrait for Model {
-    type TermType = WitnessTerm;
+impl Model for BasicModel {
+    type TermType = BasicWitnessTerm;
 
     fn get_id(&self) -> u64 {
         self.id
@@ -438,7 +442,7 @@ impl ModelTrait for Model {
             .collect()
     }
 
-    fn witness(&self, element: &E) -> Vec<WitnessTerm> {
+    fn witness(&self, element: &E) -> Vec<BasicWitnessTerm> {
         self.rewrites
             .iter()
             .filter(|(_, e)| *e == element)
@@ -447,7 +451,7 @@ impl ModelTrait for Model {
             .collect()
     }
 
-    fn element(&self, witness: &WitnessTerm) -> Option<E> {
+    fn element(&self, witness: &BasicWitnessTerm) -> Option<E> {
         self.element_ref(witness).cloned()
     }
 
@@ -456,7 +460,7 @@ impl ModelTrait for Model {
     }
 }
 
-impl fmt::Display for Model {
+impl fmt::Debug for BasicModel {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let domain: Vec<String> = self.domain().into_iter().map(|e| e.to_string()).collect();
         let elements: Vec<String> = self
@@ -485,7 +489,7 @@ impl fmt::Display for Model {
 /// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
 /// head.
 #[derive(Clone)]
-pub struct Sequent {
+pub struct BasicSequent {
     /// Is the list of free variables in the sequent and is used for memoization.
     pub free_vars: Vec<Var>,
 
@@ -509,8 +513,8 @@ pub struct Sequent {
     head_fof: FOF,
 }
 
-impl From<&GNF> for Sequent {
-    fn from(gnf: &GNF) -> Self {
+impl From<GNF> for BasicSequent {
+    fn from(gnf: GNF) -> Self {
         let gnf_body = gnf.body();
         let gnf_head = gnf.head();
         let free_vars = gnf.free_vars().into_iter().cloned().collect();
@@ -531,7 +535,7 @@ impl From<&GNF> for Sequent {
     }
 }
 
-impl fmt::Display for Sequent {
+impl fmt::Display for BasicSequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let body: Vec<String> = self.body.iter().map(|l| l.to_string()).collect();
         let head: Vec<String> = self
@@ -546,7 +550,7 @@ impl fmt::Display for Sequent {
     }
 }
 
-impl SequentTrait for Sequent {
+impl Sequent for BasicSequent {
     fn body(&self) -> FOF {
         self.body_fof.clone()
     }
@@ -556,50 +560,60 @@ impl SequentTrait for Sequent {
     }
 }
 
-/// A simple instance of [`PreProcessorEx`] that converts the input theory to a vector of [`Sequent`] following
+/// A simple instance of [`PreProcessor`] that converts the input theory to a vector of [`Sequent`] following
 /// the standard conversion to geometric normal form. Also provides the empty [`Model`];
 ///
-/// [`PreProcessorEx`]: crate::chase::PreProcessorEx
-pub struct PreProcessor;
+/// [`PreProcessor`]: crate::chase::PreProcessor
+pub struct BasicPreProcessor;
 
-impl PreProcessorEx for PreProcessor {
-    type Sequent = Sequent;
-    type Model = Model;
+impl PreProcessor for BasicPreProcessor {
+    type Sequent = BasicSequent;
+    type Model = BasicModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use std::convert::TryInto;
+        use razor_fol::transform::ToGNF;
+        use razor_fol::transform::ToSNF;
 
-        (
-            theory
-                .gnf()
-                .formulae()
-                .iter()
-                .map(|f| f.try_into().unwrap())
-                .collect(),
-            Model::new(),
-        )
+        let mut c_counter: u32 = 0;
+        let mut f_counter: u32 = 0;
+        let mut const_generator = || {
+            let name = format!("c#{}", c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = format!("f#{}", f_counter);
+            f_counter += 1;
+            name.into()
+        };
+
+        let geo_theory = theory
+            .iter()
+            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
+            .flat_map(|f| f.gnf())
+            .map(BasicSequent::from)
+            .collect();
+        (geo_theory, BasicModel::new())
     }
 }
 
-/// Is a reference implementation of [`EvaluatorTrait`] for evaluating a basic [`Sequent`] in a basic [`Model`]
+/// Is a reference implementation of [`Evaluator`] for evaluating a basic [`Sequent`] in a basic [`Model`]
 /// within a [chase-step].
 ///
-/// [`EvaluatorTrait`]: crate::chase::EvaluatorTrait
+/// [`Evaluator`]: crate::chase::Evaluator
 /// [chase-step]: crate::chase#chase-step
-pub struct Evaluator;
+pub struct BasicEvaluator;
 
-impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait<'s, Stg, B>
-    for Evaluator
-{
-    type Sequent = Sequent;
-    type Model = Model;
+impl<'s, Stg: Strategy<&'s BasicSequent>, B: Bounder> Evaluator<'s, Stg, B> for BasicEvaluator {
+    type Sequent = BasicSequent;
+    type Model = BasicModel;
 
     fn evaluate(
         &self,
-        initial_model: &Model,
+        initial_model: &BasicModel,
         strategy: &mut Stg,
         bounder: Option<&B>,
-    ) -> Option<EvaluateResult<Model>> {
+    ) -> Option<EvaluateResult<BasicModel>> {
         let domain: Vec<&E> = initial_model.domain_ref().clone();
         let domain_size = domain.len();
         for sequent in strategy {
@@ -627,9 +641,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                 let observe_literal = make_observe_literal(assignment_func);
 
                 // build body and head observations
-                let body: Vec<Observation<WitnessTerm>> =
+                let body: Vec<Observation<BasicWitnessTerm>> =
                     sequent.body.iter().map(&observe_literal).collect();
-                let head: Vec<Vec<Observation<WitnessTerm>>> = sequent
+                let head: Vec<Vec<Observation<BasicWitnessTerm>>> = sequent
                     .head
                     .iter()
                     .map(|l| l.iter().map(&observe_literal).collect())
@@ -646,13 +660,14 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
                         return None; // the chase fails if the head is empty (false)
                     } else {
                         // if there is a bounder, only extend models that are not out of the given bound:
-                        let models: Vec<Either<Model, Model>> = if let Some(bounder) = bounder {
-                            let extend = make_bounded_extend(bounder, initial_model);
-                            head.iter().map(extend).collect()
-                        } else {
-                            let extend = make_extend(initial_model);
-                            head.iter().map(extend).collect()
-                        };
+                        let models: Vec<Either<BasicModel, BasicModel>> =
+                            if let Some(bounder) = bounder {
+                                let extend = make_bounded_extend(bounder, initial_model);
+                                head.iter().map(extend).collect()
+                            } else {
+                                let extend = make_extend(initial_model);
+                                head.iter().map(extend).collect()
+                            };
 
                         let result = EvaluateResult::from(models);
                         if !result.empty() {
@@ -674,9 +689,9 @@ impl<'s, Stg: StrategyTrait<Item = &'s Sequent>, B: BounderTrait> EvaluatorTrait
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
 // observations.
 fn make_extend<'m>(
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &'m Vec<Observation<WitnessTerm>>| {
+    model: &'m BasicModel,
+) -> impl FnMut(&'m Vec<Observation<BasicWitnessTerm>>) -> Either<BasicModel, BasicModel> {
+    move |os: &'m Vec<Observation<BasicWitnessTerm>>| {
         let mut model = model.clone();
         os.iter().foreach(|o| model.observe(o));
         Either::Left(model)
@@ -687,11 +702,11 @@ fn make_extend<'m>(
 // observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
 // bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
 // `Either::Left` has reached the bounds provided by `bounder`.
-fn make_bounded_extend<'m, B: BounderTrait>(
+fn make_bounded_extend<'m, B: Bounder>(
     bounder: &'m B,
-    model: &'m Model,
-) -> impl FnMut(&'m Vec<Observation<WitnessTerm>>) -> Either<Model, Model> {
-    move |os: &Vec<Observation<WitnessTerm>>| {
+    model: &'m BasicModel,
+) -> impl FnMut(&'m Vec<Observation<BasicWitnessTerm>>) -> Either<BasicModel, BasicModel> {
+    move |os: &Vec<Observation<BasicWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
         os.iter().foreach(|o| {
@@ -715,13 +730,13 @@ fn make_bounded_extend<'m, B: BounderTrait>(
 // assignments to literals of a sequent, returning observations.
 fn make_observe_literal(
     assignment_func: impl Fn(&Var) -> E,
-) -> impl Fn(&Literal) -> Observation<WitnessTerm> {
+) -> impl Fn(&Literal) -> Observation<BasicWitnessTerm> {
     move |lit: &Literal| match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| WitnessTerm::witness(t, &assignment_func))
+                .map(|t| BasicWitnessTerm::witness(t, &assignment_func))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -729,8 +744,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = WitnessTerm::witness(&this.left, &assignment_func);
-            let right = WitnessTerm::witness(&this.right, &assignment_func);
+            let left = BasicWitnessTerm::witness(&this.left, &assignment_func);
+            let right = BasicWitnessTerm::witness(&this.right, &assignment_func);
             Observation::Identity { left, right }
         }
     }
@@ -755,46 +770,49 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 #[cfg(test)]
 mod test_basic {
     use super::*;
+    use crate::chase::{
+        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
+    };
     use crate::test_prelude::*;
     use razor_fol::transform::ToGNF;
     use std::iter::FromIterator;
 
     // Witness Elements
-    pub fn _e_0() -> WitnessTerm {
+    pub fn _e_0() -> BasicWitnessTerm {
         e_0().into()
     }
 
-    pub fn _e_1() -> WitnessTerm {
+    pub fn _e_1() -> BasicWitnessTerm {
         e_1().into()
     }
 
-    pub fn _e_2() -> WitnessTerm {
+    pub fn _e_2() -> BasicWitnessTerm {
         e_2().into()
     }
 
-    pub fn _e_3() -> WitnessTerm {
+    pub fn _e_3() -> BasicWitnessTerm {
         e_3().into()
     }
 
-    pub fn _e_4() -> WitnessTerm {
+    pub fn _e_4() -> BasicWitnessTerm {
         e_4().into()
     }
 
     // Witness Constants
-    pub fn _a_() -> WitnessTerm {
-        WitnessTerm::Const(_a())
+    pub fn _a_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_a())
     }
 
-    pub fn _b_() -> WitnessTerm {
-        WitnessTerm::Const(_b())
+    pub fn _b_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_b())
     }
 
-    pub fn _c_() -> WitnessTerm {
-        WitnessTerm::Const(_c())
+    pub fn _c_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_c())
     }
 
-    pub fn _d_() -> WitnessTerm {
-        WitnessTerm::Const(_d())
+    pub fn _d_() -> BasicWitnessTerm {
+        BasicWitnessTerm::Const(_d())
     }
 
     #[test]
@@ -815,30 +833,37 @@ mod test_basic {
 
     #[test]
     fn test_empty_model() {
-        let model = Model::new();
+        let model = BasicModel::new();
         let empty_domain: Vec<E> = Vec::new();
-        let empty_facts: Vec<Observation<WitnessTerm>> = Vec::new();
+        let empty_facts: Vec<Observation<BasicWitnessTerm>> = Vec::new();
         assert_eq!(empty_domain, model.domain());
         assert_eq_sets(&empty_facts, &model.facts());
     }
 
     #[test]
     fn test_witness_app() {
-        let f_0 = WitnessTerm::apply(f(), vec![]);
-        assert_eq!("f[]", f_0.to_string());
-        assert_eq!("f['c]", WitnessTerm::apply(f(), vec![_c_()]).to_string());
-        let g_0 = WitnessTerm::apply(g(), vec![]);
-        assert_eq!("f[g[]]", WitnessTerm::apply(f(), vec![g_0]).to_string());
+        let f_0 = BasicWitnessTerm::apply(f(), vec![]);
+        assert_eq!("f()", f_0.to_string());
         assert_eq!(
-            "f['c, g['d]]",
-            WitnessTerm::apply(f(), vec![_c_(), WitnessTerm::apply(g(), vec![_d_()])]).to_string()
+            "f('c)",
+            BasicWitnessTerm::apply(f(), vec![_c_()]).to_string()
+        );
+        let g_0 = BasicWitnessTerm::apply(g(), vec![]);
+        assert_eq!(
+            "f(g())",
+            BasicWitnessTerm::apply(f(), vec![g_0]).to_string()
+        );
+        assert_eq!(
+            "f('c, g('d))",
+            BasicWitnessTerm::apply(f(), vec![_c_(), BasicWitnessTerm::apply(g(), vec![_d_()])])
+                .to_string()
         );
     }
 
     #[test]
     fn test_observe() {
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app0());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app0()].into_iter()),
@@ -847,7 +872,7 @@ mod test_basic {
             assert!(model.is_observed(&_R_().app0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app1(_c_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
             assert_eq_sets(
@@ -860,23 +885,23 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_a_().equals(_b_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
-            let empty_facts: Vec<Observation<WitnessTerm>> = Vec::new();
+            let empty_facts: Vec<Observation<BasicWitnessTerm>> = Vec::new();
             assert_eq_sets(&empty_facts, &model.facts());
             assert_eq_sets(&Vec::from_iter(vec![_a_(), _b_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_a_().equals(_a_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
-            let empty_facts: Vec<Observation<WitnessTerm>> = Vec::new();
+            let empty_facts: Vec<Observation<BasicWitnessTerm>> = Vec::new();
             assert_eq_sets(&empty_facts, &model.facts());
             assert_eq_sets(&Vec::from_iter(vec![_a_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_P_().app1(_a_()));
             model.observe(&_Q_().app1(_b_()));
             model.observe(&_a_().equals(_b_()));
@@ -894,23 +919,23 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![_a_(), _b_()]), &model.witness(&e_0()));
         }
         {
-            let mut model = Model::new();
-            model.observe(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()])));
+            let mut model = BasicModel::new();
+            model.observe(&_R_().app1(BasicWitnessTerm::apply(f(), vec![_c_()])));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
                 &Vec::from_iter(vec![_R_().app1(_e_1())].into_iter()),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app1(_e_1())));
-            assert!(model.is_observed(&_R_().app1(WitnessTerm::apply(f(), vec![_c_()]))));
+            assert!(model.is_observed(&_R_().app1(BasicWitnessTerm::apply(f(), vec![_c_()]))));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
+                &Vec::from_iter(vec![BasicWitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app2(_a_(), _b_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
@@ -923,10 +948,10 @@ mod test_basic {
             assert_eq_sets(&Vec::from_iter(vec![_b_()]), &model.witness(&e_1()));
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app2(
-                WitnessTerm::apply(f(), vec![_c_()]),
-                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])]),
+                BasicWitnessTerm::apply(f(), vec![_c_()]),
+                BasicWitnessTerm::apply(g(), vec![BasicWitnessTerm::apply(f(), vec![_c_()])]),
             ));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1(), e_2()]), &model.domain());
             assert_eq_sets(
@@ -935,24 +960,23 @@ mod test_basic {
             );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
             assert!(model.is_observed(&_R_().app2(
-                WitnessTerm::apply(f(), vec![_c_()]),
-                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_c_()])])
+                BasicWitnessTerm::apply(f(), vec![_c_()]),
+                BasicWitnessTerm::apply(g(), vec![BasicWitnessTerm::apply(f(), vec![_c_()])])
             )));
-            assert!(
-                model.is_observed(&_R_().app(vec![WitnessTerm::apply(f(), vec![_c_()]), _e_2()]))
-            );
+            assert!(model
+                .is_observed(&_R_().app(vec![BasicWitnessTerm::apply(f(), vec![_c_()]), _e_2()])));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
             assert_eq_sets(
-                &Vec::from_iter(vec![WitnessTerm::apply(f(), vec![_e_0()])]),
+                &Vec::from_iter(vec![BasicWitnessTerm::apply(f(), vec![_e_0()])]),
                 &model.witness(&e_1()),
             );
             assert_eq_sets(
-                &Vec::from_iter(vec![WitnessTerm::apply(g(), vec![_e_1()])]),
+                &Vec::from_iter(vec![BasicWitnessTerm::apply(g(), vec![_e_1()])]),
                 &model.witness(&e_2()),
             );
         }
         {
-            let mut model = Model::new();
+            let mut model = BasicModel::new();
             model.observe(&_R_().app(vec![_a_(), _b_()]));
             model.observe(&_S_().app(vec![_c_(), _d_()]));
             assert_eq_sets(
@@ -967,11 +991,11 @@ mod test_basic {
             );
         }
         {
-            let mut model = Model::new();
-            model.observe(&_R_().app(vec![_a_(), WitnessTerm::apply(f(), vec![_a_()])]));
+            let mut model = BasicModel::new();
+            model.observe(&_R_().app(vec![_a_(), BasicWitnessTerm::apply(f(), vec![_a_()])]));
             model.observe(&_S_().app(vec![_b_()]));
             model.observe(&_R_().app(vec![
-                WitnessTerm::apply(g(), vec![WitnessTerm::apply(f(), vec![_a_()])]),
+                BasicWitnessTerm::apply(g(), vec![BasicWitnessTerm::apply(f(), vec![_a_()])]),
                 _b_(),
             ]));
             model.observe(&_S_().app(vec![_c_()]));
@@ -997,13 +1021,13 @@ mod test_basic {
     #[test]
     #[should_panic]
     fn test_observe_missing_element() {
-        let mut model = Model::new();
+        let mut model = BasicModel::new();
         model.observe(&_R_().app1(_e_0()));
     }
 
     // Assumes that `fof` is in GNF, so it converts to a single GNF
-    fn sequents(gnfs: Vec<GNF>) -> Vec<Sequent> {
-        gnfs.iter().map(Sequent::from).collect()
+    fn sequents(gnfs: Vec<GNF>) -> Vec<BasicSequent> {
+        gnfs.into_iter().map(BasicSequent::from).collect()
     }
 
     #[test]
@@ -1047,7 +1071,7 @@ mod test_basic {
             sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
         );
         assert_debug_string(
-            "[[P(x, z), Q(x)] -> [[Q(x)], [R(z), S(z)]]]",
+            "[[P(x, z), Q(x)] -> [[Q(x)], [R(z)]], [P(x, z), Q(x)] -> [[Q(x)], [S(z)]]]",
             sequents(
                 "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
                     .parse::<FOF>()
@@ -1056,7 +1080,7 @@ mod test_basic {
             ),
         );
         assert_debug_string(
-            "[[D(x, y, z)] -> [[P(x), Q(x)], [P(y), Q(y)], [P(z), Q(z)]]]",
+"[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [P(z)], [Q(y)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[P(y)], [P(z)], [Q(x)]], [D(x, y, z)] -> [[P(y)], [Q(x)], [Q(z)]], [D(x, y, z)] -> [[P(z)], [Q(x)], [Q(y)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
             sequents(
                 "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
                     .parse::<FOF>()
@@ -1066,504 +1090,85 @@ mod test_basic {
         );
     }
 
+    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
+
+        let evaluator = BasicEvaluator;
+        let strategy: Linear<_> = sequents.iter().collect();
+
+        let mut scheduler = FIFO::new();
+        let bounder: Option<&DomainSize> = None;
+        scheduler.add(init_model, strategy);
+        chase_all(&mut scheduler, &evaluator, bounder)
+    }
+
+    fn run_domain_bounded(theory: &Theory<FOF>, bound: usize) -> Vec<BasicModel> {
+        let pre_processor = BasicPreProcessor;
+        let (sequents, init_model) = pre_processor.pre_process(theory);
+        let evaluator = BasicEvaluator;
+        let strategy: Linear<_> = sequents.iter().collect();
+        let mut scheduler = FIFO::new();
+        let bounder = DomainSize::from(bound);
+        let bounder: Option<&DomainSize> = Some(&bounder);
+        scheduler.add(init_model, strategy);
+        chase_all(&mut scheduler, &evaluator, bounder)
+    }
+
     #[test]
     fn test_core() {
-        assert_eq!(
-            "Domain: {e#0}\n\
-                      Facts: <P(e#0)>\n\
-                      'a -> e#0",
-            print_basic_models(solve_basic(&&read_theory_from_file(
-                "../theories/core/thy0.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <P(e#0)>, <P(e#1)>\n\
-                       'a -> e#0\n\
-                       'b -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy1.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>\n\
-                       'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy2.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <R(e#0, e#1)>\n\
-                       'c#0 -> e#0\n\
-                       'c#1 -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy3.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                Facts: \n\
-                'a, 'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy4.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <P(e#0, e#1)>\n\
-                       'a -> e#0\n\
-                       'b -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy5.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-                       Facts: <P(e#1)>\n\
-                       'a -> e#0\n\
-                       f[e#0] -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy6.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>\n\
-                       'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy7.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>\n\
-                       'a -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <Q(e#0)>\n\
-                       'b -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <R(e#0)>\n\
-                       'c -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy8.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>\n\
-                       'a, 'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy9.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <R(e#0)>\n\
-                       'a -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <Q(e#0)>, <S(e#0)>\n\
-                       'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy10.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-                       Facts: \n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy11.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-                       Facts: \n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy12.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy13.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <Q(e#0)>\n\
-                       'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy14.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy15.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0, e#0)>, <Q(e#0)>\n\
-                       'c -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy16.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2}\nFacts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\'a -> e#0\n\'b -> e#1\n\'c -> e#2",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy17.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2}\n\
-                       Facts: <P(e#0, e#1)>, <P(e#2, e#2)>, <Q(e#2)>\n\
-                       'a -> e#0\n\
-                       'b -> e#1\n\
-                       'c -> e#2",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy18.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: \n\
-                       'a -> e#0\n\
-                       f[e#0] -> e#1\n\
-                       f[e#1] -> e#2\n\
-                       f[e#2] -> e#3\n\
-                       f[e#3] -> e#4\n\
-                       f[e#4] -> e#5\n\
-                       f[e#5] -> e#6\n\
-                       f[e#6] -> e#7\n\
-                       f[e#7] -> e#8\n\
-                       f[e#8] -> e#9\n\
-                       'b, f[e#9] -> e#10",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy19.raz"
-            )))
-        );
-        assert_eq!("Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
-                       'a -> e#0\n\
-                       f[e#0] -> e#1\n\
-                       f[e#1] -> e#2\n\
-                       f[e#2] -> e#3\n\
-                       f[e#3] -> e#4\n\
-                       f[e#4] -> e#5\n\
-                       f[e#5] -> e#6\n\
-                       f[e#6] -> e#7\n\
-                       f[e#7] -> e#8\n\
-                       f[e#8] -> e#9\n\
-                       'b, f[e#9] -> e#10", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy20.raz"))));
-        assert_eq!("Domain: {e#0, e#1, e#10, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-                       Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>\n\
-                       'a -> e#0\n\
-                       f[e#0] -> e#1\n\
-                       f[e#1] -> e#2\n\
-                       f[e#2] -> e#3\n\
-                       f[e#3] -> e#4\n\
-                       f[e#4] -> e#5\n\
-                       f[e#5] -> e#6\n\
-                       f[e#6] -> e#7\n\
-                       f[e#7] -> e#8\n\
-                       f[e#8] -> e#9\n\
-                       'b, f[e#9] -> e#10", print_basic_models(solve_basic(&read_theory_from_file("../theories/core/thy21.raz"))));
-        assert_eq!(
-            "Domain: {e#0}\n\
-                Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>\n\
-                'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy22.raz"
-            )))
-        );
-        assert_eq!(
-"Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>\n\'c#0, \'c#1, \'c#2 -> e#0",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy23.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0)>, <T(e#0)>\n\
-                       'c#0, 'c#1, 'c#2, 'c#3 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy24.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2, e#3}\n\
-                       Facts: <P(e#0)>, <Q(e#1)>, <R(e#2)>, <S(e#3)>\n\
-                       'c#0 -> e#0\n\
-                       'c#1 -> e#1\n\
-                       'c#2 -> e#2\n\
-                       'c#3 -> e#3",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy25.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <P(e#0)>\n\
-                       'c#0 -> e#0\n\
-                       -- -- -- -- -- -- -- -- -- --\n\
-                       Domain: {e#0}\n\
-                       Facts: <P(e#0)>\n\
-                       'c#1 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy26.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy27.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-        Facts: <T()>, <V()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <U()>, <V()>\n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy28.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-        Facts: <P()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <R()>, <T()>, <V()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <R()>, <U()>, <V()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <S()>, <W()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <S()>, <X()>\n\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {}\n\
-        Facts: <Q()>, <S()>, <Y()>\n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy29.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy30.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-                       Facts: <Q(e#0, e#0)>, <R(e#0)>, <U(e#0)>\n\
-                       'c#0 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy31.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-        Facts: <Q(e#0, e#1)>, <R(e#0)>\n\
-        'c#0 -> e#0\n\
-        f#0[e#0] -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy32.raz"
-            )))
-        );
-        assert_eq!(
-"Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1111(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#12[e#4, e#5] -> e#6\nf#13[e#4, e#5] -> e#7\nf#28[e#6, e#7] -> e#8\nf#29[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q111(e#6, e#7)>, <Q1112(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#12[e#4, e#5] -> e#6\nf#13[e#4, e#5] -> e#7\nf#28[e#6, e#7] -> e#8\nf#29[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1121(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#12[e#4, e#5] -> e#6\nf#13[e#4, e#5] -> e#7\nf#32[e#6, e#7] -> e#8\nf#33[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q11(e#4, e#5)>, <Q112(e#6, e#7)>, <Q1122(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#12[e#4, e#5] -> e#6\nf#13[e#4, e#5] -> e#7\nf#32[e#6, e#7] -> e#8\nf#33[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1211(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#16[e#4, e#5] -> e#6\nf#17[e#4, e#5] -> e#7\nf#36[e#6, e#7] -> e#8\nf#37[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q121(e#6, e#7)>, <Q1212(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#16[e#4, e#5] -> e#6\nf#17[e#4, e#5] -> e#7\nf#36[e#6, e#7] -> e#8\nf#37[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1221(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#16[e#4, e#5] -> e#6\nf#17[e#4, e#5] -> e#7\nf#40[e#6, e#7] -> e#8\nf#41[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q1(e#2, e#3)>, <Q12(e#4, e#5)>, <Q122(e#6, e#7)>, <Q1222(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#4[e#2, e#3] -> e#4\nf#5[e#2, e#3] -> e#5\nf#16[e#4, e#5] -> e#6\nf#17[e#4, e#5] -> e#7\nf#40[e#6, e#7] -> e#8\nf#41[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2111(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#20[e#4, e#5] -> e#6\nf#21[e#4, e#5] -> e#7\nf#44[e#6, e#7] -> e#8\nf#45[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q211(e#6, e#7)>, <Q2112(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#20[e#4, e#5] -> e#6\nf#21[e#4, e#5] -> e#7\nf#44[e#6, e#7] -> e#8\nf#45[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2121(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#20[e#4, e#5] -> e#6\nf#21[e#4, e#5] -> e#7\nf#48[e#6, e#7] -> e#8\nf#49[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q21(e#4, e#5)>, <Q212(e#6, e#7)>, <Q2122(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#20[e#4, e#5] -> e#6\nf#21[e#4, e#5] -> e#7\nf#48[e#6, e#7] -> e#8\nf#49[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2211(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#24[e#4, e#5] -> e#6\nf#25[e#4, e#5] -> e#7\nf#52[e#6, e#7] -> e#8\nf#53[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q221(e#6, e#7)>, <Q2212(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#24[e#4, e#5] -> e#6\nf#25[e#4, e#5] -> e#7\nf#52[e#6, e#7] -> e#8\nf#53[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2221(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#24[e#4, e#5] -> e#6\nf#25[e#4, e#5] -> e#7\nf#56[e#6, e#7] -> e#8\nf#57[e#6, e#7] -> e#9\n-- -- -- -- -- -- -- -- -- --\nDomain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\nFacts: <Q(e#0, e#1)>, <Q2(e#2, e#3)>, <Q22(e#4, e#5)>, <Q222(e#6, e#7)>, <Q2222(e#8, e#9)>\n\'c#0 -> e#0\n\'c#1 -> e#1\nf#0[e#0, e#1] -> e#2\nf#1[e#0, e#1] -> e#3\nf#8[e#2, e#3] -> e#4\nf#9[e#2, e#3] -> e#5\nf#24[e#4, e#5] -> e#6\nf#25[e#4, e#5] -> e#7\nf#56[e#6, e#7] -> e#8\nf#57[e#6, e#7] -> e#9",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy36.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy37.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\nFacts: <R(e#0, e#0, e#0)>\n'c#0, 'c#1, 'c#2 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy38.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2, e#3, e#4, e#5, e#6}\n\
-                       Facts: <Q(e#1)>, <R(e#1, e#6)>\n\
-                       'c#0 -> e#0\n\
-                       f[e#0] -> e#1\n\
-                       f[e#1] -> e#2\n\
-                       f[e#2] -> e#3\n\
-                       f[e#3] -> e#4\n\
-                       f[e#4] -> e#5\n\
-                       f[e#5] -> e#6",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy39.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        Facts: <P(e#1)>, <Q(e#1)>, <R(e#0, e#1)>, <R(e#1, e#3)>, <S(e#4)>\n\
-        'c#0 -> e#0\n\
-        f[e#0] -> e#1\n\
-        f[e#1] -> e#2\n\
-        f[e#2] -> e#3\n\
-        f#0[e#1] -> e#4",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy40.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {}\n\
-                       Facts: \n",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy41.raz"
-            )))
-        );
-        assert_eq!(
-            "",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy42.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-        Facts: <P(e#0)>, <P(e#1)>, <Q(e#0)>, <Q(e#1)>\n\
-        'a -> e#0\n\
-        'b -> e#1",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy43.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\n\
-        Facts: <P(e#0)>, <Q(e#0)>\n\
-        'a -> e#0\n\
-        -- -- -- -- -- -- -- -- -- --\n\
-        Domain: {e#0}\n\
-        Facts: <P(e#0)>, <R(e#0)>\n\
-        'a -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy44.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0, e#1}\n\
-             Facts: <P(e#0)>, <Q(e#1)>, <R(e#0, e#1)>\n\
-             'a -> e#0\n\'b -> e#1\n\
-             -- -- -- -- -- -- -- -- -- --\n\
-             Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>\n\
-             'a, \
-             'b -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy45.raz"
-            )))
-        );
-        assert_eq!(
-            "Domain: {e#0}\nFacts: <P(e#0)>, <Q(e#0)>, <R(e#0, e#0)>\n\'c#0, \'c#1 -> e#0",
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy46.raz"
-            )))
-        );
-        assert_eq!("Domain: {e#0}\nFacts: <O(e#0)>, <P(e#0)>, <Q(e#0)>, <R(e#0)>, <S(e#0, e#0, e#0, e#0)>\n\'c#0, \'c#1, \'c#2, \'c#3 -> e#0",            
-            print_basic_models(solve_basic(&read_theory_from_file(
-                "../theories/core/thy47.raz"
-            )))
-        );
+        std::fs::read_dir("../theories/core")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run(&theory)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 
     #[test]
     fn test_bounded() {
-        //        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
-        //        'a -> e#0\n\
-        //        f[e#0] -> e#1\n\
-        //        f[e#1] -> e#2\n\
-        //        f[e#2] -> e#3\n\
-        //        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 5)));
-        //        assert_eq!("Domain: {e#0, e#1, e#10, e#11, e#12, e#13, e#14, e#15, e#16, e#17, e#18, e#19, e#2, e#3, e#4, e#5, e#6, e#7, e#8, e#9}\n\
-        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#10)>, <P(e#11)>, <P(e#12)>, <P(e#13)>, <P(e#14)>, <P(e#15)>, <P(e#16)>, <P(e#17)>, <P(e#18)>, <P(e#19)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <P(e#5)>, <P(e#6)>, <P(e#7)>, <P(e#8)>, <P(e#9)>\n\
-        //        'a -> e#0\n\
-        //        f[e#0] -> e#1\n\
-        //        f[e#1] -> e#2\n\
-        //        f[e#2] -> e#3\n\
-        //        f[e#3] -> e#4\n\
-        //        f[e#4] -> e#5\n\
-        //        f[e#5] -> e#6\n\
-        //        f[e#6] -> e#7\n\
-        //        f[e#7] -> e#8\n\
-        //        f[e#8] -> e#9\n\
-        //        f[e#9] -> e#10\n\
-        //        f[e#10] -> e#11\n\
-        //        f[e#11] -> e#12\n\
-        //        f[e#12] -> e#13\n\
-        //        f[e#13] -> e#14\n\
-        //        f[e#14] -> e#15\n\
-        //        f[e#15] -> e#16\n\
-        //        f[e#16] -> e#17\n\
-        //        f[e#17] -> e#18\n\
-        //        f[e#18] -> e#19", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy0.raz"), 20)));
-        //        assert_eq!("Domain: {e#0, e#1, e#2, e#3, e#4}\n\
-        //        Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>\n\
-        //        'a -> e#0\n\
-        //        f[e#0] -> e#1\n\
-        //        f[e#1] -> e#2\n\
-        //        f[e#2] -> e#3\n\
-        //        f[e#3] -> e#4", print_basic_models(solve_domain_bounded_basic(&read_theory_from_file("../theories/bounded/thy2.raz"), 5)));
-        assert_eq!(
-            r#"Domain: {e#0}
-Facts: <P(e#0)>, <Q(e#0)>
-'c#0 -> e#0"#,
-            print_basic_models(solve_domain_bounded_basic(
-                &read_theory_from_file("../theories/bounded/thy3.raz"),
-                5
-            ))
-        );
-        assert_eq!(
-            r#"Domain: {e#0}
-Facts: <P(e#0)>, <Q(e#0)>
-'a -> e#0
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1}
-Facts: <P(e#0)>, <P(e#1)>, <Q(e#1)>
-'a -> e#0
-f#0[e#0] -> e#1
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1, e#2}
-Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <Q(e#2)>
-'a -> e#0
-f#0[e#0] -> e#1
-f#0[e#1] -> e#2
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1, e#2, e#3}
-Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <Q(e#3)>
-'a -> e#0
-f#0[e#0] -> e#1
-f#0[e#1] -> e#2
-f#0[e#2] -> e#3
--- -- -- -- -- -- -- -- -- --
-Domain: {e#0, e#1, e#2, e#3, e#4}
-Facts: <P(e#0)>, <P(e#1)>, <P(e#2)>, <P(e#3)>, <P(e#4)>, <Q(e#4)>
-'a -> e#0
-f#0[e#0] -> e#1
-f#0[e#1] -> e#2
-f#0[e#2] -> e#3
-f#0[e#3] -> e#4"#,
-            print_basic_models(solve_domain_bounded_basic(
-                &read_theory_from_file("../theories/bounded/thy4.raz"),
-                5
-            ))
-        );
+        std::fs::read_dir("../theories/bounded")
+            .unwrap()
+            .map(|item| item.unwrap().path())
+            .filter(|path| path.ends_with(".raz"))
+            .for_each(|path| {
+                let theory = read_theory_from_file(path.to_str().unwrap());
+                let config = read_file(path.with_extension("config").to_str().unwrap())
+                    .parse::<usize>()
+                    .unwrap();
+                let expected: HashSet<String> =
+                    read_file(path.with_extension("model").to_str().unwrap())
+                        .split("\n-- -- -- -- -- -- -- -- -- --\n")
+                        .filter(|s| !s.is_empty())
+                        .map(Into::into)
+                        .collect();
+                let result: HashSet<_> = run_domain_bounded(&theory, config)
+                    .into_iter()
+                    .map(|m| print_basic_model(m))
+                    .collect();
+                assert_eq!(
+                    expected,
+                    result,
+                    "invalid result for theory {}",
+                    path.with_extension("").to_str().unwrap()
+                );
+            });
     }
 }

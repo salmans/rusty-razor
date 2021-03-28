@@ -1,52 +1,69 @@
-use super::{expression::Convertor, model::Model, sequent::Sequent};
-use crate::chase::PreProcessorEx;
+use super::{constants::*, expression::Convertor, model::RelModel, sequent::RelSequent};
+use crate::chase::PreProcessor;
 use itertools::Itertools;
 use razor_fol::{
     syntax::{formula::*, term::Complex, Sig, Theory, Var, FOF},
-    transform::{PCFSet, GNF, PCF},
+    transform::{PcfSet, GNF, PCF},
 };
 
-/// Is a [`PreProcessorEx`] instance that converts the input theory to a vector of [`Sequent`].
+/// Is a [`PreProcessor`] instance that converts the input theory to a vector of [`Sequent`].
 /// This is done by the standard conversion to geometric normal form followed by relationalization.
 /// The empty [`Model`] instance is created by adding all signature symbols to its underlying database.
 ///
-/// [`Sequent`]: crate::chase::impl::relational::Sequent
-/// [`Model`]: crate::chase::impl::relational::Model
-/// [`PreProcessorEx`]: crate::chase::PreProcessorEx
-pub struct PreProcessor {
+/// [`Sequent`]: crate::chase::impl::relational::RelSequent
+/// [`Model`]: crate::chase::impl::relational::RelModel
+/// [`PreProcessor`]: crate::chase::PreProcessor
+pub struct RelPreProcessor {
     memoize: bool,
 }
 
-impl PreProcessor {
+impl RelPreProcessor {
     pub fn new(memoize: bool) -> Self {
         Self { memoize }
     }
 }
 
-impl PreProcessorEx for PreProcessor {
-    type Sequent = Sequent;
-    type Model = Model;
+impl PreProcessor for RelPreProcessor {
+    type Sequent = RelSequent;
+    type Model = RelModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        let mut theory = theory.gnf();
-        theory
-            .extend(equality_axioms())
-            .expect("failed to add equality axioms");
-        theory
-            .extend(integrity_axioms(theory.signature()))
-            .expect("failed to add function integrity axioms");
+        use razor_fol::transform::ToGNF;
+        use razor_fol::transform::ToSNF;
 
-        let mut model = Model::new(&theory.signature());
+        let mut c_counter: u32 = 0;
+        let mut f_counter: u32 = 0;
+        let mut const_generator = || {
+            let name = skolem_constant_name(c_counter);
+            c_counter += 1;
+            name.into()
+        };
+        let mut fn_generator = || {
+            let name = skolem_function_name(f_counter);
+            f_counter += 1;
+            name.into()
+        };
+        let mut geo_theory: Theory<_> = theory
+            .iter()
+            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
+            .flat_map(|f| f.gnf())
+            .collect();
+
+        geo_theory.extend(equality_axioms());
+        let sig = geo_theory.signature().expect("invalid theory signature");
+        geo_theory.extend(integrity_axioms(&sig));
+
+        let mut model = RelModel::new(&sig);
         let mut convertor = if self.memoize {
             Convertor::memoizing(model.database_mut())
         } else {
             Convertor::new()
         };
 
-        let sequents = theory
+        let sequents = geo_theory
             .formulae()
             .iter()
-            .map(|fmla| Sequent::new(&fmla, &mut convertor).unwrap())
+            .map(|fmla| RelSequent::new(&fmla, &mut convertor).unwrap())
             .collect();
 
         (sequents, model)
@@ -88,7 +105,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PCFSet::from(PCF::from(x_y))).into();
+        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PcfSet::from(PCF::from(x_y))).into();
         result.push(gnf);
     }
 
@@ -129,7 +146,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(left), PCFSet::from(PCF::from(right))).into();
+        let gnf: GNF = (PCF::from(left), PcfSet::from(PCF::from(right))).into();
         result.push(gnf);
     }
 

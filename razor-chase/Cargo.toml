@@ -23,6 +23,7 @@ either = "1.6.1"
 thiserror = "^1.0"
 razor-fol = { path = "../razor-fol", version = "0.1.0" }
 codd = "^0.1"
+petgraph = "^0.5"
 
 [dev-dependencies]
 codd = { version = "^0.1", features = ["unstable"] }

@@ -1,0 +1,2 @@
+// exists x. next('test) = x & P(x);
+// P(x) -> exists y . next('test) = y & P(y);
