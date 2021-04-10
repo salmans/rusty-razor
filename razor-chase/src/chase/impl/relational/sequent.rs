@@ -107,12 +107,7 @@ impl RelSequent {
 
         // apply range restriction:
         let body_range_restricted = body_linear.range_restrict(&range, DOMAIN);
-
-        // When evaluating the head expression in a database, existential tables can be
-        // ignored: any tuple that satisfies the head expression ignoring existential tables
-        // can be ignored when extending the database since skolem functions are unique
-        // in each sequent anc cannot be filled by other sequents.
-        let head_range_restricted = remove_skolem(head_linear).range_restrict(&range, DOMAIN);
+        let head_range_restricted = head_linear.range_restrict(&range, DOMAIN);
 
         let body_attributes =
             AttributeList::try_from(&body_range_restricted)?.intersect(&head_attributes);
@@ -365,23 +360,6 @@ fn topo_sort(clause: FlatClause) -> Result<FlatClause, Error> {
         .into_iter()
         .map(|i| graph.remove_node(i).unwrap().clone())
         .collect())
-}
-
-fn remove_skolem(rel: Relational) -> Relational {
-    rel.into_iter().map(clause_remove_skolem).collect()
-}
-
-fn clause_remove_skolem(clause: FlatClause) -> FlatClause {
-    clause
-        .into_iter()
-        .filter(|item| {
-            if let Atomic::Atom(atom) = item {
-                !is_skolem_predicate(&atom.predicate.name())
-            } else {
-                true
-            }
-        })
-        .collect()
 }
 
 impl std::fmt::Display for RelSequent {
