@@ -81,6 +81,7 @@ pub(super) fn is_function_predicate(name: &str) -> bool {
 }
 
 // Returns true if the relational predicate corresponds to a function (or a constant)
+#[allow(dead_code)]
 pub(super) fn is_skolem_predicate(name: &str) -> bool {
     assert!(!name.is_empty());
     let postfix = &name[1..];
