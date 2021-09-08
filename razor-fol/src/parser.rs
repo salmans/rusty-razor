@@ -37,442 +37,216 @@
 //! [`Theory`]: crate::syntax::Theory
 //! [`FromStr`]: std::str::FromStr
 //! [`parse`]: ::std::str#parse
-use super::syntax::{FOF::*, *};
-use nom::{types::CompleteStr, *};
-use nom_locate::LocatedSpan;
+use super::syntax::{Theory, FOF};
+use lalrpop_util::ParseError;
 use std::str::FromStr;
 use thiserror::Error;
 
-const LOWER: &str = "abcdefghijklmnopqrstuvwxyz_";
-const UPPER: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const ALPHA_NUMERIC: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
-const COMMA: &str = ",";
-const APOSTROPHE: &str = "'";
-const L_PAREN: &str = "(";
-const R_PAREN: &str = ")";
-const TRUE: &str = "true";
-const CHAR_TOP: &str = "'|'";
-const TOP: &str = "⊤";
-const FALSE: &str = "false";
-const CHAR_BOTTOM: &str = "_|_";
-const BOTTOM: &str = "⟘";
-const EQUALS: &str = "=";
-const AND: &str = "and";
-const AMPERSAND: &str = "&";
-const WEDGE: &str = "∧";
-const OR: &str = "or";
-const BAR: &str = "|";
-const VEE: &str = "∨";
-const NOT: &str = "not";
-const TILDE: &str = "~";
-const NEG: &str = "¬";
-const IMPLIES: &str = "implies";
-const CHAR_RIGHT_ARROW: &str = "->";
-const RIGHT_ARROW: &str = "→";
-const IFF: &str = "iff";
-const CHAR_DOUBLE_ARROW: &str = "<=>";
-const DOUBLE_ARROW: &str = "⇔";
-const EXISTS: &str = "exists";
-const QUESTION: &str = "?";
-const CHAR_EXISTS: &str = "∃";
-const FORALL: &str = "forall";
-const EXCLAMATION: &str = "!";
-const CHAR_FORALL: &str = "∀";
-const DOT: &str = ".";
-const SEMI_COLON: &str = ";";
-const LINE_COMMENT: &str = "//";
-const L_BLOCK_COMMENT: &str = "/*";
-const R_BLOCK_COMMENT: &str = "*/";
+lalrpop_mod!(pub grammar); // synthesized by LALRPOP
 
-// Custom parsing errors:
-const ERR_DOT: u32 = 1;
-const ERR_SEMI_COLON: u32 = 2;
-const ERR_L_PAREN: u32 = 3;
-const ERR_R_PAREN: u32 = 4;
+#[derive(PartialEq, Debug)]
+pub enum TokenType {
+    Comma,
+    Dot,
+    Semicolon,
+    LParen,
+    RParen,
+    Equal,
+    True,
+    False,
+    Not,
+    And,
+    Or,
+    Implies,
+    Iff,
+    Forall,
+    Exists,
+    Lower,
+    Upper,
+    Const,
+    Unknown,
+}
 
-const ERR_LOWER: u32 = 21;
+impl<S: AsRef<str>> From<S> for TokenType {
+    fn from(s: S) -> Self {
+        match s.as_ref() {
+            "_COMMA_" => Self::Comma,
+            "_DOT_" => Self::Dot,
+            "_SEMICOLON_" => Self::Semicolon,
+            "_LPAREN_" => Self::LParen,
+            "_RPAREN_" => Self::RParen,
+            "_EQUAL_" => Self::Equal,
+            "_TRUE_" => Self::True,
+            "_FALSE_" => Self::False,
+            "_NOT_" => Self::Not,
+            "_AND_" => Self::And,
+            "_OR_" => Self::Or,
+            "_IMPLIES_" => Self::Implies,
+            "_IFF_" => Self::Iff,
+            "_FORALL_" => Self::Forall,
+            "_EXISTS_" => Self::Exists,
+            "_LOWER_" => Self::Lower,
+            "_UPPER_" => Self::Upper,
+            "_CONST_" => Self::Const,
+            _ => Self::Unknown,
+        }
+    }
+}
 
-const ERR_VARS: u32 = 31;
-const ERR_TERM: u32 = 32;
-
-const ERR_EQUALS: u32 = 41;
-const ERR_FORMULA: u32 = 42;
-
-fn error_code_to_string(code: u32) -> &'static str {
-    match code {
-        ERR_DOT => ".",
-        ERR_SEMI_COLON => ";",
-        ERR_L_PAREN => "(",
-        ERR_R_PAREN => ")",
-        ERR_LOWER => "lowercase identifier",
-        ERR_VARS => "variables",
-        ERR_TERM => "term",
-        ERR_EQUALS => "=",
-        ERR_FORMULA => "formula",
-        _ => "unknown",
+impl ToString for TokenType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Comma => "`,`",
+            Self::Dot => "`.`",
+            Self::Semicolon => "`;`",
+            Self::LParen => "`(`",
+            Self::RParen => "`)`",
+            Self::Equal => "`=`",
+            Self::True => "`true`",
+            Self::False => "`false`",
+            Self::Not => "`not`",
+            Self::And => "`and`",
+            Self::Or => "`or`",
+            Self::Implies => "`implies`",
+            Self::Iff => "`iff`",
+            Self::Forall => "`forall`",
+            Self::Exists => "`exists`",
+            Self::Lower => "`lowercase identifier`",
+            Self::Upper => "`uppercase identifier`",
+            Self::Const => "`constant identifier`",
+            Self::Unknown => "`unknown token`",
+        }
+        .into()
     }
 }
 
 /// Is the type of errors returned by the parser.
-#[derive(Error, Debug)]
+#[derive(Error, PartialEq, Debug)]
 pub enum Error {
-    #[error("missing `{}` at line {line:?}, column {column:?}", error_code_to_string(*.code))]
-    Missing { line: u32, column: u32, code: u32 },
-    #[error("expecting `{}` at line {line:?}, column {column:?}{}",
-            error_code_to_string(*.code),
-            .found.clone().map(|f| format!("; found \"{}\"", f)).unwrap_or_else(|| "".into())
+    #[error("found `{found:?}` at line {}, column {}; expecting {}",
+            (*.position).line,
+            (*.position).column,
+            Error::pretty_expected_tokens(&*.expected),
     )]
-    Expecting {
-        line: u32,
-        column: u32,
-        code: u32,
-        found: Option<String>,
+    UnrecognizedToken {
+        position: Position,
+        expected: Vec<TokenType>,
+        found: String,
     },
-    #[error("failed to parse the input at line {line:?}, column {column:?}")]
-    Failed { line: u32, column: u32 },
+    #[error("invalid token at line {}, column {}", (*.position).line, (*.position).column)]
+    InvalidToken { position: Position },
+    #[error("unexpected end of input at line {}, column {}; expecting {}",
+            (*.position).line,
+            (*.position).column,
+            Error::pretty_expected_tokens(&*.expected)
+    )]
+    UnrecognizedEOF {
+        position: Position,
+        expected: Vec<TokenType>,
+    },
     #[error("{}", .source.to_string())]
     Syntax {
         #[from]
         source: crate::syntax::Error,
     },
-    #[error("unknown error while parsing the input")]
-    Unknown,
+    #[error("unexpected token `{found:?}` at line {}, column {}", (*.position).line, (*.position).column)]
+    ExtraToken { position: Position, found: String },
 }
 
-type Span<'a> = LocatedSpan<CompleteStr<'a>>;
-
-named!(pub p_line_comment<Span, ()>,
-  map!(
-    many1!(
-      tuple!(
-        nom::space0,
-        preceded!(tag!(LINE_COMMENT), many0!(nom::not_line_ending)),
-        alt!(nom::line_ending | eof!())
-      )
-    ),
-    |_| ()
-  )
-);
-
-named!(pub p_block_comment<Span, ()>,
-  map!(
-    many1!(
-      tuple!(
-        nom::space0,
-        delimited!(
-            tag!(L_BLOCK_COMMENT),
-            many0!(is_not!(R_BLOCK_COMMENT)),
-            tag!(R_BLOCK_COMMENT)
-        )
-      )
-    ),
-    |_| ()
-  )
-);
-
-named!(pub spaces<Span, ()>,
-    map!(many0!(alt!(one_of!(&b" \t\n\r"[..]) => { |_|() } | p_line_comment | p_block_comment)), |_| ())
-);
-
-#[doc(hidden)]
-macro_rules! sp (
-  ($i:expr, $($args:tt)*) => (
-    {
-      use nom::Convert;
-      use nom::Err;
-
-      match sep!($i, spaces, $($args)*) {
-        Err(e) => Err(e),
-        Ok((i1,o))    => {
-          match spaces(i1) {
-            Err(e) => Err(Err::convert(e)),
-            Ok((i2,_))    => Ok((i2, o))
-          }
+impl Error {
+    fn pretty_expected_tokens(items: &[TokenType]) -> String {
+        let strs = items.iter().map(ToString::to_string).collect::<Vec<_>>();
+        match items.len() {
+            0 => "".into(),
+            1 => format!("{}", strs[0]),
+            2 => format!("{} or {}", strs[0], strs[1]),
+            n => format!("{}, or {}", strs[0..n - 1].join(", "), strs[n - 1]),
         }
-      }
     }
-  )
-);
+}
 
-named!(p_lower_ident<Span, String>,
-    map!(pair!(one_of!(LOWER), opt!(is_a!(ALPHA_NUMERIC))),
-        |(first, rest): (char, Option<Span>)| {
-            let mut first = first.to_string();
-            if let Some(rest) = rest {
-                first.push_str(rest.fragment.0);
+#[derive(PartialEq, Debug)]
+pub struct Position {
+    line: usize,
+    column: usize,
+}
+
+// Stores source information to retrieve token positions in the source.
+struct SourceInfo<'s> {
+    lines: Vec<usize>,
+    source: &'s str,
+}
+
+impl<'s> SourceInfo<'s> {
+    fn new(source: &'s str) -> Self {
+        let lines = source
+            .bytes()
+            .enumerate()
+            .filter(|&(_, ch)| ch == b'\n')
+            .map(|(i, _)| i + 1);
+        Self {
+            lines: std::iter::once(0).chain(lines).collect(),
+            source,
+        }
+    }
+
+    fn position(&self, location: usize) -> Position {
+        let index = self
+            .lines
+            .iter()
+            .enumerate()
+            .find(|&(_, l)| location < *l)
+            .map(|(i, _)| i);
+        let line = index.unwrap_or(self.lines.len());
+        let column = self.source[self.lines[line - 1]..location].chars().count() + 1;
+
+        Position { line, column }
+    }
+
+    fn convert_error<T: ToString>(&self, error: ParseError<usize, T, Error>) -> Error {
+        match error {
+            ParseError::InvalidToken { location } => {
+                let pos = self.position(location);
+                Error::InvalidToken {
+                    position: Position {
+                        line: pos.line,
+                        column: pos.column,
+                    },
+                }
             }
-            first
-        }
-    )
-);
-
-named!(p_upper_ident<Span, String>,
-    map!(pair!(one_of!(UPPER), opt!(is_a!(ALPHA_NUMERIC))),
-        |(first, rest): (char, Option<Span>)| {
-            let mut first = first.to_string();
-            if let Some(rest) = rest {
-                first.push_str(rest.fragment.0);
+            ParseError::UnrecognizedEOF { location, expected } => {
+                let pos = self.position(location);
+                Error::UnrecognizedEOF {
+                    position: Position {
+                        line: pos.line,
+                        column: pos.column,
+                    },
+                    expected: expected.into_iter().map(From::from).collect(),
+                }
             }
-            first
-        }
-    )
-);
-
-named!(p_var<Span, Var>,
-    map!(p_lower_ident, |v| Var::from(&v))
-);
-
-named!(p_vars<Span, Vec<Var>>,
-    terminated!(
-        separated_nonempty_list!(
-            tag!(COMMA),
-            sp!(p_var)
-        ),
-        opt!(sp!(tag!(COMMA)))
-    )
-);
-
-named!(p_const<Span, Const>,
-    map!(
-        preceded!(
-            tag!(APOSTROPHE),
-            return_error!(ErrorKind::Custom(ERR_LOWER), p_lower_ident)
-        ),
-        |c| Const::from(&c)
-    )
-);
-
-named!(p_func<Span, Func>,
-    map!(p_lower_ident,
-        |f| Func::from(&f)
-    )
-);
-
-named!(p_nonempty_terms<Span, Vec<term::Complex>>,
-    terminated!(
-        separated_nonempty_list!(
-            tag!(COMMA),
-            return_error!(ErrorKind::Custom(ERR_TERM), p_term)
-        ),
-        opt!(sp!(tag!(COMMA)))
-    )
-);
-
-named!(p_term_args<Span, Vec<term::Complex>>,
-    alt!(
-        value!(vec![], delimited!(tag!(L_PAREN), opt!(space),tag!(R_PAREN))) |
-        delimited!(
-            tag!(L_PAREN),
-            p_nonempty_terms,
-            return_error!(ErrorKind::Custom(ERR_R_PAREN), tag!(R_PAREN))
-        )
-    )
-);
-
-named!(p_term<Span, term::Complex>,
-    alt!(
-        map!(
-            terminated!(
-                sp!(p_var),
-                // The term is a composite term if followed by '(':
-                not!(tag!(L_PAREN))
-            ),
-            |v| v.into()
-        ) |
-        map!(sp!(p_const), |c| c.into()) |
-        map!( // composite term
-            pair!(sp!(p_func), sp!(p_term_args)),
-            |(f, ts): (Func, Vec<term::Complex>)| f.app(ts)
-        )
-    )
-);
-
-named!(p_equals<Span, FOF>,
-    do_parse!(left: p_term >>
-        tag!(EQUALS) >>
-        right: add_return_error!(ErrorKind::Custom(ERR_TERM), p_term) >>
-        (left.equals(right))
-    )
-);
-
-named!(p_pred<Span, Pred>,
-    map!(p_upper_ident,
-        |f| Pred::from(&f)
-    )
-);
-
-named!(p_atom<Span, FOF>,
-    alt!(
-        value!(Top, alt!(tag!(TRUE) |  tag!(TOP) | tag!(CHAR_TOP))) |
-        value!(Bottom, alt!(tag!(FALSE) |  tag!(BOTTOM) | tag!(CHAR_BOTTOM))) |
-        add_return_error!(ErrorKind::Custom(ERR_EQUALS), p_equals) |
-        // composite term:
-        map!(
-            pair!(p_pred, sp!(p_term_args)),
-            |(p, ts): (Pred, Vec<term::Complex>)| p.app(ts).into()
-        ) |
-        delimited!(sp!(tag!(L_PAREN)),
-            return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula),
-            return_error!(ErrorKind::Custom(ERR_R_PAREN), tag!(R_PAREN))
-        )
-    )
-);
-
-named!(p_not<Span, FOF>,
-    alt!(
-        preceded!(
-            sp!(alt!(tag!(NOT) | tag!(TILDE) | tag!(NEG))),
-            map!(alt!(p_not | p_quantified), FOF::not)
-        ) |
-        sp!(p_atom)
-    )
-);
-
-named!(p_and<Span, FOF>,
-    do_parse!(
-        first: p_not >>
-        second: fold_many0!(
-            preceded!(
-                sp!(alt!(tag!(AND) | tag!(AMPERSAND) | tag!(WEDGE))),
-                return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_and | p_quantified))
-            ),
-            first,
-            |acc: FOF, f| acc.and(f)
-        ) >>
-        (second)
-    )
-);
-
-named!(p_or<Span, FOF>,
-    do_parse!(
-        first: p_and >>
-        second: fold_many0!(
-            preceded!(
-                sp!(alt!(tag!(OR) | tag!(BAR) | tag!(VEE))),
-                return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_or | p_quantified))
-            ),
-            first,
-            |acc: FOF, f| acc.or(f)
-        ) >>
-        (second)
-    )
-);
-
-named!(p_implication<Span, FOF>,
-    map!(
-        pair!(
-            p_or,
-            opt!(
-                pair!(
-                    sp!(
-                        alt!(
-                            value!(
-                                IMPLIES,
-                                alt!(tag!(IMPLIES) | tag!(RIGHT_ARROW) | tag!(CHAR_RIGHT_ARROW))
-                            ) |
-                            value!(
-                                IFF,
-                                alt!(tag!(IFF) | tag!(DOUBLE_ARROW) | tag!(CHAR_DOUBLE_ARROW))
-                            )
-                        )
-                    ),
-                    return_error!(ErrorKind::Custom(ERR_FORMULA), alt!(p_implication | p_quantified))
-                )
-            )
-        ),
-        |(left, right)| {
-            match right {
-                Some((o, r)) => if o == IMPLIES { left.implies(r) } else { left.iff(r) },
-                None         => left
+            ParseError::UnrecognizedToken { token, expected } => {
+                let pos = self.position(token.0);
+                Error::UnrecognizedToken {
+                    position: Position {
+                        line: pos.line,
+                        column: pos.column,
+                    },
+                    expected: expected.into_iter().map(From::from).collect(),
+                    found: token.1.to_string(),
+                }
             }
-        }
-    )
-);
-
-named!(p_quantified<Span, FOF>,
-    do_parse!(
-        q: sp!(
-            alt!(
-                value!(
-                    FORALL,
-                    alt!(tag!(FORALL) | tag!(EXCLAMATION) | tag!(CHAR_FORALL))
-                ) |
-                value!(
-                    EXISTS,
-                    alt!(tag!(EXISTS) | tag!(QUESTION) | tag!(CHAR_EXISTS))
-                )
-            )
-        ) >>
-        vs: return_error!(ErrorKind::Custom(ERR_VARS), p_vars) >>
-        return_error!(ErrorKind::Custom(ERR_DOT), sp!(tag!(DOT))) >>
-        f: return_error!(ErrorKind::Custom(ERR_FORMULA), p_formula) >>
-        ( if q == FORALL { FOF::forall(vs, f) } else { FOF::exists(vs, f) } )
-    )
-);
-
-named!(p_formula<Span, FOF>,
-    alt!(p_quantified | p_implication)
-);
-
-named!(pub theory<Span, Result<Theory<FOF>, Error>>,
-    map!(
-        many_till!(
-            map!(
-                terminated!(
-                    sp!(p_formula),
-                    return_error!(ErrorKind::Custom(ERR_SEMI_COLON),
-                        sp!(tag!(SEMI_COLON))
-                    )
-                ),
-                |f| Option::Some(f)
-            ),
-            value!((), sp!(eof!()))
-        ),
-        |(fs, _)| {
-            let theory: Theory<FOF> = fs.into_iter()
-                .filter_map(|f| f)
-                .collect();
-            theory.signature().map_err(|e| Error::Syntax {
-                source: e,
-            })?; // validating the signature
-            Ok(theory)
-        }
-    )
-);
-
-fn make_parser_error(error: &Err<Span, u32>) -> Error {
-    match error {
-        Err::Error(Context::Code(pos, ErrorKind::Custom(code)))
-        | Err::Failure(Context::Code(pos, ErrorKind::Custom(code))) => {
-            let found = if pos.fragment.len() != 0 {
-                Some(pos.fragment.0.to_owned())
-            } else {
-                None
-            };
-            let code = *code;
-            match code {
-                ERR_SEMI_COLON | ERR_DOT | ERR_L_PAREN | ERR_R_PAREN => Error::Missing {
-                    line: pos.line,
-                    column: pos.get_column() as u32,
-                    code,
-                },
-                ERR_FORMULA | ERR_TERM | ERR_VARS | ERR_LOWER => Error::Expecting {
-                    line: pos.line,
-                    column: pos.get_column() as u32,
-                    code,
-                    found,
-                },
-                _ => Error::Failed {
-                    line: pos.line,
-                    column: pos.get_column() as u32,
-                },
+            ParseError::ExtraToken { token } => {
+                let pos = self.position(token.0);
+                Error::ExtraToken {
+                    position: Position {
+                        line: pos.line,
+                        column: pos.column,
+                    },
+                    found: token.1.to_string(),
+                }
             }
+            ParseError::User { error } => error,
         }
-        Err::Error(Context::Code(pos, _)) | Err::Failure(Context::Code(pos, _)) => Error::Failed {
-            line: pos.line,
-            column: pos.get_column() as u32,
-        },
-        _ => Error::Unknown,
     }
 }
 
@@ -480,9 +254,10 @@ impl FromStr for FOF {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        p_formula(Span::new(CompleteStr(s)))
-            .map(|r| r.1)
-            .map_err(|e| make_parser_error(&e))
+        let info = SourceInfo::new(s);
+        grammar::FormulaParser::new()
+            .parse(s)
+            .map_err(|e| info.convert_error(e))
     }
 }
 
@@ -490,821 +265,1342 @@ impl FromStr for Theory<FOF> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        theory(Span::new(CompleteStr(s)))
-            .map(|r| r.1)
-            .map_err(|e| make_parser_error(&e))?
+        let info = SourceInfo::new(s);
+        grammar::TheoryParser::new()
+            .parse(s)
+            .map_err(|e| info.convert_error(e))
     }
 }
 
 #[cfg(test)]
-mod test_parser {
+mod tests {
     use super::*;
-    use crate::{c, f, pred, term, v};
-    use std::fmt;
+    use crate::{c, f, fof, pred, term, v};
 
-    fn success<R: PartialEq + fmt::Debug>(
-        parser: fn(Span) -> nom::IResult<Span, R, u32>,
-        parse_str: &str,
-        expected: R,
-        remaining: &str,
-    ) {
-        let parsed = parser(Span::new(CompleteStr(parse_str)));
-        assert!(parsed.is_ok());
-        let (rem, res) = parsed.unwrap();
-        assert_eq!(expected, res);
-        assert_eq!(CompleteStr(remaining), rem.fragment);
-    }
+    #[test]
+    fn lower_ident() {
+        assert_eq!(grammar::LowerParser::new().parse("_").unwrap(), "_");
+        assert_eq!(grammar::LowerParser::new().parse("a").unwrap(), "a");
+        assert_eq!(grammar::LowerParser::new().parse("_ab").unwrap(), "_ab");
+        assert_eq!(grammar::LowerParser::new().parse("aB").unwrap(), "aB");
+        assert_eq!(grammar::LowerParser::new().parse("a_B").unwrap(), "a_B");
+        assert_eq!(grammar::LowerParser::new().parse("aB_").unwrap(), "aB_");
+        assert_eq!(
+            grammar::LowerParser::new().parse("duch3Ss").unwrap(),
+            "duch3Ss"
+        );
 
-    fn unsafe_success_to_string<R: ToString>(
-        parser: fn(Span) -> nom::IResult<Span, Result<R, Error>, u32>,
-        parse_str: &str,
-        expected: &str,
-        remaining: &str,
-    ) {
-        let parsed = parser(Span::new(CompleteStr(parse_str)));
-        assert!(parsed.is_ok());
-        let (str, result) = parsed.unwrap();
-        assert_eq!(result.unwrap().to_string(), expected);
-        assert_eq!(str.fragment.0, remaining);
-    }
+        assert!(grammar::LowerParser::new().parse("aB!").is_err());
 
-    fn success_to_string<R: ToString>(
-        parser: fn(Span) -> nom::IResult<Span, R, u32>,
-        parse_str: &str,
-        expected: &str,
-        remaining: &str,
-    ) {
-        let parsed = parser(Span::new(CompleteStr(parse_str)));
-        assert!(parsed.is_ok());
-        let (str, result) = parsed.unwrap();
-        assert_eq!(result.to_string(), expected);
-        assert_eq!(str.fragment.0, remaining);
-    }
-
-    fn fail<R: PartialEq + fmt::Debug>(
-        parser: fn(Span) -> nom::IResult<Span, R, u32>,
-        parse_str: &str,
-    ) {
-        let result = parser(Span::new(CompleteStr(parse_str)));
-        assert!(result.is_err());
+        assert!(grammar::LowerParser::new().parse("B").is_err());
+        assert!(grammar::LowerParser::new().parse("Blah").is_err());
+        assert!(grammar::LowerParser::new().parse("!ABC").is_err());
+        assert!(grammar::LowerParser::new().parse("123").is_err());
     }
 
     #[test]
-    fn test_lower_identifier() {
-        success(p_lower_ident, "_", "_".to_owned(), "");
-        success(p_lower_ident, "a", "a".to_owned(), "");
-        success(p_lower_ident, "_ab", "_ab".to_owned(), "");
-        success(p_lower_ident, "aB", "aB".to_owned(), "");
-        success(p_lower_ident, "aB!", "aB".to_owned(), "!");
-        success(p_lower_ident, "johnSn0w", "johnSn0w".to_owned(), "");
+    fn upper_ident() {
+        assert_eq!(grammar::UpperParser::new().parse("A").unwrap(), "A");
+        assert_eq!(grammar::UpperParser::new().parse("AB").unwrap(), "AB");
+        assert_eq!(grammar::UpperParser::new().parse("A_B").unwrap(), "A_B");
+        assert_eq!(grammar::UpperParser::new().parse("AB_").unwrap(), "AB_");
+        assert_eq!(
+            grammar::UpperParser::new().parse("Duch3Ss").unwrap(),
+            "Duch3Ss"
+        );
 
-        fail(p_lower_ident, "B");
-        fail(p_lower_ident, "Blah");
-        fail(p_lower_ident, "!ABC");
-        fail(p_lower_ident, "123");
+        assert!(grammar::UpperParser::new().parse("AB!").is_err());
+
+        assert!(grammar::UpperParser::new().parse("b").is_err());
+        assert!(grammar::UpperParser::new().parse("blah").is_err());
+        assert!(grammar::UpperParser::new().parse("!ABC").is_err());
+        assert!(grammar::UpperParser::new().parse("123").is_err());
+        assert!(grammar::UpperParser::new().parse("_").is_err());
+        assert!(grammar::UpperParser::new().parse("_AB").is_err());
     }
 
     #[test]
-    fn test_upper_identifier() {
-        success(p_upper_ident, "A", "A".to_owned(), "");
-        success(p_upper_ident, "AB", "AB".to_owned(), "");
-        success(p_upper_ident, "AB!", "AB".to_owned(), "!");
-        success(p_upper_ident, "JohnSn0w", "JohnSn0w".to_owned(), "");
+    fn var() {
+        assert_eq!(grammar::VarParser::new().parse("x").unwrap(), v!(x));
+        assert_eq!(grammar::VarParser::new().parse("   x").unwrap(), v!(x));
 
-        fail(p_upper_ident, "b");
-        fail(p_upper_ident, "blah");
-        fail(p_upper_ident, "!ABC");
-        fail(p_upper_ident, "123");
-        fail(p_upper_ident, "_");
-        fail(p_upper_ident, "_AB");
+        assert!(grammar::VarParser::new().parse("'a").is_err());
+        assert!(grammar::VarParser::new().parse("B").is_err());
     }
 
     #[test]
-    fn test_var() {
-        success(p_var, "x", v!(x), "");
+    fn vars() {
+        assert_eq!(grammar::VarsParser::new().parse("").unwrap(), vec![]);
+        assert_eq!(grammar::VarsParser::new().parse("x").unwrap(), vec![v!(x)]);
+        assert_eq!(
+            grammar::VarsParser::new().parse("x,y").unwrap(),
+            vec![v!(x), v!(y)]
+        );
+        assert_eq!(
+            grammar::VarsParser::new().parse("  x").unwrap(),
+            vec![v!(x)]
+        );
+        assert_eq!(
+            grammar::VarsParser::new().parse("x, y").unwrap(),
+            vec![v!(x), v!(y)]
+        );
+        assert_eq!(
+            grammar::VarsParser::new().parse("x, y\t,\nz").unwrap(),
+            vec![v!(x), v!(y), v!(z)]
+        );
+        assert_eq!(grammar::VarsParser::new().parse("x,").unwrap(), vec![v!(x)]);
+        assert_eq!(
+            grammar::VarsParser::new().parse("x,y   ,    ").unwrap(),
+            vec![v!(x), v!(y)]
+        );
 
-        fail(p_var, "  x");
-        fail(p_var, "'a");
-        fail(p_var, "B");
+        assert!(grammar::VarParser::new().parse(",x").is_err());
+        assert!(grammar::VarParser::new().parse("B").is_err());
     }
 
     #[test]
-    fn test_vars() {
-        success(p_vars, "x", vec![v!(x)], "");
-        success(p_vars, "x,y", vec![v!(x), v!(y)], "");
-        success(p_vars, "  x", vec![v!(x)], "");
-        success(p_vars, "x, y", vec![v!(x), v!(y)], "");
-        success(p_vars, "x, y\t,\nz", vec![v!(x), v!(y), v!(z)], "");
-        success(p_vars, "x,", vec![v!(x)], "");
-        success(p_vars, "x,y   ,   ", vec![v!(x), v!(y)], "");
+    fn r#const() {
+        assert_eq!(grammar::ConstParser::new().parse("'a").unwrap(), c!(a));
+        assert_eq!(grammar::ConstParser::new().parse("    'a").unwrap(), c!(a));
+        assert_eq!(grammar::ConstParser::new().parse("'_a").unwrap(), c!(_a));
+        assert_eq!(grammar::ConstParser::new().parse("'a_").unwrap(), c!(a_));
+        assert_eq!(grammar::ConstParser::new().parse("'a_b").unwrap(), c!(a_b));
 
-        fail(p_vars, ",x");
-        fail(p_vars, "B");
+        assert!(grammar::ConstParser::new().parse("x").is_err());
+        assert!(grammar::ConstParser::new().parse("''a").is_err());
+        assert!(grammar::ConstParser::new().parse("'B").is_err());
+        assert!(grammar::ConstParser::new().parse("B").is_err());
+        assert!(grammar::ConstParser::new().parse("'   a").is_err());
     }
 
     #[test]
-    fn test_const() {
-        success(p_const, "'a", c!(a), "");
-        fail(p_const, "x");
-        fail(p_const, "   'a");
-        fail(p_const, "'  a");
-        fail(p_const, "''a");
-        fail(p_const, "B");
+    fn r#func() {
+        assert_eq!(grammar::FuncParser::new().parse("f").unwrap(), f!(f));
+        assert_eq!(grammar::FuncParser::new().parse("   f").unwrap(), f!(f));
+
+        assert!(grammar::FuncParser::new().parse("'a").is_err());
+        assert!(grammar::FuncParser::new().parse("'B").is_err());
+        assert!(grammar::FuncParser::new().parse("B").is_err());
     }
 
     #[test]
-    fn test_func() {
-        success(p_func, "f", f!(f), "");
-        fail(p_func, "  f");
-        fail(p_func, "'a");
-        fail(p_func, "'B");
-        fail(p_func, "B");
+    fn term() {
+        assert_eq!(grammar::TermParser::new().parse("x").unwrap(), term!(x));
+        assert_eq!(grammar::TermParser::new().parse("'a").unwrap(), term!(@a));
+        assert_eq!(grammar::TermParser::new().parse("f()").unwrap(), term!(f()));
+        assert_eq!(
+            grammar::TermParser::new().parse("f(   )").unwrap(),
+            term!(f())
+        );
+        assert_eq!(
+            grammar::TermParser::new().parse("f(x)").unwrap(),
+            term!(f(x))
+        );
+        assert_eq!(
+            grammar::TermParser::new().parse("f(x,   y  )").unwrap(),
+            term!(f(x, y))
+        );
+        assert_eq!(
+            grammar::TermParser::new()
+                .parse("f(x,   y  \n , z)")
+                .unwrap(),
+            term!(f(x, y, z))
+        );
+        assert_eq!(
+            grammar::TermParser::new()
+                .parse("f(f(f(f(f(f(f(x)))))))")
+                .unwrap(),
+            term!(f(f(f(f(f(f(f(x))))))))
+        );
+        assert_eq!(
+            grammar::TermParser::new().parse("f   (x)").unwrap(),
+            term!(f(x))
+        );
+        assert_eq!(
+            grammar::TermParser::new().parse("f   (   x   )").unwrap(),
+            term!(f(x))
+        );
+        assert_eq!(
+            grammar::TermParser::new()
+                .parse("f(w, g (  x, y, z))")
+                .unwrap(),
+            term!(f(w, g(x, y, z)))
+        );
+
+        assert!(grammar::TermParser::new().parse("''a").is_err());
+        assert!(grammar::TermParser::new().parse("P()").is_err());
+        assert!(grammar::TermParser::new().parse("f(Q())").is_err());
+        assert!(grammar::TermParser::new().parse("12f(x)").is_err());
+        assert!(grammar::TermParser::new().parse("f(1, 2)").is_err());
+        assert!(grammar::TermParser::new().parse("f(x, g(1))").is_err());
     }
 
     #[test]
-    fn test_term() {
-        success(p_term, "x", term!(x), "");
-        success(p_term, "'a", term!(@a), "");
-        success(p_term, "f()", term!(f()), "");
-        success(p_term, "f( )", term!(f()), "");
-        success_to_string(p_term, "f(x)", "f(x)", "");
-        success_to_string(p_term, "f(x,   y   )", "f(x, y)", "");
-        success_to_string(p_term, "f(x,   y   \n , z)", "f(x, y, z)", "");
-        success_to_string(
-            p_term,
-            "f(f(f(f(f(f(f(x)))))))",
-            "f(f(f(f(f(f(f(x)))))))",
-            "",
+    fn equals() {
+        assert_eq!(
+            grammar::EqualParser::new().parse("x = y").unwrap(),
+            fof!((x) = (y))
         );
-        success_to_string(p_term, "f  (x)", "f(x)", "");
-        success_to_string(p_term, "f  (   x   )   ", "f(x)", "");
-        success_to_string(p_term, "f(w, g (  x, y, z))", "f(w, g(x, y, z))", "");
-        success_to_string(p_term, "f('a, x, g('b, h(x)))", "f('a, x, g('b, h(x)))", "");
-        fail(p_term, "''a");
-        fail(p_term, "P()");
-        fail(p_term, "f(Q())");
-        fail(p_term, "12f(x)");
-        fail(p_term, "f(1, 2)");
-        fail(p_term, "f(x, g(1))");
+        assert_eq!(
+            grammar::EqualParser::new().parse("'a = 'b").unwrap(),
+            fof!((@a) = (@b))
+        );
+        assert_eq!(
+            grammar::EqualParser::new().parse("f(x) = y").unwrap(),
+            fof!((f(x)) = (y))
+        );
+        assert_eq!(
+            grammar::EqualParser::new().parse("f   (x  ) = y").unwrap(),
+            fof!((f(x)) = (y))
+        );
+
+        assert!(grammar::TermParser::new().parse("A = B").is_err());
+        assert!(grammar::TermParser::new().parse("!a = b").is_err());
+        assert!(grammar::TermParser::new().parse("a != b").is_err());
     }
 
     #[test]
-    fn test_equals() {
-        success_to_string(p_equals, "x = y", "x = y", "");
-        success_to_string(p_equals, "'a = 'b", "'a = 'b", "");
-        success_to_string(p_equals, "f(x) = y", "f(x) = y", "");
-        success_to_string(p_equals, "  f  (x  ) = y", "f(x) = y", "");
+    fn pred() {
+        assert_eq!(grammar::PredParser::new().parse("P").unwrap(), pred!(P));
+        assert_eq!(grammar::PredParser::new().parse("   P").unwrap(), pred!(P));
 
-        fail(p_equals, "A = B");
-        fail(p_equals, "!a = b");
-        fail(p_equals, "a != b");
+        assert!(grammar::PredParser::new().parse("'a").is_err());
+        assert!(grammar::PredParser::new().parse("x").is_err());
     }
 
     #[test]
-    fn test_pred() {
-        success(p_pred, "P", pred!(P), "");
-        fail(p_pred, "  P");
-        fail(p_pred, "'a");
-        fail(p_pred, "x");
+    fn atom() {
+        assert_eq!(grammar::AtomParser::new().parse("true").unwrap(), fof!('|'));
+        assert_eq!(grammar::AtomParser::new().parse("⊤").unwrap(), fof!('|'));
+        assert_eq!(grammar::AtomParser::new().parse("'|'").unwrap(), fof!('|'));
+        assert_eq!(
+            grammar::AtomParser::new().parse("false").unwrap(),
+            fof!(_ | _)
+        );
+        assert_eq!(grammar::AtomParser::new().parse("⟘").unwrap(), fof!(_ | _));
+        assert_eq!(
+            grammar::AtomParser::new().parse("_|_").unwrap(),
+            fof!(_ | _)
+        );
+        assert_eq!(
+            grammar::AtomParser::new().parse("x = f('a)").unwrap(),
+            fof!([x] = [f(@a)])
+        );
+        assert_eq!(grammar::AtomParser::new().parse("P()").unwrap(), fof!(P()));
+        assert_eq!(grammar::AtomParser::new().parse("P( )").unwrap(), fof!(P()));
+        assert_eq!(
+            grammar::AtomParser::new().parse("P(x)").unwrap(),
+            fof!(P(x))
+        );
+        assert_eq!(
+            grammar::AtomParser::new().parse("P(x,   y   )").unwrap(),
+            fof!(P(x, y))
+        );
+        assert_eq!(
+            grammar::AtomParser::new()
+                .parse("P(x,   y   \n , z)")
+                .unwrap(),
+            fof!(P(x, y, z))
+        );
+        assert_eq!(
+            grammar::AtomParser::new()
+                .parse("P(f(f(f(f(f(f(x)))))))")
+                .unwrap(),
+            fof!(P(f(f(f(f(f(f(x))))))))
+        );
+        assert_eq!(
+            grammar::AtomParser::new().parse("P  (x)").unwrap(),
+            fof!(P(x))
+        );
+        assert_eq!(
+            grammar::AtomParser::new().parse("P  (  x  )  ").unwrap(),
+            fof!(P(x))
+        );
+        assert_eq!(
+            grammar::AtomParser::new()
+                .parse("P(w, g (  x, y, z))")
+                .unwrap(),
+            fof!(P(w, g(x, y, z)))
+        );
+        assert_eq!(
+            grammar::AtomParser::new()
+                .parse("P('a, x, g('b, h(x)))")
+                .unwrap(),
+            fof!(P(@a, x, g(@b, h(x))))
+        );
+
+        assert!(grammar::PredParser::new().parse("''a").is_err());
+        assert!(grammar::PredParser::new().parse("f()").is_err());
+        assert!(grammar::PredParser::new().parse("P(Q())").is_err());
+        assert!(grammar::PredParser::new().parse("12P(x)").is_err());
+        assert!(grammar::PredParser::new().parse("P(1, 2)").is_err());
+        assert!(grammar::PredParser::new().parse("P(x, g(1))").is_err());
     }
 
     #[test]
-    fn test_line_comment() {
-        success(p_line_comment, "//\n", (), "");
-        success(p_line_comment, "  //\n", (), "");
-        success(p_line_comment, "// comment line \n", (), "");
-        success(p_line_comment, "//comment line \n", (), "");
-        success(p_line_comment, "   //   comment line \n", (), "");
-        success(p_line_comment, "//", (), "");
-        fail(p_line_comment, "/");
+    fn formula() {
+        assert_eq!(
+            grammar::AtomParser::new().parse("P  (x)").unwrap(),
+            fof!(P(x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("true").unwrap(),
+            fof!('|')
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("false").unwrap(),
+            fof!(_ | _)
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("((((true))))").unwrap(),
+            fof!('|')
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("( true)").unwrap(),
+            fof!('|')
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("(true )").unwrap(),
+            fof!('|')
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P()").unwrap(),
+            fof!(P())
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("  P()").unwrap(),
+            fof!(P())
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("  ~P()").unwrap(),
+            fof!(~[P()])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P(x)").unwrap(),
+            fof!(P(x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P('a)").unwrap(),
+            fof!(P(@a))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P(x,y)").unwrap(),
+            fof!(P(x, y))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P('a,'b)").unwrap(),
+            fof!(P(@a, @b))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P('a,x)").unwrap(),
+            fof!(P(@a, x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P(x, y)").unwrap(),
+            fof!(P(x, y))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x,            y     \n)")
+                .unwrap(),
+            fof!(P(x, y))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P(f(x))").unwrap(),
+            fof!(P(f(x)))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(x)))))))))))))))))))))")
+                .unwrap(),
+            fof!(P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(
+                f(x)
+            ))))))))))))))))))))),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(f(x, g(y)), g(f(g(y))))")
+                .unwrap(),
+            fof!(P(f(x, g(y)), g(f(g(y))))),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("'a = 'b").unwrap(),
+            fof!((@a) = (@b))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("x = x").unwrap(),
+            fof!((x) = (x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("f() = x").unwrap(),
+            fof!((f()) = (x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("f(x) = x").unwrap(),
+            fof!((f(x)) = (x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("f(x) = x").unwrap(),
+            fof!((f(x)) = (x))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("f(x) = g(h(g(f(x)), y))")
+                .unwrap(),
+            fof!([f(x)] = [g(h(g(f(x)), y))]),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) implies Q(x)")
+                .unwrap(),
+            fof!([P(x)] -> [Q(x)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) implies Q(x) -> R(x)")
+                .unwrap(),
+            fof!({P(x)} -> {[Q(x)] -> [R(x)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) implies (Q(x) -> R(x))")
+                .unwrap(),
+            fof!({P(x)} -> {[Q(x)] -> [R(x)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) implies (Q(x) -> R(x) -> Q(z))")
+                .unwrap(),
+            fof!({P(x)} -> {[Q(x)] -> [(R(x)) -> (Q(z))]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) iff Q(x)")
+                .unwrap(),
+            fof!([P(x)] <=> [Q(x)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) iff Q(x) <=> R(x)")
+                .unwrap(),
+            fof!({P(x)} <=> {[Q(x)] <=> [R(x)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) iff (Q(x) <=> R(x))")
+                .unwrap(),
+            fof!({P(x)} <=> {[Q(x)] <=> [R(x)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) iff (Q(x) <=> R(x) <=> Q(z))")
+                .unwrap(),
+            fof!({P(x)} <=> {[Q(x)] <=> [(R(x)) <=> (Q(z))]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) iff Q(x) implies R(x)")
+                .unwrap(),
+            fof!({P(x)} <=> {[Q(x)] -> [R(x)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) implies (Q(x) iff R(x))")
+                .unwrap(),
+            fof!({P(x)} -> {[Q(x)] <=> [R(x)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x)")
+                .unwrap(),
+            fof!(? x. [P(x)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x,y . P(x, y)")
+                .unwrap(),
+            fof!(?x, y. [P(x, y)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . exists y, z. P(x, y, z)")
+                .unwrap(),
+            fof!(? x. {? y, z. [P(x, y, z)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x) implies Q(x)")
+                .unwrap(),
+            fof!(? x. [{P(x)} -> {Q(x)}]),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . (P(x) implies Q(x))")
+                .unwrap(),
+            fof!(? x. [{P(x)} -> {Q(x)}]),
+        );
+
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("forall x . P(x)")
+                .unwrap(),
+            fof!(! x. [P(x)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("forall x,y . P(x, y)")
+                .unwrap(),
+            fof!(! x, y. [P(x, y)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("forall x . forall y, z. P(x, y, z)")
+                .unwrap(),
+            fof!(! x. [! y, z. {P(x, y, z)}])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("forall x . P(x) implies Q(x)")
+                .unwrap(),
+            fof!(! x. {[P(x)] -> [Q(x)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("forall x . (P(x) implies Q(x))")
+                .unwrap(),
+            fof!(! x. {[P(x)] -> [Q(x)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("forall x . exists y . P(x, y)")
+                .unwrap(),
+            fof!(! x. {? y. [P(x, y)]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("P(x) or Q(y)").unwrap(),
+            fof!([P(x)] | [Q(y)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) or Q(y) or R(z)")
+                .unwrap(),
+            fof!({ [P(x)] | [Q(y)] } | { R(z) })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("(P(x) or Q(y)) or R(z)")
+                .unwrap(),
+            fof!({ [P(x)] | [Q(y)] } | { R(z) })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) or Q(y) or (R(z) or S(z))")
+                .unwrap(),
+            fof!({ [P(x)] | [Q(y)] } | { [R(z)] | [S(z)] })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) implies Q(x) or R(x)")
+                .unwrap(),
+            fof!({ P(x)} -> { [Q(x)] | [R(x)] })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) or Q(x) implies R(x)")
+                .unwrap(),
+            fof!({ [P(x)] | [Q(x)] } -> {R(x)})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x) or Q(x)")
+                .unwrap(),
+            fof!(? x. {[P(x)] | [Q(x)]})
+        );
+
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) or exists y . Q(y)")
+                .unwrap(),
+            fof!({P(x)} | {? y . [Q(y)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x) or exists y . Q(y)")
+                .unwrap(),
+            fof!(? x. {[P(x)] | [? y. (Q(y))]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) or forall y . Q(y)")
+                .unwrap(),
+            fof!([P(x)] | [! y. (Q(y))])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x) or forall y . Q(y)")
+                .unwrap(),
+            fof!(?x . { [P(x)] | [!y. (Q(y))]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) and Q(y) or R(z)")
+                .unwrap(),
+            fof!({ [P(x)] & [Q(y)] } | { R(z) })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) and (Q(y) or R(z))")
+                .unwrap(),
+            fof!({ P(x) } & { [Q(y)] | [R(z)] })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) or Q(y) and R(z)")
+                .unwrap(),
+            fof!({ P(x) } | { [Q(y)] & [R(z)] })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) and Q(y) and R(z)")
+                .unwrap(),
+            fof!({ [P(x)] & [Q(y)] } & { R(z) })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(w) and Q(x) and R(y) and S(z)")
+                .unwrap(),
+            fof!({ [(P(w)) & (Q(x))] & [R(y)] } & { S(z) })
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("(P(x) and Q(y)) and R(z)")
+                .unwrap(),
+            fof!([(P(x)) & (Q(y))] & [R(z)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) and Q(y) implies R(z)")
+                .unwrap(),
+            fof!([(P(x)) & (Q(y))] -> [R(z)])
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) and exists y . Q(y)")
+                .unwrap(),
+            fof!({P(x)} & {? y . [Q(y)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x) and exists y . Q(y)")
+                .unwrap(),
+            fof!(? x. {[P(x)] & [? y. (Q(y))]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("P(x) and forall y . Q(y)")
+                .unwrap(),
+            fof!({P(x)} & {!y.[Q(y)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . P(x) and forall y . Q(y)")
+                .unwrap(),
+            fof!(?x.{[P(x)] & [!y . (Q(y))]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("not true").unwrap(),
+            fof!(~('|'))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("not true -> false")
+                .unwrap(),
+            fof!({~('|')} -> {_|_})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("~x=y").unwrap(),
+            fof!(~{(x) = (y)})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("true -> not false")
+                .unwrap(),
+            fof!({'|'} -> {~[_|_]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("not P(x, y) or Q(z)")
+                .unwrap(),
+            fof!({~[P(x, y)]} | {Q(z)})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("not P(x, y) and Q(z)")
+                .unwrap(),
+            fof!({~[P(x, y)]} & {Q(z)})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse("not not R(x)").unwrap(),
+            fof!(~(~[R(x)]))
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("not not not not not R(x) and S(y)")
+                .unwrap(),
+            fof!({~(~(~(~(~[R(x)]))))} & {S(y)}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("not exists y . Q(y)")
+                .unwrap(),
+            fof!(~{? y. [Q(y)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("exists x . not exists y . Q(y)")
+                .unwrap(),
+            fof!(? x. {~(? y. [Q(y)])}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("Q(y) & ! x. P(x)")
+                .unwrap(),
+            fof!({Q(y)} & {! x. [P(x)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("Q(y) | ! x. P(x)")
+                .unwrap(),
+            fof!({Q(y)} | {! x. [P(x)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("Q(y) -> ! x. P(x)")
+                .unwrap(),
+            fof!({Q(y)} -> {! x. [P(x)]})
+        );
+        assert_eq!(
+            grammar::FormulaParser::new().parse(            "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies false)").unwrap(),
+            fof!({P(x)} -> {{Q(y)} & {? z. {{(f(z)) = (g(f(z)))} | {!y, z.{[S(y, z)] -> [_|_]}}}}}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("not forall x, y . P(x) and Q(y) implies h(z) = z")
+                .unwrap(),
+            fof!(~{! x, y . {[(P(x)) & (Q(y))] -> [(h(z)) = (z)]}}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("∀ x. ∃ y. (x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))")
+                .unwrap(),
+            fof!(! x. {? y . [([(x) = (y)] & [~(P(y))]) | ([Q(x)] -> [R(y)])]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("∀ x. (∃ y. ((x = y ∧ (¬P(y))) ∨ (Q(x) → R(y))))")
+                .unwrap(),
+            fof!(! x. {? y . [([(x) = (y)] & [~(P(y))]) | ([Q(x)] -> [R(y)])]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("! x. ? y. (x = y & ~P(y)) | (Q(x) -> R(y))")
+                .unwrap(),
+            fof!(! x. {? y . [([(x) = (y)] & [~(P(y))]) | ([Q(x)] -> [R(y)])]}),
+        );
+        assert_eq!(
+            grammar::FormulaParser::new()
+                .parse("! x. (? y. ((x = y & (~P(y))) | (Q(x) -> R(y))))")
+                .unwrap(),
+            fof!(! x. {? y . [([(x) = (y)] & [~(P(y))]) | ([Q(x)] -> [R(y)])]}),
+        );
     }
 
     #[test]
-    fn test_block_comment() {
-        success(p_block_comment, "/**/", (), "");
-        success(p_block_comment, "  /**/", (), "");
-        success(p_block_comment, "/* comment line */", (), "");
-        success(p_block_comment, "/* comment line \n*/", (), "");
-        success(p_block_comment, "/*comment line */", (), "");
-        success(p_block_comment, "   /*   comment line \n*/", (), "");
-        fail(p_block_comment, "/*");
-        fail(p_block_comment, "/");
-    }
-
-    #[test]
-    fn test_atom() {
-        success(p_atom, TRUE, Top, "");
-        success(p_atom, CHAR_TOP, Top, "");
-        success(p_atom, TOP, Top, "");
-        success(p_atom, FALSE, Bottom, "");
-        success(p_atom, CHAR_BOTTOM, Bottom, "");
-        success(p_atom, BOTTOM, Bottom, "");
-        success_to_string(p_atom, "x = f('a)", "x = f('a)", "");
-        success_to_string(p_atom, "P()", "P()", "");
-        success_to_string(p_atom, "P( )", "P()", "");
-        success_to_string(p_atom, "P(x)", "P(x)", "");
-        success_to_string(p_atom, "P(x,   y   )", "P(x, y)", "");
-        success_to_string(p_atom, "P(x,   y   \n , z)", "P(x, y, z)", "");
-        success_to_string(
-            p_atom,
-            "P(f(f(f(f(f(f(x)))))))",
-            "P(f(f(f(f(f(f(x)))))))",
-            "",
+    pub fn theory() {
+        assert_eq!(
+            grammar::TheoryParser::new().parse("  P(x)   ;").unwrap(),
+            vec![fof!(P(x))].into_iter().collect(),
         );
-        success_to_string(p_atom, "P  (x)", "P(x)", "");
-        success_to_string(p_atom, "P  (   x   )   ", "P(x)", "");
-        success_to_string(p_atom, "P(w, g (  x, y, z))", "P(w, g(x, y, z))", "");
-        success_to_string(p_atom, "P('a, x, g('b, h(x)))", "P('a, x, g('b, h(x)))", "");
-        fail(p_atom, "''a");
-        fail(p_atom, "f()");
-        fail(p_atom, "P(Q())");
-        fail(p_atom, "12P(x)");
-        fail(p_atom, "P(1, 2)");
-        fail(p_atom, "P(x, g(1))");
-    }
-
-    #[test]
-    fn test_formula() {
-        success_to_string(p_formula, "true", "⊤", "");
-        success_to_string(p_formula, "false", "⟘", "");
-        success_to_string(p_formula, "((((true))))", "⊤", "");
-        success_to_string(p_formula, "( true)", "⊤", "");
-        success_to_string(p_formula, "(true )", "⊤", "");
-        success_to_string(p_formula, "P()", "P()", "");
-        success_to_string(p_formula, "  P()", "P()", "");
-        success_to_string(p_formula, "  ~P()", "¬P()", "");
-        success_to_string(p_formula, "P(x)", "P(x)", "");
-        success_to_string(p_formula, "P('a)", "P('a)", "");
-        success_to_string(p_formula, "P(x,y)", "P(x, y)", "");
-        success_to_string(p_formula, "P('a,'b)", "P('a, 'b)", "");
-        success_to_string(p_formula, "P('a,x)", "P('a, x)", "");
-        success_to_string(p_formula, "P(x, y)", "P(x, y)", "");
-        success_to_string(p_formula, "P(x,            y     \n)", "P(x, y)", "");
-        success_to_string(p_formula, "P(f(x))", "P(f(x))", "");
-        success_to_string(
-            p_formula,
-            "P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(x)))))))))))))))))))))",
-            "P(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(f(x)))))))))))))))))))))",
-            "",
+        assert_eq!(
+            grammar::TheoryParser::new()
+                .parse(
+                    "E(x,x);\
+                     E(x,y) -> E(y,x) ;\
+                     E(x,y) & E(y,z) -> E(x,z);",
+                )
+                .unwrap(),
+            vec![
+                fof!(E(x, x)),
+                fof!([E(x, y)] -> [E(y, x)]),
+                fof!({[E(x, y)] & [E(y, z)]} -> {E(x, z)})
+            ]
+            .into_iter()
+            .collect(),
         );
-        success_to_string(
-            p_formula,
-            "P(f(x, g(y)), g(f(g(y))))",
-            "P(f(x, g(y)), g(f(g(y))))",
-            "",
+        assert_eq!(
+            grammar::TheoryParser::new()
+                .parse(
+                    "// comment 0
+                     E(x,x)
+                     ;
+                     // another comment
+                     E(x,y) -> E(y,x) ;
+                     E(x,y) & E(y,z) -> E(x,z);",
+                )
+                .unwrap(),
+            vec![
+                fof!(E(x, x)),
+                fof!([E(x,y)] -> [E(y, x)]),
+                fof!({[E(x,y)] & [E(y, z)]} -> {E(x, z)})
+            ]
+            .into_iter()
+            .collect(),
         );
-        success_to_string(p_formula, "'a = 'b", "'a = 'b", "");
-        success_to_string(p_formula, "x = x", "x = x", "");
-        success_to_string(p_formula, "f() = x", "f() = x", "");
-        success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
-        success_to_string(p_formula, "f(x) = x", "f(x) = x", "");
-        success_to_string(
-            p_formula,
-            "f(x) = g(h(g(f(x)), y))",
-            "f(x) = g(h(g(f(x)), y))",
-            "",
+        assert_eq!(
+            grammar::TheoryParser::new()
+                .parse(
+                    "// comment 0
+                     E /*reflexive*/(//first argument
+                     x,
+                     /*second argument*/ x)
+                     ;
+                     // another comment
+                     /* yet another comment */
+                     E(x,y) -> E(y,x) /*symmetric*/ ;
+                     E(x,y) & E(y,z) -> /* transitivity 
+*/ E(x,z);",
+                )
+                .unwrap(),
+            vec![
+                fof!(E(x, x)),
+                fof!([E(x,y)] -> [E(y, x)]),
+                fof!({[E(x,y)] & [E(y, z)]} -> {E(x, z)})
+            ]
+            .into_iter()
+            .collect(),
         );
-        success_to_string(p_formula, "P(x) implies Q(x)", "P(x) → Q(x)", "");
-        success_to_string(
-            p_formula,
-            "P(x) implies Q(x) -> R(x)",
-            "P(x) → (Q(x) → R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) implies (Q(x) -> R(x))",
-            "P(x) → (Q(x) → R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) implies (Q(x) -> R(x))",
-            "P(x) → (Q(x) → R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) implies (Q(x) -> R(x) -> Q(z))",
-            "P(x) → (Q(x) → (R(x) → Q(z)))",
-            "",
-        );
-        success_to_string(p_formula, "P(x) iff Q(x)", "P(x) ⇔ Q(x)", "");
-        success_to_string(
-            p_formula,
-            "P(x) iff Q(x) <=> R(x)",
-            "P(x) ⇔ (Q(x) ⇔ R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) iff (Q(x) <=> R(x))",
-            "P(x) ⇔ (Q(x) ⇔ R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) iff (Q(x) <=> R(x) <=> Q(z))",
-            "P(x) ⇔ (Q(x) ⇔ (R(x) ⇔ Q(z)))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) iff Q(x) implies R(x)",
-            "P(x) ⇔ (Q(x) → R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) implies Q(x) iff R(x)",
-            "P(x) → (Q(x) ⇔ R(x))",
-            "",
-        );
-        success_to_string(p_formula, "exists x . P(x)", "∃ x. P(x)", "");
-        success_to_string(p_formula, "exists x,y . P(x, y)", "∃ x, y. P(x, y)", "");
-        success_to_string(
-            p_formula,
-            "exists x . exists y, z. P(x, y, z)",
-            "∃ x. (∃ y, z. P(x, y, z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . P(x) implies Q(x)",
-            "∃ x. (P(x) → Q(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . (P(x) implies Q(x))",
-            "∃ x. (P(x) → Q(x))",
-            "",
-        );
-        success_to_string(p_formula, "forall x . P(x)", "∀ x. P(x)", "");
-        success_to_string(p_formula, "forall x,y . P(x, y)", "∀ x, y. P(x, y)", "");
-        success_to_string(
-            p_formula,
-            "forall x . forall y, z. P(x, y, z)",
-            "∀ x. (∀ y, z. P(x, y, z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "forall x . P(x) implies Q(x)",
-            "∀ x. (P(x) → Q(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "forall x . (P(x) implies Q(x))",
-            "∀ x. (P(x) → Q(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "forall x . exists y . P(x, y)",
-            "∀ x. (∃ y. P(x, y))",
-            "",
-        );
-        success_to_string(p_formula, "P(x) or Q(y)", "P(x) ∨ Q(y)", "");
-        success_to_string(
-            p_formula,
-            "P(x) or Q(y) or R(z)",
-            "P(x) ∨ (Q(y) ∨ R(z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "(P(x) or Q(y)) or R(z)",
-            "(P(x) ∨ Q(y)) ∨ R(z)",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) or Q(y) or (R(z) or S(z))",
-            "P(x) ∨ (Q(y) ∨ (R(z) ∨ S(z)))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) implies Q(x) or R(x)",
-            "P(x) → (Q(x) ∨ R(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) or Q(x) implies R(x)",
-            "(P(x) ∨ Q(x)) → R(x)",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . P(x) or Q(x)",
-            "∃ x. (P(x) ∨ Q(x))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) or exists y . Q(y)",
-            "P(x) ∨ (∃ y. Q(y))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . P(x) or exists y . Q(y)",
-            "∃ x. (P(x) ∨ (∃ y. Q(y)))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) or forall y . Q(y)",
-            "P(x) ∨ (∀ y. Q(y))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . P(x) or forall y . Q(y)",
-            "∃ x. (P(x) ∨ (∀ y. Q(y)))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) and Q(y) or R(z)",
-            "(P(x) ∧ Q(y)) ∨ R(z)",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) and (Q(y) or R(z))",
-            "P(x) ∧ (Q(y) ∨ R(z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) or Q(y) and R(z)",
-            "P(x) ∨ (Q(y) ∧ R(z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) and Q(y) and R(z)",
-            "P(x) ∧ (Q(y) ∧ R(z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(w) and Q(x) and R(y) and S(z)",
-            "P(w) ∧ (Q(x) ∧ (R(y) ∧ S(z)))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "(P(x) and Q(y)) and R(z)",
-            "(P(x) ∧ Q(y)) ∧ R(z)",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) and Q(y) implies R(z)",
-            "(P(x) ∧ Q(y)) → R(z)",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) and exists y . Q(y)",
-            "P(x) ∧ (∃ y. Q(y))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . P(x) and exists y . Q(y)",
-            "∃ x. (P(x) ∧ (∃ y. Q(y)))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "P(x) and forall y . Q(y)",
-            "P(x) ∧ (∀ y. Q(y))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "exists x . P(x) and forall y . Q(y)",
-            "∃ x. (P(x) ∧ (∀ y. Q(y)))",
-            "",
-        );
-        success_to_string(p_formula, "not true", "¬⊤", "");
-        success_to_string(p_formula, "not true -> false", "¬⊤ → ⟘", "");
-        success_to_string(p_formula, "~x=y", "¬(x = y)", "");
-        success_to_string(p_formula, "true -> not false", "⊤ → ¬⟘", "");
-        success_to_string(p_formula, "not P(x, y) or Q(z)", "¬P(x, y) ∨ Q(z)", "");
-        success_to_string(p_formula, "not P(x, y) and Q(z)", "¬P(x, y) ∧ Q(z)", "");
-        success_to_string(p_formula, "not not R(x)", "¬(¬R(x))", "");
-        success_to_string(
-            p_formula,
-            "not not not not not R(x) and S(y)",
-            "¬(¬(¬(¬(¬R(x))))) ∧ S(y)",
-            "",
-        );
-        success_to_string(p_formula, "not exists y . Q(y)", "¬(∃ y. Q(y))", "");
-        success_to_string(
-            p_formula,
-            "exists x . not exists y . Q(y)",
-            "∃ x. ¬(∃ y. Q(y))",
-            "",
-        );
-        success_to_string(p_formula, "Q(y) & ! x. P(x)", "Q(y) ∧ (∀ x. P(x))", "");
-        success_to_string(p_formula, "Q(y) | ! x. P(x)", "Q(y) ∨ (∀ x. P(x))", "");
-        success_to_string(p_formula, "Q(y) -> ! x. P(x)", "Q(y) → (∀ x. P(x))", "");
-        success_to_string(
-            p_formula,
-            "P(x) implies Q(y) and exists z . f(z) = g(f(z)) or (forall y, z . S(y,z) implies false)",
-            "P(x) → (Q(y) ∧ (∃ z. (f(z) = g(f(z)) ∨ (∀ y, z. (S(y, z) → ⟘)))))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "not forall x, y . P(x) and Q(y) implies h(z) = z",
-            "¬(∀ x, y. ((P(x) ∧ Q(y)) → h(z) = z))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "∀ x. ∃ y. (x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))",
-            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "∀ x. (∃ y. ((x = y ∧ (¬P(y))) ∨ (Q(x) → R(y))))",
-            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "! x. ? y. (x = y & ~P(y)) | (Q(x) -> R(y))",
-            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
-            "",
-        );
-        success_to_string(
-            p_formula,
-            "! x. (? y. ((x = y & (~P(y))) | (Q(x) -> R(y))))",
-            "∀ x. (∃ y. ((x = y ∧ ¬P(y)) ∨ (Q(x) → R(y))))",
-            "",
+        assert_eq!(
+            grammar::TheoryParser::new()
+                .parse("P(x);exists x . Q(x);R(x) -> S(x);")
+                .unwrap(),
+            vec![fof!(P(x)), fof!(? x . [Q(x)]), fof!([R(x)] -> [S(x)])]
+                .into_iter()
+                .collect(),
         );
     }
 
     #[test]
-    fn test_theory() {
-        unsafe_success_to_string(theory, "  P(x)   ;", "P(x)", "");
-        unsafe_success_to_string(
-            theory,
-            "E(x,x);\
-            E(x,y) -> E(y,x) ;\
-            E(x,y) & E(y,z) -> E(x,z);",
-            "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
-            "",
-        );
-        unsafe_success_to_string(
-            theory,
-            "// comment 0\n\
-            E(x,x)\
-            ;\
-            // another comment\n\
-            E(x,y) -> E(y,x) ;\
-            E(x,y) & E(y,z) -> E(x,z);",
-            "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
-            "",
-        );
-        unsafe_success_to_string(
-            theory,
-            "// comment 0\n\
-            E /*reflexive*/(//first argument \n\
-            x, \n\
-            /*second argument*/ x)\
-            ;\
-            // another comment\n\
-            /* yet another comment */
-            E(x,y) -> E(y,x) /*symmetric*/ ;\
-            E(x,y) & E(y,z) -> /* transitivity */ E(x,z);",
-            "E(x, x)\nE(x, y) → E(y, x)\n(E(x, y) ∧ E(y, z)) → E(x, z)",
-            "",
-        );
-        unsafe_success_to_string(
-            theory,
-            "P(x);exists x . Q(x);R(x) -> S(x);",
-            "P(x)\n∃ x. Q(x)\nR(x) → S(x)",
-            "",
-        );
-    }
+    fn failure() {
+        use TokenType::*;
 
-    #[test]
-    fn parse_failure() {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(X)".parse();
             assert_eq!(
-                "expecting `term` at line 1, column 3; found \"X)\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 1, column: 3 },
+                    expected: vec![Const, Lower, RParen,],
+                    found: "X".into(),
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P('A)".parse();
             assert_eq!(
-                "expecting `term` at line 1, column 3; found \"'A)\"",
-                parsed.err().unwrap().to_string()
+                Error::InvalidToken {
+                    position: Position { line: 1, column: 3 }
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x)".parse();
             assert_eq!(
-                "missing `;` at line 1, column 5",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 5 },
+                    expected: vec![And, Comma, Equal, Iff, Implies, Or, RParen, Semicolon]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x".parse();
             assert_eq!(
-                "missing `)` at line 1, column 4",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 4 },
+                    expected: vec![
+                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
+                    ]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "~P(x".parse();
             assert_eq!(
-                "missing `)` at line 1, column 5",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 5 },
+                    expected: vec![
+                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
+                    ]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) and ".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 10",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 9 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) and X".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 10; found \"X\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position {
+                        line: 1,
+                        column: 11
+                    },
+                    expected: vec![LParen,]
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) or".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) or ".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 8",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 8 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) or X".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 9; found \"X\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position {
+                        line: 1,
+                        column: 10
+                    },
+                    expected: vec![LParen,]
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) ->".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) -> ".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 8",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 8 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) -> X".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 9; found \"X\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position {
+                        line: 1,
+                        column: 10
+                    },
+                    expected: vec![LParen,]
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) <=>".parse();
+            let parsed: Result<Theory<FOF>, Error> = "P(x) <=> ".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 9",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 9 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) <=> X".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 10; found \"X\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position {
+                        line: 1,
+                        column: 11
+                    },
+                    expected: vec![LParen,]
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "!x P(x".parse();
             assert_eq!(
-                "missing `.` at line 1, column 4",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 1, column: 4 },
+                    expected: vec![
+                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
+                    ],
+                    found: "P".into()
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "! P(x)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "! P(x".parse();
             assert_eq!(
-                "expecting `variables` at line 1, column 3; found \"P(x)\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 1, column: 3 },
+                    expected: vec![Dot, Lower],
+                    found: "P".into()
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "!x . ".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 6",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 5 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper],
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "!x . X".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 6; found \"X\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 7 },
+                    expected: vec![LParen,],
+                },
+                parsed.err().unwrap()
+            );
+        }
+        {
+            let parsed: Result<Theory<FOF>, Error> = "∀x . X".parse();
+            assert_eq!(
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 7 },
+                    expected: vec![LParen,],
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "?x P(x".parse();
             assert_eq!(
-                "missing `.` at line 1, column 4",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 1, column: 4 },
+                    expected: vec![
+                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
+                    ],
+                    found: "P".into()
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "? P(x)".parse();
+            let parsed: Result<Theory<FOF>, Error> = "? P(x".parse();
             assert_eq!(
-                "expecting `variables` at line 1, column 3; found \"P(x)\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 1, column: 3 },
+                    expected: vec![Dot, Lower],
+                    found: "P".into()
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "?x . ".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 6",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 5 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper],
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "?x . X".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 6; found \"X\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 7 },
+                    expected: vec![LParen,],
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "x".parse();
             assert_eq!(
-                "failed to parse the input at line 1, column 1",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 2 },
+                    expected: vec![
+                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
+                    ],
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "(X)".parse();
             assert_eq!(
-                "expecting `formula` at line 1, column 2; found \"X)\"",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 1, column: 3 },
+                    expected: vec![LParen],
+                    found: ")".into(),
+                },
+                parsed.err().unwrap()
             );
         }
         {
             let parsed: Result<Theory<FOF>, Error> = "(P(x)".parse();
             assert_eq!(
-                "missing `)` at line 1, column 6",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 1, column: 6 },
+                    expected: vec![And, Comma, Equal, Iff, Implies, Or, RParen, Semicolon],
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x)\n\
-            Q(x) <=> R(x);"
+            let parsed: Result<Theory<FOF>, Error> = "P(x)
+Q(x) <=> R(x);"
                 .parse();
             assert_eq!(
-                "missing `;` at line 2, column 1",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 2, column: 1 },
+                    expected: vec![And, Comma, Equal, Iff, Implies, Or, RParen, Semicolon],
+                    found: "Q".into(),
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x);\n\
-            Q(x) <=> R(x);\n\
-            S(x) => Q(x);"
+            let parsed: Result<Theory<FOF>, Error> = "P(x);
+Q(x) => R(x);
+S(x) <=> Q(x);"
                 .parse();
             assert_eq!(
-                "missing `;` at line 3, column 6",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedToken {
+                    position: Position { line: 2, column: 6 },
+                    expected: vec![And, Iff, Implies, Or, RParen, Semicolon],
+                    found: "=".into(),
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x);\n\
-            Q(x) <=> R(x);\n\
-            S(x) and "
+            let parsed: Result<Theory<FOF>, Error> = "P(x);
+Q(x) <=> R(x);
+S(x) and "
                 .parse();
             assert_eq!(
-                "expecting `formula` at line 3, column 10",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position { line: 3, column: 9 },
+                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper],
+                },
+                parsed.err().unwrap()
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x);\n\
-            P(x,y);"
+            let parsed: Result<Theory<FOF>, Error> = "f(x) = 'a;
+// Testing error location with unicode characters:
+∀x . /* comment 🪒 ♖♞♗♚♕♝♘♜ */ X"
                 .parse();
             assert_eq!(
-                "inconsistent predicate in theory signature `function: P, arity: 1` and `function: P, arity: 2`",
-                parsed.err().unwrap().to_string()
+                Error::UnrecognizedEOF {
+                    position: Position {
+                        line: 3,
+                        column: 32
+                    },
+                    expected: vec![LParen,],
+                },
+                parsed.err().unwrap()
             );
         }
+        {
+            use crate::syntax::signature::PredSig;
+            let parsed: Result<Theory<FOF>, Error> = "P(x);
+P(x,y);"
+                .parse();
+            assert_eq!(
+                Error::Syntax {
+                    source: crate::syntax::Error::InconsistentPredSig {
+                        this: PredSig {
+                            symbol: pred!(P),
+                            arity: 1
+                        },
+                        other: PredSig {
+                            symbol: pred!(P),
+                            arity: 2
+                        }
+                    }
+                },
+                parsed.err().unwrap()
+            );
+        }
+    }
+    #[test]
+    fn token_type_from_str() {
+        assert_eq!(TokenType::from("_COMMA_"), TokenType::Comma);
+        assert_eq!(TokenType::from("_DOT_"), TokenType::Dot);
+        assert_eq!(TokenType::from("_SEMICOLON_"), TokenType::Semicolon);
+        assert_eq!(TokenType::from("_LPAREN_"), TokenType::LParen);
+        assert_eq!(TokenType::from("_RPAREN_"), TokenType::RParen);
+        assert_eq!(TokenType::from("_EQUAL_"), TokenType::Equal);
+        assert_eq!(TokenType::from("_TRUE_"), TokenType::True);
+        assert_eq!(TokenType::from("_FALSE_"), TokenType::False);
+        assert_eq!(TokenType::from("_NOT_"), TokenType::Not);
+        assert_eq!(TokenType::from("_AND_"), TokenType::And);
+        assert_eq!(TokenType::from("_OR_"), TokenType::Or);
+        assert_eq!(TokenType::from("_IMPLIES_"), TokenType::Implies);
+        assert_eq!(TokenType::from("_IFF_"), TokenType::Iff);
+        assert_eq!(TokenType::from("_FORALL_"), TokenType::Forall);
+        assert_eq!(TokenType::from("_EXISTS_"), TokenType::Exists);
+        assert_eq!(TokenType::from("_LOWER_"), TokenType::Lower);
+        assert_eq!(TokenType::from("_UPPER_"), TokenType::Upper);
+        assert_eq!(TokenType::from("_CONST_"), TokenType::Const);
+        assert_eq!(TokenType::from("Bad"), TokenType::Unknown);
+    }
+
+    #[test]
+    fn token_type_to_string() {
+        assert_eq!(TokenType::Comma.to_string(), "`,`");
+        assert_eq!(TokenType::Dot.to_string(), "`.`");
+        assert_eq!(TokenType::Semicolon.to_string(), "`;`");
+        assert_eq!(TokenType::LParen.to_string(), "`(`");
+        assert_eq!(TokenType::RParen.to_string(), "`)`");
+        assert_eq!(TokenType::Equal.to_string(), "`=`");
+        assert_eq!(TokenType::True.to_string(), "`true`");
+        assert_eq!(TokenType::False.to_string(), "`false`");
+        assert_eq!(TokenType::Not.to_string(), "`not`");
+        assert_eq!(TokenType::And.to_string(), "`and`");
+        assert_eq!(TokenType::Or.to_string(), "`or`");
+        assert_eq!(TokenType::Implies.to_string(), "`implies`");
+        assert_eq!(TokenType::Iff.to_string(), "`iff`");
+        assert_eq!(TokenType::Forall.to_string(), "`forall`");
+        assert_eq!(TokenType::Exists.to_string(), "`exists`");
+        assert_eq!(TokenType::Lower.to_string(), "`lowercase identifier`");
+        assert_eq!(TokenType::Upper.to_string(), "`uppercase identifier`");
+        assert_eq!(TokenType::Const.to_string(), "`constant identifier`");
+        assert_eq!(TokenType::Unknown.to_string(), "`unknown token`");
+    }
+
+    #[test]
+    fn error_message() {
+        assert_eq!(
+            Error::UnrecognizedToken {
+                position: Position {
+                    line: 42,
+                    column: 11
+                },
+                expected: vec![],
+                found: "Duchess".into()
+            }
+            .to_string(),
+            "found `\"Duchess\"` at line 42, column 11; expecting "
+        );
+        assert_eq!(
+            Error::UnrecognizedToken {
+                position: Position {
+                    line: 42,
+                    column: 11
+                },
+                expected: vec![TokenType::And],
+                found: "Duchess".into()
+            }
+            .to_string(),
+            "found `\"Duchess\"` at line 42, column 11; expecting `and`"
+        );
+        assert_eq!(
+            Error::UnrecognizedToken {
+                position: Position{line: 42,
+                                   column: 11},
+                expected: vec![TokenType::Lower, TokenType::Upper],
+                found: "Duchess".into()
+            }
+            .to_string(),
+            "found `\"Duchess\"` at line 42, column 11; expecting `lowercase identifier` or `uppercase identifier`"
+        );
+        assert_eq!(
+            Error::UnrecognizedToken {
+                position: Position{line: 42,
+                                   column: 11
+                },
+                expected: vec![TokenType::Upper, TokenType::Lower, TokenType::Implies],
+                found: "Duchess".into()
+            }
+            .to_string(),
+            "found `\"Duchess\"` at line 42, column 11; expecting `uppercase identifier`, `lowercase identifier`, or `implies`"
+        );
+        assert_eq!(
+            Error::UnrecognizedEOF {
+                position: Position {
+                    line: 42,
+                    column: 11
+                },
+                expected: vec![],
+            }
+            .to_string(),
+            "unexpected end of input at line 42, column 11; expecting "
+        );
+        assert_eq!(
+            Error::UnrecognizedEOF {
+                position: Position {
+                    line: 42,
+                    column: 11
+                },
+                expected: vec![TokenType::Upper],
+            }
+            .to_string(),
+            "unexpected end of input at line 42, column 11; expecting `uppercase identifier`"
+        );
+        assert_eq!(
+            Error::UnrecognizedEOF {
+                position: Position{line: 42,
+                                   column: 11},
+                expected: vec![TokenType::Upper, TokenType::Lower],
+            }
+            .to_string(),
+            "unexpected end of input at line 42, column 11; expecting `uppercase identifier` or `lowercase identifier`"
+        );
+        assert_eq!(
+            Error::UnrecognizedEOF {
+                position: Position{line: 42,
+                                   column: 11},
+                expected: vec![TokenType::Upper, TokenType::Lower, TokenType::Implies],
+            }
+            .to_string(),
+            "unexpected end of input at line 42, column 11; expecting `uppercase identifier`, `lowercase identifier`, or `implies`"
+        );
+        assert_eq!(
+            Error::InvalidToken {
+                position: Position {
+                    line: 42,
+                    column: 11
+                }
+            }
+            .to_string(),
+            "invalid token at line 42, column 11"
+        );
+        assert_eq!(
+            Error::ExtraToken {
+                position: Position {
+                    line: 42,
+                    column: 11
+                },
+                found: "Duchess".into()
+            }
+            .to_string(),
+            "unexpected token `\"Duchess\"` at line 42, column 11"
+        );
     }
 }

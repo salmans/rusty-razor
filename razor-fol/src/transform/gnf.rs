@@ -1092,7 +1092,7 @@ mod tests {
             assert_debug_strings!("P(x) -> Q(x, f#0(x))", gnf(&formula));
         }
         {
-            let formula: FOF = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))"
+            let formula: FOF = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y))))"
                 .parse()
                 .unwrap();
             assert_debug_strings!(

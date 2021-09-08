@@ -14,7 +14,7 @@ pub use theory::Theory;
 use thiserror::Error;
 
 /// Is the type of errors arising from inconsistencies in the syntax of formulae.
-#[derive(Error, Debug)]
+#[derive(Error, PartialEq, Debug)]
 pub enum Error {
     /// Is returned when an unsupported operation is performed on an expression.
     #[error("inconsistent predicate in theory signature `{}` and `{}`", .this.to_string(), .other.to_string())]
