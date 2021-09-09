@@ -172,7 +172,7 @@ impl Recorder {
 
 impl field::Visit for Recorder {
     fn record_u64(&mut self, field: &field::Field, value: u64) {
-        match field.name().as_ref() {
+        match field.name() {
             super::MODEL_ID_FIELD => self.model_id = Some(value),
             super::PARENT_FIELD => self.parent = Some(value),
             _ => (),
@@ -180,13 +180,13 @@ impl field::Visit for Recorder {
     }
 
     fn record_str(&mut self, field: &field::Field, value: &str) {
-        if let super::EVENT_FILED = field.name().as_ref() {
+        if let super::EVENT_FILED = field.name() {
             self.event = Some(value.to_owned())
         }
     }
 
     fn record_debug(&mut self, field: &field::Field, value: &dyn fmt::Debug) {
-        match field.name().as_ref() {
+        match field.name() {
             super::MODEL_FIELD => self.model = Some(format!("{:?}", value)),
             super::SEQUENT_FIELD => self.sequent = Some(format!("{:?}", value)),
             super::MAPPING_FIELD => self.mapping = Some(format!("{:?}", value)),

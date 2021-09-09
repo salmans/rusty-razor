@@ -184,7 +184,7 @@ impl PcfSet {
     /// of the clauses in `self` and `other`.
     pub fn cross_union(&self, other: &Self) -> Self {
         self.iter()
-            .flat_map(|h1| other.iter().map(move |h2| h1.union(&h2)))
+            .flat_map(|h1| other.iter().map(move |h2| h1.union(h2)))
             .collect()
     }
 

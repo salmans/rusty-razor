@@ -22,7 +22,6 @@ use std::{
     fmt,
     hash::{Hash, Hasher},
     iter,
-    iter::FromIterator,
     ops::Deref,
     rc::Rc,
 };
@@ -108,7 +107,7 @@ impl ColWitnessTerm {
     pub fn witness(term: &Complex, lookup: &impl Fn(&Var) -> Element) -> ColWitnessTerm {
         match term {
             Complex::Const(c) => ColWitnessTerm::Const(c.clone()),
-            Complex::Var(v) => ColWitnessTerm::Elem(lookup(&v)),
+            Complex::Var(v) => ColWitnessTerm::Elem(lookup(v)),
             Complex::App { function, terms } => {
                 let terms = terms
                     .iter()
@@ -228,7 +227,7 @@ impl ColModel {
     /// Returns a reference to an element witnessed by the given witness term.
     fn element_ref(&self, witness: &ColWitnessTerm) -> Option<&Element> {
         match witness {
-            ColWitnessTerm::Elem(e) => self.lookup_element(&e),
+            ColWitnessTerm::Elem(e) => self.lookup_element(e),
             ColWitnessTerm::Const(_) => self.lookup_witness(witness),
             ColWitnessTerm::App { function, terms } => {
                 let terms: Vec<Option<&Element>> =
@@ -453,7 +452,7 @@ impl Clone for ColModel {
             .collect();
 
         let facts: HashSet<Observation<ColWitnessTerm>> =
-            HashSet::from_iter(self.facts.iter().map(|o| map_observation(o)));
+            self.facts.iter().map(|o| map_observation(o)).collect();
         ColModel {
             id: rand::random(),
             element_index: self.element_index,

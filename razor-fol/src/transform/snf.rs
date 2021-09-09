@@ -191,11 +191,11 @@ impl SNF {
 
                 variables.iter().for_each(|v| {
                     if skolem_vars.is_empty() {
-                        map.insert(&v, const_generator().into());
+                        map.insert(v, const_generator().into());
                     } else {
                         let vars: Vec<Complex> =
                             skolem_vars.iter().map(|v| v.clone().into()).collect();
-                        map.insert(&v, fn_generator().app(vars));
+                        map.insert(v, fn_generator().app(vars));
                     }
                 });
 
@@ -359,7 +359,7 @@ mod tests {
             assert_eq!(Vec::<&Var>::new(), snf.free_vars());
         }
         {
-            let snf = fof!(_|_).snf();
+            let snf = fof!(_ | _).snf();
             assert_eq!(Vec::<&Var>::new(), snf.free_vars());
         }
         {

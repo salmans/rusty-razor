@@ -70,7 +70,7 @@ impl FromStr for Attribute {
         let variant = if s.starts_with(EXISTENTIAL_PREFIX) {
             Some(Existential)
         } else if s.starts_with(EQUATIONAL_PREFIX) {
-            if s.find(SEPERATOR).is_some() {
+            if s.contains(SEPERATOR) {
                 Some(Equational)
             } else {
                 None

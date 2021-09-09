@@ -53,7 +53,7 @@ impl BasicWitnessTerm {
     fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
         match term {
             Complex::Const(c) => Self::Const(c.clone()),
-            Complex::Var(v) => Self::Elem(assign(&v)),
+            Complex::Var(v) => Self::Elem(assign(v)),
             Complex::App { function, terms } => {
                 let terms = terms.iter().map(|t| Self::witness(t, assign)).collect();
                 Self::App {
@@ -183,10 +183,8 @@ impl BasicModel {
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<BasicWitnessTerm> = terms
-                        .into_iter()
-                        .map(|e| e.unwrap().clone().into())
-                        .collect();
+                    let terms: Vec<BasicWitnessTerm> =
+                        terms.into_iter().map(|e| (*e.unwrap()).into()).collect();
                     self.rewrites.get(&BasicWitnessTerm::App {
                         function: (*function).clone(),
                         terms,
@@ -236,7 +234,7 @@ impl BasicModel {
                 }
             }
             BasicWitnessTerm::Const(_) => {
-                if let Some(e) = self.rewrites.get(&witness) {
+                if let Some(e) = self.rewrites.get(witness) {
                     *e
                 } else {
                     self.new_element(witness.clone())
@@ -322,7 +320,7 @@ impl BasicModel {
                         .map(|t| {
                             if let BasicWitnessTerm::Elem(element) = t {
                                 if element == to {
-                                    from.clone().into()
+                                    (*from).into()
                                 } else {
                                     (*t).clone()
                                 }
@@ -382,10 +380,8 @@ impl BasicModel {
                 if terms.iter().any(|e| e.is_none()) {
                     false
                 } else {
-                    let terms: Vec<BasicWitnessTerm> = terms
-                        .into_iter()
-                        .map(|e| e.unwrap().clone().into())
-                        .collect();
+                    let terms: Vec<BasicWitnessTerm> =
+                        terms.into_iter().map(|e| (*e.unwrap()).into()).collect();
                     let obs = Observation::Fact {
                         relation: relation.clone(),
                         terms,

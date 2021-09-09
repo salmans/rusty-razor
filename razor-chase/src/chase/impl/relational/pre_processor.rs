@@ -63,7 +63,7 @@ impl PreProcessor for RelPreProcessor {
         let sequents = geo_theory
             .formulae()
             .iter()
-            .map(|fmla| RelSequent::new(&fmla, &mut convertor).unwrap())
+            .map(|fmla| RelSequent::new(fmla, &mut convertor).unwrap())
             .collect();
 
         (sequents, model)
@@ -134,9 +134,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
                 .zip(ys.into_iter())
                 .map(|(x, y)| Atomic::from(Equals { left: x, right: y }));
 
-            let mut atomics = Vec::new();
-            atomics.push(f_xs);
-            atomics.push(f_ys);
+            let mut atomics = vec![f_xs, f_ys];
             atomics.extend(xs_ys);
             atomics
         };

@@ -5,6 +5,7 @@ extern crate lalrpop_util;
 
 pub mod parser;
 pub mod syntax;
+pub mod transform;
+
 #[cfg(test)]
 pub mod test_macros;
-pub mod transform;

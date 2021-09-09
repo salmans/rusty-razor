@@ -91,26 +91,20 @@ impl<'s, Stg: Strategy<&'s BatchSequent>, B: Bounder> Evaluator<'s, Stg, B> for 
                         }
 
                         // extending all extensions of this model with the new observations:
-                        let models: Vec<Either<BatchModel, BatchModel>> = result
-                            .open_models
-                            .iter()
-                            .flat_map(|m| {
-                                let ms: Vec<Either<BatchModel, BatchModel>> =
-                                    if let Some(bounder) = bounder {
-                                        let extend = make_bounded_extend(bounder, m);
-                                        head.iter().map(extend).collect()
-                                    } else {
-                                        let extend = make_extend(m);
-                                        head.iter().map(extend).collect()
-                                    };
-                                ms
-                            })
-                            .collect();
+                        let models = result.open_models.into_iter().flat_map::<Vec<_>, _>(|m| {
+                            if let Some(bounder) = bounder {
+                                let extend = make_bounded_extend(bounder, &m);
+                                head.iter().map(extend).collect()
+                            } else {
+                                let extend = make_extend(&m);
+                                head.iter().map(extend).collect()
+                            }
+                        });
 
                         // all previous extensions are now extended further. so remove them from
                         // the result:
-                        result.open_models.clear();
-                        models.into_iter().for_each(|m| result.append(m));
+                        result.open_models = vec![];
+                        models.for_each(|m| result.append(m));
                     }
                 }
 

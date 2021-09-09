@@ -42,7 +42,7 @@ use lalrpop_util::ParseError;
 use std::str::FromStr;
 use thiserror::Error;
 
-lalrpop_mod!(pub grammar); // synthesized by LALRPOP
+lalrpop_mod!(#[allow(clippy::all)] pub grammar); // synthesized by LALRPOP
 
 #[derive(PartialEq, Debug)]
 pub enum TokenType {
@@ -155,10 +155,10 @@ pub enum Error {
 
 impl Error {
     fn pretty_expected_tokens(items: &[TokenType]) -> String {
-        let strs = items.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let mut strs = items.iter().map(ToString::to_string).collect::<Vec<_>>();
         match items.len() {
             0 => "".into(),
-            1 => format!("{}", strs[0]),
+            1 => strs.remove(0),
             2 => format!("{} or {}", strs[0], strs[1]),
             n => format!("{}, or {}", strs[0..n - 1].join(", "), strs[n - 1]),
         }

@@ -246,7 +246,7 @@ impl<'d> Convertor<'d> {
         let instance: Mono<Tuple> = Relation::new(&atom.predicate.to_string()).into();
 
         // `join_key` transforms a tuple to its expected keys:
-        let key = expr_attrs.project(&key_attrs);
+        let key = expr_attrs.project(key_attrs);
 
         let relation = RawExpression::Relation(atom.predicate.to_string());
         let result = if to_project {
@@ -287,7 +287,7 @@ impl<'d> Convertor<'d> {
         let instance: Mono<Tuple> = Relation::new(EQ_SYM).into();
 
         // `join_key` transforms a tuple to its expected keys:
-        let key = expr_attrs.project(&key_attrs);
+        let key = expr_attrs.project(key_attrs);
 
         let relation = RawExpression::Relation(EQ_SYM.into());
         let result = if to_project {
@@ -366,7 +366,7 @@ impl<'d> Convertor<'d> {
                 }
 
                 let expr_attrs = AttributeList::new(expr_attrs);
-                let join_key = expr_attrs.project(&key_attrs); // join key for the expression on top
+                let join_key = expr_attrs.project(key_attrs); // join key for the expression on top
                 let raw = RawExpression::join(
                     left_sub.raw,
                     right_sub.raw,
@@ -407,7 +407,7 @@ impl<'d> Convertor<'d> {
     ) -> Result<SubExpression, Error> {
         match clause_set {
             [] => Ok(SubExpression::empty()),
-            [clause] => self.clause(&clause, key_attrs, attrs),
+            [clause] => self.clause(clause, key_attrs, attrs),
             [first, rest @ ..] => {
                 // Disjuctions simply hope that left and right have the same attributes:
                 let left_exp = self.clause(first, key_attrs, attrs)?;
