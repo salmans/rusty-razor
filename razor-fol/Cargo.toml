@@ -10,16 +10,16 @@ homepage = "https://github.com/salmans/rusty-razor"
 repository = "https://github.com/salmans/rusty-razor"
 keywords = ["razor", "first-order", "logic", "parser", "geometric"]
 categories = ["parser-implementations", "mathematics"]
+build = "build.rs"
 
 [dependencies]
 itertools = "^0.7"
 thiserror = "^1.0"
+lalrpop-util = "^0.19"
 
-[dependencies.nom]
-version = "4.2.3"
-
-[dependencies.nom_locate]
-version = "0.3.1"
+[build-dependencies]
+lalrpop = "^0.19"
+regex = "1"
 
 [lib]
 name = "razor_fol"

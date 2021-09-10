@@ -264,10 +264,8 @@ impl Model for RelModel {
                 if terms.iter().any(|e| e.is_none()) {
                     None
                 } else {
-                    let terms: Vec<BasicWitnessTerm> = terms
-                        .into_iter()
-                        .map(|e| e.unwrap().clone().into())
-                        .collect();
+                    let terms: Vec<BasicWitnessTerm> =
+                        terms.into_iter().map(|e| e.unwrap().into()).collect();
                     self.rewrites
                         .get(&BasicWitnessTerm::App {
                             function: (*function).clone(),

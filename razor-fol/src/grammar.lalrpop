@@ -1,0 +1,152 @@
+use crate::syntax::{*, term::Complex, FOF::*, Theory};
+use lalrpop_util::ParseError;
+use super::Error;
+
+grammar;
+
+extern {
+    type Error = Error;
+}
+
+match {
+    r"\s*" => { }, // Skip whitespace
+    r"//[^\n\r]*[\n\r]*" => { }, // Skip `// comments`
+    r"/[*]([^*]|([*][^/]))*[*]/" => {}, // Skip `/* comments */`
+
+    "," => _COMMA_,
+    "." => _DOT_,
+    ";" => _SEMICOLON_,
+
+    "(" => _LPAREN_,
+    ")" => _RPAREN_,
+    
+    r"=" => _EQUAL_,
+
+    r"true|⊤|'\|'" => _TRUE_,
+    r"false|⟘|_\|_" => _FALSE_,
+    
+    r"not|¬|~" => _NOT_,
+    
+    r"and|∧|&" => _AND_,
+    r"or|∨|\|" => _OR_,
+    
+    r"implies|→|->" => _IMPLIES_,
+    r"iff|⇔|<=>" => _IFF_,
+    
+    r"forall|∀|!" => _FORALL_,
+    r"exists|∃|\?" => _EXISTS_,   
+} else {
+    // identifiers
+    r"[[[:lower:]]_][[:word:]]*" => _LOWER_,
+    r"[[:upper:]][[:word:]]*" => _UPPER_,
+    r"'[[[:lower:]]_][[:word:]]*" => _CONST_,
+}
+
+// macros
+Comma<T>: Vec<T> = {
+    <mut v:(<T> _COMMA_)*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+Parens<T>: T = _LPAREN_ <T> _RPAREN_;
+
+pub Lower: &'input str = <_LOWER_>;
+
+pub Upper: &'input str = <_UPPER_>;
+
+pub Var: Var =
+    <Lower> => <>.into();
+
+pub Vars = Comma<Var>;
+
+pub Const: Const =
+    <s: _CONST_> => s[1..].into();
+
+pub Func: Func =
+    <Lower> => <>.into();
+
+pub Term: Complex = {
+    <f: Func> <ts: Parens<Comma<Term>>> => f.app(ts),
+    <Var> => <>.into(),
+    <Const> => <>.into(),
+};
+
+pub Equal: FOF =
+    <l: Term> _EQUAL_ <r: Term> => l.equals(r);
+
+pub Pred: Pred =
+    <Upper> => <>.into();
+
+pub Atom: FOF = {
+    _TRUE_ => Top,
+    _FALSE_ => Bottom,
+    <Equal>,
+    <p: Pred> <ts: Parens<Comma<Term>>> => p.app(ts).into(),
+};
+
+Unit = {
+    Atom,
+    Parens<<Formula>>,
+};
+
+Unitary = {
+    Quant,
+    Unit,
+};
+
+Not: FOF = {
+    _NOT_ <Not> => FOF::not(<>),
+    Unitary,
+};
+
+UnitNot: FOF = {
+    _NOT_ <UnitNot> => FOF::not(<>),
+    Unit,
+};    
+
+And: FOF = {
+    <l: UnitAnd> _AND_ <r: Not> => l.and(r),
+    Not,
+};
+
+UnitAnd: FOF = {
+    <l: UnitAnd> _AND_ <r: UnitNot> => l.and(r),
+    UnitNot,
+};
+
+Or: FOF = {
+    <l: UnitOr> _OR_ <r: And> => l.or(r),
+    And,
+};
+
+UnitOr: FOF = {
+    <l: UnitOr> _OR_ <r: UnitAnd> => l.or(r),
+    UnitAnd,
+};
+
+Quant: FOF = {
+    _FORALL_ <Vars> _DOT_ <Formula> => FOF::forall(<>),
+    _EXISTS_ <Vars> _DOT_ <Formula> => FOF::exists(<>),
+};
+
+pub Formula: FOF = {
+    <l: UnitOr> _IMPLIES_ <r: Formula> => l.implies(r),
+    <l: UnitOr> _IFF_ <r: Formula> => l.iff(r),
+    Or,
+};
+
+pub Theory: Theory<FOF> =
+    (<Formula> _SEMICOLON_)* =>? {
+    let theory: Theory<_> = <>.into_iter().collect();
+    theory.signature().map_err(|e| ParseError::User {
+        error: Error::Syntax {
+            source: e,
+        }
+    })?; // validating theory's signature
+    Ok(theory)
+};

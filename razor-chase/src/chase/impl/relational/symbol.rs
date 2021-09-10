@@ -34,7 +34,7 @@ impl Symbol {
 
                 let witness = BasicWitnessTerm::apply(
                     symbol.clone(),
-                    args.iter().map(|e| e.clone().into()).collect(),
+                    args.iter().map(|e| e.into()).collect(),
                 );
                 Ok(witness)
             }

@@ -257,7 +257,7 @@ fn unique_function_app(clause: FlatClause) -> Result<FlatClause, Error> {
 
     for lit in clause.iter() {
         if let Atomic::Atom(atom) = lit {
-            if is_function_predicate(&atom.predicate.name()) {
+            if is_function_predicate(atom.predicate.name()) {
                 let (output, terms) = atom
                     .terms
                     .split_last()
@@ -310,13 +310,13 @@ fn topo_sort(clause: FlatClause) -> Result<FlatClause, Error> {
         let node = graph.add_node(lit);
         match lit {
             Atomic::Atom(atom) => {
-                let terms = if is_function_predicate(&atom.predicate.name()) {
+                let terms = if is_function_predicate(atom.predicate.name()) {
                     let (output, terms) = atom
                         .terms
                         .split_last()
                         .ok_or(Error::BadRelationalAtom { atom: atom.clone() })?;
                     if is_existential_variable(output.name()) {
-                        node_map.entry(output).or_insert(Vec::new()).push(node);
+                        node_map.entry(output).or_insert_with(Vec::new).push(node);
                     }
                     terms
                 } else {

@@ -199,8 +199,8 @@ impl From<&PNF> for FOF {
 // no collision variables.
 fn rename(variable: &Var, no_collision_variables: &[&Var]) -> Var {
     let mut name = variable.name().to_string();
-    let names: Vec<_> = no_collision_variables.iter().map(|v| v.name()).collect();
-    while names.contains(&name.as_str()) {
+    let mut names = no_collision_variables.iter().map(|v| v.name());
+    while names.any(|x| x == name.as_str()) {
         name.push('`')
     }
     Var::from(&name)
@@ -1075,7 +1075,7 @@ mod tests {
             assert_eq!(Vec::<&Var>::new(), pnf.free_vars());
         }
         {
-            let pnf = fof!(_|_).pnf();
+            let pnf = fof!(_ | _).pnf();
             assert_eq!(Vec::<&Var>::new(), pnf.free_vars());
         }
         {

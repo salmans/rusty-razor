@@ -24,7 +24,9 @@ impl Stylus {
     }
 
     pub fn set(&self, id: StyleId) {
-        self.styles.get(&id).map(|s| self.set_style(s));
+        if let Some(s) = self.styles.get(&id) {
+            self.set_style(s)
+        }
     }
 
     pub fn set_style(&self, style: &Style) {

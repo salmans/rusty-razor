@@ -42,9 +42,9 @@ impl std::str::FromStr for BoundCommand {
 #[derive(StructOpt)]
 enum SchedulerOption {
     #[structopt(about = "When branching, process new models first.")]
-    LIFO,
+    Lifo,
     #[structopt(about = "When branching, process new models last.")]
-    FIFO,
+    Fifo,
 }
 
 impl std::str::FromStr for SchedulerOption {
@@ -52,9 +52,9 @@ impl std::str::FromStr for SchedulerOption {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if &s.to_lowercase() == "lifo" {
-            Ok(SchedulerOption::LIFO)
+            Ok(SchedulerOption::Lifo)
         } else if &s.to_lowercase() == "fifo" {
-            Ok(SchedulerOption::FIFO)
+            Ok(SchedulerOption::Fifo)
         } else {
             Err("invalid scheduler")
         }
@@ -130,8 +130,8 @@ impl ProcessCommand {
                 let mut incomplete_count = 0;
 
                 let mut scheduler = match scheduler {
-                    SchedulerOption::FIFO => Dispatch::new_fifo(),
-                    SchedulerOption::LIFO => Dispatch::new_lifo(),
+                    SchedulerOption::Fifo => Dispatch::new_fifo(),
+                    SchedulerOption::Lifo => Dispatch::new_lifo(),
                 };
 
                 info!(

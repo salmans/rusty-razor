@@ -184,7 +184,7 @@ impl PcfSet {
     /// of the clauses in `self` and `other`.
     pub fn cross_union(&self, other: &Self) -> Self {
         self.iter()
-            .flat_map(|h1| other.iter().map(move |h2| h1.union(&h2)))
+            .flat_map(|h1| other.iter().map(move |h2| h1.union(h2)))
             .collect()
     }
 
@@ -1092,7 +1092,7 @@ mod tests {
             assert_debug_strings!("P(x) -> Q(x, f#0(x))", gnf(&formula));
         }
         {
-            let formula: FOF = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y)))))"
+            let formula: FOF = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y))))"
                 .parse()
                 .unwrap();
             assert_debug_strings!(
