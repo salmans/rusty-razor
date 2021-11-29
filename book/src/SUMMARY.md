@@ -1,10 +1,11 @@
 # Summary
 
-[Introduction](./intro.md)
-- [Background](./background.md)
-  - [Satisfiability of Geometric Theories](./background/satisfiability.md)
-  - [The Chase](./background/chase.md)
-  - [Termination](./background/termination.md)
+- [Overview](./overview.md)
+  - [Conventional Model-Finding](./model-finding.md)
+  - [Razor: A First-Order Approach](./razor.md)
+- [Theory and Implementation](./theory.md)
+  - [The Chase](./theory/chase.md)
+  - [Implementation](./theory/implementation.md)
 - [Syntax](./syntax.md)
   - [Syntactic Variations](./syntax/variations.md)
   - [Connective Precedence](./syntax/precedence.md)
