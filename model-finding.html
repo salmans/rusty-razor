@@ -3,13 +3,13 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>The Chase - rusty-razor</title>
+        <title>Conventional Model-Finding - rusty-razor</title>
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff" />
 
-        <base href="../">
+        <base href="">
 
         <link rel="stylesheet" href="book.css">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
@@ -69,7 +69,7 @@
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <ol class="chapter"><li class="affix"><a href="intro.html">Introduction</a></li><li><a href="background.html"><strong aria-hidden="true">1.</strong> Background</a></li><li><ol class="section"><li><a href="background/satisfiability.html"><strong aria-hidden="true">1.1.</strong> Satisfiability of Geometric Theories</a></li><li><a href="background/chase.html" class="active"><strong aria-hidden="true">1.2.</strong> The Chase</a></li><li><a href="background/termination.html"><strong aria-hidden="true">1.3.</strong> Termination</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">2.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">2.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">2.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">2.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">3.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">4.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">4.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">4.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">5.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">5.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">5.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">5.3.</strong> Hold the Door</a></li></ol></li></ol>
+            <ol class="chapter"><li><a href="overview.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li><ol class="section"><li><a href="model-finding.html" class="active"><strong aria-hidden="true">1.1.</strong> Conventional Model-Finding</a></li><li><a href="razor.html"><strong aria-hidden="true">1.2.</strong> Razor: A First-Order Approach</a></li></ol></li><li><a href="theory.html"><strong aria-hidden="true">2.</strong> Theory and Implementation</a></li><li><ol class="section"><li><a href="theory/chase.html"><strong aria-hidden="true">2.1.</strong> The Chase</a></li><li><a href="theory/implementation.html"><strong aria-hidden="true">2.2.</strong> Implementation</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">3.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">3.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">3.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">3.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">4.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">5.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">5.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">5.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">6.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">6.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">6.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">6.3.</strong> Hold the Door</a></li></ol></li></ol>
         </nav>
 
         <div id="page-wrapper" class="page-wrapper">
@@ -133,45 +133,90 @@
 
                 <div id="content" class="content">
                     <main>
-                        <a class="header" href="background/chase.html#the-chase" id="the-chase"><h2>The Chase</h2></a>
-<p>Given a geometric theory and starting with an empty model, a run of Chase consists of repeated
-applications of <a href="background/chase.html#step">chase-steps</a> by which the model is augmented with <em>necessary</em> pieces of
-information until there is a contradiction or the model satisfies the theory. Inspired by
-<a href="https://www.cs.bham.ac.uk/%7Esjv/GeoZ.pdf">Steven Vickers</a>, we refer to the units of information that augment models as <em>observations</em>.</p>
-<a class="header" href="background/chase.html#a-namestepchase-stepa" id="a-namestepchase-stepa"><h3><a name="step">Chase Step</a></h3></a>
-<p>Given a geometric theory and an existing model, a chase-step proceeds as follows:</p>
-<ol>
+                        <a class="header" href="model-finding.html#conventional-model-finding" id="conventional-model-finding"><h2>Conventional Model-Finding</h2></a>
+<p>It's a well-known result that first-order model-finding is undecidable (see <a href="https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems">Gödel's incompleteness theorem</a>).
+As a consequence, any practical model-finding algorithm must resort to some notion of <em>bound</em> on the search
+space of models to guarantee termination. Conventional model-finders, such as Kodkod, MACE, and Paradox,
+assume a bound on the size of the domain of models to be found. This assumption makes it possible to translate
+the input first-order theory 𝓣 to a propositional formula 𝓟 up to the give bound. This process is known
+as <em>propositionalization</em>. Next, the model-finder utilizes a <a href="https://en.wikipedia.org/wiki/Boolean_satisfiability_problem">SAT</a> solver to find
+solutions for 𝓟. Intuitively speaking, one might think of the propositionalization step as the process of
+enumerating all potential models of the initial first-order formula where each propositional variable in 𝓟
+represents a <em>fact</em> in first-order models of 𝓣. The job of the SAT solver is to find solutions to 𝓟,
+corresponding to images of first-order models for 𝓣. Finally, the model-finder maps the solutions to the
+SAT problem back to models of the original first-order theory 𝓣.</p>
+<p><a name="list_example"></a>
+For example, consider the following specification of a conventional list in functional
+programming languages:</p>
+<pre><code>// Every list `x` is `'nil` or points to a `next` list:
+∀ x . List(x) → x = 'nil ∨ ∃ y. next(x) = y and List(y);
+
+// The `next` of a list is its sublist:
+∀ x, y. next(x) = y → Sublist(x, y);
+// The `next` of a sublist is itself a sublist:
+∀ x, y, z. Sublist(x, y) ∧ next(y) = z → Sublist(x, z);
+
+// `'nil` never point to a `next` list:
+~∃ x. next('nil) = x;
+// A list cannot be its own sublist (no cycles):
+~∃ x. Sublist(x, x);
+
+// `'my_list` is a list:
+List('my_list);
+</code></pre>
+<p>The first five formulae of this theory describe the list data structure and the last formula asks for models
+with a list, namely <code>'my_list</code>. Given a bound of 4 on the size of the models, a conventional model-finder
+queries the underlying SAT solver for solutions consisting of 1, 2, 3, or 4 elements (e.g., lists) that satisfy
+the theory. Consequently, the model-finder may spit out solutions such as the following (○, ●, and ⟶ respectively
+denote the <code>'nil</code> list, a non-empty list, and the <code>next</code> function):</p>
+<ul>
 <li>
-<p>A sequent from the theory is selected to be evaluated against the model.</p>
+<p><code>'my_list</code> of length 0 (i.e., the <code>'nil</code> list):</p>
+<p><code>'my_list</code>:  ◯</p>
 </li>
 <li>
-<p>The selected sequent is evaluated against the model: given an assignment from the free
-variables of the sequent to the elements of the model, if the body of the sequent is true and
-its head is not true in the model, new observations are added to the model to make the
-sequent's head true.</p>
-<p>2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
-The Chase fails on the given model.</p>
-<p>2.2. If the head of the sequent contains more than one disjunct (with at least one
-non-trivial disjunction), The Chase branches and satisfies each disjunct independently on clones
-of the model.</p>
-<p>2.3. If no sequent can be found such that its body and head are respectively true and false
-in the model, the model already satisfies the theory and will be returned as an output of The
-Chase.</p>
+<p><code>'my_list</code> of length 1 (a node pointing to <code>'nil</code>):</p>
+<p><code>'my_list</code>:  ⬤➝◯</p>
 </li>
-</ol>
+<li>
+<p><code>'my_list</code> of length 2:</p>
+<p><code>'my_list</code>:  ⬤➝⬤➝◯</p>
+</li>
+</ul>
+<p><a name="list_example_bad_model"></a></p>
+<ul>
+<li>
+<p>Two lists (<code>'my_list</code> and an unnamed list) of length 1:</p>
+<p><code>'my_list</code>:   ⬤➝◯<br />
+(unnamed):  ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 3 and a (unnamed) list of length 0:</p>
+<p><code>'my_list</code>:   ⬤➝⬤➝⬤➝◯<br />
+(unnamed):  ◯</p>
+</li>
+</ul>
+<p>A key take-away is that the input bound on the model size does not only guarantee termination, but also is
+<em>necessary</em> to make propositionalization generally possible.</p>
+<blockquote>
+<p><strong>Note:</strong>
+Certain classes of first-order formulae including the <a href="https://en.wikipedia.org/wiki/Bernays%E2%80%93Sch%C3%B6nfinkel_class">Bernays–Schönfinkel–Ramsey class</a>,
+also known as the <em>effectively propositional</em> (EPR) class, may be translated into propositional logic without
+an explicit search bound.</p>
+</blockquote>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="background/satisfiability.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="overview.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="background/termination.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="razor.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -183,13 +228,13 @@ Chase.</p>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a href="background/satisfiability.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a href="overview.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a href="background/termination.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a href="razor.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

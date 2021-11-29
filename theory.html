@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Background - rusty-razor</title>
+        <title>Theory and Implementation - rusty-razor</title>
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -69,7 +69,7 @@
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <ol class="chapter"><li class="affix"><a href="intro.html">Introduction</a></li><li><a href="background.html" class="active"><strong aria-hidden="true">1.</strong> Background</a></li><li><ol class="section"><li><a href="background/satisfiability.html"><strong aria-hidden="true">1.1.</strong> Satisfiability of Geometric Theories</a></li><li><a href="background/chase.html"><strong aria-hidden="true">1.2.</strong> The Chase</a></li><li><a href="background/termination.html"><strong aria-hidden="true">1.3.</strong> Termination</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">2.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">2.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">2.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">2.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">3.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">4.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">4.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">4.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">5.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">5.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">5.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">5.3.</strong> Hold the Door</a></li></ol></li></ol>
+            <ol class="chapter"><li><a href="overview.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li><ol class="section"><li><a href="model-finding.html"><strong aria-hidden="true">1.1.</strong> Conventional Model-Finding</a></li><li><a href="razor.html"><strong aria-hidden="true">1.2.</strong> Razor: A First-Order Approach</a></li></ol></li><li><a href="theory.html" class="active"><strong aria-hidden="true">2.</strong> Theory and Implementation</a></li><li><ol class="section"><li><a href="theory/chase.html"><strong aria-hidden="true">2.1.</strong> The Chase</a></li><li><a href="theory/implementation.html"><strong aria-hidden="true">2.2.</strong> Implementation</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">3.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">3.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">3.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">3.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">4.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">5.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">5.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">5.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">6.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">6.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">6.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">6.3.</strong> Hold the Door</a></li></ol></li></ol>
         </nav>
 
         <div id="page-wrapper" class="page-wrapper">
@@ -133,36 +133,49 @@
 
                 <div id="content" class="content">
                     <main>
-                        <a class="header" href="background.html#background" id="background"><h1>Background</h1></a>
-<p>Razor implements a variant of <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">The Chase</a> algorithm to construct models for first-order theories with equality. The Chase operates on <a href="https://www.cs.bham.ac.uk/%7Esjv/GLiCS.pdf">geometric theories</a>, theories that contain a syntactic
-variation of first-order formulae which we refer to as the <strong>Geometric Normal Form</strong> (GNF). Formulae
-in GNF have the following shape:</p>
-<p>A<sub>1</sub> ∧ ... ∧ A<sub>m</sub> →
-(∃ x<sub>11</sub>, ..., x<sub>1j<sub>1</sub></sub> . A<sub>11</sub> ∧ ... ∧ A<sub>1n<sub>1</sub></sub>) </br>
-   
-∨ (∃ x<sub>21</sub>, ..., x<sub>2j<sub>2</sub></sub> . A<sub>21</sub> ∧ ... ∧ A<sub>2n<sub>2</sub></sub>) </br>
-   
-∨ ... </br>
-   
-∨ (∃ x<sub>i1</sub>, ..., x<sub>ij<sub>i</sub></sub> . A<sub>i1</sub> ∧ ... ∧ A<sub>in<sub>i</sub></sub>)</p>
-<p>where A<sub>k</sub>s are (positive) atomic formulae (possibly including equality) and free
-variables are assumed to be universally qualified over the entire formula.</p>
-<p>In the context of a run of The Chase, we refer to the formulae in their GNF as
-<strong>sequents</strong>. The premise (left side) and the consequence (right side) of the implication are
-respectively said to be the <em>body</em> and the <em>head</em> of the sequent.</p>
+                        <a class="header" href="theory.html#geometric-logic" id="geometric-logic"><h1>Geometric Logic</h1></a>
+<p>Razor implements a variant of <a href="./theory/chase.html">the chase</a> algorithm to construct models for theories in
+<a href="https://www.cs.bham.ac.uk/%7Esjv/GLiCS.pdf">geometric logic</a>, a syntactic variation of first-order logic. Geometric theories
+are comprised of geometric <em>sequents</em> in the following form:</p>
+<pre>
+𝙰<sub>1</sub> ∧ ... ∧ 𝙰<sub>m</sub> ⊢<sub>𝘅</sub> (∃ 𝚢<sub>11</sub>, ..., 𝚢<sub>1j<sub>1</sub></sub> . 𝙰<sub>11</sub> ∧ ... ∧ 𝙰<sub>1n<sub>1</sub></sub>)  
+              ∨ (∃ 𝚢<sub>21</sub>, ..., 𝚢<sub>2j<sub>2</sub></sub> . 𝙰<sub>21</sub> ∧ ... ∧ 𝙰<sub>2n<sub>2</sub></sub>)  
+              ∨ ...  
+              ∨ (∃ 𝚢<sub>i1</sub>, ..., 𝚢<sub>ij<sub>i</sub></sub> . 𝙰<sub>i1</sub> ∧ ... ∧ 𝙰<sub>in<sub>i</sub></sub>)
+</pre>
+<p>where ⊢ denotes logical entailment, 𝙰<sub>k</sub>s are atomic formulae (including equality),
+and 𝘅 is the set of free variables (assumed to be universally quantified) in the sequent. The premise
+(left side) and the consequence (right side) of ⊢ are respectively said to be the <em>body</em> and the <em>head</em> of
+the sequent. A body of empty conjunctions (m = 0) and a head of empty disjunctions (i = 0) are equivalent to
+truth (⊤) and falsehood (⟘) respectively.</p>
+<a class="header" href="theory.html#satisfiability" id="satisfiability"><h3>Satisfiability</h3></a>
+<p>It turns out that a first-order theory 𝓣 can be transformed to a geometric theory 𝓖 that is
+<a href="https://en.wikipedia.org/wiki/Equisatisfiability"><em>equisatisfiable</em></a> to 𝓣 via standard syntactic manipulation. That is, 𝓣 is satisfiable
+(i.e., has a model) if and only if 𝓖 is satisfiable. But 𝓖 has other desirable properties that
+goes beyond equisatisfiability with 𝓣: in fact, for every model 𝕟 of 𝓣, a model 𝕞 of 𝓖 exists
+such that there is a homomorphism from 𝕞 to 𝕟. This is an important result that enables Razor
+to apply the chase to construct homomorphically <a href="./razor.html#minimality">minimal</a> models of 𝓣.</p>
+<p>In the context of a model-finding application, the chase constructs special models that contain
+minimum amount of information required for satisfying the input theory. Equisatisfiability of
+geometric and first-order logic also implies that satisfiability of geometirc theories is
+undecidable (see <a href="https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems">Gödel's incompleteness theorems</a>).</p>
+<blockquote>
+<p><strong>Note:</strong> Chapter 4 of my doctoral <a href="https://digital.wpi.edu/concern/etds/5q47rn87k">dissertation</a> presents a comprehensive discussion about
+geometric logic and the chase.</p>
+</blockquote>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="intro.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="razor.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="background/satisfiability.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="theory/chase.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -174,13 +187,13 @@ respectively said to be the <em>body</em> and the <em>head</em> of the sequent.<
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a href="intro.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a href="razor.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a href="background/satisfiability.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a href="theory/chase.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

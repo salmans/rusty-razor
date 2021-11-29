@@ -1,0 +1,318 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Razor: A First-Order Approach - rusty-razor</title>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <base href="">
+
+        <link rel="stylesheet" href="book.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:500" rel="stylesheet" type="text/css">
+
+        <link rel="shortcut icon" href="favicon.png">
+
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        
+
+        
+
+    </head>
+    <body class="light">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { } 
+            if (theme === null || theme === undefined) { theme = 'light'; }
+            document.body.className = theme;
+            document.querySelector('html').className = theme + ' js';
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <ol class="chapter"><li><a href="overview.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li><ol class="section"><li><a href="model-finding.html"><strong aria-hidden="true">1.1.</strong> Conventional Model-Finding</a></li><li><a href="razor.html" class="active"><strong aria-hidden="true">1.2.</strong> Razor: A First-Order Approach</a></li></ol></li><li><a href="theory.html"><strong aria-hidden="true">2.</strong> Theory and Implementation</a></li><li><ol class="section"><li><a href="theory/chase.html"><strong aria-hidden="true">2.1.</strong> The Chase</a></li><li><a href="theory/implementation.html"><strong aria-hidden="true">2.2.</strong> Implementation</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">3.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">3.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">3.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">3.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">4.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">5.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">5.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">5.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">6.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">6.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">6.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">6.3.</strong> Hold the Door</a></li></ol></li></ol>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                
+                <div id="menu-bar" class="menu-bar">
+                    <div id="menu-bar-sticky-container">
+                        <div class="left-buttons">
+                            <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                                <i class="fa fa-bars"></i>
+                            </button>
+                            <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                                <i class="fa fa-paint-brush"></i>
+                            </button>
+                            <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                                <li role="none"><button role="menuitem" class="theme" id="light">Light <span class="default">(default)</span></button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                                <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                            </ul>
+                            
+                            <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                                <i class="fa fa-search"></i>
+                            </button>
+                            
+                        </div>
+
+                        <h1 class="menu-title">rusty-razor</h1> 
+
+                        <div class="right-buttons">
+                            <a href="print.html" title="Print this book" aria-label="Print this book">
+                                <i id="print-button" class="fa fa-print"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" name="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <a class="header" href="razor.html#razor-a-first-order-approach" id="razor-a-first-order-approach"><h2>Razor: A First-Order Approach</h2></a>
+<p>Razor takes a direct approach to first-order model-finding without propositionalization and SAT solving.
+The essence of Razor's algorithm is the <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">chase</a> from database theory. Our approach to model-finding has a
+couple of primary advantages: first, the model-finding algorithm doesn't inherently require a bound for
+propositionalization. Second, the algorithm can leverage information in first-order logic to guide the search
+for models, unlike the SAT-based approach where the underlying SAT solver is put in charge of the search. However,
+these features usually come at a performance cost as Razor doesn't make use of the blazingly fast modern SAT-solvers.</p>
+<a class="header" href="razor.html#a-nameunbounded-unbounded-algorithm" id="a-nameunbounded-unbounded-algorithm"><h3><a name="unbounded"/> Unbounded Algorithm</h3></a>
+<p>As discussed earlier, SAT-based model-finders translate the input first-order theory to a propositional formula up to a bound,
+which is often provided by the user. Providing a search bound that is sufficient for a complete analysis yet small enough to
+make the search tractable poses a challenge to using SAT-based model-finders. Inferring a sufficient search bound to help the
+user has been an ongoing research in the literature.</p>
+<p>In contrast, Razor's model-finding algorithm is unbounded: starting from an <em>empty</em> model 𝕞 (i.e., a model over an empty
+domain), Razor constructively augments 𝕞 with necessary elements and facts until 𝕞 satisfies the input theory or a
+contradiction occurs. When there is more than one way to continue, the algorithm augments clones of 𝕞 in different search branches.</p>
+<p>As a direct result of undecidability of first-order logic, a run of Razor on an arbitrary theory may fail to terminate.
+To guarantee termination, we would need to devise a termination condition such an execution timeout, a count of generated models,
+a maximum search depth, or possibly a bound on the domain size of models. Because of the inherent unboundedness of Razor's algorithm,
+the user wouldn't have to provide the search bound upfront; in fact, the user may let the search continue for an arbitrary length of
+time and kill the Razor's process on demand.</p>
+<blockquote>
+<p><strong>Note:</strong>
+Some SAT-based model-finders like Paradox implement clever algorithms to reuse some components of the intermediate propositionalized
+formula for a bound of size <code>n</code> to generate a propositional formula for a bound at <code>n + 1</code>. This approach enables the solver to perform
+incremental model-finding as it expands the search bound. Nevertheless, at each step, a considerable portion of the previously generated
+propositional formulae and the earlier work of the SAT-solver must get discarded.</p>
+</blockquote>
+<a class="header" href="razor.html#controlled-search" id="controlled-search"><h3>Controlled Search</h3></a>
+<p>Conventional model-finders put their (often off-the-shelf) SAT-solvers fully in charge of constructing structures
+that are then translated to models of the input theory; therefore, the model-finding tool has little control over
+the search algorithm. In particular, relying on a SAT-solver would limit the opportunities to guide the search and
+optimize the quality of models.</p>
+<p>Razor constructs models that are minimal with respect to their <em>information content</em> within a framework for <em>exploring</em>
+the space of models of the input theory. In addition, employing a first-order search algorithm enables Razor to trivially
+parallelize and distribute the search, give access to the intermediate <em>partial</em> models, and employ heuristics to guide the
+search.</p>
+<a class="header" href="razor.html#a-nameminimality-minimality" id="a-nameminimality-minimality"><h4><a name="minimality"/> Minimality</h4></a>
+<p>SAT-based model-finders tend to output <em>noisy</em> models: these are non-minimal models which hold <em>facts</em> that aren't necessary
+for satisfying the input theory. Noisy models can be hard to understand as they don't offer <em>provenance</em>
+for their content. In contrast, Razor's algorithm is guided towards producing <em>minimal</em> models, which contain nothing but facts
+that must be present for satisfying the theory. Formally speaking, Razor returns models that are minimal with respect to a
+<a href="https://en.wikipedia.org/wiki/Homomorphism">homomorphism</a> ordering on all models of the theory. The homomorphism ordering serves as a useful measure of information
+content, enabling Razor to offer <em>provenance</em> to justify the content of its models by the sentences of the input theory.</p>
+<p>Consider the <a href="./model-finding.html#list_example">list</a> specification from the previous section. A run of Razor bounded by a domain size of 4 elements outputs
+models such as the ones below:</p>
+<ul>
+<li>
+<p><code>'my_list</code> of length 0 (i.e., the <code>'nil</code> list):</p>
+<p><code>'my_list</code>:  ◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 1:</p>
+<p><code>'my_list</code>:  ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 0 (an alias for <code>'nil</code>) and an unnamed list of of length 1:</p>
+<p><code>'my_list</code>:  ◯<br />
+(unnamed):   ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 2:</p>
+<p><code>'my_list</code>:  ⬤➝⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 0 and an unnamed list of of length 2:</p>
+<p><code>'my_list</code>:  ◯<br />
+(unnamed):   ⬤➝⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 3:</p>
+<p><code>'my_list</code>:  ⬤➝⬤➝⬤➝◯</p>
+</li>
+</ul>
+<p>All these models are minimal in the sense that unlike <a href="./model-finding.html#list_example_bad_model">some examples</a> from the previous section,
+every peice of information in these models is required by the input theory and cannot be removed.</p>
+<blockquote>
+<p><strong>Note:</strong>
+For every model 𝕟 of the input theory 𝓣, Razor returns a model 𝕞 with a homomorphism from 𝕞 to 𝕟. Informally,
+it's always possible to construct any model of 𝓣 by adding more information to a model returned by Razor. Therefore, we
+refer to the models returned by Razor as a <em>set of support</em> for 𝓣.</p>
+</blockquote>
+<a class="header" href="razor.html#verification-and-exploration" id="verification-and-exploration"><h4>Verification and Exploration</h4></a>
+<p>First-order model-finding is often applied to uncover inconsistencies and logical flaws where the user verifies if an assertion
+follows from a specification. The assertion, which is often a desirable <em>property</em> of the system, holds if its negation is
+inconsistent with the specification, having no models. I will refer to this mode of interaction with a model-finder as
+<em>verification</em>. When working with a model-finder in the verification mode, only one (unexpected) model is sufficient to reveal
+a bug in the specification.</p>
+<p>In a different mode of analysis, the user understands models of the theory as instances of the behavior of a system specification.
+I will call this mode of interaction with a model-finder <em>exploration</em>. Unlike the verification mode, where the model-finder helps
+the user to prove properties of a system, the user of the exploration mode is interested in investigating examples of a system's
+execution without necessarily having specific properties in mind. The goal of exploration is to help the user develop a better
+understanding of the specified system.</p>
+<blockquote>
+<p><strong>Note:</strong>
+<code>check</code> and <code>run</code> commands in Alloy operate in verification and exploration modes respectively.</p>
+</blockquote>
+<p>SAT-based model-finders commonly offer models in no particular order as the order of output is dictated by the underlying
+SAT-solver. This behavior is often acceptable in the verification mode, where any counterexample suffices to disprove a hypothesis
+or invalidate a property. In contrast, effective model-finding for exploration greatly benefits from a systematic approach to
+presenting models, an exploration method that enables the user to effectively navigate through various classes of (possibly many)
+models of the theory and does not solely rely on the serendipity of SAT-solving. Razor's approach to model-finding offers a solution!</p>
+<p>As I mentioned in the <a href="razor.html#minimality">previous section</a>, Razor produces models that are minimal with no noise, i.e., unnecessary facts.
+More accurately, these are models that are minimal with respect to a preorder ≺ induced by the homomorphism relation
+between the models of the theory. For two models 𝕞 and 𝕟 of a theory
+𝓣, 𝕞 ≺ 𝕟 if and only if there is a homomorphism from 𝕞 to 𝕟 and it's easy to show that 𝕞 contains less noise than 𝕟.
+It is, though, always possible to <em>augment</em> 𝕞 with additional (unnecessary) facts to obtain 𝕟. This is the core principle that
+enables a framework for model exploration with respect to a measure of information content.</p>
+<blockquote>
+<p><strong>Note:</strong>
+<a href="https://dl.acm.org/doi/10.5555/2486788.2486820">Aluminum</a> is a preliminary realization of this approach to exploring models, which was implemented as a modification of Alloy.</p>
+</blockquote>
+<a class="header" href="razor.html#fitness" id="fitness"><h4>Fitness</h4></a>
+<p>Model-finders could potentially incorporate heuristic measures to prioritize specific search branches or adopt various search strategies.
+However, delegating the search to a SAT-solver dramatically limits the opportunity for taking advantage of heuristics and contextual
+information.</p>
+<p>Earlier, I brought up <a href="razor.html#minimality">minimality</a> as a quality measure but the user might be interested in other attributes and criteria
+for model exploration. For example, the user could ask for a new model that is less similar to the ones previously returned or one that
+would be &quot;surprising&quot;. Also, the model-finder may keep track of various heuristics to deprioritize search branches that are more likely
+to fail or to switch between different scheduling algorithms.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                        
+                            <a rel="prev" href="model-finding.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        
+
+                        
+                            <a rel="next" href="theory.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                
+                    <a href="model-finding.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                
+
+                
+                    <a href="theory.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+                
+            </nav>
+
+        </div>
+
+        
+
+        
+
+        
+
+        
+        <script src="searchindex.js" type="text/javascript" charset="utf-8"></script>
+        
+        
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        
+
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        
+
+        
+
+    </body>
+</html>

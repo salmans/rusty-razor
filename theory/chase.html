@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Termination - rusty-razor</title>
+        <title>The Chase - rusty-razor</title>
         <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -69,7 +69,7 @@
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <ol class="chapter"><li class="affix"><a href="intro.html">Introduction</a></li><li><a href="background.html"><strong aria-hidden="true">1.</strong> Background</a></li><li><ol class="section"><li><a href="background/satisfiability.html"><strong aria-hidden="true">1.1.</strong> Satisfiability of Geometric Theories</a></li><li><a href="background/chase.html"><strong aria-hidden="true">1.2.</strong> The Chase</a></li><li><a href="background/termination.html" class="active"><strong aria-hidden="true">1.3.</strong> Termination</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">2.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">2.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">2.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">2.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">3.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">4.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">4.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">4.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">5.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">5.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">5.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">5.3.</strong> Hold the Door</a></li></ol></li></ol>
+            <ol class="chapter"><li><a href="overview.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li><ol class="section"><li><a href="model-finding.html"><strong aria-hidden="true">1.1.</strong> Conventional Model-Finding</a></li><li><a href="razor.html"><strong aria-hidden="true">1.2.</strong> Razor: A First-Order Approach</a></li></ol></li><li><a href="theory.html"><strong aria-hidden="true">2.</strong> Theory and Implementation</a></li><li><ol class="section"><li><a href="theory/chase.html" class="active"><strong aria-hidden="true">2.1.</strong> The Chase</a></li><li><a href="theory/implementation.html"><strong aria-hidden="true">2.2.</strong> Implementation</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">3.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">3.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">3.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">3.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">4.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">5.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">5.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">5.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">6.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">6.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">6.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">6.3.</strong> Hold the Door</a></li></ol></li></ol>
         </nav>
 
         <div id="page-wrapper" class="page-wrapper">
@@ -133,26 +133,58 @@
 
                 <div id="content" class="content">
                     <main>
-                        <a class="header" href="background/termination.html#termination" id="termination"><h2>Termination</h2></a>
-<p>As a result of semi-decidability of geometric theories, it can be shown if a geometric theory
-is unsatisfiable, a run of The Chase on the theory always terminates, although it may take
-a very very long time.
-However, when the theory is satisfiable, a run of The Chase may not terminate, producing
-infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
-in practice, Razor can <em>bound</em> the size of models created by The Chase to guarantee termination.</p>
+                        <a class="header" href="theory/chase.html#the-chase" id="the-chase"><h2>The Chase</h2></a>
+<p>The <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">chase</a> is a well-known algorithm in database theory that constructs models for geometric theories.
+Given a geometric theory 𝓖 and starting with an empty model 𝕞, a run of the chase consists of repeated
+applications of the <a href="theory/chase.html#step">chase-step</a> to augment 𝕞 with <em>necessary</em> information until there is a
+contradiction or 𝕞 satisfies 𝓖. Inspired by <a href="https://www.cs.bham.ac.uk/%7Esjv/GeoZ.pdf">Steven Vickers</a>, we refer to the units of information
+for augmenting models as <em>observations</em>.</p>
+<a class="header" href="theory/chase.html#a-namestepchase-stepa" id="a-namestepchase-stepa"><h3><a name="step">Chase-Step</a></h3></a>
+<p>Given a geometric theory 𝓖 and a model 𝕞, a chase-step proceeds as below:</p>
+<ol>
+<li>
+<p>A sequent 𝜑 ⊢<sub>𝘅</sub> 𝜓 from 𝓖 is selected for evaluation.</p>
+</li>
+<li>
+<p>Given an assignment from the variables in 𝘅 to the elements of 𝕞: if 𝜑 is true and 𝜓 is false in 𝕞,
+new observations are added to 𝕞 to make 𝜓 true, such that:</p>
+<ul>
+<li>
+<p>If 𝜓 is equal to ⟘ (i.e., an empty disjunction), the chase fails on 𝕞.</p>
+</li>
+<li>
+<p>If 𝜓 contains more than one disjunct, namely 𝜓<sub>1</sub> ∨ ... ∨ 𝜓<sub>i</sub> (i &gt; 1),
+the chase branches and augments clones of 𝕞 to make 𝜓<sub>i</sub> true in each branch.</p>
+</li>
+<li>
+<p>If there is no sequent such that 𝜑 is true and 𝜓 is false in 𝕞, the model 𝕞 already satisfies
+𝓖 and is returned as an output.</p>
+</li>
+</ul>
+</li>
+</ol>
+<a class="header" href="theory/chase.html#termination" id="termination"><h3>Termination</h3></a>
+<p>It can be shown a run of the chase always terminates on an unsatisfiable theory, although it may take
+a very very long time. However, when the theory is satisfiable, a run of the chase may not terminate,
+producing infinitely large and/or infinitely many models. This is consistent with semi-decidability
+of the satisfiability problem for first-order theories.</p>
+<blockquote>
+<p><strong>Note:</strong> As discussed <a href="./razor.html#unbounded">earlier</a>, Razor accepts a search bound to guarantee termination
+of the chase.</p>
+</blockquote>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
                         
-                            <a rel="prev" href="background/chase.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="theory.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
 
                         
-                            <a rel="next" href="syntax.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="theory/implementation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -164,13 +196,13 @@ in practice, Razor can <em>bound</em> the size of models created by The Chase to
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
                 
-                    <a href="background/chase.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a href="theory.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
 
                 
-                    <a href="syntax.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a href="theory/implementation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                 

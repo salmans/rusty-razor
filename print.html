@@ -69,7 +69,7 @@
         </script>
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
-            <ol class="chapter"><li class="affix"><a href="intro.html">Introduction</a></li><li><a href="background.html"><strong aria-hidden="true">1.</strong> Background</a></li><li><ol class="section"><li><a href="background/satisfiability.html"><strong aria-hidden="true">1.1.</strong> Satisfiability of Geometric Theories</a></li><li><a href="background/chase.html"><strong aria-hidden="true">1.2.</strong> The Chase</a></li><li><a href="background/termination.html"><strong aria-hidden="true">1.3.</strong> Termination</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">2.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">2.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">2.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">2.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">3.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">4.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">4.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">4.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">5.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">5.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">5.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">5.3.</strong> Hold the Door</a></li></ol></li></ol>
+            <ol class="chapter"><li><a href="overview.html"><strong aria-hidden="true">1.</strong> Overview</a></li><li><ol class="section"><li><a href="model-finding.html"><strong aria-hidden="true">1.1.</strong> Conventional Model-Finding</a></li><li><a href="razor.html"><strong aria-hidden="true">1.2.</strong> Razor: A First-Order Approach</a></li></ol></li><li><a href="theory.html"><strong aria-hidden="true">2.</strong> Theory and Implementation</a></li><li><ol class="section"><li><a href="theory/chase.html"><strong aria-hidden="true">2.1.</strong> The Chase</a></li><li><a href="theory/implementation.html"><strong aria-hidden="true">2.2.</strong> Implementation</a></li></ol></li><li><a href="syntax.html"><strong aria-hidden="true">3.</strong> Syntax</a></li><li><ol class="section"><li><a href="syntax/variations.html"><strong aria-hidden="true">3.1.</strong> Syntactic Variations</a></li><li><a href="syntax/precedence.html"><strong aria-hidden="true">3.2.</strong> Connective Precedence</a></li><li><a href="syntax/grammar.html"><strong aria-hidden="true">3.3.</strong> Grammar</a></li></ol></li><li><a href="build.html"><strong aria-hidden="true">4.</strong> Build</a></li><li><a href="run.html"><strong aria-hidden="true">5.</strong> Run</a></li><li><ol class="section"><li><a href="run/bounded.html"><strong aria-hidden="true">5.1.</strong> Bounded Model-Finding</a></li><li><a href="run/scheduler.html"><strong aria-hidden="true">5.2.</strong> Model-Finding Scheduler</a></li></ol></li><li><a href="example.html"><strong aria-hidden="true">6.</strong> Example</a></li><li><ol class="section"><li><a href="example/valar-morghulis.html"><strong aria-hidden="true">6.1.</strong> Valar Morghulis</a></li><li><a href="example/golden-head.html"><strong aria-hidden="true">6.2.</strong> Golden Head</a></li><li><a href="example/hold-the-door.html"><strong aria-hidden="true">6.3.</strong> Hold the Door</a></li></ol></li></ol>
         </nav>
 
         <div id="page-wrapper" class="page-wrapper">
@@ -133,79 +133,453 @@
 
                 <div id="content" class="content">
                     <main>
-                        <a class="header" href="print.html#introduction" id="introduction"><h1>Introduction</h1></a>
-<p>Rusty Razor is a tool for constructing finite models for first-order theories. The model-finding algorithm is inspired
-by <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">The Chase</a> for database systems. Given a first-order theory,
-Razor constructs a set of <em>homomorphically minimal</em> models. The constructed models are models of an equisatisfiable
-theory over an alphabet, extended with Skolem functions that represent the existential quantifiers of the original theory.</p>
-<p>To learn more about the theoretical foundation of Razor, check out my
-<a href="https://digitalcommons.wpi.edu/etd-dissertations/458/">PhD dissertation</a>.</p>
-<a class="header" href="print.html#background" id="background"><h1>Background</h1></a>
-<p>Razor implements a variant of <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">The Chase</a> algorithm to construct models for first-order theories with equality. The Chase operates on <a href="https://www.cs.bham.ac.uk/%7Esjv/GLiCS.pdf">geometric theories</a>, theories that contain a syntactic
-variation of first-order formulae which we refer to as the <strong>Geometric Normal Form</strong> (GNF). Formulae
-in GNF have the following shape:</p>
-<p>A<sub>1</sub> ∧ ... ∧ A<sub>m</sub> →
-(∃ x<sub>11</sub>, ..., x<sub>1j<sub>1</sub></sub> . A<sub>11</sub> ∧ ... ∧ A<sub>1n<sub>1</sub></sub>) </br>
-   
-∨ (∃ x<sub>21</sub>, ..., x<sub>2j<sub>2</sub></sub> . A<sub>21</sub> ∧ ... ∧ A<sub>2n<sub>2</sub></sub>) </br>
-   
-∨ ... </br>
-   
-∨ (∃ x<sub>i1</sub>, ..., x<sub>ij<sub>i</sub></sub> . A<sub>i1</sub> ∧ ... ∧ A<sub>in<sub>i</sub></sub>)</p>
-<p>where A<sub>k</sub>s are (positive) atomic formulae (possibly including equality) and free
-variables are assumed to be universally qualified over the entire formula.</p>
-<p>In the context of a run of The Chase, we refer to the formulae in their GNF as
-<strong>sequents</strong>. The premise (left side) and the consequence (right side) of the implication are
-respectively said to be the <em>body</em> and the <em>head</em> of the sequent.</p>
-<a class="header" href="print.html#satisfiability-of-geometric-theories" id="satisfiability-of-geometric-theories"><h2>Satisfiability of Geometric Theories</h2></a>
-<p>It turns out that every first-order theory can be transformed to a geometric theory that is
-<em>equisatisfiable</em> to the original theory via standard syntactic manipulation.
-In fact, for every model <code>N</code> of the original theory, there exists a model <code>M</code> of the geometric
-theory such that there is a homomorphism from <code>M</code> to <code>N</code>. This is an important result that
-enables Razor to utilize The Chase to construct homomorphically minimal models of a given
-first-order theory.</p>
-<p>In the context of a model-finding application, the models that The Chase produces are desirable
-since they contain minimum amount of information, thus they induce minimal distraction.
-As a direct consequence of semi-decidability of satisfiability in first-order logic
-(see <a href="https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems">Gödel's incompleteness theorems</a>), satisfiability of geometric theories is
-semi-decidable as well.</p>
+                        <a class="header" href="print.html#razor" id="razor"><h1>Razor</h1></a>
+<p><a href="https://github.com/salmans/rusty-razor">Razor</a> is a <a href="https://en.wikipedia.org/wiki/First-order_logic">first-order</a> model-finder. Given an input first-order theory, corresponding to the design specification of
+a system, written in Razor's <a href="https://salmans.github.io/rusty-razor/syntax.html">input syntax</a>,
+Razor constructs a set of models as examples of the system's execution. The output set of models may contain examples that
+are consistent with the user's expectation and support the system's design. They may also contain surprising examples of
+unexpected behavior, which reveal potential logical flaws in the specification. Razor produces no models if the input
+theory is logically inconsistent.</p>
+<p>==TODO: point to examples==</p>
+<p>As a first-order model-finder, Razor is comparable to tools like <a href="https://emina.github.io/kodkod/">Kodkod</a>, <a href="https://www.mcs.anl.gov/research/projects/AR/mace">MACE</a>, and <a href="http://vlsicad.eecs.umich.edu/BK/Slots/cache/www.cs.chalmers.se/%7Ekoen/paradox">Paradox</a>. Kodkod, is the underlying
+model-finding engine of <a href="http://alloytools.org">Alloy Analyzer</a>, a modeling tool that has gained increasing recognition in the software industry,
+thanks to its intuitive language and well-crafted analysis tool. Inspired by Kodkod and Alloy, the goal of Razor is to make
+&quot;lightweight formal methods&quot; accessible to the general software development community, serving as a model-finding engine for
+domain specific analysis tools.</p>
 <blockquote>
-<p><strong>Note:</strong> A comprehensive discussion on the properties of the models that are constructed by
-The Chase is out of the scope of this document.</p>
+<p><strong>Note:</strong>
+First-order <em>model-finding</em> is often confused with temporal <em>model-checking</em>, also known as <em>property-checking</em>. Both
+model-finding and model-checking are reasoning techniques that exhaustively verify properties of a system in a given search space;
+however, model-checking is the practice of verifying temporal properties in a finite-state model of the system. In contrast,
+model-finding refers to finding examples of the system's behavior by constructing models for its corresponding first-order specification.</p>
+</blockquote>
+<a class="header" href="print.html#conventional-model-finding" id="conventional-model-finding"><h2>Conventional Model-Finding</h2></a>
+<p>It's a well-known result that first-order model-finding is undecidable (see <a href="https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems">Gödel's incompleteness theorem</a>).
+As a consequence, any practical model-finding algorithm must resort to some notion of <em>bound</em> on the search
+space of models to guarantee termination. Conventional model-finders, such as Kodkod, MACE, and Paradox,
+assume a bound on the size of the domain of models to be found. This assumption makes it possible to translate
+the input first-order theory 𝓣 to a propositional formula 𝓟 up to the give bound. This process is known
+as <em>propositionalization</em>. Next, the model-finder utilizes a <a href="https://en.wikipedia.org/wiki/Boolean_satisfiability_problem">SAT</a> solver to find
+solutions for 𝓟. Intuitively speaking, one might think of the propositionalization step as the process of
+enumerating all potential models of the initial first-order formula where each propositional variable in 𝓟
+represents a <em>fact</em> in first-order models of 𝓣. The job of the SAT solver is to find solutions to 𝓟,
+corresponding to images of first-order models for 𝓣. Finally, the model-finder maps the solutions to the
+SAT problem back to models of the original first-order theory 𝓣.</p>
+<p><a name="list_example"></a>
+For example, consider the following specification of a conventional list in functional
+programming languages:</p>
+<pre><code>// Every list `x` is `'nil` or points to a `next` list:
+∀ x . List(x) → x = 'nil ∨ ∃ y. next(x) = y and List(y);
+
+// The `next` of a list is its sublist:
+∀ x, y. next(x) = y → Sublist(x, y);
+// The `next` of a sublist is itself a sublist:
+∀ x, y, z. Sublist(x, y) ∧ next(y) = z → Sublist(x, z);
+
+// `'nil` never point to a `next` list:
+~∃ x. next('nil) = x;
+// A list cannot be its own sublist (no cycles):
+~∃ x. Sublist(x, x);
+
+// `'my_list` is a list:
+List('my_list);
+</code></pre>
+<p>The first five formulae of this theory describe the list data structure and the last formula asks for models
+with a list, namely <code>'my_list</code>. Given a bound of 4 on the size of the models, a conventional model-finder
+queries the underlying SAT solver for solutions consisting of 1, 2, 3, or 4 elements (e.g., lists) that satisfy
+the theory. Consequently, the model-finder may spit out solutions such as the following (○, ●, and ⟶ respectively
+denote the <code>'nil</code> list, a non-empty list, and the <code>next</code> function):</p>
+<ul>
+<li>
+<p><code>'my_list</code> of length 0 (i.e., the <code>'nil</code> list):</p>
+<p><code>'my_list</code>:  ◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 1 (a node pointing to <code>'nil</code>):</p>
+<p><code>'my_list</code>:  ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 2:</p>
+<p><code>'my_list</code>:  ⬤➝⬤➝◯</p>
+</li>
+</ul>
+<p><a name="list_example_bad_model"></a></p>
+<ul>
+<li>
+<p>Two lists (<code>'my_list</code> and an unnamed list) of length 1:</p>
+<p><code>'my_list</code>:   ⬤➝◯<br />
+(unnamed):  ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 3 and a (unnamed) list of length 0:</p>
+<p><code>'my_list</code>:   ⬤➝⬤➝⬤➝◯<br />
+(unnamed):  ◯</p>
+</li>
+</ul>
+<p>A key take-away is that the input bound on the model size does not only guarantee termination, but also is
+<em>necessary</em> to make propositionalization generally possible.</p>
+<blockquote>
+<p><strong>Note:</strong>
+Certain classes of first-order formulae including the <a href="https://en.wikipedia.org/wiki/Bernays%E2%80%93Sch%C3%B6nfinkel_class">Bernays–Schönfinkel–Ramsey class</a>,
+also known as the <em>effectively propositional</em> (EPR) class, may be translated into propositional logic without
+an explicit search bound.</p>
+</blockquote>
+<a class="header" href="print.html#razor-a-first-order-approach" id="razor-a-first-order-approach"><h2>Razor: A First-Order Approach</h2></a>
+<p>Razor takes a direct approach to first-order model-finding without propositionalization and SAT solving.
+The essence of Razor's algorithm is the <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">chase</a> from database theory. Our approach to model-finding has a
+couple of primary advantages: first, the model-finding algorithm doesn't inherently require a bound for
+propositionalization. Second, the algorithm can leverage information in first-order logic to guide the search
+for models, unlike the SAT-based approach where the underlying SAT solver is put in charge of the search. However,
+these features usually come at a performance cost as Razor doesn't make use of the blazingly fast modern SAT-solvers.</p>
+<a class="header" href="print.html#a-nameunbounded-unbounded-algorithm" id="a-nameunbounded-unbounded-algorithm"><h3><a name="unbounded"/> Unbounded Algorithm</h3></a>
+<p>As discussed earlier, SAT-based model-finders translate the input first-order theory to a propositional formula up to a bound,
+which is often provided by the user. Providing a search bound that is sufficient for a complete analysis yet small enough to
+make the search tractable poses a challenge to using SAT-based model-finders. Inferring a sufficient search bound to help the
+user has been an ongoing research in the literature.</p>
+<p>In contrast, Razor's model-finding algorithm is unbounded: starting from an <em>empty</em> model 𝕞 (i.e., a model over an empty
+domain), Razor constructively augments 𝕞 with necessary elements and facts until 𝕞 satisfies the input theory or a
+contradiction occurs. When there is more than one way to continue, the algorithm augments clones of 𝕞 in different search branches.</p>
+<p>As a direct result of undecidability of first-order logic, a run of Razor on an arbitrary theory may fail to terminate.
+To guarantee termination, we would need to devise a termination condition such an execution timeout, a count of generated models,
+a maximum search depth, or possibly a bound on the domain size of models. Because of the inherent unboundedness of Razor's algorithm,
+the user wouldn't have to provide the search bound upfront; in fact, the user may let the search continue for an arbitrary length of
+time and kill the Razor's process on demand.</p>
+<blockquote>
+<p><strong>Note:</strong>
+Some SAT-based model-finders like Paradox implement clever algorithms to reuse some components of the intermediate propositionalized
+formula for a bound of size <code>n</code> to generate a propositional formula for a bound at <code>n + 1</code>. This approach enables the solver to perform
+incremental model-finding as it expands the search bound. Nevertheless, at each step, a considerable portion of the previously generated
+propositional formulae and the earlier work of the SAT-solver must get discarded.</p>
+</blockquote>
+<a class="header" href="print.html#controlled-search" id="controlled-search"><h3>Controlled Search</h3></a>
+<p>Conventional model-finders put their (often off-the-shelf) SAT-solvers fully in charge of constructing structures
+that are then translated to models of the input theory; therefore, the model-finding tool has little control over
+the search algorithm. In particular, relying on a SAT-solver would limit the opportunities to guide the search and
+optimize the quality of models.</p>
+<p>Razor constructs models that are minimal with respect to their <em>information content</em> within a framework for <em>exploring</em>
+the space of models of the input theory. In addition, employing a first-order search algorithm enables Razor to trivially
+parallelize and distribute the search, give access to the intermediate <em>partial</em> models, and employ heuristics to guide the
+search.</p>
+<a class="header" href="print.html#a-nameminimality-minimality" id="a-nameminimality-minimality"><h4><a name="minimality"/> Minimality</h4></a>
+<p>SAT-based model-finders tend to output <em>noisy</em> models: these are non-minimal models which hold <em>facts</em> that aren't necessary
+for satisfying the input theory. Noisy models can be hard to understand as they don't offer <em>provenance</em>
+for their content. In contrast, Razor's algorithm is guided towards producing <em>minimal</em> models, which contain nothing but facts
+that must be present for satisfying the theory. Formally speaking, Razor returns models that are minimal with respect to a
+<a href="https://en.wikipedia.org/wiki/Homomorphism">homomorphism</a> ordering on all models of the theory. The homomorphism ordering serves as a useful measure of information
+content, enabling Razor to offer <em>provenance</em> to justify the content of its models by the sentences of the input theory.</p>
+<p>Consider the <a href="./model-finding.html#list_example">list</a> specification from the previous section. A run of Razor bounded by a domain size of 4 elements outputs
+models such as the ones below:</p>
+<ul>
+<li>
+<p><code>'my_list</code> of length 0 (i.e., the <code>'nil</code> list):</p>
+<p><code>'my_list</code>:  ◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 1:</p>
+<p><code>'my_list</code>:  ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 0 (an alias for <code>'nil</code>) and an unnamed list of of length 1:</p>
+<p><code>'my_list</code>:  ◯<br />
+(unnamed):   ⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 2:</p>
+<p><code>'my_list</code>:  ⬤➝⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 0 and an unnamed list of of length 2:</p>
+<p><code>'my_list</code>:  ◯<br />
+(unnamed):   ⬤➝⬤➝◯</p>
+</li>
+<li>
+<p><code>'my_list</code> of length 3:</p>
+<p><code>'my_list</code>:  ⬤➝⬤➝⬤➝◯</p>
+</li>
+</ul>
+<p>All these models are minimal in the sense that unlike <a href="./model-finding.html#list_example_bad_model">some examples</a> from the previous section,
+every peice of information in these models is required by the input theory and cannot be removed.</p>
+<blockquote>
+<p><strong>Note:</strong>
+For every model 𝕟 of the input theory 𝓣, Razor returns a model 𝕞 with a homomorphism from 𝕞 to 𝕟. Informally,
+it's always possible to construct any model of 𝓣 by adding more information to a model returned by Razor. Therefore, we
+refer to the models returned by Razor as a <em>set of support</em> for 𝓣.</p>
+</blockquote>
+<a class="header" href="print.html#verification-and-exploration" id="verification-and-exploration"><h4>Verification and Exploration</h4></a>
+<p>First-order model-finding is often applied to uncover inconsistencies and logical flaws where the user verifies if an assertion
+follows from a specification. The assertion, which is often a desirable <em>property</em> of the system, holds if its negation is
+inconsistent with the specification, having no models. I will refer to this mode of interaction with a model-finder as
+<em>verification</em>. When working with a model-finder in the verification mode, only one (unexpected) model is sufficient to reveal
+a bug in the specification.</p>
+<p>In a different mode of analysis, the user understands models of the theory as instances of the behavior of a system specification.
+I will call this mode of interaction with a model-finder <em>exploration</em>. Unlike the verification mode, where the model-finder helps
+the user to prove properties of a system, the user of the exploration mode is interested in investigating examples of a system's
+execution without necessarily having specific properties in mind. The goal of exploration is to help the user develop a better
+understanding of the specified system.</p>
+<blockquote>
+<p><strong>Note:</strong>
+<code>check</code> and <code>run</code> commands in Alloy operate in verification and exploration modes respectively.</p>
+</blockquote>
+<p>SAT-based model-finders commonly offer models in no particular order as the order of output is dictated by the underlying
+SAT-solver. This behavior is often acceptable in the verification mode, where any counterexample suffices to disprove a hypothesis
+or invalidate a property. In contrast, effective model-finding for exploration greatly benefits from a systematic approach to
+presenting models, an exploration method that enables the user to effectively navigate through various classes of (possibly many)
+models of the theory and does not solely rely on the serendipity of SAT-solving. Razor's approach to model-finding offers a solution!</p>
+<p>As I mentioned in the <a href="print.html#minimality">previous section</a>, Razor produces models that are minimal with no noise, i.e., unnecessary facts.
+More accurately, these are models that are minimal with respect to a preorder ≺ induced by the homomorphism relation
+between the models of the theory. For two models 𝕞 and 𝕟 of a theory
+𝓣, 𝕞 ≺ 𝕟 if and only if there is a homomorphism from 𝕞 to 𝕟 and it's easy to show that 𝕞 contains less noise than 𝕟.
+It is, though, always possible to <em>augment</em> 𝕞 with additional (unnecessary) facts to obtain 𝕟. This is the core principle that
+enables a framework for model exploration with respect to a measure of information content.</p>
+<blockquote>
+<p><strong>Note:</strong>
+<a href="https://dl.acm.org/doi/10.5555/2486788.2486820">Aluminum</a> is a preliminary realization of this approach to exploring models, which was implemented as a modification of Alloy.</p>
+</blockquote>
+<a class="header" href="print.html#fitness" id="fitness"><h4>Fitness</h4></a>
+<p>Model-finders could potentially incorporate heuristic measures to prioritize specific search branches or adopt various search strategies.
+However, delegating the search to a SAT-solver dramatically limits the opportunity for taking advantage of heuristics and contextual
+information.</p>
+<p>Earlier, I brought up <a href="print.html#minimality">minimality</a> as a quality measure but the user might be interested in other attributes and criteria
+for model exploration. For example, the user could ask for a new model that is less similar to the ones previously returned or one that
+would be &quot;surprising&quot;. Also, the model-finder may keep track of various heuristics to deprioritize search branches that are more likely
+to fail or to switch between different scheduling algorithms.</p>
+<a class="header" href="print.html#geometric-logic" id="geometric-logic"><h1>Geometric Logic</h1></a>
+<p>Razor implements a variant of <a href="./theory/chase.html">the chase</a> algorithm to construct models for theories in
+<a href="https://www.cs.bham.ac.uk/%7Esjv/GLiCS.pdf">geometric logic</a>, a syntactic variation of first-order logic. Geometric theories
+are comprised of geometric <em>sequents</em> in the following form:</p>
+<pre>
+𝙰<sub>1</sub> ∧ ... ∧ 𝙰<sub>m</sub> ⊢<sub>𝘅</sub> (∃ 𝚢<sub>11</sub>, ..., 𝚢<sub>1j<sub>1</sub></sub> . 𝙰<sub>11</sub> ∧ ... ∧ 𝙰<sub>1n<sub>1</sub></sub>)  
+              ∨ (∃ 𝚢<sub>21</sub>, ..., 𝚢<sub>2j<sub>2</sub></sub> . 𝙰<sub>21</sub> ∧ ... ∧ 𝙰<sub>2n<sub>2</sub></sub>)  
+              ∨ ...  
+              ∨ (∃ 𝚢<sub>i1</sub>, ..., 𝚢<sub>ij<sub>i</sub></sub> . 𝙰<sub>i1</sub> ∧ ... ∧ 𝙰<sub>in<sub>i</sub></sub>)
+</pre>
+<p>where ⊢ denotes logical entailment, 𝙰<sub>k</sub>s are atomic formulae (including equality),
+and 𝘅 is the set of free variables (assumed to be universally quantified) in the sequent. The premise
+(left side) and the consequence (right side) of ⊢ are respectively said to be the <em>body</em> and the <em>head</em> of
+the sequent. A body of empty conjunctions (m = 0) and a head of empty disjunctions (i = 0) are equivalent to
+truth (⊤) and falsehood (⟘) respectively.</p>
+<a class="header" href="print.html#satisfiability" id="satisfiability"><h3>Satisfiability</h3></a>
+<p>It turns out that a first-order theory 𝓣 can be transformed to a geometric theory 𝓖 that is
+<a href="https://en.wikipedia.org/wiki/Equisatisfiability"><em>equisatisfiable</em></a> to 𝓣 via standard syntactic manipulation. That is, 𝓣 is satisfiable
+(i.e., has a model) if and only if 𝓖 is satisfiable. But 𝓖 has other desirable properties that
+goes beyond equisatisfiability with 𝓣: in fact, for every model 𝕟 of 𝓣, a model 𝕞 of 𝓖 exists
+such that there is a homomorphism from 𝕞 to 𝕟. This is an important result that enables Razor
+to apply the chase to construct homomorphically <a href="./razor.html#minimality">minimal</a> models of 𝓣.</p>
+<p>In the context of a model-finding application, the chase constructs special models that contain
+minimum amount of information required for satisfying the input theory. Equisatisfiability of
+geometric and first-order logic also implies that satisfiability of geometirc theories is
+undecidable (see <a href="https://en.wikipedia.org/wiki/G%C3%B6del%27s_incompleteness_theorems">Gödel's incompleteness theorems</a>).</p>
+<blockquote>
+<p><strong>Note:</strong> Chapter 4 of my doctoral <a href="https://digital.wpi.edu/concern/etds/5q47rn87k">dissertation</a> presents a comprehensive discussion about
+geometric logic and the chase.</p>
 </blockquote>
 <a class="header" href="print.html#the-chase" id="the-chase"><h2>The Chase</h2></a>
-<p>Given a geometric theory and starting with an empty model, a run of Chase consists of repeated
-applications of <a href="print.html#step">chase-steps</a> by which the model is augmented with <em>necessary</em> pieces of
-information until there is a contradiction or the model satisfies the theory. Inspired by
-<a href="https://www.cs.bham.ac.uk/%7Esjv/GeoZ.pdf">Steven Vickers</a>, we refer to the units of information that augment models as <em>observations</em>.</p>
-<a class="header" href="print.html#a-namestepchase-stepa" id="a-namestepchase-stepa"><h3><a name="step">Chase Step</a></h3></a>
-<p>Given a geometric theory and an existing model, a chase-step proceeds as follows:</p>
+<p>The <a href="https://en.wikipedia.org/wiki/Chase_(algorithm)">chase</a> is a well-known algorithm in database theory that constructs models for geometric theories.
+Given a geometric theory 𝓖 and starting with an empty model 𝕞, a run of the chase consists of repeated
+applications of the <a href="print.html#step">chase-step</a> to augment 𝕞 with <em>necessary</em> information until there is a
+contradiction or 𝕞 satisfies 𝓖. Inspired by <a href="https://www.cs.bham.ac.uk/%7Esjv/GeoZ.pdf">Steven Vickers</a>, we refer to the units of information
+for augmenting models as <em>observations</em>.</p>
+<a class="header" href="print.html#a-namestepchase-stepa" id="a-namestepchase-stepa"><h3><a name="step">Chase-Step</a></h3></a>
+<p>Given a geometric theory 𝓖 and a model 𝕞, a chase-step proceeds as below:</p>
 <ol>
 <li>
-<p>A sequent from the theory is selected to be evaluated against the model.</p>
+<p>A sequent 𝜑 ⊢<sub>𝘅</sub> 𝜓 from 𝓖 is selected for evaluation.</p>
 </li>
 <li>
-<p>The selected sequent is evaluated against the model: given an assignment from the free
-variables of the sequent to the elements of the model, if the body of the sequent is true and
-its head is not true in the model, new observations are added to the model to make the
-sequent's head true.</p>
-<p>2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
-The Chase fails on the given model.</p>
-<p>2.2. If the head of the sequent contains more than one disjunct (with at least one
-non-trivial disjunction), The Chase branches and satisfies each disjunct independently on clones
-of the model.</p>
-<p>2.3. If no sequent can be found such that its body and head are respectively true and false
-in the model, the model already satisfies the theory and will be returned as an output of The
-Chase.</p>
+<p>Given an assignment from the variables in 𝘅 to the elements of 𝕞: if 𝜑 is true and 𝜓 is false in 𝕞,
+new observations are added to 𝕞 to make 𝜓 true, such that:</p>
+<ul>
+<li>
+<p>If 𝜓 is equal to ⟘ (i.e., an empty disjunction), the chase fails on 𝕞.</p>
+</li>
+<li>
+<p>If 𝜓 contains more than one disjunct, namely 𝜓<sub>1</sub> ∨ ... ∨ 𝜓<sub>i</sub> (i &gt; 1),
+the chase branches and augments clones of 𝕞 to make 𝜓<sub>i</sub> true in each branch.</p>
+</li>
+<li>
+<p>If there is no sequent such that 𝜑 is true and 𝜓 is false in 𝕞, the model 𝕞 already satisfies
+𝓖 and is returned as an output.</p>
+</li>
+</ul>
 </li>
 </ol>
-<a class="header" href="print.html#termination" id="termination"><h2>Termination</h2></a>
-<p>As a result of semi-decidability of geometric theories, it can be shown if a geometric theory
-is unsatisfiable, a run of The Chase on the theory always terminates, although it may take
-a very very long time.
-However, when the theory is satisfiable, a run of The Chase may not terminate, producing
-infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
-in practice, Razor can <em>bound</em> the size of models created by The Chase to guarantee termination.</p>
+<a class="header" href="print.html#termination" id="termination"><h3>Termination</h3></a>
+<p>It can be shown a run of the chase always terminates on an unsatisfiable theory, although it may take
+a very very long time. However, when the theory is satisfiable, a run of the chase may not terminate,
+producing infinitely large and/or infinitely many models. This is consistent with semi-decidability
+of the satisfiability problem for first-order theories.</p>
+<blockquote>
+<p><strong>Note:</strong> As discussed <a href="./razor.html#unbounded">earlier</a>, Razor accepts a search bound to guarantee termination
+of the chase.</p>
+</blockquote>
+<a class="header" href="print.html#implementation" id="implementation"><h2>Implementation</h2></a>
+<p>Razor's model-finding algorithm is a variant of <a href="./theory/chase.html">the chase</a>, an
+algorithm for constructing models for geometric theories. Given an
+input first-order theory 𝓣, Razor applies a standard syntactic
+transformation to convert 𝓣 to a <em>Geometric Normal Form</em> (GNF). The
+result of this transformation is a geometric theory 𝓖 that is
+equisatisfiable with 𝓣.</p>
+<blockquote>
+<p><strong>Note:</strong> Transformation to GNF consists of transforming the input
+theory to a <a href="https://en.wikipedia.org/wiki/Conjunctive_normal_form#Converting_from_first-order_logic">Conjunctive Normal Form</a> (CNF) followed by
+rearranging the conjuncts of the resulting CNF into an implication,
+where negative and positive conjuncts form the implication's premise
+and consequence respectively. The implication is semantically
+equivalent to a geometric sequence and is treated as such.</p>
+<p>It's noteworthy that conversion to CNF involves
+<a href="https://en.wikipedia.org/wiki/Skolem_normal_form"><em>Skolemization</em></a>, a transformation by which existential
+quantifiers of the input theory are replaced with fresh &quot;Skolem
+functions&quot;. Therefore, the resulting GNF is a theory over an extension
+of the original vocabulary over which the input theory is defined.</p>
+</blockquote>
+<p>Let 𝓖 be an input geometric theory. The essense of a
+<a href="./theory/chase.html#step">chase-step</a> on a model 𝕞 is to find a sequent 𝜑 ⊢<sub>𝘅</sub> 𝜓
+of 𝓖 with an assignment from the variables in 𝘅 to the domain of 𝕞
+such that 𝜑 is true and 𝜓 is false in 𝕞. A naive implementation of the
+chase would iterate over all sequents of 𝓖 and examine every
+assignment from 𝘅 to the domain of 𝕞. This would lead to |𝘅|<sup>|𝕞|</sup> valuations of 𝜑 and 𝜓 in 𝕞 where |𝘅| and |𝕞|
+denote the size of 𝘅 and the domain size of 𝕞 respectively. Such a
+naive implementation is extremely inefficient for practical
+model-finding use-cases.</p>
+<p>A practical implementation of the chase must address a number of
+algorithmic challenges: it must provide efficient data-structures for
+querying models and keeping track of various search branches; it
+should implement effective heuristics for choosing a search branch and
+for selecting a sequent to evaluate; and most importantly, it must
+implement a fast solution for finding assignments from the free
+variables in 𝘅 to the elements of 𝕞.</p>
+<a class="header" href="print.html#a-namecodd-hello-codd" id="a-namecodd-hello-codd"><h3><a name="codd"/> Hello Codd!</h3></a>
+<p><a href="https://en.wikipedia.org/wiki/Codd%27s_theorem">Codd's theorem</a> is a well known result from database theory
+that establishes equivalence between <a href="https://en.wikipedia.org/wiki/Relational_algebra">relational algebra</a> and
+<a href="https://en.wikipedia.org/wiki/Relational_calculus">relational calculus</a> thus first-order logic.  Razor takes
+advantage of this equivalence to implement the chase efficiently with
+the help of database theory. From a database perspective, a model 𝕞
+constructed by the chase can be thought of as a monotonically growing
+database with relational tables for each predicate of the input theory
+𝓖. Consequently, positive existential formulae are expressed queries
+with conjunction (∧), disjunction (∨), and existential quantifier (∃)
+acting as relational join (⋈), set union (∪), and projection (∏).
+Finally, a geometric sequent 𝜑 ⊢<sub>𝘅</sub> 𝜓 is evaluated by a query
+𝛷 - 𝛹, the set difference of the relational expressions corresponding
+to 𝜑 and 𝜓. Intuitively, evaluating 𝛷 - 𝛹 in 𝕞 results in a set of
+tuples that assign values to the variables in 𝘅 such that 𝜑 is true
+and 𝜓 is false, as required by the chase-step. After evaluating 𝛷 -
+𝛹, the chase-step proceeds by inserting the resulting tuples in the
+relations mentioned by 𝛹, thus, making 𝜓 true in 𝕞.</p>
+<p>Razor's implementation of the chase uses <a href="https://github.com/salmans/codd"><code>codd</code></a>, a minimal
+in-memory database with relational expressions as queries. The
+underlying database abstraction would enable Razor to take advantage
+of many advances in database theory and particularly streaming
+databases to run more efficiently.  For example, <code>codd</code> supports
+incrementally updated materialized views that are used to avoid full
+re-evaluation of expressions during a run of the chase as the
+database (i.e., the model 𝕞) grows.</p>
+<a class="header" href="print.html#relationalization" id="relationalization"><h4>Relationalization</h4></a>
+<p>The algorithm based on relational algebra requires a relationalization
+step to transform a given first-order theory 𝓣 with function symbols
+to an equivalent theory 𝓣′ without functions.  Relationalization is a
+standard transformation that involves flattening of complex terms
+followed by replacing function symbols and constants (i.e., nullary
+functions) with new predicates. This transformation also extends the
+original theory with integrity axioms that preserve the semantics of
+the eliminated functions.</p>
+<p>A discussion about the details of relationalization is out of the
+scope of this document. Here, I use an example to explain the core
+idea. Consider the atomic formula below, where 𝚁 is a predicate, 𝚏 and
+𝚐 are function symbols, 𝚡 and 𝚢 are variables, and 𝗰 is a constant:</p>
+<p>𝚁(𝚏(𝚐(𝚡), 𝚢), 𝗰)</p>
+<p>To flatten this formula, we introduce fresh variables, namely
+𝚟<sub>1</sub>, 𝚟<sub>2</sub>, and 𝚟<sub>3</sub> to recursively replace
+complex terms, consisting of function applications and
+constants. Notice that the original and the flattened formulae are
+semantically equivalent:</p>
+<p>𝚁(𝚟<sub>1</sub>, 𝚟<sub>2</sub>) ∧ 𝚏(𝚟<sub>3</sub>, 𝚢) = 𝚟<sub>1</sub>
+∧ 𝚐(𝚡) = 𝚟<sub>3</sub> ∧ 𝗰 = 𝚟<sub>2</sub></p>
+<p>Next, for each function symbol of arity 𝚗, we introduce a predicate of
+arity 𝚗 + 1 and replace the equalities between function applications
+and variables with atomic formulae over the new predicates:</p>
+<p>𝚁(𝚟<sub>1</sub>, 𝚟<sub>2</sub>) ∧ 𝙵(𝚟<sub>3</sub>, 𝚢, 𝚟<sub>1</sub>) ∧
+𝙶(𝚡, 𝚟<sub>3</sub>) ∧ 𝙲(𝚟<sub>2</sub>)</p>
+<p>In the previous example, 𝙵, 𝙶, and 𝙲 replace 𝚏, 𝚐, and 𝗰 in that
+order.  The last position of these predicates correspond to the output
+of the functions that they replace. Finally, to preserve the semantics
+of the eliminated functions, the following sequents are added to the
+resulting theory 𝓣′:</p>
+<p>𝙵(𝚡<sub>1</sub>, 𝚡<sub>2</sub>, 𝚢) ∧ 𝙵(𝚡′<sub>1</sub>, 𝚡′<sub>2</sub>,
+𝚢′) ∧
+𝚡<sub>1</sub> = 𝚡′<sub>1</sub> ∧ 𝚡<sub>2</sub> = 𝚡′<sub>2</sub> ⊢ 𝚢 = 𝚢′<br />
+𝙶(𝚡, 𝚢) ∧ 𝙶(𝚡′, 𝚢′) ∧ 𝚡 = 𝚡′ ⊢ 𝚢 = 𝚢′<br />
+𝙲(𝚢) ∧ 𝙲(𝚢′) ⊢ 𝚢 = 𝚢′</p>
+<p>These sequents ensure that the new predicates are interpreted by
+relations that map every vector of input arguments to exactly one
+output, as the original functions do.</p>
+<blockquote>
+<p><strong>Note:</strong> It's common to add another set of sequents to the
+resulting relationalized theory to preserve the totality of
+functions. The chase, however, interprets the functions of the input
+theory as partial functions; therefore, we're not concerned with
+preserving totality.</p>
+</blockquote>
+<a class="header" href="print.html#a-nameequality-equality" id="a-nameequality-equality"><h4><a name=equality/> Equality</h4></a>
+<p>Interpreting equality as a relation can be done by axiomatizing
+equality as a predicate, captured by the following sequents with = as
+a special binary predicate symbol:</p>
+<pre> 
+⊤ ⊢ =(x, x)                (reflexivity) 
+=(𝚡, 𝚢) ⊢ =(𝚢, 𝚡)           (symmetry) 
+=(𝚡, 𝚢) ∧ =(𝚢, 𝚣) ⊢ =(𝚡, 𝚣) (transitivity) 
+</pre>
+<blockquote>
+<p><strong>Note:</strong> Our treatment of equality takes advantage of the fact that
+equality axioms can be expressed as geometric sequents.</p>
+</blockquote>
+<a class="header" href="print.html#variable-linearization" id="variable-linearization"><h4>Variable Linearization</h4></a>
+<p>The translation to relational algebra must account for a number of
+practical challenges regarding variables and their order of appearance
+in formulae. From a database perspective, each position on the
+first-order predicates represents a relational <em>attribute</em> (i.e., a
+column of a relational table).  Therefore, the variables of the
+formulae in the input theory enforce equality constraints on the
+resulting select query. Specifically, the positions of two conjoined
+predicates that are occupied by the same variable specify the <em>key
+attributes</em> of a relatoinal join where equality between join
+attributes is defined by the relation = from the <a href="print.html#equality">previous
+section</a>. As a result, Razor applies a standard
+<em>linearization</em> transformation that assigns unique names to variables
+that occupy positions on any predicate except for =. When renaming
+variables, linearization introduces additional equalities between the
+freshly introduced unique variables that rename the same variable in
+the input formula.</p>
+<p>Now, I will use another example to describe linearization:</p>
+<p>𝙿(𝚡) ∧ 𝚀(𝚢, 𝚡, 𝚢)</p>
+<p>A possible linearized version of the formula above is obtained by
+renaming the second occurances of x and 𝚢, in 𝚀(𝚢, 𝚡, 𝚢), with new
+variables, namely x<sub>0</sub> and 𝚢<sub>0</sub>. In addition, =(x,
+x<sub>0</sub>) and =(𝚢, 𝚢<sub>0</sub>) are conjoined into the formula
+to preserve equality between a variable and its renaming counterpart:</p>
+<p>𝙿(𝚡) ∧ 𝚀(𝚢, 𝚡<sub>0</sub>, 𝚢<sub>0</sub>) ∧ =(x, x<sub>0</sub>) ∧ =(𝚢,
+𝚢<sub>0</sub>)</p>
+<a class="header" href="print.html#range-restriction" id="range-restriction"><h4>Range Restriction</h4></a>
+<p>I mentioned <a href="print.html#codd">earlier</a> that in our implementation of the chase
+based on relational algebra, a sequent 𝜑 ⊢<sub>𝘅</sub> 𝜓 is evaluated
+as a relational expression 𝛷 - 𝛹 where 𝛷 and 𝛹 are relational
+expression obtained by transforming 𝜑 and 𝜓. The set difference
+operator is defined only when the attributes of 𝛷 and 𝛹 align; that
+is, they must share the same attributes in the same order. If 𝛷 and 𝛹
+share the same set of attributes but in different orders, it's always
+possible to project either of the expressions to match the order of
+attributes. If 𝛷 and 𝛹 have different attributes, two cases are
+possible:</p>
+<ol>
+<li>An attribute 𝜶 appears in 𝛷 but not in 𝛹. In this case, we simply
+project 𝜶 out of 𝛷.</li>
+<li>An attribute 𝜷 appears in 𝛹 but not in 𝛷. The treatment for this
+case involves <em>range restriction</em> as described below.</li>
+</ol>
+<p>In database theory, a range-restricted query</p>
+<blockquote>
+<p>talk about other implementations</p>
+</blockquote>
 <a class="header" href="print.html#syntax" id="syntax"><h1>Syntax</h1></a>
 <p>The syntax and semantics of Razor's input is that of conventional
 <a href="https://en.wikipedia.org/wiki/First-order_logic">first-order logic</a>,
