@@ -20,7 +20,7 @@ type PosLiteral = Atomic<Complex>;
 
 /// A Positive Conjunctive Formula (PCF) represents a collection of [`Atomic`]s, interpreted
 /// as a conjunction of positive literals. PCFs are the building blocks of [`GNF`]s.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
 pub struct PCF(BTreeSet<PosLiteral>);
 
 impl PCF {
@@ -92,12 +92,6 @@ impl From<Vec<PosLiteral>> for PCF {
     }
 }
 
-impl Default for PCF {
-    fn default() -> Self {
-        Self(BTreeSet::new())
-    }
-}
-
 impl Formula for PCF {
     type Term = Complex;
 
@@ -165,7 +159,7 @@ impl TryFrom<FOF> for PCF {
 
 /// Is a set of [`PCF`]s in the head of a [`GNF`], interpreted as a disjunction of
 /// PCFs where each PCF is a conjunction of positive literals.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub struct PcfSet(BTreeSet<PCF>);
 
 impl PcfSet {
@@ -231,12 +225,6 @@ impl Deref for PcfSet {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl Default for PcfSet {
-    fn default() -> Self {
-        Self(BTreeSet::new())
     }
 }
 

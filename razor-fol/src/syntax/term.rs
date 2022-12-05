@@ -62,6 +62,7 @@ pub trait Term {
     /// let s = t.rename_var(&renaming); // s = f(a, z, g(a, b, a))
     /// assert_eq!("f(a, z, g(a, b, a))", s.to_string())
     /// ```
+    #[allow(clippy::only_used_in_recursion)]
     fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
@@ -99,6 +100,7 @@ pub trait Term {
     /// let s = t.substitute(&x_to_c); // s = f('c, g('c, y, 'c))
     /// assert_eq!("f('c, g('c, y, 'c))", s.to_string())
     /// ```
+    #[allow(clippy::only_used_in_recursion)]
     fn substitute(&self, sub: &impl Substitution<Self>) -> Self
     where
         Self: Sized,

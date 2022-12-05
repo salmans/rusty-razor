@@ -71,7 +71,7 @@ impl Deref for Element {
 
 impl fmt::Debug for Element {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.get().to_string())
+        write!(f, "{}", self.get())
     }
 }
 
@@ -479,9 +479,7 @@ impl fmt::Debug for ColModel {
             .sorted()
             .iter()
             .map(|e| {
-                let witnesses: Vec<String> =
-                    self.witness(e).iter().map(|w| w.to_string()).collect();
-                let witnesses = witnesses.into_iter().sorted();
+                let witnesses = self.witness(e).iter().map(|w| w.to_string()).sorted();
                 format!(
                     "{} -> {}",
                     witnesses.into_iter().sorted().join(", "),
@@ -695,7 +693,7 @@ fn make_observe_literal(
 // variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
-fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
+fn next_assignment(vec: &mut [usize], last: usize) -> bool {
     for item in vec.iter_mut() {
         if *item != last {
             *item += 1;

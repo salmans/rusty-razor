@@ -43,7 +43,7 @@
 //! [the chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 //! [run of the chase]: self#chase_all
-//! [standard syntactic manipulation]: razor_fol::transform::CNF::gnf()
+//! [standard syntactic manipulation]: razor_fol::transform::GNF
 //! [godel]: https://en.wikipedia.org/wiki/Gödel%27s_incompleteness_theorems
 //!
 //! ## The Chase
@@ -149,7 +149,7 @@ impl fmt::Display for E {
 
 impl fmt::Debug for E {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -261,7 +261,7 @@ impl fmt::Display for Rel {
 
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -293,7 +293,7 @@ impl<T: WitnessTerm> fmt::Display for Observation<T> {
 
 impl<T: WitnessTerm> fmt::Debug for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 

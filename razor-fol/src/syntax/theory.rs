@@ -4,7 +4,7 @@ use super::{Error, Formula, Sig};
 use std::{fmt, iter::FromIterator, ops::Deref};
 
 /// is a first-order theory, containing a set of first-order formulae.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Theory<T: Formula>(Vec<T>);
 
 impl<T: Formula> Theory<T> {

@@ -22,7 +22,7 @@ type FlatLiteral = Atomic<Variable>;
 ///
 /// [`Clause`]: crate::syntax::formula::clause::Clause
 /// [`BTreeSet`]: std::collections::BTreeSet
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct FlatClause(Vec<FlatLiteral>);
 
 impl FlatClause {
@@ -70,12 +70,6 @@ impl IntoIterator for FlatClause {
 impl From<Vec<FlatLiteral>> for FlatClause {
     fn from(value: Vec<FlatLiteral>) -> Self {
         Self(value)
-    }
-}
-
-impl Default for FlatClause {
-    fn default() -> Self {
-        Self(Vec::new())
     }
 }
 

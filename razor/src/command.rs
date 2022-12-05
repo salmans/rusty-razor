@@ -26,7 +26,7 @@ impl std::str::FromStr for BoundCommand {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let domain_str: &'static str = "domain=";
-        if s.to_lowercase().starts_with(&domain_str) {
+        if s.to_lowercase().starts_with(domain_str) {
             let size_str = &s[domain_str.len()..];
             if let Ok(size) = size_str.parse::<usize>() {
                 Ok(BoundCommand::Domain { size })

@@ -195,7 +195,7 @@ impl std::fmt::Display for DNF {
 
 impl Default for DNF {
     fn default() -> Self {
-        Self::Clauses(ClauseSet::<_>::default().into())
+        Self::Clauses(ClauseSet::<_>::default())
     }
 }
 

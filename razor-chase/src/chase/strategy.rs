@@ -21,7 +21,7 @@ pub struct Linear<S: Sequent> {
     index: usize,
 }
 
-impl<'s, S: Sequent> Linear<S> {
+impl<S: Sequent> Linear<S> {
     #[inline(always)]
     fn reset(&mut self) {
         self.index = 0;
@@ -37,7 +37,7 @@ impl<S: Sequent> Iterator for Linear<S> {
     }
 }
 
-impl<'s, S: Sequent> Clone for Linear<S> {
+impl<S: Sequent> Clone for Linear<S> {
     fn clone(&self) -> Self {
         Self {
             sequents: self.sequents.clone(),

@@ -3,7 +3,7 @@
 //! The bounders are instances of [`Bounder`].
 //!
 //! [`Bounder`]: crate::chase::Bounder
-use crate::chase::{Bounder, Model, Observation, WitnessTerm};
+use crate::chase::{Bounder, Model, Observation};
 
 /// Bounds the size of a [model] by the number of elements in its [domain].
 ///
@@ -29,13 +29,11 @@ impl Bounder for DomainSize {
         match observation {
             Observation::Fact { relation: _, terms } => {
                 let model_size = model.domain().len();
-                let terms: Vec<Option<<<M as Model>::TermType as WitnessTerm>::ElementType>> =
-                    terms
-                        .iter()
-                        .map(|t| model.element(t))
-                        .filter(|t| t.is_none())
-                        .collect();
-                let size = terms.len();
+                let size = terms
+                    .iter()
+                    .map(|t| model.element(t))
+                    .filter(|t| t.is_none())
+                    .count();
                 model_size + size > self.max_domain_size
             }
             Observation::Identity { left, right } => {

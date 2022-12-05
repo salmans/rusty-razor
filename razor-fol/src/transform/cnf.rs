@@ -326,14 +326,14 @@ fn clause_set(formula: FOF) -> ClauseSet<Complex> {
             let left = clause_set(this.left);
             let right = clause_set(this.right);
             if left.is_empty() {
-                left.into()
+                left
             } else if right.is_empty() {
-                right.into()
+                right
             } else if left.len() == 1 && right.len() == 1 {
                 let left = left.into_clauses().into_iter().next().unwrap();
                 let right = right.into_clauses().into_iter().next().unwrap();
                 let clause = left.union(&right);
-                ClauseSet::from(clause).into()
+                ClauseSet::from(clause)
             } else {
                 unreachable!() // Disjunction is distributed over conjunction in `formula`
             }

@@ -44,7 +44,7 @@ use thiserror::Error;
 
 lalrpop_mod!(#[allow(clippy::all)] pub grammar); // synthesized by LALRPOP
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum TokenType {
     Comma,
     Dot,
@@ -121,24 +121,24 @@ impl ToString for TokenType {
 }
 
 /// Is the type of errors returned by the parser.
-#[derive(Error, PartialEq, Debug)]
+#[derive(Error, PartialEq, Eq, Debug)]
 pub enum Error {
     #[error("found `{found:?}` at line {}, column {}; expecting {}",
-            (*.position).line,
-            (*.position).column,
-            Error::pretty_expected_tokens(&*.expected),
+            (position).line,
+            (position).column,
+            Error::pretty_expected_tokens(expected),
     )]
     UnrecognizedToken {
         position: Position,
         expected: Vec<TokenType>,
         found: String,
     },
-    #[error("invalid token at line {}, column {}", (*.position).line, (*.position).column)]
+    #[error("invalid token at line {}, column {}", (position).line, (position).column)]
     InvalidToken { position: Position },
     #[error("unexpected end of input at line {}, column {}; expecting {}",
-            (*.position).line,
-            (*.position).column,
-            Error::pretty_expected_tokens(&*.expected)
+            (position).line,
+            (position).column,
+            Error::pretty_expected_tokens(expected)
     )]
     UnrecognizedEOF {
         position: Position,
@@ -149,7 +149,7 @@ pub enum Error {
         #[from]
         source: crate::syntax::Error,
     },
-    #[error("unexpected token `{found:?}` at line {}, column {}", (*.position).line, (*.position).column)]
+    #[error("unexpected token `{found:?}` at line {}, column {}", (position).line, (position).column)]
     ExtraToken { position: Position, found: String },
 }
 
@@ -165,7 +165,7 @@ impl Error {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct Position {
     line: usize,
     column: usize,

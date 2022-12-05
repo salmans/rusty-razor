@@ -192,7 +192,7 @@ impl<T: Term + Ord> Formula for Clause<T> {
 ///
 /// [`CNF`]: crate::transform::CNF
 /// [`DNF`]: crate::transform::DNF
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ClauseSet<T: Term>(BTreeSet<Clause<T>>);
 
 impl<T: Term + Ord> From<Clause<T>> for ClauseSet<T> {

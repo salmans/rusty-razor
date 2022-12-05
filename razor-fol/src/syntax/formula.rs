@@ -149,14 +149,14 @@ impl<T: Term> FormulaEx for Atom<T> {
 impl<T: Term + fmt::Display> fmt::Display for Atom<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ts = self.terms.iter().map(|t| t.to_string()).collect_vec();
-        write!(f, "{}({})", self.predicate.to_string(), ts.join(", "))
+        write!(f, "{}({})", self.predicate, ts.join(", "))
     }
 }
 
 impl<T: Term + fmt::Debug> fmt::Debug for Atom<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ts = self.terms.iter().map(|t| format!("{:?}", t)).collect_vec();
-        write!(f, "{}({})", self.predicate.to_string(), ts.join(", "))
+        write!(f, "{}({})", self.predicate, ts.join(", "))
     }
 }
 

@@ -186,7 +186,7 @@ fn make_observe_literal(
 // variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
-fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
+fn next_assignment(vec: &mut [usize], last: usize) -> bool {
     for item in vec.iter_mut() {
         if *item != last {
             *item += 1;
