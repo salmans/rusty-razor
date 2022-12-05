@@ -15,7 +15,7 @@ use crate::chase::{
 };
 use either::Either;
 use itertools::Itertools;
-use razor_fol::syntax::{formula::Atomic, term::Complex, Const, Func, Theory, Var, FOF};
+use razor_fol::syntax::{formula::Atomic, term::Complex, Const, Fof, Func, Theory, Var};
 use std::{
     cell::Cell,
     collections::{HashMap, HashSet},
@@ -71,7 +71,7 @@ impl Deref for Element {
 
 impl fmt::Debug for Element {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.get().to_string())
+        write!(f, "{}", self.get())
     }
 }
 
@@ -479,9 +479,7 @@ impl fmt::Debug for ColModel {
             .sorted()
             .iter()
             .map(|e| {
-                let witnesses: Vec<String> =
-                    self.witness(e).iter().map(|w| w.to_string()).collect();
-                let witnesses = witnesses.into_iter().sorted();
+                let witnesses = self.witness(e).iter().map(|w| w.to_string()).sorted();
                 format!(
                     "{} -> {}",
                     witnesses.into_iter().sorted().join(", "),
@@ -509,9 +507,9 @@ impl PreProcessor for ColPreProcessor {
     type Sequent = ColSequent;
     type Model = ColModel;
 
-    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use razor_fol::transform::ToGNF;
-        use razor_fol::transform::ToSNF;
+    fn pre_process(&self, theory: &Theory<Fof>) -> (Vec<Self::Sequent>, Self::Model) {
+        use razor_fol::transform::ToGnf;
+        use razor_fol::transform::ToSnf;
 
         let mut c_counter: u32 = 0;
         let mut f_counter: u32 = 0;
@@ -695,7 +693,7 @@ fn make_observe_literal(
 // variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
-fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
+fn next_assignment(vec: &mut [usize], last: usize) -> bool {
     for item in vec.iter_mut() {
         if *item != last {
             *item += 1;
@@ -732,7 +730,7 @@ mod test_collapse {
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
     static IGNORE_TEST: [&'static str; 1] = ["thy24.raz"];
@@ -784,7 +782,7 @@ mod test_collapse {
         }
     }
 
-    fn run(theory: &Theory<FOF>) -> Vec<ColModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<ColModel> {
         use crate::chase::PreProcessor;
 
         let pre_processor = super::ColPreProcessor;

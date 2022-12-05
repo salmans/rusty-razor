@@ -10,12 +10,12 @@ impl Relational {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
+    /// # use razor_fol::syntax::Fof;
     /// # use std::convert::TryFrom;
-    /// use razor_fol::transform::{GNF, ToRelational};
+    /// use razor_fol::transform::{Gnf, ToRelational};
     ///
-    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<Fof>().unwrap();
+    /// let gnf = Gnf::try_from(fof).unwrap();
     /// let gnf_head = gnf.head();
     /// let relational = gnf_head.relational();
     /// let mut generator = |name: &str, count| format!("V:{}:{}", name, count).into();    
@@ -55,12 +55,12 @@ impl Relational {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
+    /// # use razor_fol::syntax::Fof;
     /// # use std::convert::TryFrom;
-    /// use razor_fol::transform::{GNF, ToRelational};
+    /// use razor_fol::transform::{Gnf, ToRelational};
     ///
-    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<Fof>().unwrap();
+    /// let gnf = Gnf::try_from(fof).unwrap();
     /// let gnf_head = gnf.head();
     /// let relational = gnf_head.relational();
     /// let linear = relational.linear();
@@ -154,22 +154,22 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{fof, syntax::FOF, transform::PcfSet};
+    use crate::{fof, syntax::Fof, transform::PcfSet};
 
     // Assumes the input in GNF
-    fn clause_set(fof: FOF) -> PcfSet {
+    fn clause_set(fof: Fof) -> PcfSet {
         use std::convert::TryFrom;
 
         PcfSet::try_from(fof).unwrap()
     }
 
-    fn linear(fof: FOF) -> String {
+    fn linear(fof: Fof) -> String {
         use crate::transform::ToRelational;
 
         let rels = clause_set(fof)
             .iter()
             .map(|f| f.relational().linear())
-            .map(FOF::from)
+            .map(Fof::from)
             .collect::<Vec<_>>();
         format!("{:?}", rels)
     }
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_linear() {
         assert_eq!("[true]", linear(fof!('|')));
-        assert_eq!("[]", linear(fof!(_|_)));
+        assert_eq!("[]", linear(fof!(_ | _)));
         assert_eq!("[P()]", linear(fof!(P())));
         assert_eq!("[P(x, y)]", linear(fof!(P(x, y))));
         assert_eq!("[x = ~x:0 & P(x, ~x:0)]", linear(fof!(P(x, x))));

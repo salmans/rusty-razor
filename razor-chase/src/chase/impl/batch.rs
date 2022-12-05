@@ -186,7 +186,7 @@ fn make_observe_literal(
 // variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
-fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
+fn next_assignment(vec: &mut [usize], last: usize) -> bool {
     for item in vec.iter_mut() {
         if *item != last {
             *item += 1;
@@ -211,7 +211,7 @@ mod test_batch {
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
     static IGNORE_TEST: [&'static str; 1] = ["thy24.raz"];
@@ -263,7 +263,7 @@ mod test_batch {
         }
     }
 
-    fn run(theory: &Theory<FOF>) -> Vec<ColModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<ColModel> {
         use crate::chase::r#impl::collapse::ColPreProcessor;
         use crate::chase::PreProcessor;
 

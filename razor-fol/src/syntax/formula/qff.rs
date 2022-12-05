@@ -1,15 +1,15 @@
-/// Defines a quantifier-free first-order formula of type [`QFF`].
+/// Defines a quantifier-free first-order formula of type [`Qff`].
 use super::{Error, Sig, Var, *};
 use crate::syntax::term::Complex;
 use std::fmt;
 
-/// Is the type of the quantifier-free part of formulae types such as [`PNF`]
-/// and [`SNF`].
+/// Is the type of the quantifier-free part of formulae types such as [`Pnf`]
+/// and [`Snf`].
 ///
-/// [`PNF`]: crate::transform::PNF
-/// [`SNF`]: crate::transform::SNF
+/// [`Pnf`]: crate::transform::Pnf
+/// [`Snf`]: crate::transform::Snf
 #[derive(PartialEq, Clone)]
-pub enum QFF {
+pub enum Qff {
     /// Is logical top (⊤) or truth.
     Top,
 
@@ -23,77 +23,77 @@ pub enum QFF {
     Equals(Equals<Complex>),
 
     /// Is the negation of a formula, wrapping a [`Not`].
-    Not(Box<Not<QFF>>),
+    Not(Box<Not<Qff>>),
 
     /// Is a conjunction of two formulae, wrapping an [`And`].
-    And(Box<And<QFF>>),
+    And(Box<And<Qff>>),
 
     /// Is a disjunction of two formulae, wrapping an [`Or`].
-    Or(Box<Or<QFF>>),
+    Or(Box<Or<Qff>>),
 
     /// Is an implication between two formulae, wrapping an [`Implies`].
-    Implies(Box<Implies<QFF>>),
+    Implies(Box<Implies<Qff>>),
 
     /// Is an bi-implication between two formulae, wrapping an [`Iff`].    
-    Iff(Box<Iff<QFF>>),
+    Iff(Box<Iff<Qff>>),
 }
 
-impl From<Atom<Complex>> for QFF {
+impl From<Atom<Complex>> for Qff {
     fn from(value: Atom<Complex>) -> Self {
-        QFF::Atom(value)
+        Qff::Atom(value)
     }
 }
 
-impl From<Equals<Complex>> for QFF {
+impl From<Equals<Complex>> for Qff {
     fn from(value: Equals<Complex>) -> Self {
-        QFF::Equals(value)
+        Qff::Equals(value)
     }
 }
 
-impl From<Not<QFF>> for QFF {
-    fn from(value: Not<QFF>) -> Self {
-        QFF::Not(Box::new(value))
+impl From<Not<Qff>> for Qff {
+    fn from(value: Not<Qff>) -> Self {
+        Qff::Not(Box::new(value))
     }
 }
 
-impl From<And<QFF>> for QFF {
-    fn from(value: And<QFF>) -> Self {
-        QFF::And(Box::new(value))
+impl From<And<Qff>> for Qff {
+    fn from(value: And<Qff>) -> Self {
+        Qff::And(Box::new(value))
     }
 }
 
-impl From<Or<QFF>> for QFF {
-    fn from(value: Or<QFF>) -> Self {
-        QFF::Or(Box::new(value))
+impl From<Or<Qff>> for Qff {
+    fn from(value: Or<Qff>) -> Self {
+        Qff::Or(Box::new(value))
     }
 }
 
-impl From<Implies<QFF>> for QFF {
-    fn from(value: Implies<QFF>) -> Self {
-        QFF::Implies(Box::new(value))
+impl From<Implies<Qff>> for Qff {
+    fn from(value: Implies<Qff>) -> Self {
+        Qff::Implies(Box::new(value))
     }
 }
 
-impl From<Iff<QFF>> for QFF {
-    fn from(value: Iff<QFF>) -> Self {
-        QFF::Iff(Box::new(value))
+impl From<Iff<Qff>> for Qff {
+    fn from(value: Iff<Qff>) -> Self {
+        Qff::Iff(Box::new(value))
     }
 }
 
-impl Formula for QFF {
+impl Formula for Qff {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
         match self {
-            QFF::Top => Ok(Sig::new()),
-            QFF::Bottom => Ok(Sig::new()),
-            QFF::Atom(this) => this.signature(),
-            QFF::Equals(this) => this.signature(),
-            QFF::Not(this) => this.signature(),
-            QFF::And(this) => this.signature(),
-            QFF::Or(this) => this.signature(),
-            QFF::Implies(this) => this.signature(),
-            QFF::Iff(this) => this.signature(),
+            Qff::Top => Ok(Sig::new()),
+            Qff::Bottom => Ok(Sig::new()),
+            Qff::Atom(this) => this.signature(),
+            Qff::Equals(this) => this.signature(),
+            Qff::Not(this) => this.signature(),
+            Qff::And(this) => this.signature(),
+            Qff::Or(this) => this.signature(),
+            Qff::Implies(this) => this.signature(),
+            Qff::Iff(this) => this.signature(),
         }
     }
 
@@ -113,35 +113,35 @@ impl Formula for QFF {
 
     fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            QFF::Top | QFF::Bottom => self.clone(),
-            QFF::Atom(this) => this.transform_term(f).into(),
-            QFF::Equals(this) => this.transform_term(f).into(),
-            QFF::Not(this) => this.transform_term(f).into(),
-            QFF::And(this) => this.transform_term(f).into(),
-            QFF::Or(this) => this.transform_term(f).into(),
-            QFF::Implies(this) => this.transform_term(f).into(),
-            QFF::Iff(this) => this.transform_term(f).into(),
+            Qff::Top | Qff::Bottom => self.clone(),
+            Qff::Atom(this) => this.transform_term(f).into(),
+            Qff::Equals(this) => this.transform_term(f).into(),
+            Qff::Not(this) => this.transform_term(f).into(),
+            Qff::And(this) => this.transform_term(f).into(),
+            Qff::Or(this) => this.transform_term(f).into(),
+            Qff::Implies(this) => this.transform_term(f).into(),
+            Qff::Iff(this) => this.transform_term(f).into(),
         }
     }
 }
 
-impl FormulaEx for QFF {
+impl FormulaEx for Qff {
     fn precedence(&self) -> u8 {
         match self {
-            QFF::Top => PRECEDENCE_ATOM,
-            QFF::Bottom => PRECEDENCE_ATOM,
-            QFF::Atom(this) => this.precedence(),
-            QFF::Equals(this) => this.precedence(),
-            QFF::Not(this) => this.precedence(),
-            QFF::And(this) => this.precedence(),
-            QFF::Or(this) => this.precedence(),
-            QFF::Implies(this) => this.precedence(),
-            QFF::Iff(this) => this.precedence(),
+            Qff::Top => PRECEDENCE_ATOM,
+            Qff::Bottom => PRECEDENCE_ATOM,
+            Qff::Atom(this) => this.precedence(),
+            Qff::Equals(this) => this.precedence(),
+            Qff::Not(this) => this.precedence(),
+            Qff::And(this) => this.precedence(),
+            Qff::Or(this) => this.precedence(),
+            Qff::Implies(this) => this.precedence(),
+            Qff::Iff(this) => this.precedence(),
         }
     }
 }
 
-impl fmt::Display for QFF {
+impl fmt::Display for Qff {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Top => write!(f, "⊤"),
@@ -157,7 +157,7 @@ impl fmt::Display for QFF {
     }
 }
 
-impl fmt::Debug for QFF {
+impl fmt::Debug for Qff {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Top => write!(f, "⊤"),
@@ -189,7 +189,7 @@ mod tests {
     fn atom_to_string() {
         assert_eq!(
             "R()",
-            QFF::from(Atom {
+            Qff::from(Atom {
                 predicate: "R".into(),
                 terms: vec![],
             })
@@ -197,7 +197,7 @@ mod tests {
         );
         assert_eq!(
             "R(x, y)",
-            QFF::from(Atom {
+            Qff::from(Atom {
                 predicate: "R".into(),
                 terms: vec![term!(x), term!(y)],
             })
@@ -211,7 +211,7 @@ mod tests {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(
                 expected,
-                QFF::from(Atom {
+                Qff::from(Atom {
                     predicate: "R".into(),
                     terms: vec![],
                 })
@@ -222,7 +222,7 @@ mod tests {
             let expected = vec![v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Atom {
+                Qff::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(x), term!(y)],
                 })
@@ -233,7 +233,7 @@ mod tests {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Atom {
+                Qff::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(y), term!(g(x, z))],
                 })
@@ -244,7 +244,7 @@ mod tests {
             let expected = vec![v!(x), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Atom {
+                Qff::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(z), term!(f(f(f(f(f(f(x)))))))],
                 })
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn atom_transform() {
-        let formula: QFF = Atom {
+        let formula: Qff = Atom {
             predicate: "P".into(),
             terms: vec![term!(f(x)), term!(y)],
         }
@@ -268,7 +268,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(Atom {
+            Qff::from(Atom {
                 predicate: "P".into(),
                 terms: vec![term!(z), term!(y)],
             }),
@@ -286,7 +286,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = Atom {
+            let formula: Qff = Atom {
                 predicate: "P".into(),
                 terms: vec![term!(@c)],
             }
@@ -306,7 +306,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = Atom {
+            let formula: Qff = Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x, @c))],
             }
@@ -332,7 +332,7 @@ mod tests {
             .unwrap();
             sig.add_constant(Const::from("c"));
             sig.add_constant(Const::from("d"));
-            let formula: QFF = Atom {
+            let formula: Qff = Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x, @c)), term!(@d), term!(f(g(x), y))],
             }
@@ -340,7 +340,7 @@ mod tests {
             assert_eq!(sig, formula.signature().unwrap());
         }
         {
-            let formula: QFF = Atom {
+            let formula: Qff = Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x)), term!(f(x, y))],
             }
@@ -348,7 +348,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Atom {
+            let formula: Qff = Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x)), term!(f(y))],
             }
@@ -361,7 +361,7 @@ mod tests {
     fn equals_to_string() {
         assert_eq!(
             "x = y",
-            QFF::from(Equals {
+            Qff::from(Equals {
                 left: term!(x),
                 right: term!(y),
             })
@@ -375,7 +375,7 @@ mod tests {
             let expected = vec![v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Equals {
+                Qff::from(Equals {
                     left: term!(x),
                     right: term!(y),
                 })
@@ -386,7 +386,7 @@ mod tests {
             let expected = vec![v!(x)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Equals {
+                Qff::from(Equals {
                     left: term!(x),
                     right: term!(g()),
                 })
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn equals_transform() {
-        let formula: QFF = Equals {
+        let formula: Qff = Equals {
             left: term!(f(x)),
             right: term!(y),
         }
@@ -410,7 +410,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(Equals {
+            Qff::from(Equals {
                 left: term!(z),
                 right: term!(y),
             }),
@@ -428,7 +428,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = Equals {
+            let formula: Qff = Equals {
                 left: term!(@c),
                 right: term!(@c),
             }
@@ -436,7 +436,7 @@ mod tests {
             assert_eq!(sig, formula.signature().unwrap());
         }
         {
-            let formula: QFF = Equals {
+            let formula: Qff = Equals {
                 left: term!(f(x)),
                 right: term!(f(y)),
             }
@@ -444,7 +444,7 @@ mod tests {
             assert!(formula.signature().is_ok());
         }
         {
-            let formula: QFF = Equals {
+            let formula: Qff = Equals {
                 left: term!(f(x)),
                 right: term!(f(x, y)),
             }
@@ -457,7 +457,7 @@ mod tests {
     fn not_to_string() {
         assert_eq!(
             "¬R(x, y)",
-            QFF::from(Not {
+            Qff::from(Not {
                 formula: Atom {
                     predicate: "R".into(),
                     terms: vec![term!(x), term!(y)]
@@ -474,7 +474,7 @@ mod tests {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(
                 expected,
-                QFF::from(Not {
+                Qff::from(Not {
                     formula: Atom {
                         predicate: "R".into(),
                         terms: vec![]
@@ -488,7 +488,7 @@ mod tests {
             let expected = vec![v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Not {
+                Qff::from(Not {
                     formula: Equals {
                         left: term!(x),
                         right: term!(y),
@@ -502,7 +502,7 @@ mod tests {
             let expected = vec![v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Not {
+                Qff::from(Not {
                     formula: Atom {
                         predicate: "R".into(),
                         terms: vec![term!(x), term!(y)]
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn not_transform() {
-        let formula: QFF = Not {
+        let formula: Qff = Not {
             formula: Atom {
                 predicate: "R".into(),
                 terms: vec![term!(f(x)), term!(y)],
@@ -532,7 +532,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(Not {
+            Qff::from(Not {
                 formula: Atom {
                     predicate: "R".into(),
                     terms: vec![term!(z), term!(y)],
@@ -557,7 +557,7 @@ mod tests {
         })
         .unwrap();
         sig.add_constant(Const::from("c"));
-        let formula: QFF = Not {
+        let formula: Qff = Not {
             formula: Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(@c)), term!(y)],
@@ -572,7 +572,7 @@ mod tests {
     fn and_to_string() {
         assert_eq!(
             "P() ∧ Q()",
-            QFF::from(And {
+            Qff::from(And {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![]
@@ -594,7 +594,7 @@ mod tests {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(
                 expected,
-                QFF::from(And {
+                Qff::from(And {
                     left: Atom {
                         predicate: "P".into(),
                         terms: vec![]
@@ -613,7 +613,7 @@ mod tests {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(And {
+                Qff::from(And {
                     left: Atom {
                         predicate: "P".into(),
                         terms: vec![term!(z), term!(y)]
@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn and_transform() {
-        let formula: QFF = And {
+        let formula: Qff = And {
             left: Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x))],
@@ -653,7 +653,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(And {
+            Qff::from(And {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(z)],
@@ -689,7 +689,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = And {
+            let formula: Qff = And {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x)), term!(y)],
@@ -705,7 +705,7 @@ mod tests {
             assert_eq!(sig, formula.signature().unwrap());
         }
         {
-            let formula: QFF = And {
+            let formula: Qff = And {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
@@ -721,7 +721,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = And {
+            let formula: Qff = And {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -737,7 +737,7 @@ mod tests {
             assert!(formula.signature().is_ok());
         }
         {
-            let formula: QFF = And {
+            let formula: Qff = And {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -758,7 +758,7 @@ mod tests {
     fn or_to_string() {
         assert_eq!(
             "P() ∨ Q()",
-            QFF::from(Or {
+            Qff::from(Or {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![],
@@ -780,7 +780,7 @@ mod tests {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(
                 expected,
-                QFF::from(Or {
+                Qff::from(Or {
                     left: Atom {
                         predicate: "P".into(),
                         terms: vec![]
@@ -799,7 +799,7 @@ mod tests {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Or {
+                Qff::from(Or {
                     left: Atom {
                         predicate: "P".into(),
                         terms: vec![term!(z), term!(y)]
@@ -818,7 +818,7 @@ mod tests {
 
     #[test]
     fn or_transform() {
-        let formula: QFF = Or {
+        let formula: Qff = Or {
             left: Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x))],
@@ -839,7 +839,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(Or {
+            Qff::from(Or {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(z)],
@@ -875,7 +875,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = Or {
+            let formula: Qff = Or {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x)), term!(y)],
@@ -891,7 +891,7 @@ mod tests {
             assert_eq!(sig, formula.signature().unwrap());
         }
         {
-            let formula: QFF = Or {
+            let formula: Qff = Or {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
@@ -907,7 +907,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Or {
+            let formula: Qff = Or {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -923,7 +923,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Or {
+            let formula: Qff = Or {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -944,7 +944,7 @@ mod tests {
     fn implies_to_string() {
         assert_eq!(
             "P() → Q()",
-            QFF::from(Implies {
+            Qff::from(Implies {
                 premise: Atom {
                     predicate: "P".into(),
                     terms: vec![],
@@ -966,7 +966,7 @@ mod tests {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(
                 expected,
-                QFF::from(Implies {
+                Qff::from(Implies {
                     premise: Atom {
                         predicate: "P".into(),
                         terms: vec![],
@@ -985,7 +985,7 @@ mod tests {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Implies {
+                Qff::from(Implies {
                     premise: Atom {
                         predicate: "P".into(),
                         terms: vec![term!(z), term!(y)],
@@ -1004,7 +1004,7 @@ mod tests {
 
     #[test]
     fn implies_transform() {
-        let formula: QFF = Implies {
+        let formula: Qff = Implies {
             premise: Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x))],
@@ -1025,7 +1025,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(Implies {
+            Qff::from(Implies {
                 premise: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(z)],
@@ -1061,7 +1061,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = Implies {
+            let formula: Qff = Implies {
                 premise: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x)), term!(y)],
@@ -1077,7 +1077,7 @@ mod tests {
             assert_eq!(sig, formula.signature().unwrap());
         }
         {
-            let formula: QFF = Implies {
+            let formula: Qff = Implies {
                 premise: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
@@ -1093,7 +1093,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Implies {
+            let formula: Qff = Implies {
                 premise: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -1109,7 +1109,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Implies {
+            let formula: Qff = Implies {
                 premise: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -1130,7 +1130,7 @@ mod tests {
     fn iff_to_string() {
         assert_eq!(
             "P() ⇔ Q()",
-            QFF::from(Iff {
+            Qff::from(Iff {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![],
@@ -1152,7 +1152,7 @@ mod tests {
             let expected: Vec<&Var> = vec![];
             assert_eq_sorted_vecs!(
                 expected,
-                QFF::from(Iff {
+                Qff::from(Iff {
                     left: Atom {
                         predicate: "P".into(),
                         terms: vec![],
@@ -1171,7 +1171,7 @@ mod tests {
             let expected = vec![v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
-                QFF::from(Iff {
+                Qff::from(Iff {
                     left: Atom {
                         predicate: "P".into(),
                         terms: vec![term!(z), term!(y)],
@@ -1190,7 +1190,7 @@ mod tests {
 
     #[test]
     fn iff_transform() {
-        let formula: QFF = Iff {
+        let formula: Qff = Iff {
             left: Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x))],
@@ -1211,7 +1211,7 @@ mod tests {
             }
         };
         assert_eq!(
-            QFF::from(Iff {
+            Qff::from(Iff {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(z)],
@@ -1247,7 +1247,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formula: QFF = Iff {
+            let formula: Qff = Iff {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x)), term!(y)],
@@ -1263,7 +1263,7 @@ mod tests {
             assert_eq!(sig, formula.signature().unwrap());
         }
         {
-            let formula: QFF = Iff {
+            let formula: Qff = Iff {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
@@ -1279,7 +1279,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Iff {
+            let formula: Qff = Iff {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],
@@ -1295,7 +1295,7 @@ mod tests {
             assert!(formula.signature().is_err());
         }
         {
-            let formula: QFF = Iff {
+            let formula: Qff = Iff {
                 left: Atom {
                     predicate: "P".into(),
                     terms: vec![term!(f(x))],

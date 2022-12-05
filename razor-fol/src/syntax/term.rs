@@ -1,5 +1,5 @@
 /*! Defines the syntax for first-order terms. */
-use super::{formula::Equals, signature::FuncSig, Const, Error, Func, Sig, Var, FOF};
+use super::{formula::Equals, signature::FuncSig, Const, Error, Fof, Func, Sig, Var};
 use std::{collections::HashMap, fmt, ops::Deref};
 
 /// Is the trait of types that act as terms.
@@ -62,6 +62,7 @@ pub trait Term {
     /// let s = t.rename_var(&renaming); // s = f(a, z, g(a, b, a))
     /// assert_eq!("f(a, z, g(a, b, a))", s.to_string())
     /// ```
+    #[allow(clippy::only_used_in_recursion)]
     fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
@@ -99,6 +100,7 @@ pub trait Term {
     /// let s = t.substitute(&x_to_c); // s = f('c, g('c, y, 'c))
     /// assert_eq!("f('c, g('c, y, 'c))", s.to_string())
     /// ```
+    #[allow(clippy::only_used_in_recursion)]
     fn substitute(&self, sub: &impl Substitution<Self>) -> Self
     where
         Self: Sized,
@@ -183,8 +185,8 @@ pub enum Complex {
 impl Complex {
     /// Returns an [equation] (formula) between `self` and `term`.
     ///
-    /// [equation]: crate::syntax::FOF::Equals
-    pub fn equals(self, term: Self) -> FOF {
+    /// [equation]: crate::syntax::Fof::Equals
+    pub fn equals(self, term: Self) -> Fof {
         Equals {
             left: self,
             right: term,
@@ -682,8 +684,8 @@ mod tests {
     #[test]
     fn test_rename_formula() {
         assert_eq!(
-            FOF::Top,
-            FOF::Top.rename_var(&|v: &Var| {
+            Fof::Top,
+            Fof::Top.rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -692,8 +694,8 @@ mod tests {
             })
         );
         assert_eq!(
-            FOF::Bottom,
-            FOF::Bottom.rename_var(&|v: &Var| {
+            Fof::Bottom,
+            Fof::Bottom.rename_var(&|v: &Var| {
                 if *v == v!(x) {
                     v!(y)
                 } else {
@@ -848,8 +850,8 @@ mod tests {
     #[test]
     fn test_substitute_formula() {
         assert_eq!(
-            FOF::Top,
-            FOF::Top.substitute(&|v: &Var| {
+            Fof::Top,
+            Fof::Top.substitute(&|v: &Var| {
                 if *v == v!(x) {
                     term!(y)
                 } else {
@@ -858,8 +860,8 @@ mod tests {
             })
         );
         assert_eq!(
-            FOF::Bottom,
-            FOF::Bottom.substitute(&|v: &Var| {
+            Fof::Bottom,
+            Fof::Bottom.substitute(&|v: &Var| {
                 if *v == v!(x) {
                     term!(y)
                 } else {

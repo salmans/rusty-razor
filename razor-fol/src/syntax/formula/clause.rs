@@ -84,11 +84,11 @@ impl<T: Term> FormulaEx for Literal<T> {
 ///
 /// **Note:**
 /// The interpretation of a clause depends on its syntactic context.
-/// For example, a [`CNF`] clause is interpreted as disjunction of literals whereas
-/// a [`DNF`] clause corresponds to a conjunction of literals.
+/// For example, a [`Cnf`] clause is interpreted as disjunction of literals whereas
+/// a [`Dnf`] clause corresponds to a conjunction of literals.
 ///
-/// [`CNF`]: crate::transform::CNF
-/// [`DNF`]: crate::transform::DNF
+/// [`Cnf`]: crate::transform::Cnf
+/// [`Dnf`]: crate::transform::Dnf
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Clause<T: Term>(BTreeSet<Literal<T>>);
 
@@ -186,13 +186,13 @@ impl<T: Term + Ord> Formula for Clause<T> {
 ///
 /// **Note:**
 /// The interpretation of a clause set depends on its syntactic context. For example,
-/// a [`CNF`] is a clause set that is interpreted as a conjunction of clauses where each
-/// clause is a disjunction of literals. In contrast, a [`DNF`] is a clause set that
+/// a [`Cnf`] is a clause set that is interpreted as a conjunction of clauses where each
+/// clause is a disjunction of literals. In contrast, a [`Dnf`] is a clause set that
 /// corresponds to a disjunction of clauses where each clause is a conjunction of literals.
 ///
-/// [`CNF`]: crate::transform::CNF
-/// [`DNF`]: crate::transform::DNF
-#[derive(PartialEq, Clone, Debug)]
+/// [`Cnf`]: crate::transform::Cnf
+/// [`Dnf`]: crate::transform::Dnf
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ClauseSet<T: Term>(BTreeSet<Clause<T>>);
 
 impl<T: Term + Ord> From<Clause<T>> for ClauseSet<T> {

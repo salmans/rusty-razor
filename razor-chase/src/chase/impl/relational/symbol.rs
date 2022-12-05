@@ -82,12 +82,12 @@ impl Symbol {
 impl std::fmt::Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let display = match self {
-            Symbol::Const(c) => format!("constant {}", c.to_string()),
+            Symbol::Const(c) => format!("constant {}", c),
             Symbol::Func { symbol, arity } => {
-                format!("function {}, arity {}", symbol.to_string(), arity)
+                format!("function {}, arity {}", symbol, arity)
             }
             Symbol::Pred { symbol, arity } => {
-                format!("predicate {}, arity {}", symbol.to_string(), arity)
+                format!("predicate {}, arity {}", symbol, arity)
             }
             Symbol::Equality => "equality (=)".into(),
             Symbol::Domain => "domain".into(),

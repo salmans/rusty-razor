@@ -2,8 +2,8 @@ use super::{constants::*, expression::Convertor, model::RelModel, sequent::RelSe
 use crate::chase::PreProcessor;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::*, term::Complex, Sig, Theory, Var, FOF},
-    transform::{PcfSet, GNF, PCF},
+    syntax::{formula::*, term::Complex, Fof, Sig, Theory, Var},
+    transform::{Gnf, Pcf, PcfSet},
 };
 
 /// Is a [`PreProcessor`] instance that converts the input theory to a vector of [`Sequent`].
@@ -27,9 +27,9 @@ impl PreProcessor for RelPreProcessor {
     type Sequent = RelSequent;
     type Model = RelModel;
 
-    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use razor_fol::transform::ToGNF;
-        use razor_fol::transform::ToSNF;
+    fn pre_process(&self, theory: &Theory<Fof>) -> (Vec<Self::Sequent>, Self::Model) {
+        use razor_fol::transform::ToGnf;
+        use razor_fol::transform::ToSnf;
 
         let mut c_counter: u32 = 0;
         let mut f_counter: u32 = 0;
@@ -70,8 +70,8 @@ impl PreProcessor for RelPreProcessor {
     }
 }
 
-fn equality_axioms() -> Vec<GNF> {
-    use razor_fol::{fof, transform::ToGNF};
+fn equality_axioms() -> Vec<Gnf> {
+    use razor_fol::{fof, transform::ToGnf};
 
     // reflexive (not needed - automatically added for new elements):
     // fof!(['|'] -> [(x) = (x)]),
@@ -84,7 +84,7 @@ fn equality_axioms() -> Vec<GNF> {
 // Function integrity axioms in the form of:
 // 1) 'c = x & 'c = y -> x = y
 // 2) (f(x1, ..., xn) = x) & (f(y1, ..., yn) = y) & x1 = y1 & ... & xn = yn -> x = y
-fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
+fn integrity_axioms(sig: &Sig) -> Vec<Gnf> {
     use razor_fol::term;
 
     let mut result = Vec::new();
@@ -105,7 +105,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(vec![c_x, c_y]), PcfSet::from(PCF::from(x_y))).into();
+        let gnf: Gnf = (Pcf::from(vec![c_x, c_y]), PcfSet::from(Pcf::from(x_y))).into();
         result.push(gnf);
     }
 
@@ -144,7 +144,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<GNF> {
         }
         .into();
 
-        let gnf: GNF = (PCF::from(left), PcfSet::from(PCF::from(right))).into();
+        let gnf: Gnf = (Pcf::from(left), PcfSet::from(Pcf::from(right))).into();
         result.push(gnf);
     }
 

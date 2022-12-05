@@ -156,7 +156,7 @@ impl Default for Sig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::syntax::{Formula, FOF};
+    use crate::syntax::{Fof, Formula};
 
     #[test]
     fn test_merge() {
@@ -335,8 +335,8 @@ mod tests {
             sig.add_constant(Const::from("c"));
             sig.add_constant(Const::from("d"));
             let formulae = vec![
-                "P(f('c), y)".parse::<FOF>().unwrap(),
-                "Q(g('d), z)".parse::<FOF>().unwrap(),
+                "P(f('c), y)".parse::<Fof>().unwrap(),
+                "Q(g('d), z)".parse::<Fof>().unwrap(),
             ];
             assert_eq!(
                 sig,
@@ -364,8 +364,8 @@ mod tests {
             .unwrap();
             sig.add_constant(Const::from("c"));
             let formulae = vec![
-                "P(f('c), y)".parse::<FOF>().unwrap(),
-                "P(f('c), y)".parse::<FOF>().unwrap(),
+                "P(f('c), y)".parse::<Fof>().unwrap(),
+                "P(f('c), y)".parse::<Fof>().unwrap(),
             ];
             assert_eq!(
                 sig,
@@ -393,8 +393,8 @@ mod tests {
             .unwrap();
             sig.add_constant(Const::from("c"));
             let formulae = vec![
-                "P(f('c), y)".parse::<FOF>().unwrap(),
-                "P(f('c, d), y)".parse::<FOF>().unwrap(),
+                "P(f('c), y)".parse::<Fof>().unwrap(),
+                "P(f('c, d), y)".parse::<Fof>().unwrap(),
             ];
             assert!(Sig::from_signatures(
                 formulae
@@ -419,8 +419,8 @@ mod tests {
             .unwrap();
             sig.add_constant(Const::from("c"));
             let formulae = vec![
-                "P(f('c), y)".parse::<FOF>().unwrap(),
-                "P(f('c), y, z)".parse::<FOF>().unwrap(),
+                "P(f('c), y)".parse::<Fof>().unwrap(),
+                "P(f('c), y, z)".parse::<Fof>().unwrap(),
             ];
             assert!(Sig::from_signatures(
                 formulae

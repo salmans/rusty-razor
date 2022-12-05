@@ -305,9 +305,7 @@ impl fmt::Debug for RelModel {
             .sorted()
             .iter()
             .map(|e| {
-                let witnesses: Vec<String> =
-                    self.witness(e).iter().map(|w| w.to_string()).collect();
-                let witnesses = witnesses.into_iter().sorted();
+                let witnesses = self.witness(e).iter().map(|w| w.to_string()).sorted();
                 format!("{} -> {}", witnesses.into_iter().sorted().join(", "), e)
             })
             .collect();

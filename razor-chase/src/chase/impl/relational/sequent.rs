@@ -12,9 +12,9 @@ use razor_fol::{
     syntax::{
         formula::{Atom, Atomic, Equals},
         term::Variable,
-        Const, Func, Pred, Var, FOF,
+        Const, Fof, Func, Pred, Var,
     },
-    transform::{FlatClause, Relational, ToRelational, GNF},
+    transform::{FlatClause, Gnf, Relational, ToRelational},
 };
 use std::convert::TryFrom;
 
@@ -69,10 +69,10 @@ pub struct RelSequent {
     pub expression: rel_exp::Mono<Tuple>,
 
     /// The body of the implication from which the sequent was made.
-    body_formula: FOF,
+    body_formula: Fof,
 
     /// The head of the implication from which the sequent was made.
-    head_formula: FOF,
+    head_formula: Fof,
 }
 
 impl RelSequent {
@@ -94,7 +94,7 @@ impl RelSequent {
         &self.attributes
     }
 
-    pub(super) fn new(gnf: &GNF, convertor: &mut Convertor) -> Result<Self, Error> {
+    pub(super) fn new(gnf: &Gnf, convertor: &mut Convertor) -> Result<Self, Error> {
         let body_linear = optimize_relational(gnf.body())?.linear_with(&mut linear_generator());
         let head_relational = optimize_relational(gnf.head())?;
 
@@ -134,11 +134,11 @@ impl RelSequent {
 }
 
 impl Sequent for RelSequent {
-    fn body(&self) -> FOF {
+    fn body(&self) -> Fof {
         self.body_formula.clone()
     }
 
-    fn head(&self) -> FOF {
+    fn head(&self) -> Fof {
         self.head_formula.clone()
     }
 }

@@ -43,7 +43,7 @@
 //! [the chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 //! [run of the chase]: self#chase_all
-//! [standard syntactic manipulation]: razor_fol::transform::CNF::gnf()
+//! [standard syntactic manipulation]: razor_fol::transform::Gnf
 //! [godel]: https://en.wikipedia.org/wiki/Gödel%27s_incompleteness_theorems
 //!
 //! ## The Chase
@@ -149,7 +149,7 @@ impl fmt::Display for E {
 
 impl fmt::Debug for E {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -261,7 +261,7 @@ impl fmt::Display for Rel {
 
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -293,7 +293,7 @@ impl<T: WitnessTerm> fmt::Display for Observation<T> {
 
 impl<T: WitnessTerm> fmt::Debug for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -340,18 +340,18 @@ pub trait Model: Clone {
 /// [bg]: self#background
 pub trait Sequent: Clone {
     /// Returns the *body* (premise) of the sequent as a formula.
-    fn body(&self) -> FOF;
+    fn body(&self) -> Fof;
 
     /// Returns the *head* (consequence) of the sequent as a formula.
-    fn head(&self) -> FOF;
+    fn head(&self) -> Fof;
 }
 
 impl<S: Sequent> Sequent for &S {
-    fn body(&self) -> FOF {
+    fn body(&self) -> Fof {
         (*self).body()
     }
 
-    fn head(&self) -> FOF {
+    fn head(&self) -> Fof {
         (*self).head()
     }
 }
@@ -367,7 +367,7 @@ pub trait PreProcessor {
 
     /// Given a theory, returns an iterator of [sequents][Sequent] and an initial
     /// [model][Model] by applying the necessary pre-processing.
-    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model);
+    fn pre_process(&self, theory: &Theory<Fof>) -> (Vec<Self::Sequent>, Self::Model);
 }
 
 /// Strategy is the trait of algorithms for choosing sequents in the context of an
@@ -527,7 +527,7 @@ pub trait Scheduler<S: Sequent, M: Model, Stg: Strategy<S>> {
 /// [the chase]: self#the-chase
 ///
 /// ```rust
-/// use razor_fol::syntax::{FOF, Theory};
+/// use razor_fol::syntax::{Fof, Theory};
 /// use razor_chase::chase::{
 ///     PreProcessor, Scheduler, Strategy, chase_all,
 ///     r#impl::basic,
@@ -537,7 +537,7 @@ pub trait Scheduler<S: Sequent, M: Model, Stg: Strategy<S>> {
 /// };
 ///
 /// // parse the theory:
-/// let theory: Theory<FOF> = r#"
+/// let theory: Theory<Fof> = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
 ///   R(x) -> exists y . S(x, y);
@@ -596,7 +596,7 @@ where
 /// [chase-step]: self#chase-step
 ///
 /// ```rust
-/// use razor_fol::syntax::{FOF, Theory};
+/// use razor_fol::syntax::{Fof, Theory};
 /// use razor_chase::chase::{
 ///     PreProcessor, Scheduler, Strategy, chase_step,
 ///     r#impl::basic,
@@ -607,7 +607,7 @@ where
 /// use std::convert::TryInto;
 ///
 /// // parse the theory:
-/// let theory: Theory<FOF> = r#"
+/// let theory: Theory<Fof> = r#"
 ///   exists x . P(x);
 ///   P(x) implies Q(x) | R(x);
 ///   R(x) -> exists y . S(x, y);

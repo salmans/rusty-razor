@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Error;
 use itertools::Itertools;
 use razor_chase::chase::{r#impl::relational::RelModel, Model, Observation};
-use razor_fol::syntax::{Theory, FOF};
+use razor_fol::syntax::{Fof, Theory};
 use std::{
     fs,
     io::{stdin, Read},
@@ -33,7 +33,7 @@ pub(crate) fn stylus(color: bool) -> Stylus {
     stylus
 }
 
-pub(crate) fn read_theory_from_file(filename: &str) -> Result<Theory<FOF>, Error> {
+pub(crate) fn read_theory_from_file(filename: &str) -> Result<Theory<Fof>, Error> {
     let mut f = fs::File::open(filename)
         .map_err(|e| Error::new(e).context("failed to find the input file"))?;
 
@@ -46,7 +46,7 @@ pub(crate) fn read_theory_from_file(filename: &str) -> Result<Theory<FOF>, Error
         .map_err(|e| Error::new(e).context("failed to parse the input theory"))
 }
 
-pub(crate) fn read_theory_from_stdin() -> Result<Theory<FOF>, Error> {
+pub(crate) fn read_theory_from_stdin() -> Result<Theory<Fof>, Error> {
     let mut buf: Vec<u8> = Vec::new();
     stdin().read_to_end(&mut buf)?;
     let s = String::from_utf8(buf)?;

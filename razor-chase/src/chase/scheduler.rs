@@ -200,10 +200,10 @@ mod test_lifo {
         PreProcessor, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
-    pub fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    pub fn run(theory: &Theory<Fof>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;

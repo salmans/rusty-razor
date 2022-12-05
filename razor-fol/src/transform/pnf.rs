@@ -1,118 +1,118 @@
 /*! Defines formulae in Prenex Normal Form (PNF) and implements an algorithm for transforming
-an [`FOF`] to a [`PNF`].
+an [`Fof`] to a [`Pnf`].
 
-[`FOF`]: crate::syntax::FOF
+[`Fof`]: crate::syntax::Fof
 */
-use crate::syntax::{formula::qff::QFF, formula::*, term::Complex, Var, FOF};
+use crate::syntax::{formula::qff::Qff, formula::*, term::Complex, Fof, Var};
 
 /// Represents a formula in Prenex Normal Form (PNF).
 ///
 /// **Hint**: A PNF is a first-order formula with all quantifiers (existential and
 /// universal) and bound variables at the front, followed by a quantifier-free part.
 #[derive(Clone)]
-pub enum PNF {
-    /// Is the quantifier-free portion of a [`PNF`].
-    QFF(QFF),
+pub enum Pnf {
+    /// Is the quantifier-free portion of a [`Pnf`].
+    QFF(Qff),
 
     /// Is an existentially quantified PNF, wrapping an [`Exists`].
-    Exists(Box<Exists<PNF>>),
+    Exists(Box<Exists<Pnf>>),
 
     /// Is a universally quantified PNF, wrapping a [`Forall`].
-    Forall(Box<Forall<PNF>>),
+    Forall(Box<Forall<Pnf>>),
 }
 
-impl From<Atom<Complex>> for PNF {
+impl From<Atom<Complex>> for Pnf {
     fn from(value: Atom<Complex>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Equals<Complex>> for PNF {
+impl From<Equals<Complex>> for Pnf {
     fn from(value: Equals<Complex>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Not<QFF>> for PNF {
-    fn from(value: Not<QFF>) -> Self {
+impl From<Not<Qff>> for Pnf {
+    fn from(value: Not<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<And<QFF>> for PNF {
-    fn from(value: And<QFF>) -> Self {
+impl From<And<Qff>> for Pnf {
+    fn from(value: And<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Or<QFF>> for PNF {
-    fn from(value: Or<QFF>) -> Self {
+impl From<Or<Qff>> for Pnf {
+    fn from(value: Or<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Implies<QFF>> for PNF {
-    fn from(value: Implies<QFF>) -> Self {
+impl From<Implies<Qff>> for Pnf {
+    fn from(value: Implies<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Iff<QFF>> for PNF {
-    fn from(value: Iff<QFF>) -> Self {
+impl From<Iff<Qff>> for Pnf {
+    fn from(value: Iff<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Exists<PNF>> for PNF {
-    fn from(value: Exists<PNF>) -> Self {
+impl From<Exists<Pnf>> for Pnf {
+    fn from(value: Exists<Pnf>) -> Self {
         Self::Exists(Box::new(value))
     }
 }
 
-impl From<Forall<PNF>> for PNF {
-    fn from(value: Forall<PNF>) -> Self {
+impl From<Forall<Pnf>> for Pnf {
+    fn from(value: Forall<Pnf>) -> Self {
         Self::Forall(Box::new(value))
     }
 }
 
-impl From<QFF> for PNF {
-    fn from(value: QFF) -> Self {
+impl From<Qff> for Pnf {
+    fn from(value: Qff) -> Self {
         Self::QFF(value)
     }
 }
 
-/// Is the trait of [`Formula`] types that can be transformed to [`PNF`].
-pub trait ToPNF: Formula {
+/// Is the trait of [`Formula`] types that can be transformed to [`Pnf`].
+pub trait ToPnf: Formula {
     /// Transforms `self` to a Prenex Normal Form (PNF).
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToPNF;    
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToPnf;    
     ///
-    /// let formula: FOF = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
+    /// let formula: Fof = "Q(x, y) → ∃ x, y. P(x, y)".parse().unwrap();
     /// let pnf = formula.pnf();
     ///
     /// assert_eq!("∃ x`, y`. (Q(x, y) → P(x`, y`))", pnf.to_string());
     /// ```
-    fn pnf(&self) -> PNF;
+    fn pnf(&self) -> Pnf;
 }
 
-impl ToPNF for FOF {
-    fn pnf(&self) -> PNF {
+impl ToPnf for Fof {
+    fn pnf(&self) -> Pnf {
         pnf(self)
     }
 }
 
-impl<T: ToPNF> From<T> for PNF {
+impl<T: ToPnf> From<T> for Pnf {
     fn from(value: T) -> Self {
         value.pnf()
     }
 }
 
-impl PNF {
+impl Pnf {
     #[inline(always)]
-    fn not(formula: QFF) -> Self {
+    fn not(formula: Qff) -> Self {
         Not { formula }.into()
     }
 
@@ -127,34 +127,34 @@ impl PNF {
     }
 }
 
-impl Formula for PNF {
+impl Formula for Pnf {
     type Term = Complex;
 
     fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
         match self {
-            PNF::QFF(this) => this.signature(),
-            PNF::Exists(this) => this.signature(),
-            PNF::Forall(this) => this.signature(),
+            Pnf::QFF(this) => this.signature(),
+            Pnf::Exists(this) => this.signature(),
+            Pnf::Forall(this) => this.signature(),
         }
     }
 
     fn free_vars(&self) -> Vec<&Var> {
         match self {
-            PNF::QFF(this) => this.free_vars(),
-            PNF::Exists(this) => this.free_vars(),
-            PNF::Forall(this) => this.free_vars(),
+            Pnf::QFF(this) => this.free_vars(),
+            Pnf::Exists(this) => this.free_vars(),
+            Pnf::Forall(this) => this.free_vars(),
         }
     }
 
     fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            PNF::QFF(this) => this.transform_term(f).into(),
-            PNF::Exists(this) => Exists {
+            Pnf::QFF(this) => this.transform_term(f).into(),
+            Pnf::Exists(this) => Exists {
                 variables: this.variables.clone(),
                 formula: this.formula.transform_term(f),
             }
             .into(),
-            PNF::Forall(this) => Forall {
+            Pnf::Forall(this) => Forall {
                 variables: this.variables.clone(),
                 formula: this.formula.transform_term(f),
             }
@@ -163,34 +163,34 @@ impl Formula for PNF {
     }
 }
 
-impl FormulaEx for PNF {
+impl FormulaEx for Pnf {
     fn precedence(&self) -> u8 {
         match self {
-            PNF::QFF(this) => this.precedence(),
-            PNF::Exists(this) => this.precedence(),
-            PNF::Forall(this) => this.precedence(),
+            Pnf::QFF(this) => this.precedence(),
+            Pnf::Exists(this) => this.precedence(),
+            Pnf::Forall(this) => this.precedence(),
         }
     }
 }
 
-impl std::fmt::Display for PNF {
+impl std::fmt::Display for Pnf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
-impl From<PNF> for FOF {
-    fn from(value: PNF) -> Self {
+impl From<Pnf> for Fof {
+    fn from(value: Pnf) -> Self {
         match value {
-            PNF::QFF(this) => this.into(),
-            PNF::Exists(this) => FOF::exists(this.variables, this.formula.into()),
-            PNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
+            Pnf::QFF(this) => this.into(),
+            Pnf::Exists(this) => Fof::exists(this.variables, this.formula.into()),
+            Pnf::Forall(this) => Fof::forall(this.variables, this.formula.into()),
         }
     }
 }
 
-impl From<&PNF> for FOF {
-    fn from(value: &PNF) -> Self {
+impl From<&Pnf> for Fof {
+    fn from(value: &Pnf) -> Self {
         value.clone().into()
     }
 }
@@ -208,7 +208,7 @@ fn rename(variable: &Var, no_collision_variables: &[&Var]) -> Var {
 
 // helper for transforming formulae with binary operands
 #[inline]
-fn binary_helper(vars: &[Var], formula: &PNF, other: &PNF) -> (Vec<Var>, PNF) {
+fn binary_helper(vars: &[Var], formula: &Pnf, other: &Pnf) -> (Vec<Var>, Pnf) {
     let formula_vars = formula.free_vars();
     let other_vars = other.free_vars();
 
@@ -236,45 +236,45 @@ fn binary_helper(vars: &[Var], formula: &PNF, other: &PNF) -> (Vec<Var>, PNF) {
 
 // The transforming function as a helper
 #[inline]
-fn pnf(formula: &FOF) -> PNF {
+fn pnf(formula: &Fof) -> Pnf {
     match formula {
-        FOF::Top => PNF::QFF(QFF::Top),
-        FOF::Bottom => PNF::QFF(QFF::Bottom),
-        FOF::Atom(this) => this.clone().into(),
-        FOF::Equals(this) => this.clone().into(),
+        Fof::Top => Pnf::QFF(Qff::Top),
+        Fof::Bottom => Pnf::QFF(Qff::Bottom),
+        Fof::Atom(this) => this.clone().into(),
+        Fof::Equals(this) => this.clone().into(),
         // e.g. ~(Qx. P(x)) -> Q' x. ~P(x)
-        FOF::Not(this) => match pnf(&this.formula) {
-            PNF::Forall(forall) => {
-                PNF::exists(forall.variables, pnf(&FOF::not(forall.formula.into())))
+        Fof::Not(this) => match pnf(&this.formula) {
+            Pnf::Forall(forall) => {
+                Pnf::exists(forall.variables, pnf(&Fof::not(forall.formula.into())))
             }
-            PNF::Exists(exists) => {
-                PNF::forall(exists.variables, pnf(&FOF::not(exists.formula.into())))
+            Pnf::Exists(exists) => {
+                Pnf::forall(exists.variables, pnf(&Fof::not(exists.formula.into())))
             }
-            PNF::QFF(this) => PNF::not(this),
+            Pnf::QFF(this) => Pnf::not(this),
         },
         // e.g. (Q x. F(x)) & G(y) => Q x'. F(x') & G(y) or F(x) & (Q y. G(y)) => Q y'. F(x) & G(y')
-        FOF::And(this) => {
+        Fof::And(this) => {
             let left = pnf(&this.left);
             let right = pnf(&this.right);
 
             match (&left, &right) {
-                (PNF::Forall(f), _) => {
+                (Pnf::Forall(f), _) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &right);
-                    pnf(&FOF::forall(vars, FOF::from(fmla).and(right.into())))
+                    pnf(&Fof::forall(vars, Fof::from(fmla).and(right.into())))
                 }
-                (PNF::Exists(e), _) => {
+                (Pnf::Exists(e), _) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &right);
-                    pnf(&FOF::exists(vars, FOF::from(fmla).and(right.into())))
+                    pnf(&Fof::exists(vars, Fof::from(fmla).and(right.into())))
                 }
-                (_, PNF::Forall(f)) => {
+                (_, Pnf::Forall(f)) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &left);
-                    pnf(&FOF::forall(vars, FOF::from(left).and(fmla.into())))
+                    pnf(&Fof::forall(vars, Fof::from(left).and(fmla.into())))
                 }
-                (_, PNF::Exists(e)) => {
+                (_, Pnf::Exists(e)) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
-                    pnf(&FOF::exists(vars, FOF::from(left).and(fmla.into())))
+                    pnf(&Fof::exists(vars, Fof::from(left).and(fmla.into())))
                 }
-                (PNF::QFF(left), PNF::QFF(right)) => And {
+                (Pnf::QFF(left), Pnf::QFF(right)) => And {
                     left: left.clone(),
                     right: right.clone(),
                 }
@@ -282,28 +282,28 @@ fn pnf(formula: &FOF) -> PNF {
             }
         }
         // e.g. (Q x. F(x)) | G(y) => Q x'. F(x') | G(y) or F(x) | (Q y. G(y)) => Q y'. F(x) | G(y')
-        FOF::Or(this) => {
+        Fof::Or(this) => {
             let left = pnf(&this.left);
             let right = pnf(&this.right);
 
             match (&left, &right) {
-                (PNF::Forall(f), _) => {
+                (Pnf::Forall(f), _) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &right);
-                    pnf(&FOF::forall(vars, FOF::from(fmla).or(right.into())))
+                    pnf(&Fof::forall(vars, Fof::from(fmla).or(right.into())))
                 }
-                (PNF::Exists(e), _) => {
+                (Pnf::Exists(e), _) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &right);
-                    pnf(&FOF::exists(vars, FOF::from(fmla).or(right.into())))
+                    pnf(&Fof::exists(vars, Fof::from(fmla).or(right.into())))
                 }
-                (_, PNF::Forall(f)) => {
+                (_, Pnf::Forall(f)) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &left);
-                    pnf(&FOF::forall(vars, FOF::from(left).or(fmla.into())))
+                    pnf(&Fof::forall(vars, Fof::from(left).or(fmla.into())))
                 }
-                (_, PNF::Exists(e)) => {
+                (_, Pnf::Exists(e)) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &left);
-                    pnf(&FOF::exists(vars, FOF::from(left).or(fmla.into())))
+                    pnf(&Fof::exists(vars, Fof::from(left).or(fmla.into())))
                 }
-                (PNF::QFF(left), PNF::QFF(right)) => Or {
+                (Pnf::QFF(left), Pnf::QFF(right)) => Or {
                     left: left.clone(),
                     right: right.clone(),
                 }
@@ -311,49 +311,49 @@ fn pnf(formula: &FOF) -> PNF {
             }
         }
         // e.g. (Q x. F(x)) -> G(y) => Q' x'. F(x') -> G(y) or F(x) -> (Q y. G(y)) => Q' y'. F(x) -> G(y')
-        FOF::Implies(this) => {
+        Fof::Implies(this) => {
             let premise = pnf(&this.premise);
             let consequence = pnf(&this.consequence);
 
             match (&premise, &consequence) {
-                (PNF::Forall(f), _) => {
+                (Pnf::Forall(f), _) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &consequence);
-                    pnf(&FOF::exists(
+                    pnf(&Fof::exists(
                         vars,
-                        FOF::from(fmla).implies(consequence.into()),
+                        Fof::from(fmla).implies(consequence.into()),
                     ))
                 }
-                (PNF::Exists(e), _) => {
+                (Pnf::Exists(e), _) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &consequence);
-                    pnf(&FOF::forall(
+                    pnf(&Fof::forall(
                         vars,
-                        FOF::from(fmla).implies(consequence.into()),
+                        Fof::from(fmla).implies(consequence.into()),
                     ))
                 }
-                (_, PNF::Forall(f)) => {
+                (_, Pnf::Forall(f)) => {
                     let (vars, fmla) = binary_helper(&f.variables, &f.formula, &premise);
-                    pnf(&FOF::forall(vars, FOF::from(premise).implies(fmla.into())))
+                    pnf(&Fof::forall(vars, Fof::from(premise).implies(fmla.into())))
                 }
-                (_, PNF::Exists(e)) => {
+                (_, Pnf::Exists(e)) => {
                     let (vars, fmla) = binary_helper(&e.variables, &e.formula, &premise);
-                    pnf(&FOF::exists(vars, FOF::from(premise).implies(fmla.into())))
+                    pnf(&Fof::exists(vars, Fof::from(premise).implies(fmla.into())))
                 }
-                (PNF::QFF(premise), PNF::QFF(consequence)) => Implies {
+                (Pnf::QFF(premise), Pnf::QFF(consequence)) => Implies {
                     premise: premise.clone(),
                     consequence: consequence.clone(),
                 }
                 .into(),
             }
         }
-        FOF::Iff(this) => {
+        Fof::Iff(this) => {
             let left = &this.left;
             let right = &this.right;
             let left_to_right = left.clone().implies(right.clone());
             let right_to_left = right.clone().implies(left.clone());
             pnf(&left_to_right.and(right_to_left))
         }
-        FOF::Exists(this) => PNF::exists(this.variables.clone(), pnf(&this.formula)),
-        FOF::Forall(this) => PNF::forall(this.variables.clone(), pnf(&this.formula)),
+        Fof::Exists(this) => Pnf::exists(this.variables.clone(), pnf(&this.formula)),
+        Fof::Forall(this) => Pnf::forall(this.variables.clone(), pnf(&this.formula)),
     }
 }
 
@@ -369,286 +369,286 @@ mod tests {
         term, v, v_1,
     };
 
-    fn pnf(formula: &FOF) -> FOF {
+    fn pnf(formula: &Fof) -> Fof {
         formula.pnf().into()
     }
 
     #[test]
     fn test_pnf() {
         {
-            let formula: FOF = "true".parse().unwrap();
+            let formula: Fof = "true".parse().unwrap();
             assert_debug_string!("true", pnf(&formula));
         }
         {
-            let formula: FOF = "false".parse().unwrap();
+            let formula: Fof = "false".parse().unwrap();
             assert_debug_string!("false", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x)".parse().unwrap();
+            let formula: Fof = "P(x)".parse().unwrap();
             assert_debug_string!("P(x)", pnf(&formula));
         }
 
         {
-            let formula: FOF = "x = y".parse().unwrap();
+            let formula: Fof = "x = y".parse().unwrap();
             assert_debug_string!("x = y", pnf(&formula));
         }
         {
-            let formula: FOF = "~P(x)".parse().unwrap();
+            let formula: Fof = "~P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) & Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) & Q(y)".parse().unwrap();
             assert_debug_string!("P(x) & Q(y)", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) | Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) | Q(y)".parse().unwrap();
             assert_debug_string!("P(x) | Q(y)", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) -> Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) -> Q(y)".parse().unwrap();
             assert_debug_string!("P(x) -> Q(y)", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) <=> Q(y)".parse().unwrap();
             assert_debug_string!("(P(x) -> Q(y)) & (Q(y) -> P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "? x. P(x) & ~Q(y) | R(z)".parse().unwrap();
+            let formula: Fof = "? x. P(x) & ~Q(y) | R(z)".parse().unwrap();
             assert_debug_string!("? x. ((P(x) & ~Q(y)) | R(z))", pnf(&formula));
         }
         {
-            let formula: FOF = "! x. P(x) & ~Q(y) | R(z)".parse().unwrap();
+            let formula: Fof = "! x. P(x) & ~Q(y) | R(z)".parse().unwrap();
             assert_debug_string!("! x. ((P(x) & ~Q(y)) | R(z))", pnf(&formula));
         }
         // sanity checking:
         {
-            let formula: FOF = "~? x. P(x)".parse().unwrap();
+            let formula: Fof = "~? x. P(x)".parse().unwrap();
             assert_debug_string!("! x. ~P(x)", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) & Q(y)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) & Q(y)".parse().unwrap();
             assert_debug_string!("! x. (P(x) & Q(y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) & Q(y)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) & Q(y)".parse().unwrap();
             assert_debug_string!("? x. (P(x) & Q(y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) & Q(x)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) & Q(x)".parse().unwrap();
             assert_debug_string!("! x`. (P(x`) & Q(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) & Q(x)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) & Q(x)".parse().unwrap();
             assert_debug_string!("? x`. (P(x`) & Q(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x, y. P(x, y)) & Q(x, y)".parse().unwrap();
+            let formula: Fof = "(! x, y. P(x, y)) & Q(x, y)".parse().unwrap();
             assert_debug_string!("! x`, y`. (P(x`, y`) & Q(x, y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x, y. P(x, y)) & Q(x, y)".parse().unwrap();
+            let formula: Fof = "(? x, y. P(x, y)) & Q(x, y)".parse().unwrap();
             assert_debug_string!("? x`, y`. (P(x`, y`) & Q(x, y))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(y) & ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) & ! x. P(x)".parse().unwrap();
             assert_debug_string!("! x. (Q(y) & P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(y) & ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) & ? x. P(x)".parse().unwrap();
             assert_debug_string!("? x. (Q(y) & P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x) & ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) & ! x. P(x)".parse().unwrap();
             assert_debug_string!("! x`. (Q(x) & P(x`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x) & ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) & ? x. P(x)".parse().unwrap();
             assert_debug_string!("? x`. (Q(x) & P(x`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x, y) & ! x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) & ! x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("! x`, y`. (Q(x, y) & P(x`, y`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x, y) & ? x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) & ? x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("? x`, y`. (Q(x, y) & P(x`, y`))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) | Q(y)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) | Q(y)".parse().unwrap();
             assert_debug_string!("! x. (P(x) | Q(y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) | Q(y)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) | Q(y)".parse().unwrap();
             assert_debug_string!("? x. (P(x) | Q(y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) | Q(x)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) | Q(x)".parse().unwrap();
             assert_debug_string!("! x`. (P(x`) | Q(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) | Q(x)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) | Q(x)".parse().unwrap();
             assert_debug_string!("? x`. (P(x`) | Q(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x, y. P(x, y)) | Q(x, y)".parse().unwrap();
+            let formula: Fof = "(! x, y. P(x, y)) | Q(x, y)".parse().unwrap();
             assert_debug_string!("! x`, y`. (P(x`, y`) | Q(x, y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x, y. P(x, y)) | Q(x, y)".parse().unwrap();
+            let formula: Fof = "(? x, y. P(x, y)) | Q(x, y)".parse().unwrap();
             assert_debug_string!("? x`, y`. (P(x`, y`) | Q(x, y))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(y) | ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) | ! x. P(x)".parse().unwrap();
             assert_debug_string!("! x. (Q(y) | P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(y) | ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) | ? x. P(x)".parse().unwrap();
             assert_debug_string!("? x. (Q(y) | P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x) | ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) | ! x. P(x)".parse().unwrap();
             assert_debug_string!("! x`. (Q(x) | P(x`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x) | ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) | ? x. P(x)".parse().unwrap();
             assert_debug_string!("? x`. (Q(x) | P(x`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x, y) | ! x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) | ! x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("! x`, y`. (Q(x, y) | P(x`, y`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x, y) | ? x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) | ? x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("? x`, y`. (Q(x, y) | P(x`, y`))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) -> Q(y)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) -> Q(y)".parse().unwrap();
             assert_debug_string!("? x. (P(x) -> Q(y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) -> Q(y)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) -> Q(y)".parse().unwrap();
             assert_debug_string!("! x. (P(x) -> Q(y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) -> Q(x)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) -> Q(x)".parse().unwrap();
             assert_debug_string!("? x`. (P(x`) -> Q(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) -> Q(x)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) -> Q(x)".parse().unwrap();
             assert_debug_string!("! x`. (P(x`) -> Q(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x, y. P(x, y)) -> Q(x, y)".parse().unwrap();
+            let formula: Fof = "(! x, y. P(x, y)) -> Q(x, y)".parse().unwrap();
             assert_debug_string!("? x`, y`. (P(x`, y`) -> Q(x, y))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x, y. P(x, y)) -> Q(x, y)".parse().unwrap();
+            let formula: Fof = "(? x, y. P(x, y)) -> Q(x, y)".parse().unwrap();
             assert_debug_string!("! x`, y`. (P(x`, y`) -> Q(x, y))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(y) -> ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) -> ! x. P(x)".parse().unwrap();
             assert_debug_string!("! x. (Q(y) -> P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(y) -> ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) -> ? x. P(x)".parse().unwrap();
             assert_debug_string!("? x. (Q(y) -> P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x) -> ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) -> ! x. P(x)".parse().unwrap();
             assert_debug_string!("! x`. (Q(x) -> P(x`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x) -> ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) -> ? x. P(x)".parse().unwrap();
             assert_debug_string!("? x`. (Q(x) -> P(x`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x, y) -> ! x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) -> ! x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("! x`, y`. (Q(x, y) -> P(x`, y`))", pnf(&formula));
         }
         {
-            let formula: FOF = "Q(x, y) -> ? x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) -> ? x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("? x`, y`. (Q(x, y) -> P(x`, y`))", pnf(&formula));
         }
 
         {
-            let formula: FOF = "(! x. P(x)) <=> Q(y)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) <=> Q(y)".parse().unwrap();
             assert_debug_string!(
                 "? x. (! x`. ((P(x) -> Q(y)) & (Q(y) -> P(x`))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(? x. P(x)) <=> Q(y)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) <=> Q(y)".parse().unwrap();
             assert_debug_string!(
                 "! x. (? x`. ((P(x) -> Q(y)) & (Q(y) -> P(x`))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(! x. P(x)) <=> Q(x)".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) <=> Q(x)".parse().unwrap();
             assert_debug_string!(
                 "? x`. (! x``. ((P(x`) -> Q(x)) & (Q(x) -> P(x``))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(? x. P(x)) <=> Q(x)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) <=> Q(x)".parse().unwrap();
             assert_debug_string!(
                 "! x`. (? x``. ((P(x`) -> Q(x)) & (Q(x) -> P(x``))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(! x, y. P(x, y)) <=> Q(x, y)".parse().unwrap();
+            let formula: Fof = "(! x, y. P(x, y)) <=> Q(x, y)".parse().unwrap();
             assert_debug_string!(
                 "? x`, y`. (! x``, y``. ((P(x`, y`) -> Q(x, y)) & (Q(x, y) -> P(x``, y``))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(? x, y. P(x, y)) <=> Q(x, y)".parse().unwrap();
+            let formula: Fof = "(? x, y. P(x, y)) <=> Q(x, y)".parse().unwrap();
             assert_debug_string!(
                 "! x`, y`. (? x``, y``. ((P(x`, y`) -> Q(x, y)) & (Q(x, y) -> P(x``, y``))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "Q(y) <=> ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) <=> ! x. P(x)".parse().unwrap();
             assert_debug_string!(
                 "! x. (? x`. ((Q(y) -> P(x)) & (P(x`) -> Q(y))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "Q(y) <=> ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(y) <=> ? x. P(x)".parse().unwrap();
             assert_debug_string!(
                 "? x. (! x`. ((Q(y) -> P(x)) & (P(x`) -> Q(y))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "Q(x) <=> ! x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) <=> ! x. P(x)".parse().unwrap();
             assert_debug_string!(
                 "! x`. (? x``. ((Q(x) -> P(x`)) & (P(x``) -> Q(x))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "Q(x) <=> ? x. P(x)".parse().unwrap();
+            let formula: Fof = "Q(x) <=> ? x. P(x)".parse().unwrap();
             assert_debug_string!(
                 "? x`. (! x``. ((Q(x) -> P(x`)) & (P(x``) -> Q(x))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "Q(x, y) <=> ! x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) <=> ! x, y. P(x, y)".parse().unwrap();
             assert_debug_string!(
                 "! x`, y`. (? x``, y``. ((Q(x, y) -> P(x`, y`)) & (P(x``, y``) -> Q(x, y))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "Q(x, y) <=> ? x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "Q(x, y) <=> ? x, y. P(x, y)".parse().unwrap();
             assert_debug_string!(
                 "? x`, y`. (! x``, y``. ((Q(x, y) -> P(x`, y`)) & (P(x``, y``) -> Q(x, y))))",
                 pnf(&formula),
@@ -658,26 +658,26 @@ mod tests {
         assert_debug_string!(
             "! x``, x`. (P(x``) & Q(x))",
             pnf(
-                &FOF::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into())
+                &Fof::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into())
                     .and(pred!(Q).app(vec![term!(x)]).into())
             ),
         );
         assert_debug_string!(
             "? x``, x`. (P(x``) & Q(x))",
             pnf(
-                &FOF::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into())
+                &Fof::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into())
                     .and(pred!(Q).app(vec![term!(x)]).into())
             ),
         );
         assert_debug_string!(
             "? x``. (P(x``) & Q(x, x`))",
-            pnf(&FOF::exists(vec![v!(x)], fof!(P(x)))
+            pnf(&Fof::exists(vec![v!(x)], fof!(P(x)))
                 .and(pred!(Q).app(vec![term!(x), v_1!(x).into()]).into())
                 .into()),
         );
         assert_debug_string!(
             "? x``. (P(x``, x`) & Q(x))",
-            pnf(&FOF::exists(
+            pnf(&Fof::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]).into()
             )
@@ -685,14 +685,14 @@ mod tests {
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) & P(x``))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).and(FOF::forall(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).and(Fof::forall(
                 vec![v!(x), v_1!(x)],
                 pred!(P).app(vec![term!(x)]).into()
             ))),
         );
         assert_debug_string!(
             "? x``, x`. (Q(x) & P(x``))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).and(FOF::exists(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).and(Fof::exists(
                 vec![v!(x), v_1!(x)],
                 pred!(P).app(vec![term!(x)]).into()
             ))),
@@ -700,7 +700,7 @@ mod tests {
         assert_debug_string!(
             "? x``. (Q(x, x`) & P(x``))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).and(FOF::exists(
+                &Fof::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).and(Fof::exists(
                     vec![v!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -708,7 +708,7 @@ mod tests {
         );
         assert_debug_string!(
             "? x``. (Q(x) & P(x``, x`))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).and(FOF::exists(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).and(Fof::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]).into(),
             ))),
@@ -717,7 +717,7 @@ mod tests {
         assert_debug_string!(
             "! x``, x`. (P(x``) | Q(x))",
             pnf(
-                &FOF::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into()).or(pred!(
+                &Fof::forall(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into()).or(pred!(
                     Q
                 )
                 .app(vec![term!(x)])
@@ -727,7 +727,7 @@ mod tests {
         assert_debug_string!(
             "? x``, x`. (P(x``) | Q(x))",
             pnf(
-                &FOF::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into()).or(pred!(
+                &Fof::exists(vec![v!(x), v_1!(x)], pred!(P).app(vec![term!(x)]).into()).or(pred!(
                     Q
                 )
                 .app(vec![term!(x)])
@@ -737,13 +737,13 @@ mod tests {
         assert_debug_string!(
             "? x``. (P(x``) | Q(x, x`))",
             pnf(
-                &FOF::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]).into())
+                &Fof::exists(vec![v!(x)], pred!(P).app(vec![term!(x)]).into())
                     .or(pred!(Q).app(vec![term!(x), v_1!(x).into()]).into())
             )
         );
         assert_debug_string!(
             "? x``. (P(x``, x`) | Q(x))",
-            pnf(&FOF::exists(
+            pnf(&Fof::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]).into()
             )
@@ -752,14 +752,14 @@ mod tests {
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) | P(x``))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).or(FOF::forall(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).or(Fof::forall(
                 vec![v!(x), v_1!(x)],
                 pred!(P).app(vec![term!(x)]).into()
             )))
         );
         assert_debug_string!(
             "? x``, x`. (Q(x) | P(x``))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).or(FOF::exists(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).or(Fof::exists(
                 vec![v!(x), v_1!(x)],
                 pred!(P).app(vec![term!(x)]).into()
             )))
@@ -767,7 +767,7 @@ mod tests {
         assert_debug_string!(
             "? x``. (Q(x, x`) | P(x``))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).or(FOF::exists(
+                &Fof::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).or(Fof::exists(
                     vec![v!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -775,7 +775,7 @@ mod tests {
         );
         assert_debug_string!(
             "? x``. (Q(x) | P(x``, x`))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).or(FOF::exists(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).or(Fof::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]).into(),
             )))
@@ -783,17 +783,17 @@ mod tests {
 
         assert_debug_string!(
             "? x``, x`. (P(x``) -> Q(x))",
-            pnf(&FOF::forall(
+            pnf(&Fof::forall(
                 vec![v!(x), v_1!(x)],
-                FOF::from(pred!(P).app(vec![term!(x)]))
+                Fof::from(pred!(P).app(vec![term!(x)]))
             )
             .implies(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``, x`. (P(x``) -> Q(x))",
-            pnf(&FOF::exists(
+            pnf(&Fof::exists(
                 vec![v!(x), v_1!(x)],
-                FOF::from(pred!(P).app(vec![term!(x)]))
+                Fof::from(pred!(P).app(vec![term!(x)]))
             )
             .implies(pred!(Q).app(vec![term!(x)]).into())
             .into())
@@ -801,22 +801,22 @@ mod tests {
         assert_debug_string!(
             "! x``. (P(x``) -> Q(x, x`))",
             pnf(
-                &FOF::exists(vec![v!(x)], FOF::from(pred!(P).app(vec![term!(x)])))
+                &Fof::exists(vec![v!(x)], Fof::from(pred!(P).app(vec![term!(x)])))
                     .implies(pred!(Q).app(vec![term!(x), v_1!(x).into()]).into())
             )
         );
         assert_debug_string!(
             "! x``. (P(x``, x`) -> Q(x))",
-            pnf(&FOF::exists(
+            pnf(&Fof::exists(
                 vec![v!(x)],
-                FOF::from(pred!(P).app(vec![term!(x), v_1!(x).into()]))
+                Fof::from(pred!(P).app(vec![term!(x), v_1!(x).into()]))
             )
             .implies(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) -> P(x``))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x)])).implies(FOF::forall(
+                &Fof::from(pred!(Q).app(vec![term!(x)])).implies(Fof::forall(
                     vec![v!(x), v_1!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -825,7 +825,7 @@ mod tests {
         assert_debug_string!(
             "? x``, x`. (Q(x) -> P(x``))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x)])).implies(FOF::exists(
+                &Fof::from(pred!(Q).app(vec![term!(x)])).implies(Fof::exists(
                     vec![v!(x), v_1!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -834,7 +834,7 @@ mod tests {
         assert_debug_string!(
             "? x``. (Q(x, x`) -> P(x``))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).implies(FOF::exists(
+                &Fof::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).implies(Fof::exists(
                     vec![v!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -843,7 +843,7 @@ mod tests {
         assert_debug_string!(
             "? x``. (Q(x) -> P(x``, x`))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x)])).implies(FOF::exists(
+                &Fof::from(pred!(Q).app(vec![term!(x)])).implies(Fof::exists(
                     vec![v!(x)],
                     pred!(P).app(vec![term!(x), v_1!(x).into()]).into(),
                 ))
@@ -852,40 +852,40 @@ mod tests {
 
         assert_debug_string!(
             "? x``, x`. (! x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            pnf(&FOF::forall(
+            pnf(&Fof::forall(
                 vec![v!(x), v_1!(x)],
-                FOF::from(pred!(P).app(vec![term!(x)]))
+                Fof::from(pred!(P).app(vec![term!(x)]))
             )
             .iff(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``, x`. (? x```, x`. ((P(x``) -> Q(x)) & (Q(x) -> P(x```))))",
-            pnf(&FOF::exists(
+            pnf(&Fof::exists(
                 vec![v!(x), v_1!(x)],
-                FOF::from(pred!(P).app(vec![term!(x)]))
+                Fof::from(pred!(P).app(vec![term!(x)]))
             )
             .iff(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``. (? x```. ((P(x``) -> Q(x, x`)) & (Q(x, x`) -> P(x```))))",
             pnf(
-                &FOF::exists(vec![v!(x)], FOF::from(pred!(P).app(vec![term!(x)])))
-                    .iff(FOF::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])))
+                &Fof::exists(vec![v!(x)], Fof::from(pred!(P).app(vec![term!(x)])))
+                    .iff(Fof::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])))
                     .into()
             )
         );
         assert_debug_string!(
             "! x``. (? x```. ((P(x``, x`) -> Q(x)) & (Q(x) -> P(x```, x`))))",
-            pnf(&FOF::exists(
+            pnf(&Fof::exists(
                 vec![v!(x)],
-                FOF::from(pred!(P).app(vec![term!(x), v_1!(x).into()]))
+                Fof::from(pred!(P).app(vec![term!(x), v_1!(x).into()]))
             )
             .iff(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``, x`. (? x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)]))
-                .iff(FOF::forall(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)]))
+                .iff(Fof::forall(
                     vec![v!(x), v_1!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -893,7 +893,7 @@ mod tests {
         );
         assert_debug_string!(
             "? x``, x`. (! x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).iff(FOF::exists(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).iff(Fof::exists(
                 vec![v!(x), v_1!(x)],
                 pred!(P).app(vec![term!(x)]).into()
             )))
@@ -901,7 +901,7 @@ mod tests {
         assert_debug_string!(
             "? x``. (! x```. ((Q(x, x`) -> P(x``)) & (P(x```) -> Q(x, x`))))",
             pnf(
-                &FOF::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).iff(FOF::exists(
+                &Fof::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])).iff(Fof::exists(
                     vec![v!(x)],
                     pred!(P).app(vec![term!(x)]).into()
                 ))
@@ -909,83 +909,83 @@ mod tests {
         );
         assert_debug_string!(
             "? x``. (! x```. ((Q(x) -> P(x``, x`)) & (P(x```, x`) -> Q(x))))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).iff(FOF::exists(
+            pnf(&Fof::from(pred!(Q).app(vec![term!(x)])).iff(Fof::exists(
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]).into(),
             )))
         );
         // both sides of binary formulae
         {
-            let formula: FOF = "(! x. P(x)) & (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) & (! x. Q(x))".parse().unwrap();
             assert_debug_string!("! x. (! x`. (P(x) & Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) & (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) & (? x. Q(x))".parse().unwrap();
             assert_debug_string!("! x. (? x`. (P(x) & Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) & (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) & (! x. Q(x))".parse().unwrap();
             assert_debug_string!("? x. (! x`. (P(x) & Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) & (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) & (? x. Q(x))".parse().unwrap();
             assert_debug_string!("? x. (? x`. (P(x) & Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) | (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) | (! x. Q(x))".parse().unwrap();
             assert_debug_string!("! x. (! x`. (P(x) | Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) | (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) | (? x. Q(x))".parse().unwrap();
             assert_debug_string!("! x. (? x`. (P(x) | Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) | (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) | (! x. Q(x))".parse().unwrap();
             assert_debug_string!("? x. (! x`. (P(x) | Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) | (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) | (? x. Q(x))".parse().unwrap();
             assert_debug_string!("? x. (? x`. (P(x) | Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) -> (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) -> (! x. Q(x))".parse().unwrap();
             assert_debug_string!("? x. (! x`. (P(x) -> Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) -> (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) -> (? x. Q(x))".parse().unwrap();
             assert_debug_string!("? x. (? x`. (P(x) -> Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) -> (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) -> (! x. Q(x))".parse().unwrap();
             assert_debug_string!("! x. (! x`. (P(x) -> Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) -> (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) -> (? x. Q(x))".parse().unwrap();
             assert_debug_string!("! x. (? x`. (P(x) -> Q(x`)))", pnf(&formula));
         }
         {
-            let formula: FOF = "(! x. P(x)) <=> (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) <=> (! x. Q(x))".parse().unwrap();
             assert_debug_string!(
                 "? x. (! x`. (? x``. (! x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(! x. P(x)) <=> (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(! x. P(x)) <=> (? x. Q(x))".parse().unwrap();
             assert_debug_string!(
                 "? x. (? x`. (! x``. (! x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(? x. P(x)) <=> (! x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) <=> (! x. Q(x))".parse().unwrap();
             assert_debug_string!(
                 "! x. (! x`. (? x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
                 pnf(&formula),
             );
         }
         {
-            let formula: FOF = "(? x. P(x)) <=> (? x. Q(x))".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) <=> (? x. Q(x))".parse().unwrap();
             assert_debug_string!(
                 "! x. (? x`. (! x``. (? x```. ((P(x) -> Q(x`)) & (Q(x``) -> P(x```))))))",
                 pnf(&formula),
@@ -993,64 +993,64 @@ mod tests {
         }
         // multiple steps
         {
-            let formula: FOF = "~~?x.P(x)".parse().unwrap();
+            let formula: Fof = "~~?x.P(x)".parse().unwrap();
             assert_debug_string!("? x. ~(~P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "~~!x.P(x)".parse().unwrap();
+            let formula: Fof = "~~!x.P(x)".parse().unwrap();
             assert_debug_string!("! x. ~(~P(x))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) & ((! x. Q(x)) & R(x))".parse().unwrap();
+            let formula: Fof = "P(x) & ((! x. Q(x)) & R(x))".parse().unwrap();
             assert_debug_string!("! x`. (P(x) & (Q(x`) & R(x)))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) & ((? x. Q(x)) & R(x))".parse().unwrap();
+            let formula: Fof = "P(x) & ((? x. Q(x)) & R(x))".parse().unwrap();
             assert_debug_string!("? x`. (P(x) & (Q(x`) & R(x)))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) | ((! x. Q(x)) | R(x))".parse().unwrap();
+            let formula: Fof = "P(x) | ((! x. Q(x)) | R(x))".parse().unwrap();
             assert_debug_string!("! x`. (P(x) | (Q(x`) | R(x)))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) | ((? x. Q(x)) | R(x))".parse().unwrap();
+            let formula: Fof = "P(x) | ((? x. Q(x)) | R(x))".parse().unwrap();
             assert_debug_string!("? x`. (P(x) | (Q(x`) | R(x)))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) -> ((! x. Q(x)) -> R(x))".parse().unwrap();
+            let formula: Fof = "P(x) -> ((! x. Q(x)) -> R(x))".parse().unwrap();
             assert_debug_string!("? x`. (P(x) -> (Q(x`) -> R(x)))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) -> ((? x. Q(x)) -> R(x))".parse().unwrap();
+            let formula: Fof = "P(x) -> ((? x. Q(x)) -> R(x))".parse().unwrap();
             assert_debug_string!("! x`. (P(x) -> (Q(x`) -> R(x)))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) <=> ((! x. Q(x)) <=> R(x))".parse().unwrap();
+            let formula: Fof = "P(x) <=> ((! x. Q(x)) <=> R(x))".parse().unwrap();
             assert_debug_string!("? x`. (! x``. (! x```. (? x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))", pnf(&formula));
         }
         {
-            let formula: FOF = "P(x) <=> ((? x. Q(x)) <=> R(x))".parse().unwrap();
+            let formula: Fof = "P(x) <=> ((? x. Q(x)) <=> R(x))".parse().unwrap();
             assert_debug_string!("! x`. (? x``. (? x```. (! x````. ((P(x) -> ((Q(x`) -> R(x)) & (R(x) -> Q(x``)))) & (((Q(x```) -> R(x)) & (R(x) -> Q(x````))) -> P(x))))))", pnf(&formula));
         }
         // random formulae
         {
-            let formula: FOF = "!x . (P(x) -> ?y . (P(y) & Q(x, y)))".parse().unwrap();
+            let formula: Fof = "!x . (P(x) -> ?y . (P(y) & Q(x, y)))".parse().unwrap();
             assert_debug_string!("! x. (? y. (P(x) -> (P(y) & Q(x, y))))", pnf(&formula));
         }
         {
-            let formula: FOF = "?x . (P(x) & !y . (P(y) -> Q(x, y)))".parse().unwrap();
+            let formula: Fof = "?x . (P(x) & !y . (P(y) -> Q(x, y)))".parse().unwrap();
             assert_debug_string!("? x. (! y. (P(x) & (P(y) -> Q(x, y))))", pnf(&formula));
         }
         {
-            let formula: FOF = "!x. (P(x) -> ~(!y . (P(y) -> Q(x, y))))".parse().unwrap();
+            let formula: Fof = "!x. (P(x) -> ~(!y . (P(y) -> Q(x, y))))".parse().unwrap();
             assert_debug_string!("! x. (? y. (P(x) -> ~(P(y) -> Q(x, y))))", pnf(&formula));
         }
         {
-            let formula: FOF = "(P() | ? x. Q(x)) -> !z. R(z)".parse().unwrap();
+            let formula: Fof = "(P() | ? x. Q(x)) -> !z. R(z)".parse().unwrap();
             assert_debug_string!("! x. (! z. ((P() | Q(x)) -> R(z)))", pnf(&formula));
         }
         {
-            let formula: FOF = "!x.?y.(!z.Q(x) & ~?x.R(x)) | (~Q(y) -> !w. R(y))"
+            let formula: Fof = "!x.?y.(!z.Q(x) & ~?x.R(x)) | (~Q(y) -> !w. R(y))"
                 .parse()
                 .unwrap();
             assert_debug_string!(
@@ -1059,11 +1059,11 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "!x. (!y. P(x, y) -> ?y. Q(x, y))".parse().unwrap();
+            let formula: Fof = "!x. (!y. P(x, y) -> ?y. Q(x, y))".parse().unwrap();
             assert_debug_string!("! x. (! y. (? y`. (P(x, y) -> Q(x, y`))))", pnf(&formula));
         }
         {
-            let formula: FOF = "!x. ((!y. P(x, y)) -> ?y. Q(x, y))".parse().unwrap();
+            let formula: Fof = "!x. ((!y. P(x, y)) -> ?y. Q(x, y))".parse().unwrap();
             assert_debug_string!("! x. (? y. (? y`. (P(x, y) -> Q(x, y`))))", pnf(&formula));
         }
     }
@@ -1104,7 +1104,7 @@ mod tests {
         };
         assert_eq!(
             fof!(!x . {? y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),
-            FOF::from(pnf.transform_term(&f))
+            Fof::from(pnf.transform_term(&f))
         );
     }
 
