@@ -1,25 +1,25 @@
 //! Implements a parser for first-order formulae and theories in Razor's syntax.
 //!
 //! The module provides a parser for first-order formulae by implementing [`FromStr`] for
-//! [`FOF`] and [`Theory`]. The parser is often used implicitly through [`parse`] method.
+//! [`Fof`] and [`Theory`]. The parser is often used implicitly through [`parse`] method.
 //!
 //! **Example**:
-//! The following example parses a string into a [`FOF`]:
+//! The following example parses a string into a [`Fof`]:
 //! ```rust
-//! use razor_fol::syntax::FOF;
+//! use razor_fol::syntax::Fof;
 //!
-//! // parse a string into `FOF`:
-//! let formula: FOF = "exists x. P(x) & Q(x)".parse().unwrap();
+//! // parse a string into `Fof`:
+//! let formula: Fof = "exists x. P(x) & Q(x)".parse().unwrap();
 //!
 //! assert_eq!("∃ x. (P(x) ∧ Q(x))", formula.to_string());
 //! ```
 //!
 //! Similarly, a [`Theory`] can be parsed from a string:
 //! ```rust
-//! use razor_fol::syntax::{FOF, Theory};
+//! use razor_fol::syntax::{Fof, Theory};
 //!
 //! // parse a string into `Theory` (formulae are separated by `;`)
-//! let theory: Theory<FOF> = r#"
+//! let theory: Theory<Fof> = r#"
 //!    // mathematical notation:
 //!    ∀ x. Eq(x, x);
 //!    // verbose notation:
@@ -33,11 +33,11 @@
 //! ∃ x, y, z. ((Eq(x, y) ∧ Eq(y, z)) → Eq(x, z))", theory.to_string());
 //! ```
 //!
-//! [`FOF`]: crate::syntax::FOF
+//! [`Fof`]: crate::syntax::Fof
 //! [`Theory`]: crate::syntax::Theory
 //! [`FromStr`]: std::str::FromStr
 //! [`parse`]: ::std::str#parse
-use super::syntax::{Theory, FOF};
+use super::syntax::{Fof, Theory};
 use lalrpop_util::ParseError;
 use std::str::FromStr;
 use thiserror::Error;
@@ -250,7 +250,7 @@ impl<'s> SourceInfo<'s> {
     }
 }
 
-impl FromStr for FOF {
+impl FromStr for Fof {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -261,7 +261,7 @@ impl FromStr for FOF {
     }
 }
 
-impl FromStr for Theory<FOF> {
+impl FromStr for Theory<Fof> {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -1094,7 +1094,7 @@ mod tests {
         use TokenType::*;
 
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(X)".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(X)".parse();
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 3 },
@@ -1105,7 +1105,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P('A)".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P('A)".parse();
             assert_eq!(
                 Error::InvalidToken {
                     position: Position { line: 1, column: 3 }
@@ -1114,7 +1114,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x)".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x)".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 5 },
@@ -1124,7 +1124,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 4 },
@@ -1136,7 +1136,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "~P(x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "~P(x".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 5 },
@@ -1148,7 +1148,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) and ".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) and ".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 9 },
@@ -1158,7 +1158,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) and X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) and X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position {
@@ -1171,7 +1171,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) or ".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) or ".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 8 },
@@ -1181,7 +1181,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) or X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) or X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position {
@@ -1194,7 +1194,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) -> ".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) -> ".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 8 },
@@ -1204,7 +1204,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) -> X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) -> X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position {
@@ -1217,7 +1217,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) <=> ".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) <=> ".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 9 },
@@ -1227,7 +1227,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x) <=> X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "P(x) <=> X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position {
@@ -1240,7 +1240,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "!x P(x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "!x P(x".parse();
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 4 },
@@ -1253,7 +1253,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "! P(x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "! P(x".parse();
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 3 },
@@ -1264,7 +1264,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "!x . ".parse();
+            let parsed: Result<Theory<Fof>, Error> = "!x . ".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 5 },
@@ -1274,7 +1274,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "!x . X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "!x . X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 7 },
@@ -1284,7 +1284,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "∀x . X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "∀x . X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 7 },
@@ -1294,7 +1294,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "?x P(x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "?x P(x".parse();
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 4 },
@@ -1307,7 +1307,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "? P(x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "? P(x".parse();
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 3 },
@@ -1318,7 +1318,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "?x . ".parse();
+            let parsed: Result<Theory<Fof>, Error> = "?x . ".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 5 },
@@ -1328,7 +1328,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "?x . X".parse();
+            let parsed: Result<Theory<Fof>, Error> = "?x . X".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 7 },
@@ -1338,7 +1338,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "x".parse();
+            let parsed: Result<Theory<Fof>, Error> = "x".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 2 },
@@ -1350,7 +1350,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "(X)".parse();
+            let parsed: Result<Theory<Fof>, Error> = "(X)".parse();
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 3 },
@@ -1361,7 +1361,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "(P(x)".parse();
+            let parsed: Result<Theory<Fof>, Error> = "(P(x)".parse();
             assert_eq!(
                 Error::UnrecognizedEOF {
                     position: Position { line: 1, column: 6 },
@@ -1371,7 +1371,7 @@ mod tests {
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x)
+            let parsed: Result<Theory<Fof>, Error> = "P(x)
 Q(x) <=> R(x);"
                 .parse();
             assert_eq!(
@@ -1384,7 +1384,7 @@ Q(x) <=> R(x);"
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x);
+            let parsed: Result<Theory<Fof>, Error> = "P(x);
 Q(x) => R(x);
 S(x) <=> Q(x);"
                 .parse();
@@ -1398,7 +1398,7 @@ S(x) <=> Q(x);"
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "P(x);
+            let parsed: Result<Theory<Fof>, Error> = "P(x);
 Q(x) <=> R(x);
 S(x) and "
                 .parse();
@@ -1411,7 +1411,7 @@ S(x) and "
             );
         }
         {
-            let parsed: Result<Theory<FOF>, Error> = "f(x) = 'a;
+            let parsed: Result<Theory<Fof>, Error> = "f(x) = 'a;
 // Testing error location with unicode characters:
 ∀x . /* comment 🪒 ♖♞♗♚♕♝♘♜ */ X"
                 .parse();
@@ -1428,7 +1428,7 @@ S(x) and "
         }
         {
             use crate::syntax::signature::PredSig;
-            let parsed: Result<Theory<FOF>, Error> = "P(x);
+            let parsed: Result<Theory<Fof>, Error> = "P(x);
 P(x,y);"
                 .parse();
             assert_eq!(

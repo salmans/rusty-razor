@@ -4,7 +4,7 @@
 //!
 //! [`Strategy`]: crate::chase::Strategy
 use crate::chase::{Sequent, Strategy};
-use razor_fol::syntax::{Formula, FOF};
+use razor_fol::syntax::{Fof, Formula};
 use std::iter::FromIterator;
 
 /// Starting from the first [sequent] returns the next sequent every time `Iterator::next()` is
@@ -134,7 +134,7 @@ impl<S: Sequent, Stg: Strategy<S>> FromIterator<S> for Bootstrap<S, Stg> {
     fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         let (initial_sequents, rest) = iter
             .into_iter()
-            .partition(|s| s.body() == FOF::Top && s.head().free_vars().is_empty());
+            .partition(|s| s.body() == Fof::Top && s.head().free_vars().is_empty());
 
         Bootstrap {
             initial_sequents,
@@ -177,7 +177,7 @@ pub struct FailFast<S: Sequent, Stg: Strategy<S>> {
 impl<S: Sequent, Stg: Strategy<S>> FromIterator<S> for FailFast<S, Stg> {
     fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         let (fail_sequents, rest): (Vec<_>, _) =
-            iter.into_iter().partition(|s| s.head() == FOF::Bottom);
+            iter.into_iter().partition(|s| s.head() == Fof::Bottom);
 
         Self {
             fail_strategy: fail_sequents.into_iter().collect(),
@@ -208,10 +208,10 @@ mod test_fair {
         PreProcessor, Scheduler,
     };
     use crate::test_prelude::{print_basic_model, read_file, read_theory_from_file};
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
-    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<BasicModel> {
         let preprocessor = BasicPreProcessor;
         let (sequents, init_model) = preprocessor.pre_process(theory);
         let evaluator = BasicEvaluator;
@@ -261,10 +261,10 @@ mod test_bootstrap {
         PreProcessor, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
-    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
@@ -314,10 +314,10 @@ mod test_fail_fast {
         PreProcessor, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
-    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;

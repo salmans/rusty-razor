@@ -6,7 +6,7 @@ pub mod symbol;
 pub mod term;
 mod theory;
 
-pub use formula::{fof::FOF, Formula};
+pub use formula::{fof::Fof, Formula};
 pub use signature::Sig;
 pub use symbol::{Const, Func, Pred, Var, EQ_SYM};
 pub use term::Term;

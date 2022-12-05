@@ -1,34 +1,34 @@
 /*! Defines formulae in Disjunctive Normal Form (DNF) and implements an algorithm for
-transforming an [`SNF`] to a [`DNF`].
+transforming a [`Pnf`] to a [`Dnf`].
 
-[`SNF`]: crate::transform::SNF
+[`Pnf`]: crate::transform::Pnf
  */
 
 use std::ops::Deref;
 
-use super::{ToPNF, ToSNF, PNF, SNF};
+use super::{Pnf, Snf, ToPnf, ToSnf};
 use crate::syntax::{
     formula::{
         clause::{Clause, ClauseSet, Literal},
         Exists, Forall, *,
     },
     term::Complex,
-    Error, Sig, Var, FOF,
+    Error, Fof, Sig, Var,
 };
 use itertools::Itertools;
 
 // DNF clauses and clause sets are constructed over complex terms.
-type DNFClause = Clause<Complex>;
+type DnfClause = Clause<Complex>;
 #[derive(Clone)]
-pub struct DNFClauseSet(ClauseSet<Complex>);
+pub struct DnfClauseSet(ClauseSet<Complex>);
 
-impl From<ClauseSet<Complex>> for DNFClauseSet {
+impl From<ClauseSet<Complex>> for DnfClauseSet {
     fn from(value: ClauseSet<Complex>) -> Self {
         Self(value)
     }
 }
 
-impl Deref for DNFClauseSet {
+impl Deref for DnfClauseSet {
     type Target = ClauseSet<Complex>;
 
     fn deref(&self) -> &Self::Target {
@@ -36,24 +36,24 @@ impl Deref for DNFClauseSet {
     }
 }
 
-/// Represents a [`PNF`] with a matrix in Disjunctive Normal Form (DNF).
+/// Represents a [`Pnf`] with a matrix in Disjunctive Normal Form (DNF).
 ///
 /// **Hint**: A DNF is a firsts-order formula that is a disjunction of zero or
 /// more [`Clause`]s where each clause is a conjunction of [`Literal`]s.
 #[derive(Clone)]
-pub enum DNF {
-    /// Is the quantifier-free portion of a [`PNF`].
+pub enum Dnf {
+    /// Is the quantifier-free portion of a [`Pnf`].
     Clauses(ClauseSet<Complex>),
 
     /// Is an existentially quantified PNF, wrapping an [`Exists`].
-    Exists(Box<Exists<DNF>>),
+    Exists(Box<Exists<Dnf>>),
 
     /// Is a universally quantified PNF, wrapping a [`Forall`].
-    Forall(Box<Forall<DNF>>),
+    Forall(Box<Forall<Dnf>>),
 }
 
-impl DNF {
-    fn clause_to_fof(clause: DNFClause) -> FOF {
+impl Dnf {
+    fn clause_to_fof(clause: DnfClause) -> Fof {
         clause
             .into_literals()
             .into_iter()
@@ -65,47 +65,47 @@ impl DNF {
                     Atomic::Equals(this) => this.into(),
                 },
                 Literal::Neg(neg) => match neg {
-                    Atomic::Atom(this) => FOF::not(this.into()),
-                    Atomic::Equals(this) => FOF::not(this.into()),
+                    Atomic::Atom(this) => Fof::not(this.into()),
+                    Atomic::Equals(this) => Fof::not(this.into()),
                 },
             })
             .fold1(|item, acc| item.and(acc))
-            .unwrap_or(FOF::Top)
+            .unwrap_or(Fof::Top)
     }
 }
 
-impl FormulaEx for DNF {
+impl FormulaEx for Dnf {
     fn precedence(&self) -> u8 {
         match self {
-            DNF::Clauses(_) => PRECEDENCE_OR,
-            DNF::Exists(this) => this.precedence(),
-            DNF::Forall(this) => this.precedence(),
+            Dnf::Clauses(_) => PRECEDENCE_OR,
+            Dnf::Exists(this) => this.precedence(),
+            Dnf::Forall(this) => this.precedence(),
         }
     }
 }
 
-impl From<ClauseSet<Complex>> for DNF {
+impl From<ClauseSet<Complex>> for Dnf {
     fn from(value: ClauseSet<Complex>) -> Self {
         Self::Clauses(value)
     }
 }
 
-impl From<DNFClauseSet> for DNF {
-    fn from(value: DNFClauseSet) -> Self {
+impl From<DnfClauseSet> for Dnf {
+    fn from(value: DnfClauseSet) -> Self {
         value.0.into()
     }
 }
 
-/// Is the trait of [`Formula`] types that can be transformed to [`DNF`].
-pub trait ToDNF: Formula {
+/// Is the trait of [`Formula`] types that can be transformed to [`Dnf`].
+pub trait ToDnf: Formula {
     /// Transform `self` to a Disjunctive Normal Form (DNF).
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToDNF;
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToDnf;
     ///
-    /// let formula: FOF = "P(x) iff Q(y)".parse().unwrap();
+    /// let formula: Fof = "P(x) iff Q(y)".parse().unwrap();
     /// let dnf = formula.dnf();
     ///
     /// assert_eq!(
@@ -113,44 +113,44 @@ pub trait ToDNF: Formula {
     ///    dnf.to_string()
     /// );
     /// ```    
-    fn dnf(&self) -> DNF;
+    fn dnf(&self) -> Dnf;
 }
 
-impl ToDNF for PNF {
-    fn dnf(&self) -> DNF {
-        use super::ToNNF;
+impl ToDnf for Pnf {
+    fn dnf(&self) -> Dnf {
+        use super::ToNnf;
 
         // Compromising type safety to avoid implementing a number of
         // types arising from pairwise combinations of PNF, SNF and NNF:
-        let nnf = FOF::from(self.clone()).nnf();
+        let nnf = Fof::from(self.clone()).nnf();
         dnf(distribute_and(&nnf.into()))
     }
 }
 
-impl<T: ToPNF> ToDNF for T {
-    fn dnf(&self) -> DNF {
+impl<T: ToPnf> ToDnf for T {
+    fn dnf(&self) -> Dnf {
         self.pnf().dnf()
     }
 }
 
-impl<T: ToDNF> From<T> for DNF {
+impl<T: ToDnf> From<T> for Dnf {
     fn from(value: T) -> Self {
         value.dnf()
     }
 }
 
-/// Is the trait of [`Formula`] types that can be transformed to [`DNFClauseSet`].
-/// Unlike a [`DNF`], a [`DNFClauseSet`] is quantifier-free; that is, assuming
-/// free-variables are universally quantified, the input must be Skolemized (see [`SNF`]).
-pub trait ToDNFClauseSet: Formula {
+/// Is the trait of [`Formula`] types that can be transformed to [`DnfClauseSet`].
+/// Unlike a [`Dnf`], a [`DnfClauseSet`] is quantifier-free; that is, assuming
+/// free-variables are universally quantified, the input must be Skolemized (see [`Snf`]).
+pub trait ToDnfClauseSet: Formula {
     /// Transform `self` to a Conjunctive Normal Form (DNF) clause set.
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToDNFClauseSet;
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToDnfClauseSet;
     ///
-    /// let formula: FOF = "P(x) iff Q(y)".parse().unwrap();
+    /// let formula: Fof = "P(x) iff Q(y)".parse().unwrap();
     /// let clauses = formula.dnf_clause_set();
     ///
     /// assert_eq!(
@@ -158,48 +158,48 @@ pub trait ToDNFClauseSet: Formula {
     ///    clauses.to_string()
     /// );
     /// ```
-    fn dnf_clause_set(&self) -> DNFClauseSet;
+    fn dnf_clause_set(&self) -> DnfClauseSet;
 }
 
-impl ToDNFClauseSet for SNF {
-    fn dnf_clause_set(&self) -> DNFClauseSet {
-        use super::ToNNF;
-        let nnf = FOF::from(self.clone()).nnf();
+impl ToDnfClauseSet for Snf {
+    fn dnf_clause_set(&self) -> DnfClauseSet {
+        use super::ToNnf;
+        let nnf = Fof::from(self.clone()).nnf();
         dnf_clause_set(distribute_and(&nnf.into()))
     }
 }
 
-impl<T: ToSNF> ToDNFClauseSet for T {
-    fn dnf_clause_set(&self) -> DNFClauseSet {
+impl<T: ToSnf> ToDnfClauseSet for T {
+    fn dnf_clause_set(&self) -> DnfClauseSet {
         self.snf().dnf_clause_set()
     }
 }
 
-impl<T: ToDNFClauseSet> From<T> for DNFClauseSet {
+impl<T: ToDnfClauseSet> From<T> for DnfClauseSet {
     fn from(value: T) -> Self {
         value.dnf_clause_set()
     }
 }
 
-impl std::fmt::Display for DNFClauseSet {
+impl std::fmt::Display for DnfClauseSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
-impl std::fmt::Display for DNF {
+impl std::fmt::Display for Dnf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
-impl Default for DNF {
+impl Default for Dnf {
     fn default() -> Self {
         Self::Clauses(ClauseSet::<_>::default())
     }
 }
 
-impl Formula for DNF {
+impl Formula for Dnf {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
@@ -227,97 +227,97 @@ impl Formula for DNF {
     }
 }
 
-impl From<DNF> for FOF {
-    fn from(value: DNF) -> Self {
+impl From<Dnf> for Fof {
+    fn from(value: Dnf) -> Self {
         match value {
-            DNF::Clauses(this) => clause_set_to_fof(this),
-            DNF::Exists(this) => FOF::exists(this.variables, this.formula.into()),
-            DNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
+            Dnf::Clauses(this) => clause_set_to_fof(this),
+            Dnf::Exists(this) => Fof::exists(this.variables, this.formula.into()),
+            Dnf::Forall(this) => Fof::forall(this.variables, this.formula.into()),
         }
     }
 }
 
-impl From<&DNF> for FOF {
-    fn from(value: &DNF) -> Self {
+impl From<&Dnf> for Fof {
+    fn from(value: &Dnf) -> Self {
         value.clone().into()
     }
 }
 
-fn clause_set_to_fof(value: ClauseSet<Complex>) -> FOF {
+fn clause_set_to_fof(value: ClauseSet<Complex>) -> Fof {
     value
         .into_iter()
         .sorted()
         .into_iter()
-        .map(DNF::clause_to_fof)
+        .map(Dnf::clause_to_fof)
         .fold1(|item, acc| item.or(acc))
-        .unwrap_or(FOF::Bottom)
+        .unwrap_or(Fof::Bottom)
 }
 
-impl From<DNFClauseSet> for FOF {
-    fn from(value: DNFClauseSet) -> Self {
+impl From<DnfClauseSet> for Fof {
+    fn from(value: DnfClauseSet) -> Self {
         clause_set_to_fof(value.0)
     }
 }
 
-impl From<&DNFClauseSet> for FOF {
-    fn from(value: &DNFClauseSet) -> Self {
+impl From<&DnfClauseSet> for Fof {
+    fn from(value: &DnfClauseSet) -> Self {
         value.clone().into()
     }
 }
 
 // Distributes disjunction in the given formula. The function assumes that its input is an NNF.
-fn distribute_and(formula: &FOF) -> FOF {
+fn distribute_and(formula: &Fof) -> Fof {
     match formula {
-        FOF::Top | FOF::Bottom | FOF::Atom { .. } | FOF::Equals { .. } | FOF::Not { .. } => {
+        Fof::Top | Fof::Bottom | Fof::Atom { .. } | Fof::Equals { .. } | Fof::Not { .. } => {
             formula.clone()
         }
-        FOF::Or(this) => distribute_and(&this.left).or(distribute_and(&this.right)),
-        FOF::And(this) => {
+        Fof::Or(this) => distribute_and(&this.left).or(distribute_and(&this.right)),
+        Fof::And(this) => {
             let left = distribute_and(&this.left);
             let right = distribute_and(&this.right);
-            if let FOF::Or(left) = left {
+            if let Fof::Or(left) = left {
                 let first = left.left.and(right.clone());
                 let second = left.right.and(right);
                 distribute_and(&first).or(distribute_and(&second))
-            } else if let FOF::Or(right) = right {
+            } else if let Fof::Or(right) = right {
                 distribute_and(&left.clone().and(right.left))
                     .or(distribute_and(&left.and(right.right)))
             } else {
                 left.and(right)
             }
         }
-        FOF::Forall(this) => FOF::forall(this.variables.clone(), distribute_and(&this.formula)),
-        FOF::Exists(this) => FOF::exists(this.variables.clone(), distribute_and(&this.formula)),
+        Fof::Forall(this) => Fof::forall(this.variables.clone(), distribute_and(&this.formula)),
+        Fof::Exists(this) => Fof::exists(this.variables.clone(), distribute_and(&this.formula)),
         _ => unreachable!(), // `formula` is both in SNF and NNF
     }
 }
 
-fn clause_set(formula: FOF) -> ClauseSet<Complex> {
+fn clause_set(formula: Fof) -> ClauseSet<Complex> {
     match formula {
-        FOF::Top => ClauseSet::from(Clause::default()),
-        FOF::Bottom => ClauseSet::default(),
-        FOF::Atom(this) => {
+        Fof::Top => ClauseSet::from(Clause::default()),
+        Fof::Bottom => ClauseSet::default(),
+        Fof::Atom(this) => {
             let clause = Clause::from(Literal::from(this));
             ClauseSet::from(clause)
         }
-        FOF::Equals(this) => {
+        Fof::Equals(this) => {
             let clause = Clause::from(Literal::from(this));
             ClauseSet::from(clause)
         }
-        FOF::Not(this) => match this.formula {
-            FOF::Atom(atom) => {
+        Fof::Not(this) => match this.formula {
+            Fof::Atom(atom) => {
                 let lit: Literal<_> = Not { formula: atom }.into();
                 let clause = Clause::from(lit);
                 ClauseSet::from(clause)
             }
-            FOF::Equals(eq) => {
+            Fof::Equals(eq) => {
                 let lit: Literal<_> = Not { formula: eq }.into();
                 let clause = Clause::from(lit);
                 ClauseSet::from(clause)
             }
             _ => unreachable!(), // `formula` is in NNF
         },
-        FOF::And(this) => {
+        Fof::And(this) => {
             let left = clause_set(this.left);
             let right = clause_set(this.right);
             if left.is_empty() {
@@ -333,7 +333,7 @@ fn clause_set(formula: FOF) -> ClauseSet<Complex> {
                 unreachable!() // Conjunction is distributed over disjunction in `formula`
             }
         }
-        FOF::Or(this) => {
+        Fof::Or(this) => {
             let left = clause_set(this.left);
             let right = clause_set(this.right);
             left.union(&right)
@@ -342,25 +342,25 @@ fn clause_set(formula: FOF) -> ClauseSet<Complex> {
     }
 }
 
-fn dnf_clause_set(formula: FOF) -> DNFClauseSet {
+fn dnf_clause_set(formula: Fof) -> DnfClauseSet {
     match formula {
-        FOF::Exists(this) => dnf_clause_set(this.formula),
-        FOF::Forall(this) => dnf_clause_set(this.formula),
+        Fof::Exists(this) => dnf_clause_set(this.formula),
+        Fof::Forall(this) => dnf_clause_set(this.formula),
         _ => clause_set(formula).into(),
     }
 }
 
-fn dnf(formula: FOF) -> DNF {
+fn dnf(formula: Fof) -> Dnf {
     match formula {
-        FOF::Forall(this) => DNF::Forall(Box::new(Forall {
+        Fof::Forall(this) => Dnf::Forall(Box::new(Forall {
             variables: this.variables,
             formula: dnf(this.formula),
         })),
-        FOF::Exists(this) => DNF::Exists(Box::new(Exists {
+        Fof::Exists(this) => Dnf::Exists(Box::new(Exists {
             variables: this.variables,
             formula: dnf(this.formula),
         })),
-        _ => DNF::Clauses(clause_set(formula)),
+        _ => Dnf::Clauses(clause_set(formula)),
     }
 }
 
@@ -376,90 +376,90 @@ mod tests {
         term, v,
     };
 
-    fn dnf_clause_set(formula: &FOF) -> FOF {
+    fn dnf_clause_set(formula: &Fof) -> Fof {
         formula.snf().dnf_clause_set().into()
     }
 
     #[test]
     fn test_dnf() {
         {
-            let formula: FOF = "true".parse().unwrap();
+            let formula: Fof = "true".parse().unwrap();
             assert_debug_string!("true", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "false".parse().unwrap();
+            let formula: Fof = "false".parse().unwrap();
             assert_debug_string!("false", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(f(), g(f(), f()))".parse().unwrap();
+            let formula: Fof = "P(f(), g(f(), f()))".parse().unwrap();
             assert_debug_string!("P(f(), g(f(), f()))", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x)".parse().unwrap();
+            let formula: Fof = "P(x)".parse().unwrap();
             assert_debug_string!("P(x)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "x=y".parse().unwrap();
+            let formula: Fof = "x=y".parse().unwrap();
             assert_debug_string!("x = y", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) & Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) & Q(y)".parse().unwrap();
             assert_debug_string!("P(x) & Q(y)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) | Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) | Q(y)".parse().unwrap();
             assert_debug_string!("P(x) | Q(y)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) -> Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) -> Q(y)".parse().unwrap();
             assert_debug_string!("Q(y) | ~P(x)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) <=> Q(y)".parse().unwrap();
             assert_debug_string!(
                 "(((P(x) & Q(y)) | (P(x) & ~P(x))) | (Q(y) & ~Q(y))) | (~P(x) & ~Q(y))",
                 dnf_clause_set(&formula),
             );
         }
         {
-            let formula: FOF = "!x. P(x)".parse().unwrap();
+            let formula: Fof = "!x. P(x)".parse().unwrap();
             assert_debug_string!("P(x)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "!x. P(f(), g(f(), x))".parse().unwrap();
+            let formula: Fof = "!x. P(f(), g(f(), x))".parse().unwrap();
             assert_debug_string!("P(f(), g(f(), x))", dnf_clause_set(&formula));
         }
         // quantifier-free formulae
         {
-            let formula: FOF = "~((P(x1) | P(x2)) and Q(y))".parse().unwrap();
+            let formula: Fof = "~((P(x1) | P(x2)) and Q(y))".parse().unwrap();
             assert_debug_string!("(~P(x1) & ~P(x2)) | ~Q(y)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) | ~(Q(x) -> Q(y))".parse().unwrap();
+            let formula: Fof = "P(x) | ~(Q(x) -> Q(y))".parse().unwrap();
             assert_debug_string!("P(x) | (Q(x) & ~Q(y))", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
+            let formula: Fof = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
             assert_debug_string!("R(z) | (~P(x) & ~Q(y))", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
+            let formula: Fof = "P(x) | ~(Q(x) <=> Q(y))".parse().unwrap();
             assert_debug_string!(
                 "(P(x) | (Q(x) & ~Q(y))) | (Q(y) & ~Q(x))",
                 dnf_clause_set(&formula),
             );
         }
         {
-            let formula: FOF = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
+            let formula: Fof = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
             assert_debug_string!("(((((P(x) & R(z)) | ((P(x) & ~P(x)) & ~Q(y))) | (Q(y) & R(z))) | ((Q(y) & ~P(x)) & ~Q(y))) | (R(z) & ~R(z))) | ((~P(x) & ~Q(y)) & ~R(z))",
                                 dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "P(x) | (Q(x) | (R(y) & R(z)))".parse().unwrap();
+            let formula: Fof = "P(x) | (Q(x) | (R(y) & R(z)))".parse().unwrap();
             assert_debug_string!("(P(x) | Q(x)) | (R(y) & R(z))", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "(P(x1) & P(x2)) | (Q(x1) & Q(x2))".parse().unwrap();
+            let formula: Fof = "(P(x1) & P(x2)) | (Q(x1) & Q(x2))".parse().unwrap();
             assert_debug_string!(
                 "(P(x1) & P(x2)) | (Q(x1) & Q(x2))",
                 dnf_clause_set(&formula)
@@ -468,46 +468,46 @@ mod tests {
 
         //random formulae
         {
-            let formula: FOF = "?x. P(x)".parse().unwrap();
+            let formula: Fof = "?x. P(x)".parse().unwrap();
             assert_debug_string!("P('c#0)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "?x. (P(x) & Q(f(), x))".parse().unwrap();
+            let formula: Fof = "?x. (P(x) & Q(f(), x))".parse().unwrap();
             assert_debug_string!("P('c#0) & Q(f(), 'c#0)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "!x. ((? y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
+            let formula: Fof = "!x. ((? y. P(y) & Q(x, y))  -> R(x))".parse().unwrap();
             assert_debug_string!("(R(x) | ~P(y)) | ~Q(x, y)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
+            let formula: Fof = "!x. (P(x) -> !y. (Q(y) -> ~R(x, y)))".parse().unwrap();
             assert_debug_string!("(~P(x) | ~Q(y)) | ~R(x, y)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
+            let formula: Fof = "!y. (!x. (P(y, x) | Q(x)) -> Q(y))".parse().unwrap();
             assert_debug_string!("Q(y) | (~P(y, x) & ~Q(x))", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "!y. ((!x. (P(y, x) | Q(x))) -> Q(y))".parse().unwrap();
+            let formula: Fof = "!y. ((!x. (P(y, x) | Q(x))) -> Q(y))".parse().unwrap();
             assert_debug_string!(
                 "Q(y) | (~P(y, f#0(y)) & ~Q(f#0(y)))",
                 dnf_clause_set(&formula)
             );
         }
         {
-            let formula: FOF = "?x. ?y. P(x, y)".parse().unwrap();
+            let formula: Fof = "?x. ?y. P(x, y)".parse().unwrap();
             assert_debug_string!("P('c#0, 'c#1)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "?x, y. P(x, y)".parse().unwrap();
+            let formula: Fof = "?x, y. P(x, y)".parse().unwrap();
             assert_debug_string!("P('c#0, 'c#1)", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF = "!x. ?y. P(x, y)".parse().unwrap();
+            let formula: Fof = "!x. ?y. P(x, y)".parse().unwrap();
             assert_debug_string!("P(x, f#0(x))", dnf_clause_set(&formula));
         }
         {
-            let formula: FOF =
+            let formula: Fof =
                 "R(z) -> ?u. (!x, y. (P(u, x) & ~? u, x, w. (Q(u, x, y) | (w = f(u)))))"
                     .parse()
                     .unwrap();
@@ -517,7 +517,7 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))"
+            let formula: Fof = "!x. (!y. (P(y) -> Q(x, y)) -> ?y. Q(y, x))"
                 .parse()
                 .unwrap();
             assert_debug_string!(
@@ -526,7 +526,7 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "!x. ((!y. (P(y) -> Q(x, y))) -> ?y. Q(y, x))"
+            let formula: Fof = "!x. ((!y. (P(y) -> Q(x, y))) -> ?y. Q(y, x))"
                 .parse()
                 .unwrap();
             assert_debug_string!(
@@ -535,7 +535,7 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))"
+            let formula: Fof = "?x. (!y, z. (P(x) & ((Q(x, y) & ~(y = z)) -> ~Q(x, z))))"
                 .parse()
                 .unwrap();
             assert_debug_string!(
@@ -544,7 +544,7 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))"
+            let formula: Fof = "!x. (P(x) -> (!y. (P(y) -> P(f(x, y))) & ~!y. (Q(x, y) -> P(y))))"
                 .parse()
                 .unwrap();
             assert_debug_string!("(((P(f(x, y)) & Q(x, f#0(x, y))) & ~P(f#0(x, y))) | ((Q(x, f#0(x, y)) & ~P(y)) & ~P(f#0(x, y)))) | ~P(x)", dnf_clause_set(&formula));
@@ -578,7 +578,7 @@ mod tests {
         };
         assert_eq!(
             fof!({ [P(y, z)] | [Q(z)] } | { [R(y)] & [R(z)] }),
-            FOF::from(dnf.transform_term(&f))
+            Fof::from(dnf.transform_term(&f))
         );
     }
 

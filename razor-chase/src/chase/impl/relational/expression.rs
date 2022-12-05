@@ -474,7 +474,7 @@ mod tests {
     use crate::chase::E;
     use codd::{query, Database, Tuples};
     use itertools::Itertools;
-    use razor_fol::{fof, syntax::FOF, v};
+    use razor_fol::{fof, syntax::Fof, v};
     use std::convert::TryFrom;
 
     macro_rules! atts {
@@ -525,7 +525,7 @@ mod tests {
     }
 
     // Assumes the input in GNF
-    fn relational(fof: FOF) -> Relational {
+    fn relational(fof: Fof) -> Relational {
         use razor_fol::transform::{PcfSet, ToRelational};
 
         PcfSet::try_from(fof).unwrap().relational()

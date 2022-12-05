@@ -33,17 +33,17 @@ pub trait Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::{Var, FOF, Func};
+    /// # use razor_fol::syntax::{Var, Fof, Func};
     /// # use std::{collections::HashSet, iter::FromIterator};
     /// use razor_fol::syntax::Formula;
     ///
-    /// let fof: FOF = "(P(x) ∧ Q(x, f(g(x), y))) ∨  'c = g(z)".parse().unwrap();
+    /// let fof: Fof = "(P(x) ∧ Q(x, f(g(x), y))) ∨  'c = g(z)".parse().unwrap();
     /// let signature = fof.signature().unwrap();
     /// assert_eq!(&HashSet::from_iter(vec!["c".into()]), signature.constants());
     /// assert_eq!(Func::from("f"), signature.functions().get("f").unwrap().symbol);
     /// assert_eq!(2, signature.predicates().get("Q").unwrap().arity);
     ///
-    /// let fof: FOF = "P(x) ∧ P(g(x), y)".parse().unwrap();
+    /// let fof: Fof = "P(x) ∧ P(g(x), y)".parse().unwrap();
     /// let signature = fof.signature().is_err(); // inconsistent arity for `P`
     /// ```    
     fn signature(&self) -> Result<Sig, Error>;
@@ -55,7 +55,7 @@ pub trait Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::{v, syntax::FOF};
+    /// # use razor_fol::{v, syntax::Fof};
     /// # use itertools::Itertools;
     /// use razor_fol::syntax::Formula;
     ///
@@ -64,13 +64,13 @@ pub trait Formula {
     /// let y = v!(y);
     /// let z = v!(z);
     ///
-    /// let formula: FOF = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
+    /// let formula: Fof = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
     /// assert_eq!(vec![&x, &y, &z].iter().sorted(), formula.free_vars().iter().sorted());
     ///
-    /// let formula: FOF = "forall x. P(x, y)".parse().unwrap();
+    /// let formula: Fof = "forall x. P(x, y)".parse().unwrap();
     /// assert_eq!(vec![&y], formula.free_vars());
     ///
-    /// let formula: FOF = "exists x. P(x, y)".parse().unwrap();
+    /// let formula: Fof = "exists x. P(x, y)".parse().unwrap();
     /// assert_eq!(vec![&y], formula.free_vars());
     /// ```    
     fn free_vars(&self) -> Vec<&Var>;

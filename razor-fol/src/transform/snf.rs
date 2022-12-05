@@ -1,90 +1,90 @@
 /*! Defines formulae in Skolem Normal Form (SNF) and implements an algorithm for transforming
-a [`PNF`] to an [`SNF`].
+a [`Pnf`] to an [`Snf`].
 
-[`PNF`]: crate::transform::PNF
+[`Pnf`]: crate::transform::Pnf
 */
-use super::{ToPNF, PNF};
-use crate::syntax::{formula::qff::QFF, formula::*, term::Complex, Const, Func, Var, FOF};
+use super::{Pnf, ToPnf};
+use crate::syntax::{formula::qff::Qff, formula::*, term::Complex, Const, Fof, Func, Var};
 use std::collections::HashMap;
 
 /// Represents a formula in Skolem Normal Form (SNF).
 ///
-/// **Hint**: An SNF is a [PNF] with only universal quantifiers
+/// **Hint**: An SNF is a [Pnf] with only universal quantifiers
 /// (see: <https://en.wikipedia.org/wiki/Skolem_normal_form>).
 ///
-/// [PNF]: crate::transform::PNF
+/// [Pnf]: crate::transform::Pnf
 #[derive(Clone, Debug)]
-pub enum SNF {
-    /// Is the quantifier-free part of the [`SNF`].
-    QFF(QFF),
+pub enum Snf {
+    /// Is the quantifier-free part of the [`Snf`].
+    QFF(Qff),
 
     /// Is a universally quantified formula, wrapping a [`Forall`].
-    Forall(Box<Forall<SNF>>),
+    Forall(Box<Forall<Snf>>),
 }
 
-impl From<Atom<Complex>> for SNF {
+impl From<Atom<Complex>> for Snf {
     fn from(value: Atom<Complex>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Equals<Complex>> for SNF {
+impl From<Equals<Complex>> for Snf {
     fn from(value: Equals<Complex>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Not<QFF>> for SNF {
-    fn from(value: Not<QFF>) -> Self {
+impl From<Not<Qff>> for Snf {
+    fn from(value: Not<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<And<QFF>> for SNF {
-    fn from(value: And<QFF>) -> Self {
+impl From<And<Qff>> for Snf {
+    fn from(value: And<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Or<QFF>> for SNF {
-    fn from(value: Or<QFF>) -> Self {
+impl From<Or<Qff>> for Snf {
+    fn from(value: Or<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Implies<QFF>> for SNF {
-    fn from(value: Implies<QFF>) -> Self {
+impl From<Implies<Qff>> for Snf {
+    fn from(value: Implies<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Iff<QFF>> for SNF {
-    fn from(value: Iff<QFF>) -> Self {
+impl From<Iff<Qff>> for Snf {
+    fn from(value: Iff<Qff>) -> Self {
         Self::QFF(value.into())
     }
 }
 
-impl From<Forall<SNF>> for SNF {
-    fn from(value: Forall<SNF>) -> Self {
+impl From<Forall<Snf>> for Snf {
+    fn from(value: Forall<Snf>) -> Self {
         Self::Forall(Box::new(value))
     }
 }
 
-impl From<QFF> for SNF {
-    fn from(value: QFF) -> Self {
+impl From<Qff> for Snf {
+    fn from(value: Qff) -> Self {
         Self::QFF(value)
     }
 }
 
-/// Is the trait of [`Formula`] types that can be transformed to [`SNF`].
-pub trait ToSNF: Formula {
-    /// Is similar to [`ToSNF::snf`] but uses a custom closure to generate Skolem
+/// Is the trait of [`Formula`] types that can be transformed to [`Snf`].
+pub trait ToSnf: Formula {
+    /// Is similar to [`ToSnf::snf`] but uses a custom closure to generate Skolem
     /// function and constant names.
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToSNF;
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToSnf;
     ///
     /// let mut c_counter = 0;
     /// let mut f_counter = 0;
@@ -98,12 +98,12 @@ pub trait ToSNF: Formula {
     ///     f_counter += 1;
     ///     format!("skolem_fn{}", c).into()
     /// };    
-    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
+    /// let formula: Fof = "∃ y. P(x, y)".parse().unwrap();
     /// let snf = formula.snf_with(&mut const_generator, &mut fn_generator);
     ///
     /// assert_eq!("P(x, skolem_fn0(x))", snf.to_string());
     /// ```    
-    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> Snf
     where
         CG: FnMut() -> Const,
         FG: FnMut() -> Func;
@@ -112,15 +112,15 @@ pub trait ToSNF: Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToSNF;
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToSnf;
     ///
-    /// let formula: FOF = "∃ y. P(x, y)".parse().unwrap();
+    /// let formula: Fof = "∃ y. P(x, y)".parse().unwrap();
     /// let snf = formula.snf();
     ///
     /// assert_eq!("P(x, f#0(x))", snf.to_string());
     /// ```    
-    fn snf(&self) -> SNF {
+    fn snf(&self) -> Snf {
         let mut c_counter = 0;
         let mut f_counter = 0;
         let mut const_generator = || {
@@ -138,19 +138,19 @@ pub trait ToSNF: Formula {
     }
 }
 
-impl ToSNF for PNF {
-    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+impl ToSnf for Pnf {
+    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> Snf
     where
         CG: FnMut() -> Const,
         FG: FnMut() -> Func,
     {
         let free_vars = self.free_vars().into_iter().cloned().collect();
-        SNF::new(self.clone(), free_vars, const_generator, fn_generator)
+        Snf::new(self.clone(), free_vars, const_generator, fn_generator)
     }
 }
 
-impl<T: ToPNF> ToSNF for T {
-    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> SNF
+impl<T: ToPnf> ToSnf for T {
+    fn snf_with<CG, FG>(&self, const_generator: &mut CG, fn_generator: &mut FG) -> Snf
     where
         CG: FnMut() -> Const,
         FG: FnMut() -> Func,
@@ -159,15 +159,15 @@ impl<T: ToPNF> ToSNF for T {
     }
 }
 
-impl<T: ToSNF> From<T> for SNF {
+impl<T: ToSnf> From<T> for Snf {
     fn from(value: T) -> Self {
         value.snf()
     }
 }
 
-impl SNF {
+impl Snf {
     fn new<CG, FG>(
-        pnf: PNF,
+        pnf: Pnf,
         mut skolem_vars: Vec<Var>,
         const_generator: &mut CG,
         fn_generator: &mut FG,
@@ -177,15 +177,15 @@ impl SNF {
         FG: FnMut() -> Func,
     {
         match pnf {
-            PNF::Forall(this) => {
+            Pnf::Forall(this) => {
                 let variables = this.variables;
                 skolem_vars.append(&mut variables.to_vec());
-                SNF::forall(
+                Snf::forall(
                     variables.to_vec(),
                     Self::new(this.formula, skolem_vars, const_generator, fn_generator),
                 )
             }
-            PNF::Exists(this) => {
+            Pnf::Exists(this) => {
                 let variables = this.variables;
                 let mut map: HashMap<&Var, Complex> = HashMap::new();
 
@@ -202,38 +202,38 @@ impl SNF {
                 let substituted = this.formula.substitute(&map);
                 Self::new(substituted, skolem_vars, const_generator, fn_generator)
             }
-            PNF::QFF(this) => this.into(),
+            Pnf::QFF(this) => this.into(),
         }
     }
 
-    // Creates a universally quantified [`SNF`].
+    // Creates a universally quantified [`Snf`].
     #[inline(always)]
     fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
     }
 }
 
-impl Formula for SNF {
+impl Formula for Snf {
     type Term = Complex;
 
     fn signature(&self) -> Result<crate::syntax::Sig, crate::syntax::Error> {
         match self {
-            SNF::QFF(this) => this.signature(),
-            SNF::Forall(this) => this.signature(),
+            Snf::QFF(this) => this.signature(),
+            Snf::Forall(this) => this.signature(),
         }
     }
 
     fn free_vars(&self) -> Vec<&Var> {
         match self {
-            SNF::QFF(this) => this.free_vars(),
-            SNF::Forall(this) => this.free_vars(),
+            Snf::QFF(this) => this.free_vars(),
+            Snf::Forall(this) => this.free_vars(),
         }
     }
 
     fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            SNF::QFF(this) => this.transform_term(f).into(),
-            SNF::Forall(this) => Forall {
+            Snf::QFF(this) => this.transform_term(f).into(),
+            Snf::Forall(this) => Forall {
                 variables: this.variables.clone(),
                 formula: this.formula.transform_term(f),
             }
@@ -242,32 +242,32 @@ impl Formula for SNF {
     }
 }
 
-impl FormulaEx for SNF {
+impl FormulaEx for Snf {
     fn precedence(&self) -> u8 {
         match self {
-            SNF::QFF(this) => this.precedence(),
-            SNF::Forall(this) => this.precedence(),
+            Snf::QFF(this) => this.precedence(),
+            Snf::Forall(this) => this.precedence(),
         }
     }
 }
 
-impl std::fmt::Display for SNF {
+impl std::fmt::Display for Snf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
-impl From<SNF> for FOF {
-    fn from(value: SNF) -> Self {
+impl From<Snf> for Fof {
+    fn from(value: Snf) -> Self {
         match value {
-            SNF::QFF(this) => this.into(),
-            SNF::Forall(this) => FOF::forall(this.variables, this.formula.into()),
+            Snf::QFF(this) => this.into(),
+            Snf::Forall(this) => Fof::forall(this.variables, this.formula.into()),
         }
     }
 }
 
-impl From<&SNF> for FOF {
-    fn from(value: &SNF) -> Self {
+impl From<&Snf> for Fof {
+    fn from(value: &Snf) -> Self {
         value.clone().into()
     }
 }
@@ -282,14 +282,14 @@ mod tests {
             Sig, EQ_SYM,
         },
         term,
-        transform::ToPNF,
+        transform::ToPnf,
         v,
     };
 
-    fn snf(formula: &FOF) -> FOF {
+    fn snf(formula: &Fof) -> Fof {
         formula.pnf().snf().into()
     }
-    fn snf_with<CG, FG>(formula: &FOF, const_generator: &mut CG, fn_generator: &mut FG) -> FOF
+    fn snf_with<CG, FG>(formula: &Fof, const_generator: &mut CG, fn_generator: &mut FG) -> Fof
     where
         CG: FnMut() -> Const,
         FG: FnMut() -> Func,
@@ -388,7 +388,7 @@ mod tests {
         };
         assert_eq!(
             fof!(!x . {! y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),
-            FOF::from(snf.transform_term(&f))
+            Fof::from(snf.transform_term(&f))
         );
     }
 

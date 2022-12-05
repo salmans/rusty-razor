@@ -1,16 +1,16 @@
 /*! Defines formulae in Geometric Normal Form (GNF) and implements an algorithm for
-transforming a [`CNFClauseSet`] to a [`GNF`].
+transforming a [`CnfClauseSet`] to a [`Gnf`].
 
-[`CNFClauseSet`]: crate::transform::CNFClauseSet
+[`CnfClauseSet`]: crate::transform::CnfClauseSet
 */
-use super::{ToSNF, SNF};
+use super::{Snf, ToSnf};
 use crate::syntax::{
     formula::{
         clause::{Clause, Literal},
         *,
     },
     term::Complex,
-    Error, Sig, Var, FOF,
+    Error, Fof, Sig, Var,
 };
 use itertools::Itertools;
 use std::{collections::BTreeSet, convert::TryFrom, iter::FromIterator, ops::Deref};
@@ -19,11 +19,11 @@ use std::{collections::BTreeSet, convert::TryFrom, iter::FromIterator, ops::Dere
 type PosLiteral = Atomic<Complex>;
 
 /// A Positive Conjunctive Formula (PCF) represents a collection of [`Atomic`]s, interpreted
-/// as a conjunction of positive literals. PCFs are the building blocks of [`GNF`]s.
+/// as a conjunction of positive literals. PCFs are the building blocks of [`Gnf`]s.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
-pub struct PCF(BTreeSet<PosLiteral>);
+pub struct Pcf(BTreeSet<PosLiteral>);
 
-impl PCF {
+impl Pcf {
     /// Returns the positive literals of `self`.
     #[inline(always)]
     pub fn literals(&self) -> &BTreeSet<PosLiteral> {
@@ -42,7 +42,7 @@ impl PCF {
     }
 }
 
-impl Deref for PCF {
+impl Deref for Pcf {
     type Target = BTreeSet<PosLiteral>;
 
     fn deref(&self) -> &Self::Target {
@@ -50,33 +50,33 @@ impl Deref for PCF {
     }
 }
 
-impl From<PosLiteral> for PCF {
+impl From<PosLiteral> for Pcf {
     fn from(value: PosLiteral) -> Self {
         vec![value].into_iter().collect()
     }
 }
 
-impl From<Atom<Complex>> for PCF {
+impl From<Atom<Complex>> for Pcf {
     fn from(value: Atom<Complex>) -> Self {
         let literal = Atomic::from(value);
         vec![literal].into_iter().collect()
     }
 }
 
-impl From<Equals<Complex>> for PCF {
+impl From<Equals<Complex>> for Pcf {
     fn from(value: Equals<Complex>) -> Self {
         let literal = Atomic::from(value);
         vec![literal].into_iter().collect()
     }
 }
 
-impl FromIterator<PosLiteral> for PCF {
+impl FromIterator<PosLiteral> for Pcf {
     fn from_iter<T: IntoIterator<Item = PosLiteral>>(iter: T) -> Self {
         Self(iter.into_iter().collect())
     }
 }
 
-impl IntoIterator for PCF {
+impl IntoIterator for Pcf {
     type Item = PosLiteral;
 
     type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
@@ -86,13 +86,13 @@ impl IntoIterator for PCF {
     }
 }
 
-impl From<Vec<PosLiteral>> for PCF {
+impl From<Vec<PosLiteral>> for Pcf {
     fn from(value: Vec<PosLiteral>) -> Self {
         Self(value.into_iter().collect())
     }
 }
 
-impl Formula for PCF {
+impl Formula for Pcf {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
@@ -115,37 +115,37 @@ impl Formula for PCF {
     }
 }
 
-impl From<PCF> for FOF {
-    fn from(value: PCF) -> Self {
+impl From<Pcf> for Fof {
+    fn from(value: Pcf) -> Self {
         value
             .into_literals()
             .into_iter()
             .sorted()
             .into_iter()
             .map(|atomic| match atomic {
-                Atomic::Atom(this) => FOF::from(this),
+                Atomic::Atom(this) => Fof::from(this),
                 Atomic::Equals(this) => this.into(),
             })
             .fold1(|item, acc| item.and(acc))
-            .unwrap_or(FOF::Top)
+            .unwrap_or(Fof::Top)
     }
 }
 
-impl From<&PCF> for FOF {
-    fn from(value: &PCF) -> Self {
+impl From<&Pcf> for Fof {
+    fn from(value: &Pcf) -> Self {
         value.clone().into()
     }
 }
 
-impl TryFrom<FOF> for PCF {
+impl TryFrom<Fof> for Pcf {
     type Error = super::Error;
 
-    fn try_from(value: FOF) -> Result<Self, Self::Error> {
+    fn try_from(value: Fof) -> Result<Self, Self::Error> {
         match value {
-            FOF::Top => Ok(Self::default()),
-            FOF::Atom(atom) => Ok(Self::from(atom)),
-            FOF::Equals(equals) => Ok(Self::from(equals)),
-            FOF::And(and) => {
+            Fof::Top => Ok(Self::default()),
+            Fof::Atom(atom) => Ok(Self::from(atom)),
+            Fof::Equals(equals) => Ok(Self::from(equals)),
+            Fof::And(and) => {
                 let mut result = Self::try_from(and.left)?.into_literals();
                 result.extend(Self::try_from(and.right)?.into_literals());
                 Ok(result.into_iter().collect())
@@ -157,20 +157,20 @@ impl TryFrom<FOF> for PCF {
     }
 }
 
-/// Is a set of [`PCF`]s in the head of a [`GNF`], interpreted as a disjunction of
+/// Is a set of [`Pcf`]s in the head of a [`Gnf`], interpreted as a disjunction of
 /// PCFs where each PCF is a conjunction of positive literals.
 #[derive(PartialEq, Eq, Clone, Default, Debug)]
-pub struct PcfSet(BTreeSet<PCF>);
+pub struct PcfSet(BTreeSet<Pcf>);
 
 impl PcfSet {
     /// Returns the clauses of `self`.
     #[inline(always)]
-    pub fn clauses(&self) -> &BTreeSet<PCF> {
+    pub fn clauses(&self) -> &BTreeSet<Pcf> {
         &self.0
     }
 
     /// Consumes `self` and returns its underlying set of clauses.
-    pub fn into_clauses(self) -> BTreeSet<PCF> {
+    pub fn into_clauses(self) -> BTreeSet<Pcf> {
         self.0
     }
 
@@ -192,20 +192,20 @@ impl PcfSet {
     }
 }
 
-impl From<PCF> for PcfSet {
-    fn from(value: PCF) -> Self {
+impl From<Pcf> for PcfSet {
+    fn from(value: Pcf) -> Self {
         vec![value].into_iter().collect()
     }
 }
 
-impl FromIterator<PCF> for PcfSet {
-    fn from_iter<T: IntoIterator<Item = PCF>>(iter: T) -> Self {
+impl FromIterator<Pcf> for PcfSet {
+    fn from_iter<T: IntoIterator<Item = Pcf>>(iter: T) -> Self {
         Self(iter.into_iter().collect())
     }
 }
 
 impl IntoIterator for PcfSet {
-    type Item = PCF;
+    type Item = Pcf;
 
     type IntoIter = std::collections::btree_set::IntoIter<Self::Item>;
 
@@ -214,14 +214,14 @@ impl IntoIterator for PcfSet {
     }
 }
 
-impl From<Vec<PCF>> for PcfSet {
-    fn from(value: Vec<PCF>) -> Self {
+impl From<Vec<Pcf>> for PcfSet {
+    fn from(value: Vec<Pcf>) -> Self {
         Self(value.into_iter().collect())
     }
 }
 
 impl Deref for PcfSet {
-    type Target = BTreeSet<PCF>;
+    type Target = BTreeSet<Pcf>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -251,46 +251,46 @@ impl Formula for PcfSet {
     }
 }
 
-impl From<PcfSet> for FOF {
+impl From<PcfSet> for Fof {
     fn from(value: PcfSet) -> Self {
         value
             .into_clauses()
             .into_iter()
             .sorted()
             .into_iter()
-            .map(FOF::from)
+            .map(Fof::from)
             .fold1(|item, acc| item.or(acc))
-            .unwrap_or(FOF::Bottom)
+            .unwrap_or(Fof::Bottom)
     }
 }
 
-impl From<&PcfSet> for FOF {
+impl From<&PcfSet> for Fof {
     fn from(value: &PcfSet) -> Self {
         value.clone().into()
     }
 }
 
-/// Represents a formula in Geometric Normal Form (GNF), consisting of a [`PCF`] in the body
+/// Represents a formula in Geometric Normal Form (GNF), consisting of a [`Pcf`] in the body
 /// (premise) and a [`PcfSet`] in the head (consequence).
 ///
 /// **Hint**: For mor information about GNF, see [Geometric Logic in Computer Science][glics]
 /// by Steve Vickers.
 ///
 /// [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
-/// [`FOF`]: crate::syntax::FOF
+/// [`Fof`]: crate::syntax::Fof
 #[derive(Clone, Debug)]
-pub struct GNF {
+pub struct Gnf {
     /// Is the body of a GNF, comprised of a positive clause.
-    body: PCF,
+    body: Pcf,
 
     /// Is the head of a GNF, consisting of a positive clause set.
     head: PcfSet,
 }
 
-impl GNF {
+impl Gnf {
     /// Returns the body of `self`.
     #[inline(always)]
-    pub fn body(&self) -> &PCF {
+    pub fn body(&self) -> &Pcf {
         &self.body
     }
 
@@ -301,28 +301,28 @@ impl GNF {
     }
 
     /// Consumes `self` and returns its body and head.
-    pub fn into_body_and_head(self) -> (PCF, PcfSet) {
+    pub fn into_body_and_head(self) -> (Pcf, PcfSet) {
         (self.body, self.head)
     }
 }
 
-impl From<(PCF, PcfSet)> for GNF {
-    fn from(value: (PCF, PcfSet)) -> Self {
+impl From<(Pcf, PcfSet)> for Gnf {
+    fn from(value: (Pcf, PcfSet)) -> Self {
         let (body, head) = value;
         Self { body, head }
     }
 }
 
-impl TryFrom<FOF> for PcfSet {
+impl TryFrom<Fof> for PcfSet {
     type Error = super::Error;
 
-    fn try_from(value: FOF) -> Result<Self, Self::Error> {
+    fn try_from(value: Fof) -> Result<Self, Self::Error> {
         match value {
-            FOF::Top | FOF::Atom(_) | FOF::Equals(_) | FOF::And(_) => {
-                PCF::try_from(value).map(Self::from)
+            Fof::Top | Fof::Atom(_) | Fof::Equals(_) | Fof::And(_) => {
+                Pcf::try_from(value).map(Self::from)
             }
-            FOF::Bottom => Ok(Self::default()),
-            FOF::Or(or) => {
+            Fof::Bottom => Ok(Self::default()),
+            Fof::Or(or) => {
                 let mut result = Self::try_from(or.left)?.into_clauses();
                 result.extend(Self::try_from(or.right)?.into_clauses());
                 Ok(result.into_iter().collect())
@@ -334,17 +334,17 @@ impl TryFrom<FOF> for PcfSet {
     }
 }
 
-/// Is the trait of [`Formula`] types that can be transformed to a list of [`GNF`]s.
-pub trait ToGNF: Formula {
+/// Is the trait of [`Formula`] types that can be transformed to a list of [`Gnf`]s.
+pub trait ToGnf: Formula {
     /// Transforms `self` to a list of formulae in Geometric Normal
     /// Form (GNF).
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToGNF;
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToGnf;
     ///
-    /// let formula: FOF = "P(x) & (Q(x) | R(x))".parse().unwrap();
+    /// let formula: Fof = "P(x) & (Q(x) | R(x))".parse().unwrap();
     /// let gnfs = formula.gnf();
     ///  
     /// let gnf_to_string: Vec<String> = gnfs
@@ -353,25 +353,25 @@ pub trait ToGNF: Formula {
     ///     .collect();
     /// assert_eq!(vec!["⊤ → P(x)", "⊤ → (Q(x) ∨ R(x))"], gnf_to_string);
     /// ```
-    fn gnf(&self) -> Vec<GNF>;
+    fn gnf(&self) -> Vec<Gnf>;
 }
 
-impl ToGNF for SNF {
-    fn gnf(&self) -> Vec<GNF> {
-        use super::ToCNFClauseSet;
+impl ToGnf for Snf {
+    fn gnf(&self) -> Vec<Gnf> {
+        use super::ToCnfClauseSet;
 
         let clauses = self.cnf_clause_set();
         clauses.iter().map(gnf).collect()
     }
 }
 
-impl<T: ToSNF> ToGNF for T {
-    fn gnf(&self) -> Vec<GNF> {
+impl<T: ToSnf> ToGnf for T {
+    fn gnf(&self) -> Vec<Gnf> {
         self.snf().gnf()
     }
 }
 
-impl Formula for GNF {
+impl Formula for Gnf {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
@@ -393,47 +393,47 @@ impl Formula for GNF {
     }
 }
 
-impl std::fmt::Display for GNF {
+impl std::fmt::Display for Gnf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
-impl From<GNF> for FOF {
-    fn from(value: GNF) -> Self {
-        let body = FOF::from(value.body);
-        let head = FOF::from(value.head);
+impl From<Gnf> for Fof {
+    fn from(value: Gnf) -> Self {
+        let body = Fof::from(value.body);
+        let head = Fof::from(value.head);
         body.implies(head)
     }
 }
 
-impl From<&GNF> for FOF {
-    fn from(value: &GNF) -> Self {
+impl From<&Gnf> for Fof {
+    fn from(value: &Gnf) -> Self {
         value.clone().into()
     }
 }
 
-impl TryFrom<FOF> for GNF {
+impl TryFrom<Fof> for Gnf {
     type Error = super::Error;
 
-    fn try_from(value: FOF) -> Result<Self, Self::Error> {
+    fn try_from(value: Fof) -> Result<Self, Self::Error> {
         match value {
-            FOF::Top => {
-                let body = PCF::default();
-                let head = PcfSet::from(PCF::default());
+            Fof::Top => {
+                let body = Pcf::default();
+                let head = PcfSet::from(Pcf::default());
                 Ok((body, head).into())
             }
-            FOF::Bottom => {
-                let body = PCF::default();
+            Fof::Bottom => {
+                let body = Pcf::default();
                 let head = PcfSet::default();
                 Ok((body, head).into())
             }
-            FOF::Atom(_) | FOF::Equals(_) | FOF::And(_) | FOF::Or(_) => {
+            Fof::Atom(_) | Fof::Equals(_) | Fof::And(_) | Fof::Or(_) => {
                 let head = PcfSet::try_from(value)?;
-                Ok((PCF::default(), head).into())
+                Ok((Pcf::default(), head).into())
             }
-            FOF::Implies(implies) => {
-                let body = PCF::try_from(implies.premise)?;
+            Fof::Implies(implies) => {
+                let body = Pcf::try_from(implies.premise)?;
                 let head = PcfSet::try_from(implies.consequence)?;
                 Ok((body, head).into())
             }
@@ -445,15 +445,15 @@ impl TryFrom<FOF> for GNF {
 }
 
 // Convert the disjuncts of the CNF to an implication. These implications are geometric sequents.
-fn gnf(clause: &Clause<Complex>) -> GNF {
-    let mut head: Vec<PCF> = Vec::new();
+fn gnf(clause: &Clause<Complex>) -> Gnf {
+    let mut head: Vec<Pcf> = Vec::new();
     let mut body: Vec<Atomic<_>> = Vec::new();
     clause.iter().for_each(|lit| match lit {
         Literal::Pos(this) => head.push(this.clone().into()),
         Literal::Neg(this) => body.push(this.clone()),
     });
 
-    let body = PCF::from(body);
+    let body = Pcf::from(body);
     let head = PcfSet::from(head);
     (body, head).into()
 }
@@ -471,27 +471,27 @@ mod tests {
     };
     use itertools::Itertools;
 
-    fn gnf(formula: &FOF) -> Vec<FOF> {
+    fn gnf(formula: &Fof) -> Vec<Fof> {
         formula.gnf().into_iter().map(|gnf| gnf.into()).collect()
     }
 
     #[test]
     fn pcf_union() {
         {
-            let first = PCF::from(Atom {
+            let first = Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             });
-            let second = PCF::default();
+            let second = Pcf::default();
             assert_eq!(first, first.union(&second));
             assert_eq!(first, second.union(&first));
         }
         {
-            let first = PCF::from(Atom {
+            let first = Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             });
-            let second = PCF::from(vec![
+            let second = Pcf::from(vec![
                 Atom {
                     predicate: "Q".into(),
                     terms: vec![],
@@ -503,7 +503,7 @@ mod tests {
                 }
                 .into(),
             ]);
-            let expected = PCF::from(vec![
+            let expected = Pcf::from(vec![
                 Atom {
                     predicate: "P".into(),
                     terms: vec![],
@@ -528,11 +528,11 @@ mod tests {
     #[test]
     fn pcf_free_vars() {
         {
-            let pcf = PCF::default();
+            let pcf = Pcf::default();
             assert_eq!(Vec::<&Var>::new(), pcf.free_vars());
         }
         {
-            let pcf = PCF::from(vec![
+            let pcf = Pcf::from(vec![
                 Atom {
                     predicate: "Q".into(),
                     terms: vec![term!(x)],
@@ -556,7 +556,7 @@ mod tests {
     #[test]
     fn pcf_transform() {
         {
-            let pcf: PCF = Atomic::from(Atom {
+            let pcf: Pcf = Atomic::from(Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x)), term!(y)],
             })
@@ -572,7 +572,7 @@ mod tests {
                 .into()
             };
             assert_eq!(
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: "P".into(),
                     terms: vec![term!(z), term!(y)],
                 }),
@@ -580,7 +580,7 @@ mod tests {
             );
         }
         {
-            let pcf: PCF = Equals {
+            let pcf: Pcf = Equals {
                 left: term!(f(x)),
                 right: term!(y),
             }
@@ -593,7 +593,7 @@ mod tests {
                 }
             };
             assert_eq!(
-                PCF::from(Equals {
+                Pcf::from(Equals {
                     left: term!(z),
                     right: term!(y),
                 }),
@@ -628,7 +628,7 @@ mod tests {
             .unwrap();
             sig.add_constant("c".into());
 
-            let pcf = PCF::from(vec![
+            let pcf = Pcf::from(vec![
                 Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
@@ -648,7 +648,7 @@ mod tests {
             assert_eq!(sig, pcf.signature().unwrap());
         }
         {
-            let pcf = PCF::from(vec![
+            let pcf = Pcf::from(vec![
                 Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
@@ -672,7 +672,7 @@ mod tests {
             assert_eq!(PcfSet::default(), first.cross_union(&second));
         }
         {
-            let first = PcfSet::from(vec![PCF::from(Atom {
+            let first = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             })]);
@@ -681,26 +681,26 @@ mod tests {
             assert_eq!(PcfSet::default(), second.cross_union(&first));
         }
         {
-            let first = PcfSet::from(vec![PCF::from(Atom {
+            let first = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             })]);
-            let second = PcfSet::from(vec![PCF::from(Atom {
+            let second = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             })]);
             assert_eq!(first, first.cross_union(&second));
         }
         {
-            let first = PcfSet::from(vec![PCF::from(Atom {
+            let first = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             })]);
-            let second = PcfSet::from(vec![PCF::from(Atom {
+            let second = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: "Q".into(),
                 terms: vec![],
             })]);
-            let expected = PcfSet::from(vec![PCF::from(vec![
+            let expected = PcfSet::from(vec![Pcf::from(vec![
                 Atom {
                     predicate: "P".into(),
                     terms: vec![],
@@ -716,11 +716,11 @@ mod tests {
             assert_eq!(expected, second.cross_union(&first));
         }
         {
-            let first = PcfSet::from(vec![PCF::from(Atom {
+            let first = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![],
             })]);
-            let second = PcfSet::from(vec![PCF::from(vec![
+            let second = PcfSet::from(vec![Pcf::from(vec![
                 Atom {
                     predicate: "Q".into(),
                     terms: vec![],
@@ -732,7 +732,7 @@ mod tests {
                 }
                 .into(),
             ])]);
-            let expected = PcfSet::from(vec![PCF::from(vec![
+            let expected = PcfSet::from(vec![Pcf::from(vec![
                 Atom {
                     predicate: "P".into(),
                     terms: vec![],
@@ -754,27 +754,27 @@ mod tests {
         }
         {
             let first = PcfSet::from(vec![
-                PCF::from(Atomic::from(Atom {
+                Pcf::from(Atomic::from(Atom {
                     predicate: "P".into(),
                     terms: vec![],
                 })),
-                PCF::from(Atomic::from(Atom {
+                Pcf::from(Atomic::from(Atom {
                     predicate: "Q".into(),
                     terms: vec![],
                 })),
             ]);
             let second = PcfSet::from(vec![
-                PCF::from(Atomic::from(Atom {
+                Pcf::from(Atomic::from(Atom {
                     predicate: "R".into(),
                     terms: vec![],
                 })),
-                PCF::from(Atomic::from(Atom {
+                Pcf::from(Atomic::from(Atom {
                     predicate: "S".into(),
                     terms: vec![],
                 })),
             ]);
             let expected = PcfSet::from(vec![
-                PCF::from(vec![
+                Pcf::from(vec![
                     Atomic::from(Atom {
                         predicate: "P".into(),
                         terms: vec![],
@@ -785,7 +785,7 @@ mod tests {
                     }
                     .into(),
                 ]),
-                PCF::from(vec![
+                Pcf::from(vec![
                     Atomic::from(Atom {
                         predicate: "P".into(),
                         terms: vec![],
@@ -796,7 +796,7 @@ mod tests {
                     }
                     .into(),
                 ]),
-                PCF::from(vec![
+                Pcf::from(vec![
                     Atomic::from(Atom {
                         predicate: "Q".into(),
                         terms: vec![],
@@ -807,7 +807,7 @@ mod tests {
                     }
                     .into(),
                 ]),
-                PCF::from(vec![
+                Pcf::from(vec![
                     Atomic::from(Atom {
                         predicate: "Q".into(),
                         terms: vec![],
@@ -831,7 +831,7 @@ mod tests {
             assert_eq!(pcf_set, pcf_set.simplify());
         }
         {
-            let pcf_set: PcfSet = vec![PCF::from(vec![Atomic::from(Atom {
+            let pcf_set: PcfSet = vec![Pcf::from(vec![Atomic::from(Atom {
                 predicate: "P".into(),
                 terms: vec![term!(x)],
             })])]
@@ -840,7 +840,7 @@ mod tests {
         }
         {
             let pcf_set: PcfSet = vec![
-                PCF::from(vec![
+                Pcf::from(vec![
                     Atomic::from(Atom {
                         predicate: "P".into(),
                         terms: vec![term!(x)],
@@ -851,30 +851,30 @@ mod tests {
                     }
                     .into(),
                 ]),
-                PCF::from(vec![Atomic::from(Atom {
+                Pcf::from(vec![Atomic::from(Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
                 })]),
-                PCF::from(vec![Atomic::from(Atom {
+                Pcf::from(vec![Atomic::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(x)],
                 })]),
-                PCF::from(vec![Atomic::from(Atom {
+                Pcf::from(vec![Atomic::from(Atom {
                     predicate: "Q".into(),
                     terms: vec![term!(x)],
                 })]),
             ]
             .into();
             let expected: PcfSet = vec![
-                PCF::from(vec![Atomic::from(Atom {
+                Pcf::from(vec![Atomic::from(Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
                 })]),
-                PCF::from(vec![Atomic::from(Atom {
+                Pcf::from(vec![Atomic::from(Atom {
                     predicate: "Q".into(),
                     terms: vec![term!(x)],
                 })]),
-                PCF::from(vec![Atomic::from(Atom {
+                Pcf::from(vec![Atomic::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(x)],
                 })]),
@@ -892,15 +892,15 @@ mod tests {
         }
         {
             let pcf_set = PcfSet::from(vec![
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: "Q".into(),
                     terms: vec![term!(x)],
                 }),
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(@c), term!(y)],
                 }),
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: "R".into(),
                     terms: vec![term!(x)],
                 }),
@@ -912,7 +912,7 @@ mod tests {
     #[test]
     fn pcf_set_transform() {
         {
-            let pcf_set: PcfSet = PCF::from(Atom {
+            let pcf_set: PcfSet = Pcf::from(Atom {
                 predicate: "P".into(),
                 terms: vec![term!(f(x)), term!(y)],
             })
@@ -928,7 +928,7 @@ mod tests {
                 .into()
             };
             assert_eq!(
-                PcfSet::from(PCF::from(Atom {
+                PcfSet::from(Pcf::from(Atom {
                     predicate: "P".into(),
                     terms: vec![term!(z), term!(y)],
                 })),
@@ -936,7 +936,7 @@ mod tests {
             );
         }
         {
-            let pcf_set: PcfSet = PCF::from(Equals {
+            let pcf_set: PcfSet = Pcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(y),
             })
@@ -949,7 +949,7 @@ mod tests {
                 }
             };
             assert_eq!(
-                PcfSet::from(PCF::from(Equals {
+                PcfSet::from(Pcf::from(Equals {
                     left: term!(z),
                     right: term!(y),
                 })),
@@ -985,7 +985,7 @@ mod tests {
             sig.add_constant("c".into());
 
             let pcf_set = PcfSet::from(vec![
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
                 }),
@@ -1004,7 +1004,7 @@ mod tests {
         }
         {
             let pcf_set = PcfSet::from(vec![
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: "P".into(),
                     terms: vec![term!(x)],
                 }),
@@ -1021,69 +1021,69 @@ mod tests {
     #[test]
     fn test_gnf() {
         {
-            let formula: FOF = "true".parse().unwrap();
+            let formula: Fof = "true".parse().unwrap();
             assert_debug_strings!("", gnf(&formula));
         }
         {
-            let formula: FOF = "false".parse().unwrap();
+            let formula: Fof = "false".parse().unwrap();
             assert_debug_strings!("true -> false", gnf(&formula));
         }
         {
-            let formula: FOF = "P(x)".parse().unwrap();
+            let formula: Fof = "P(x)".parse().unwrap();
             assert_debug_strings!("true -> P(x)", gnf(&formula));
         }
         {
-            let formula: FOF = "x = y".parse().unwrap();
+            let formula: Fof = "x = y".parse().unwrap();
             assert_debug_strings!("true -> x = y", gnf(&formula));
         }
         {
-            let formula: FOF = "~P(x)".parse().unwrap();
+            let formula: Fof = "~P(x)".parse().unwrap();
             assert_debug_strings!("P(x) -> false", gnf(&formula));
         }
         {
-            let formula: FOF = "P(x) -> Q(x)".parse().unwrap();
+            let formula: Fof = "P(x) -> Q(x)".parse().unwrap();
             assert_debug_strings!("P(x) -> Q(x)", gnf(&formula));
         }
         {
-            let formula: FOF = "P(x) & Q(x)".parse().unwrap();
+            let formula: Fof = "P(x) & Q(x)".parse().unwrap();
             assert_debug_strings!("true -> P(x)\ntrue -> Q(x)", gnf(&formula));
         }
         {
-            let formula: FOF = "P(x) | Q(x)".parse().unwrap();
+            let formula: Fof = "P(x) | Q(x)".parse().unwrap();
             assert_debug_strings!("true -> (P(x) | Q(x))", gnf(&formula));
         }
         {
-            let formula: FOF = "! x. P(x)".parse().unwrap();
+            let formula: Fof = "! x. P(x)".parse().unwrap();
             assert_debug_strings!("true -> P(x)", gnf(&formula));
         }
         {
-            let formula: FOF = "? x. P(x)".parse().unwrap();
+            let formula: Fof = "? x. P(x)".parse().unwrap();
             assert_debug_strings!("true -> P('c#0)", gnf(&formula));
         }
         {
-            let formula: FOF = "P(x) & Q(x) -> P(y) | Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) & Q(x) -> P(y) | Q(y)".parse().unwrap();
             assert_debug_strings!("(P(x) & Q(x)) -> (P(y) | Q(y))", gnf(&formula));
         }
         {
-            let formula: FOF = "P(x) | Q(x) -> P(y) & Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) | Q(x) -> P(y) & Q(y)".parse().unwrap();
             assert_debug_strings!(
                 "P(x) -> P(y)\nQ(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> Q(y)",
                 gnf(&formula),
             );
         }
         {
-            let formula: FOF = "P(x) | Q(x) <=> P(y) & Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) | Q(x) <=> P(y) & Q(y)".parse().unwrap();
             assert_debug_strings!(
                 "(P(y) & Q(y)) -> (P(x) | Q(x))\nP(x) -> P(y)\nQ(x) -> P(y)\nP(x) -> Q(y)\nQ(x) -> Q(y)",             
                 gnf(&formula),
             );
         }
         {
-            let formula: FOF = "!x. (P(x) -> ?y. Q(x,y))".parse().unwrap();
+            let formula: Fof = "!x. (P(x) -> ?y. Q(x,y))".parse().unwrap();
             assert_debug_strings!("P(x) -> Q(x, f#0(x))", gnf(&formula));
         }
         {
-            let formula: FOF = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y))))"
+            let formula: Fof = "!x. (P(x) -> (?y. (Q(y) & R(x, y)) | ?y. (P(y) & S(x, y))))"
                 .parse()
                 .unwrap();
             assert_debug_strings!(
@@ -1092,13 +1092,13 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "!x, y. ((P(x) & Q(y)) -> (R(x, y) -> S(x, y)))"
+            let formula: Fof = "!x, y. ((P(x) & Q(y)) -> (R(x, y) -> S(x, y)))"
                 .parse()
                 .unwrap();
             assert_debug_strings!("((P(x) & Q(y)) & R(x, y)) -> S(x, y)", gnf(&formula));
         }
         {
-            let formula: FOF = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))"
+            let formula: Fof = "!x, y. ((P(x) & Q(y)) <=> (R(x, y) <=> S(x, y)))"
                 .parse()
                 .unwrap();
             assert_debug_strings!("true -> ((P(x) | R(x, y)) | S(x, y))\nR(x, y) -> (P(x) | R(x, y))\nS(x, y) -> (P(x) | S(x, y))\n(R(x, y) & S(x, y)) -> P(x)\ntrue -> ((Q(y) | R(x, y)) | S(x, y))\nR(x, y) -> (Q(y) | R(x, y))\nS(x, y) -> (Q(y) | S(x, y))\n(R(x, y) & S(x, y)) -> Q(y)\n((P(x) & Q(y)) & S(x, y)) -> R(x, y)\n((P(x) & Q(y)) & R(x, y)) -> S(x, y)",
@@ -1106,19 +1106,19 @@ mod tests {
             );
         }
         {
-            let formula: FOF = "? x. P(x) -> Q(x)".parse().unwrap();
+            let formula: Fof = "? x. P(x) -> Q(x)".parse().unwrap();
             assert_debug_strings!("P('c#0) -> Q('c#0)", gnf(&formula));
         }
         {
-            let formula: FOF = "(? x. P(x)) -> Q(x)".parse().unwrap();
+            let formula: Fof = "(? x. P(x)) -> Q(x)".parse().unwrap();
             assert_debug_strings!("P(x`) -> Q(x)", gnf(&formula));
         }
         {
-            let formula: FOF = "? x. (P(x) -> Q(x))".parse().unwrap();
+            let formula: Fof = "? x. (P(x) -> Q(x))".parse().unwrap();
             assert_debug_strings!("P('c#0) -> Q('c#0)", gnf(&formula));
         }
         {
-            let formula: FOF = "false -> P(x)".parse().unwrap();
+            let formula: Fof = "false -> P(x)".parse().unwrap();
             assert_debug_strings!("", gnf(&formula));
         }
     }
@@ -1131,7 +1131,7 @@ mod tests {
             assert_eq!(Vec::<&Var>::new(), gnf[0].free_vars());
         }
         {
-            let gnf = GNF::try_from(fof!({[P(x, @c)] & [Q(y)]} -> {[Q(x)] | [ [Q(y)] & [R()] ]}))
+            let gnf = Gnf::try_from(fof!({[P(x, @c)] & [Q(y)]} -> {[Q(x)] | [ [Q(y)] & [R()] ]}))
                 .unwrap();
             assert_eq_sorted_vecs!(vec![v!(x), v!(y)].iter().collect_vec(), gnf.free_vars());
         }
@@ -1140,7 +1140,7 @@ mod tests {
     #[test]
     fn gnf_transform() {
         let gnf =
-            GNF::try_from(fof!({[P(y, f(x))] & [Q(x)]} -> {[Q(f(x))] | [[R(f(x))] & [R(y)]]}))
+            Gnf::try_from(fof!({[P(y, f(x))] & [Q(x)]} -> {[Q(f(x))] | [[R(f(x))] & [R(y)]]}))
                 .unwrap();
         let f = |t: &Complex| {
             {
@@ -1154,7 +1154,7 @@ mod tests {
         };
         assert_eq!(
             fof!({[P(y, z)] & [Q(x)]} -> {[Q(z)] | [[R(y)] & [R(z)]]}),
-            FOF::from(gnf.transform_term(&f))
+            Fof::from(gnf.transform_term(&f))
         );
     }
 
@@ -1184,14 +1184,14 @@ mod tests {
             .unwrap();
             sig.add_constant("c".into());
 
-            let gnf = GNF::try_from(
+            let gnf = Gnf::try_from(
                 fof!({[P(f(x, @c))] & [P(y)]} -> {[P(y)] | [[Q(x, x)] & [(x) = (y)]]}),
             )
             .unwrap();
             assert_eq!(sig, gnf.signature().unwrap());
         }
         {
-            let gnf = GNF::try_from(fof!({P(x, x)} -> {P(x)})).unwrap();
+            let gnf = Gnf::try_from(fof!({P(x, x)} -> {P(x)})).unwrap();
             assert!(gnf.signature().is_err());
         }
     }

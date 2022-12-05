@@ -10,21 +10,21 @@ mod relational;
 mod simplify;
 mod snf;
 
-pub use cnf::{CNFClauseSet, ToCNF, ToCNFClauseSet, CNF};
-pub use dnf::{DNFClauseSet, ToDNF, ToDNFClauseSet, DNF};
-pub use gnf::{PcfSet, ToGNF, GNF, PCF};
-pub use nnf::{ToNNF, NNF};
-pub use pnf::{ToPNF, PNF};
+pub use cnf::{Cnf, CnfClauseSet, ToCnf, ToCnfClauseSet};
+pub use dnf::{Dnf, DnfClauseSet, ToDnf, ToDnfClauseSet};
+pub use gnf::{Gnf, Pcf, PcfSet, ToGnf};
+pub use nnf::{Nnf, ToNnf};
+pub use pnf::{Pnf, ToPnf};
 pub use relational::{FlatClause, Relational, ToRelational};
-pub use snf::{ToSNF, SNF};
+pub use snf::{Snf, ToSnf};
 
-use crate::syntax::FOF;
+use crate::syntax::Fof;
 use thiserror::Error;
 
 /// Is the type of errors arising from inconsistencies when transforming formula types.
 #[derive(Error, Debug)]
 pub enum Error {
-    /// Is returned when a [`FOF`] cannot be forced into a [`GNF`].
+    /// Is returned when a [`Fof`] cannot be forced into a [`Gnf`].
     #[error("formula `{}` cannot be forced into a GNF", .formula.to_string())]
-    FofToGnf { formula: FOF },
+    FofToGnf { formula: Fof },
 }

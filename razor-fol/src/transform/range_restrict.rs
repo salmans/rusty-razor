@@ -14,10 +14,10 @@ impl Relational {
     /// **Example**:
     /// ```rust
     /// # use std::convert::TryFrom;
-    /// use razor_fol::{syntax::FOF, transform::{GNF, ToRelational}, v};
+    /// use razor_fol::{syntax::Fof, transform::{Gnf, ToRelational}, v};
     ///
-    /// let fof = "R(x, y) -> P(x) & Q(y)".parse::<FOF>().unwrap();
-    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let fof = "R(x, y) -> P(x) & Q(y)".parse::<Fof>().unwrap();
+    /// let gnf = Gnf::try_from(fof).unwrap();
     /// let gnf_head = gnf.head();
     /// let relational = gnf_head.relational();
     /// let range_restricted = relational.range_restrict(&vec![v!(x), v!(z)], "RR");
@@ -59,25 +59,25 @@ fn restrict(range: &[Var], symbol: &str) -> FlatClause {
 mod test {
     use crate::{
         fof,
-        syntax::{Var, FOF},
+        syntax::{Fof, Var},
         transform::PcfSet,
         v,
     };
 
     // Assumes the input in GNF
-    fn clause_set(fof: FOF) -> PcfSet {
+    fn clause_set(fof: Fof) -> PcfSet {
         use std::convert::TryFrom;
 
         PcfSet::try_from(fof).unwrap()
     }
 
-    fn rr(fof: FOF, range: &[Var]) -> String {
+    fn rr(fof: Fof, range: &[Var]) -> String {
         use crate::transform::ToRelational;
 
         let rels = clause_set(fof)
             .iter()
             .map(|f| f.relational().range_restrict(range, "RR"))
-            .map(FOF::from)
+            .map(Fof::from)
             .collect::<Vec<_>>();
         format!("{:?}", rels)
     }
@@ -86,7 +86,7 @@ mod test {
     fn test_range_restrict() {
         assert_eq!("[true]", rr(fof!('|'), &vec![]));
         assert_eq!("[RR(x) & RR(y)]", rr(fof!('|'), &vec![v!(x), v!(y)]));
-        assert_eq!("[]", rr(fof!(_|_), &vec![]));
+        assert_eq!("[]", rr(fof!(_ | _), &vec![]));
 
         assert_eq!("[P(x)]", rr(fof!(P(x)), &vec![]));
         assert_eq!(

@@ -1,11 +1,11 @@
 /*! Defines the syntax of first-order formulae with equality.*/
-use super::{qff::QFF, Sig, Var, *};
+use super::{qff::Qff, Sig, Var, *};
 use crate::syntax::term::Complex;
 use std::fmt;
 
 /// Is an abstract syntax tree (AST) for first-order formulae.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FOF {
+pub enum Fof {
     /// Is logical top (⊤) or truth.
     Top,
 
@@ -21,114 +21,114 @@ pub enum FOF {
     Equals(Equals<Complex>),
 
     /// Is the negation of a first-order formula, wrapping a [`Not`].
-    Not(Box<Not<FOF>>),
+    Not(Box<Not<Fof>>),
 
     /// Is a conjunction of two first-order formulae, wrapping an [`And`].
-    And(Box<And<FOF>>),
+    And(Box<And<Fof>>),
 
     /// Is a disjunction of two first-order formulae, wrapping an [`Or`].
-    Or(Box<Or<FOF>>),
+    Or(Box<Or<Fof>>),
 
     /// Is an implication between two first-order formulae, wrapping an [`Implies`].
-    Implies(Box<Implies<FOF>>),
+    Implies(Box<Implies<Fof>>),
 
     /// Is an bi-implication between two first-order formulae, wrapping an [`Iff`].    
-    Iff(Box<Iff<FOF>>),
+    Iff(Box<Iff<Fof>>),
 
     /// Is an existentially quantified first-order formula, wrapping an [`Exists`].
-    Exists(Box<Exists<FOF>>),
+    Exists(Box<Exists<Fof>>),
 
     /// Is a universally quantified first-order formula, wrapping a [`Forall`].
-    Forall(Box<Forall<FOF>>),
+    Forall(Box<Forall<Fof>>),
 }
 
-impl From<Atom<Complex>> for FOF {
+impl From<Atom<Complex>> for Fof {
     fn from(value: Atom<Complex>) -> Self {
         Self::Atom(value)
     }
 }
 
-impl From<Equals<Complex>> for FOF {
+impl From<Equals<Complex>> for Fof {
     fn from(value: Equals<Complex>) -> Self {
         Self::Equals(value)
     }
 }
 
-impl From<Not<FOF>> for FOF {
-    fn from(value: Not<FOF>) -> Self {
+impl From<Not<Fof>> for Fof {
+    fn from(value: Not<Fof>) -> Self {
         Self::Not(Box::new(value))
     }
 }
 
-impl From<And<FOF>> for FOF {
-    fn from(value: And<FOF>) -> Self {
+impl From<And<Fof>> for Fof {
+    fn from(value: And<Fof>) -> Self {
         Self::And(Box::new(value))
     }
 }
 
-impl From<Or<FOF>> for FOF {
-    fn from(value: Or<FOF>) -> Self {
+impl From<Or<Fof>> for Fof {
+    fn from(value: Or<Fof>) -> Self {
         Self::Or(Box::new(value))
     }
 }
 
-impl From<Implies<FOF>> for FOF {
-    fn from(value: Implies<FOF>) -> Self {
+impl From<Implies<Fof>> for Fof {
+    fn from(value: Implies<Fof>) -> Self {
         Self::Implies(Box::new(value))
     }
 }
 
-impl From<Iff<FOF>> for FOF {
-    fn from(value: Iff<FOF>) -> Self {
+impl From<Iff<Fof>> for Fof {
+    fn from(value: Iff<Fof>) -> Self {
         Self::Iff(Box::new(value))
     }
 }
 
-impl From<Exists<FOF>> for FOF {
-    fn from(value: Exists<FOF>) -> Self {
+impl From<Exists<Fof>> for Fof {
+    fn from(value: Exists<Fof>) -> Self {
         Self::Exists(Box::new(value))
     }
 }
 
-impl From<Forall<FOF>> for FOF {
-    fn from(value: Forall<FOF>) -> Self {
+impl From<Forall<Fof>> for Fof {
+    fn from(value: Forall<Fof>) -> Self {
         Self::Forall(Box::new(value))
     }
 }
 
-impl From<QFF> for FOF {
-    fn from(value: QFF) -> Self {
+impl From<Qff> for Fof {
+    fn from(value: Qff) -> Self {
         match value {
-            QFF::Top => Self::Top,
-            QFF::Bottom => Self::Bottom,
-            QFF::Atom(this) => Self::Atom(this),
-            QFF::Equals(this) => Self::Equals(this),
-            QFF::Not(this) => FOF::not(this.formula.into()),
-            QFF::And(this) => {
-                let left: FOF = this.left.into();
-                let right: FOF = this.right.into();
+            Qff::Top => Self::Top,
+            Qff::Bottom => Self::Bottom,
+            Qff::Atom(this) => Self::Atom(this),
+            Qff::Equals(this) => Self::Equals(this),
+            Qff::Not(this) => Fof::not(this.formula.into()),
+            Qff::And(this) => {
+                let left: Fof = this.left.into();
+                let right: Fof = this.right.into();
                 left.and(right)
             }
-            QFF::Or(this) => {
-                let left: FOF = this.left.into();
-                let right: FOF = this.right.into();
+            Qff::Or(this) => {
+                let left: Fof = this.left.into();
+                let right: Fof = this.right.into();
                 left.or(right)
             }
-            QFF::Implies(this) => {
-                let pre: FOF = this.premise.into();
-                let cons: FOF = this.consequence.into();
+            Qff::Implies(this) => {
+                let pre: Fof = this.premise.into();
+                let cons: Fof = this.consequence.into();
                 pre.implies(cons)
             }
-            QFF::Iff(this) => {
-                let left: FOF = this.left.into();
-                let right: FOF = this.right.into();
+            Qff::Iff(this) => {
+                let left: Fof = this.left.into();
+                let right: Fof = this.right.into();
                 left.iff(right)
             }
         }
     }
 }
 
-impl FOF {
+impl Fof {
     /// Returns the negation of `formula`.
     #[allow(clippy::should_implement_trait)]
     // Disallow `formula.not()` intentionally:
@@ -192,22 +192,22 @@ impl FOF {
     }
 }
 
-impl Formula for FOF {
+impl Formula for Fof {
     type Term = Complex;
 
     fn signature(&self) -> Result<super::Sig, super::Error> {
         match self {
-            FOF::Top => Ok(Sig::new()),
-            FOF::Bottom => Ok(Sig::new()),
-            FOF::Atom(this) => this.signature(),
-            FOF::Equals(this) => this.signature(),
-            FOF::Not(this) => this.signature(),
-            FOF::And(this) => this.signature(),
-            FOF::Or(this) => this.signature(),
-            FOF::Implies(this) => this.signature(),
-            FOF::Iff(this) => this.signature(),
-            FOF::Exists(this) => this.signature(),
-            FOF::Forall(this) => this.signature(),
+            Fof::Top => Ok(Sig::new()),
+            Fof::Bottom => Ok(Sig::new()),
+            Fof::Atom(this) => this.signature(),
+            Fof::Equals(this) => this.signature(),
+            Fof::Not(this) => this.signature(),
+            Fof::And(this) => this.signature(),
+            Fof::Or(this) => this.signature(),
+            Fof::Implies(this) => this.signature(),
+            Fof::Iff(this) => this.signature(),
+            Fof::Exists(this) => this.signature(),
+            Fof::Forall(this) => this.signature(),
         }
     }
 
@@ -229,39 +229,39 @@ impl Formula for FOF {
 
     fn transform_term(&self, f: &impl Fn(&Complex) -> Complex) -> Self {
         match self {
-            FOF::Top | FOF::Bottom => self.clone(),
-            FOF::Atom(this) => this.transform_term(f).into(),
-            FOF::Equals(this) => this.transform_term(f).into(),
-            FOF::Not(this) => this.transform_term(f).into(),
-            FOF::And(this) => this.transform_term(f).into(),
-            FOF::Or(this) => this.transform_term(f).into(),
-            FOF::Implies(this) => this.transform_term(f).into(),
-            FOF::Iff(this) => this.transform_term(f).into(),
-            FOF::Exists(this) => this.transform_term(f).into(),
-            FOF::Forall(this) => this.transform_term(f).into(),
+            Fof::Top | Fof::Bottom => self.clone(),
+            Fof::Atom(this) => this.transform_term(f).into(),
+            Fof::Equals(this) => this.transform_term(f).into(),
+            Fof::Not(this) => this.transform_term(f).into(),
+            Fof::And(this) => this.transform_term(f).into(),
+            Fof::Or(this) => this.transform_term(f).into(),
+            Fof::Implies(this) => this.transform_term(f).into(),
+            Fof::Iff(this) => this.transform_term(f).into(),
+            Fof::Exists(this) => this.transform_term(f).into(),
+            Fof::Forall(this) => this.transform_term(f).into(),
         }
     }
 }
 
-impl FormulaEx for FOF {
+impl FormulaEx for Fof {
     fn precedence(&self) -> u8 {
         match self {
-            FOF::Top => PRECEDENCE_ATOM,
-            FOF::Bottom => PRECEDENCE_ATOM,
-            FOF::Atom(this) => this.precedence(),
-            FOF::Equals(this) => this.precedence(),
-            FOF::Not(this) => this.precedence(),
-            FOF::And(this) => this.precedence(),
-            FOF::Or(this) => this.precedence(),
-            FOF::Implies(this) => this.precedence(),
-            FOF::Iff(this) => this.precedence(),
-            FOF::Exists(this) => this.precedence(),
-            FOF::Forall(this) => this.precedence(),
+            Fof::Top => PRECEDENCE_ATOM,
+            Fof::Bottom => PRECEDENCE_ATOM,
+            Fof::Atom(this) => this.precedence(),
+            Fof::Equals(this) => this.precedence(),
+            Fof::Not(this) => this.precedence(),
+            Fof::And(this) => this.precedence(),
+            Fof::Or(this) => this.precedence(),
+            Fof::Implies(this) => this.precedence(),
+            Fof::Iff(this) => this.precedence(),
+            Fof::Exists(this) => this.precedence(),
+            Fof::Forall(this) => this.precedence(),
         }
     }
 }
 
-impl fmt::Display for FOF {
+impl fmt::Display for Fof {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Top => write!(f, "⊤"),
@@ -279,7 +279,7 @@ impl fmt::Display for FOF {
     }
 }
 
-impl fmt::Debug for FOF {
+impl fmt::Debug for Fof {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Self::Top => write!(f, "true"),
@@ -299,7 +299,7 @@ impl fmt::Debug for FOF {
 
 #[cfg(test)]
 mod tests {
-    use super::{FOF::*, *};
+    use super::{Fof::*, *};
     use crate::{
         assert_eq_sorted_vecs, fof,
         syntax::{

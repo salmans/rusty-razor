@@ -74,9 +74,9 @@ mod tests {
         },
         test_prelude::*,
     };
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
 
-    fn run(theory: &Theory<FOF>, pre_processor: &RelPreProcessor) -> Vec<RelModel> {
+    fn run(theory: &Theory<Fof>, pre_processor: &RelPreProcessor) -> Vec<RelModel> {
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = RelEvaluator;

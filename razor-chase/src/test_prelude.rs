@@ -1,6 +1,6 @@
 use crate::chase::{r#impl::basic, r#impl::collapse, *};
 use itertools::Itertools;
-use razor_fol::syntax::{term::Complex, Const, Func, Pred, Theory, Var, FOF};
+use razor_fol::syntax::{term::Complex, Const, Fof, Func, Pred, Theory, Var};
 use std::{fmt, fs::File, io::Read};
 
 pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {
@@ -211,7 +211,7 @@ pub fn read_file(filename: &str) -> String {
     content
 }
 
-pub fn read_theory_from_file(filename: &str) -> Theory<FOF> {
+pub fn read_theory_from_file(filename: &str) -> Theory<Fof> {
     let content = read_file(filename);
     content.parse().unwrap()
 }

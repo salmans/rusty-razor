@@ -11,8 +11,8 @@ use crate::chase::*;
 use either::Either;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::Atomic, term::Complex, Formula, FOF},
-    transform::GNF,
+    syntax::{formula::Atomic, term::Complex, Fof, Formula},
+    transform::Gnf,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -503,12 +503,12 @@ pub struct BasicSequent {
     pub head: Vec<Vec<Literal>>,
 
     // other fields:
-    body_fof: FOF,
-    head_fof: FOF,
+    body_fof: Fof,
+    head_fof: Fof,
 }
 
-impl From<GNF> for BasicSequent {
-    fn from(gnf: GNF) -> Self {
+impl From<Gnf> for BasicSequent {
+    fn from(gnf: Gnf) -> Self {
         let gnf_body = gnf.body();
         let gnf_head = gnf.head();
         let free_vars = gnf.free_vars().into_iter().cloned().collect();
@@ -545,11 +545,11 @@ impl fmt::Display for BasicSequent {
 }
 
 impl Sequent for BasicSequent {
-    fn body(&self) -> FOF {
+    fn body(&self) -> Fof {
         self.body_fof.clone()
     }
 
-    fn head(&self) -> FOF {
+    fn head(&self) -> Fof {
         self.head_fof.clone()
     }
 }
@@ -564,9 +564,9 @@ impl PreProcessor for BasicPreProcessor {
     type Sequent = BasicSequent;
     type Model = BasicModel;
 
-    fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use razor_fol::transform::ToGNF;
-        use razor_fol::transform::ToSNF;
+    fn pre_process(&self, theory: &Theory<Fof>) -> (Vec<Self::Sequent>, Self::Model) {
+        use razor_fol::transform::ToGnf;
+        use razor_fol::transform::ToSnf;
 
         let mut c_counter: u32 = 0;
         let mut f_counter: u32 = 0;
@@ -768,7 +768,7 @@ mod test_basic {
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::transform::ToGNF;
+    use razor_fol::transform::ToGnf;
     use std::iter::FromIterator;
 
     // Witness Elements
@@ -1020,55 +1020,55 @@ mod test_basic {
     }
 
     // Assumes that `fof` is in GNF, so it converts to a single GNF
-    fn sequents(gnfs: Vec<GNF>) -> Vec<BasicSequent> {
+    fn sequents(gnfs: Vec<Gnf>) -> Vec<BasicSequent> {
         gnfs.into_iter().map(BasicSequent::from).collect()
     }
 
     #[test]
     fn test_build_sequent() {
-        assert_debug_string("[]", sequents("true -> true".parse::<FOF>().unwrap().gnf()));
+        assert_debug_string("[]", sequents("true -> true".parse::<Fof>().unwrap().gnf()));
         assert_debug_string(
             "[]",
-            sequents("true -> true & true".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> true & true".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[]",
-            sequents("true -> true | true".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> true | true".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[[] -> []]",
-            sequents("true -> false".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> false".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[[] -> []]",
-            sequents("true -> false & true".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> false & true".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[[] -> []]",
-            sequents("true -> true & false".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> true & false".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[]",
-            sequents("true -> true | false".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> true | false".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[]",
-            sequents("true -> false | true".parse::<FOF>().unwrap().gnf()),
+            sequents("true -> false | true".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[[P(x)] -> [[Q(x)]]]",
-            sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
+            sequents("P(x) -> Q(x)".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             // Note: only range restricted geometric formulae get contracted
             "[[P(x), Q(x)] -> [[Q(y)]]]",
-            sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
+            sequents("P(x) & Q(x) -> Q(y)".parse::<Fof>().unwrap().gnf()),
         );
         assert_debug_string(
             "[[P(x, z), Q(x)] -> [[Q(x)], [R(z)]], [P(x, z), Q(x)] -> [[Q(x)], [S(z)]]]",
             sequents(
                 "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
-                    .parse::<FOF>()
+                    .parse::<Fof>()
                     .unwrap()
                     .gnf(),
             ),
@@ -1077,14 +1077,14 @@ mod test_basic {
 "[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [P(z)], [Q(y)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[P(y)], [P(z)], [Q(x)]], [D(x, y, z)] -> [[P(y)], [Q(x)], [Q(z)]], [D(x, y, z)] -> [[P(z)], [Q(x)], [Q(y)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
             sequents(
                 "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
-                    .parse::<FOF>()
+                    .parse::<Fof>()
                     .unwrap()
                     .gnf(),
             ),
         );
     }
 
-    fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
@@ -1097,7 +1097,7 @@ mod test_basic {
         chase_all(&mut scheduler, &evaluator, bounder)
     }
 
-    fn run_domain_bounded(theory: &Theory<FOF>, bound: usize) -> Vec<BasicModel> {
+    fn run_domain_bounded(theory: &Theory<Fof>, bound: usize) -> Vec<BasicModel> {
         let pre_processor = BasicPreProcessor;
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;

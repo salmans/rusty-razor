@@ -162,7 +162,7 @@ macro_rules! terms {
     };
 }
 
-/// Parses the input tokens as an [`FOF`].
+/// Parses the input tokens as an [`Fof`].
 ///
 /// **Note:**
 /// The syntax of the input to this macro resembles the [compact] variation of Razor's texual
@@ -177,7 +177,7 @@ macro_rules! terms {
 /// 2. Unlike the textual form where constants are preceded by `'`, in the macro input,
 /// constants are preceded by `@`.
 ///
-/// [`FOF`]: crate::syntax::FOF
+/// [`Fof`]: crate::syntax::Fof
 /// [compact]: https://salmans.github.io/rusty-razor/syntax/variations.html
 /// **Example**:
 /// ```rust
@@ -235,17 +235,17 @@ macro_rules! terms {
 macro_rules! fof {
     // Top
     ('|') => {
-        $crate::syntax::FOF::Top
+        $crate::syntax::Fof::Top
     };
     // Bottom
     (_|_) => {
-        $crate::syntax::FOF::Bottom
+        $crate::syntax::Fof::Bottom
     };
     // Atom
     ($pred:ident ($($t:tt)*)) => {
         {
             let ts = $crate::terms!($($t)*);
-            $crate::syntax::FOF::from(
+            $crate::syntax::Fof::from(
                 $crate::syntax::Pred::from(stringify!($pred)).app(ts)
             )
         }
@@ -335,14 +335,14 @@ macro_rules! fof {
         {
             let left = $crate::term!($($left)*);
             let right = $crate::term!($($right)*);
-            $crate::syntax::FOF::from($crate::syntax::formula::Equals{left, right})
+            $crate::syntax::Fof::from($crate::syntax::formula::Equals{left, right})
         }
     };
     (@not ($($fmla:tt)*)) => {
-        $crate::syntax::FOF::from($crate::syntax::formula::Not{ formula: fof!($($fmla)*) })
+        $crate::syntax::Fof::from($crate::syntax::formula::Not{ formula: fof!($($fmla)*) })
     };
     (@and ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::from(
+        $crate::syntax::Fof::from(
             $crate::syntax::formula::And {
                 left: fof!($($left)*),
                 right: fof!($($right)*),
@@ -350,7 +350,7 @@ macro_rules! fof {
         )
     };
     (@or ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::from(
+        $crate::syntax::Fof::from(
             $crate::syntax::formula::Or {
                 left: fof!($($left)*),
                 right: fof!($($right)*),
@@ -358,7 +358,7 @@ macro_rules! fof {
         )
     };
     (@implies ($($premise:tt)*) ($($consequence:tt)*)) => {
-        $crate::syntax::FOF::from(
+        $crate::syntax::Fof::from(
             $crate::syntax::formula::Implies {
                 premise: fof!($($premise)*),
                 consequence: fof!($($consequence)*),
@@ -366,7 +366,7 @@ macro_rules! fof {
         )
     };
     (@iff ($($left:tt)*) ($($right:tt)*)) => {
-        $crate::syntax::FOF::from(
+        $crate::syntax::Fof::from(
             $crate::syntax::formula::Iff {
                 left: fof!($($left)*),
                 right: fof!($($right)*),
@@ -376,7 +376,7 @@ macro_rules! fof {
     (@forall ($($v:ident),+) ($($fmla:tt)*)) => {
         {
             let vs = vec![$($crate::syntax::Var::from(stringify!($v)),)+];
-            $crate::syntax::FOF::from(
+            $crate::syntax::Fof::from(
                 $crate::syntax::formula::Forall {
                     variables: vs,
                     formula: fof!($($fmla)*),
@@ -387,7 +387,7 @@ macro_rules! fof {
     (@exists ($($v:ident),+) ($($fmla:tt)*)) => {
         {
             let vs = vec![$($crate::syntax::Var::from(stringify!($v)),)+];
-            $crate::syntax::FOF::from(
+            $crate::syntax::Fof::from(
                 $crate::syntax::formula::Exists {
                     variables: vs,
                     formula: fof!($($fmla)*),
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn test_macro() {
         assert_eq!("⊤", fof!('|').to_string());
-        assert_eq!("⟘", fof!(_|_).to_string());
+        assert_eq!("⟘", fof!(_ | _).to_string());
 
         assert_eq!("P()", fof!(P()).to_string());
         assert_eq!("P(x)", fof!(P(x)).to_string());

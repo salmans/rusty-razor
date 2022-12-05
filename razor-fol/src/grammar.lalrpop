@@ -1,4 +1,4 @@
-use crate::syntax::{*, term::Complex, FOF::*, Theory};
+use crate::syntax::{*, term::Complex, Fof::*, Theory};
 use lalrpop_util::ParseError;
 use super::Error;
 
@@ -76,13 +76,13 @@ pub Term: Complex = {
     <Const> => <>.into(),
 };
 
-pub Equal: FOF =
+pub Equal: Fof =
     <l: Term> _EQUAL_ <r: Term> => l.equals(r);
 
 pub Pred: Pred =
     <Upper> => <>.into();
 
-pub Atom: FOF = {
+pub Atom: Fof = {
     _TRUE_ => Top,
     _FALSE_ => Bottom,
     <Equal>,
@@ -99,48 +99,48 @@ Unitary = {
     Unit,
 };
 
-Not: FOF = {
-    _NOT_ <Not> => FOF::not(<>),
+Not: Fof = {
+    _NOT_ <Not> => Fof::not(<>),
     Unitary,
 };
 
-UnitNot: FOF = {
-    _NOT_ <UnitNot> => FOF::not(<>),
+UnitNot: Fof = {
+    _NOT_ <UnitNot> => Fof::not(<>),
     Unit,
 };    
 
-And: FOF = {
+And: Fof = {
     <l: UnitAnd> _AND_ <r: Not> => l.and(r),
     Not,
 };
 
-UnitAnd: FOF = {
+UnitAnd: Fof = {
     <l: UnitAnd> _AND_ <r: UnitNot> => l.and(r),
     UnitNot,
 };
 
-Or: FOF = {
+Or: Fof = {
     <l: UnitOr> _OR_ <r: And> => l.or(r),
     And,
 };
 
-UnitOr: FOF = {
+UnitOr: Fof = {
     <l: UnitOr> _OR_ <r: UnitAnd> => l.or(r),
     UnitAnd,
 };
 
-Quant: FOF = {
-    _FORALL_ <Vars> _DOT_ <Formula> => FOF::forall(<>),
-    _EXISTS_ <Vars> _DOT_ <Formula> => FOF::exists(<>),
+Quant: Fof = {
+    _FORALL_ <Vars> _DOT_ <Formula> => Fof::forall(<>),
+    _EXISTS_ <Vars> _DOT_ <Formula> => Fof::exists(<>),
 };
 
-pub Formula: FOF = {
+pub Formula: Fof = {
     <l: UnitOr> _IMPLIES_ <r: Formula> => l.implies(r),
     <l: UnitOr> _IFF_ <r: Formula> => l.iff(r),
     Or,
 };
 
-pub Theory: Theory<FOF> =
+pub Theory: Theory<Fof> =
     (<Formula> _SEMICOLON_)* =>? {
     let theory: Theory<_> = <>.into_iter().collect();
     theory.signature().map_err(|e| ParseError::User {

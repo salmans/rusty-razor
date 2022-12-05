@@ -1,12 +1,12 @@
 /*! Defines formulae in Negation Normal Form (NNF) and implements an algorithm for
-transforming an [`FOF`] to an [`NNF`].
+transforming an [`Fof`] to an [`Nnf`].
 
-[`FOF`]: crate::syntax::FOF
+[`Fof`]: crate::syntax::Fof
 */
 use crate::syntax::{
     formula::{clause::Literal, *},
     term::Complex,
-    Error, Sig, Var, FOF,
+    Error, Fof, Sig, Var,
 };
 
 /// Represents a formula in Negation Normal Form (NNF).
@@ -14,7 +14,7 @@ use crate::syntax::{
 /// **Hint**: An NNF is a formula where negation is applied only to its atomic (including
 /// equations) sub-formulae.
 #[derive(PartialEq, Clone)]
-pub enum NNF {
+pub enum Nnf {
     /// Is the logical top (⊤) or truth.
     Top,
 
@@ -25,102 +25,102 @@ pub enum NNF {
     Literal(Literal<Complex>),
 
     /// Is a conjunction of two formulae, wrapping an [`And`].    
-    And(Box<And<NNF>>),
+    And(Box<And<Nnf>>),
 
     /// Is a disjunction of two formulae, wrapping an [`Or`].
-    Or(Box<Or<NNF>>),
+    Or(Box<Or<Nnf>>),
 
     /// Is an existentially quantified NNF, wrapping an [`Exists`].
-    Exists(Box<Exists<NNF>>),
+    Exists(Box<Exists<Nnf>>),
 
     /// Is a universally quantified NNF, wrapping a [`Forall`].    
-    Forall(Box<Forall<NNF>>),
+    Forall(Box<Forall<Nnf>>),
 }
 
-impl From<Atom<Complex>> for NNF {
+impl From<Atom<Complex>> for Nnf {
     fn from(value: Atom<Complex>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<Equals<Complex>> for NNF {
+impl From<Equals<Complex>> for Nnf {
     fn from(value: Equals<Complex>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<Not<Atom<Complex>>> for NNF {
+impl From<Not<Atom<Complex>>> for Nnf {
     fn from(value: Not<Atom<Complex>>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<Not<Equals<Complex>>> for NNF {
+impl From<Not<Equals<Complex>>> for Nnf {
     fn from(value: Not<Equals<Complex>>) -> Self {
         Self::Literal(value.into())
     }
 }
 
-impl From<And<NNF>> for NNF {
-    fn from(value: And<NNF>) -> Self {
+impl From<And<Nnf>> for Nnf {
+    fn from(value: And<Nnf>) -> Self {
         Self::And(value.into())
     }
 }
 
-impl From<Or<NNF>> for NNF {
-    fn from(value: Or<NNF>) -> Self {
+impl From<Or<Nnf>> for Nnf {
+    fn from(value: Or<Nnf>) -> Self {
         Self::Or(value.into())
     }
 }
 
-impl From<Exists<NNF>> for NNF {
-    fn from(value: Exists<NNF>) -> Self {
+impl From<Exists<Nnf>> for Nnf {
+    fn from(value: Exists<Nnf>) -> Self {
         Self::Exists(Box::new(value))
     }
 }
 
-impl From<Forall<NNF>> for NNF {
-    fn from(value: Forall<NNF>) -> Self {
+impl From<Forall<Nnf>> for Nnf {
+    fn from(value: Forall<Nnf>) -> Self {
         Self::Forall(Box::new(value))
     }
 }
 
-impl From<Literal<Complex>> for NNF {
+impl From<Literal<Complex>> for Nnf {
     fn from(value: Literal<Complex>) -> Self {
         Self::Literal(value)
     }
 }
 
-/// Is the trait of [`Formula`] types that can be transformed to [`NNF`].
-pub trait ToNNF: Formula {
+/// Is the trait of [`Formula`] types that can be transformed to [`Nnf`].
+pub trait ToNnf: Formula {
     /// Transforms `self` to a Negation Normal Form (NNF).
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
-    /// use razor_fol::transform::ToNNF;
+    /// # use razor_fol::syntax::Fof;
+    /// use razor_fol::transform::ToNnf;
     ///
-    /// let formula: FOF = "not (P(x) iff Q(y))".parse().unwrap();
+    /// let formula: Fof = "not (P(x) iff Q(y))".parse().unwrap();
     /// let nnf = formula.nnf();
     ///
     /// assert_eq!("(P(x) ∧ ¬Q(y)) ∨ (¬P(x) ∧ Q(y))", nnf.to_string());
     /// ```
-    fn nnf(&self) -> NNF;
+    fn nnf(&self) -> Nnf;
 }
 
-impl ToNNF for FOF {
-    fn nnf(&self) -> NNF {
+impl ToNnf for Fof {
+    fn nnf(&self) -> Nnf {
         nnf(self)
     }
 }
 
-impl<T: ToNNF> From<T> for NNF {
+impl<T: ToNnf> From<T> for Nnf {
     fn from(value: T) -> Self {
         value.nnf()
     }
 }
 
-impl NNF {
+impl Nnf {
     #[inline(always)]
     fn neg(atom: Atomic<Complex>) -> Self {
         Literal::Neg(atom).into()
@@ -155,17 +155,17 @@ impl NNF {
     }
 }
 
-impl Formula for NNF {
+impl Formula for Nnf {
     type Term = Complex;
 
     fn signature(&self) -> Result<Sig, Error> {
         match self {
-            NNF::Top | NNF::Bottom => Ok(Sig::default()),
-            NNF::Literal(this) => this.signature(),
-            NNF::And(this) => this.signature(),
-            NNF::Or(this) => this.signature(),
-            NNF::Exists(this) => this.signature(),
-            NNF::Forall(this) => this.signature(),
+            Nnf::Top | Nnf::Bottom => Ok(Sig::default()),
+            Nnf::Literal(this) => this.signature(),
+            Nnf::And(this) => this.signature(),
+            Nnf::Or(this) => this.signature(),
+            Nnf::Exists(this) => this.signature(),
+            Nnf::Forall(this) => this.signature(),
         }
     }
 
@@ -193,31 +193,31 @@ impl Formula for NNF {
     }
 }
 
-impl std::fmt::Display for NNF {
+impl std::fmt::Display for Nnf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
-impl FormulaEx for NNF {
+impl FormulaEx for Nnf {
     fn precedence(&self) -> u8 {
         match self {
-            NNF::Top | NNF::Bottom => PRECEDENCE_ATOM,
-            NNF::Literal(this) => this.precedence(),
-            NNF::And(this) => this.precedence(),
-            NNF::Or(this) => this.precedence(),
-            NNF::Exists(this) => this.precedence(),
-            NNF::Forall(this) => this.precedence(),
+            Nnf::Top | Nnf::Bottom => PRECEDENCE_ATOM,
+            Nnf::Literal(this) => this.precedence(),
+            Nnf::And(this) => this.precedence(),
+            Nnf::Or(this) => this.precedence(),
+            Nnf::Exists(this) => this.precedence(),
+            Nnf::Forall(this) => this.precedence(),
         }
     }
 }
 
-impl From<NNF> for FOF {
-    fn from(value: NNF) -> Self {
+impl From<Nnf> for Fof {
+    fn from(value: Nnf) -> Self {
         match value {
-            NNF::Top => Self::Top,
-            NNF::Bottom => Self::Bottom,
-            NNF::Literal(lit) => match lit {
+            Nnf::Top => Self::Top,
+            Nnf::Bottom => Self::Bottom,
+            Nnf::Literal(lit) => match lit {
                 Literal::Pos(pos) => match pos {
                     Atomic::Atom(this) => this.into(),
                     Atomic::Equals(this) => this.into(),
@@ -227,63 +227,63 @@ impl From<NNF> for FOF {
                     Atomic::Equals(this) => Self::not(this.into()),
                 },
             },
-            NNF::And(this) => Self::from(this.left).and(this.right.into()),
-            NNF::Or(this) => Self::from(this.left).or(this.right.into()),
-            NNF::Exists(this) => Self::exists(this.variables, this.formula.into()),
-            NNF::Forall(this) => Self::forall(this.variables, this.formula.into()),
+            Nnf::And(this) => Self::from(this.left).and(this.right.into()),
+            Nnf::Or(this) => Self::from(this.left).or(this.right.into()),
+            Nnf::Exists(this) => Self::exists(this.variables, this.formula.into()),
+            Nnf::Forall(this) => Self::forall(this.variables, this.formula.into()),
         }
     }
 }
 
-impl From<&NNF> for FOF {
-    fn from(value: &NNF) -> Self {
+impl From<&Nnf> for Fof {
+    fn from(value: &Nnf) -> Self {
         value.clone().into()
     }
 }
 
 // Recursively pushes negation in the formula.
 #[inline]
-fn push_not(formula: &FOF) -> NNF {
+fn push_not(formula: &Fof) -> Nnf {
     match formula {
-        FOF::Top => NNF::Bottom,
-        FOF::Bottom => NNF::Top,
-        FOF::Atom(this) => NNF::neg(this.clone().into()),
-        FOF::Equals(this) => NNF::neg(this.clone().into()),
-        FOF::Not(this) => nnf(&this.formula),
-        FOF::And(this) => nnf(&FOF::not(this.left.clone())).or(nnf(&FOF::not(this.right.clone()))),
-        FOF::Or(this) => nnf(&FOF::not(this.left.clone())).and(nnf(&FOF::not(this.right.clone()))),
-        FOF::Implies(this) => nnf(&this.premise).and(nnf(&FOF::not(this.consequence.clone()))),
-        FOF::Iff(this) => {
-            let left_and_not_right = nnf(&this.left).and(nnf(&FOF::not(this.right.clone())));
-            let not_left_and_right = nnf(&FOF::not(this.left.clone())).and(nnf(&this.right));
+        Fof::Top => Nnf::Bottom,
+        Fof::Bottom => Nnf::Top,
+        Fof::Atom(this) => Nnf::neg(this.clone().into()),
+        Fof::Equals(this) => Nnf::neg(this.clone().into()),
+        Fof::Not(this) => nnf(&this.formula),
+        Fof::And(this) => nnf(&Fof::not(this.left.clone())).or(nnf(&Fof::not(this.right.clone()))),
+        Fof::Or(this) => nnf(&Fof::not(this.left.clone())).and(nnf(&Fof::not(this.right.clone()))),
+        Fof::Implies(this) => nnf(&this.premise).and(nnf(&Fof::not(this.consequence.clone()))),
+        Fof::Iff(this) => {
+            let left_and_not_right = nnf(&this.left).and(nnf(&Fof::not(this.right.clone())));
+            let not_left_and_right = nnf(&Fof::not(this.left.clone())).and(nnf(&this.right));
             left_and_not_right.or(not_left_and_right)
         }
-        FOF::Exists(this) => {
-            NNF::forall(this.variables.clone(), nnf(&FOF::not(this.formula.clone())))
+        Fof::Exists(this) => {
+            Nnf::forall(this.variables.clone(), nnf(&Fof::not(this.formula.clone())))
         }
-        FOF::Forall(this) => {
-            NNF::exists(this.variables.clone(), nnf(&FOF::not(this.formula.clone())))
+        Fof::Forall(this) => {
+            Nnf::exists(this.variables.clone(), nnf(&Fof::not(this.formula.clone())))
         }
     }
 }
 
-fn nnf(fmla: &FOF) -> NNF {
+fn nnf(fmla: &Fof) -> Nnf {
     match fmla {
-        FOF::Top => NNF::Top,
-        FOF::Bottom => NNF::Bottom,
-        FOF::Atom(this) => this.clone().into(),
-        FOF::Equals(this) => this.clone().into(),
-        FOF::Not(this) => push_not(&this.formula),
-        FOF::And(this) => nnf(&this.left).and(nnf(&this.right)),
-        FOF::Or(this) => nnf(&this.left).or(nnf(&this.right)),
-        FOF::Implies(this) => nnf(&FOF::not(this.premise.clone())).or(nnf(&this.consequence)),
-        FOF::Iff(this) => {
-            let not_left_or_right = nnf(&FOF::not(this.left.clone())).or(nnf(&this.right));
-            let left_or_not_right = nnf(&this.left).or(nnf(&FOF::not(this.right.clone())));
+        Fof::Top => Nnf::Top,
+        Fof::Bottom => Nnf::Bottom,
+        Fof::Atom(this) => this.clone().into(),
+        Fof::Equals(this) => this.clone().into(),
+        Fof::Not(this) => push_not(&this.formula),
+        Fof::And(this) => nnf(&this.left).and(nnf(&this.right)),
+        Fof::Or(this) => nnf(&this.left).or(nnf(&this.right)),
+        Fof::Implies(this) => nnf(&Fof::not(this.premise.clone())).or(nnf(&this.consequence)),
+        Fof::Iff(this) => {
+            let not_left_or_right = nnf(&Fof::not(this.left.clone())).or(nnf(&this.right));
+            let left_or_not_right = nnf(&this.left).or(nnf(&Fof::not(this.right.clone())));
             not_left_or_right.and(left_or_not_right)
         }
-        FOF::Exists(this) => NNF::exists(this.variables.clone(), nnf(&this.formula)),
-        FOF::Forall(this) => NNF::forall(this.variables.clone(), nnf(&this.formula)),
+        Fof::Exists(this) => Nnf::exists(this.variables.clone(), nnf(&this.formula)),
+        Fof::Forall(this) => Nnf::forall(this.variables.clone(), nnf(&this.formula)),
     }
 }
 
@@ -299,182 +299,182 @@ mod tests {
         term, v,
     };
 
-    fn nnf(formula: &FOF) -> FOF {
+    fn nnf(formula: &Fof) -> Fof {
         formula.nnf().into()
     }
 
     #[test]
     fn test_nnf() {
         {
-            let formula: FOF = "true".parse().unwrap();
+            let formula: Fof = "true".parse().unwrap();
             assert_debug_string!("true", nnf(&formula));
         }
         {
-            let formula: FOF = "false".parse().unwrap();
+            let formula: Fof = "false".parse().unwrap();
             assert_debug_string!("false", nnf(&formula));
         }
         {
-            let formula: FOF = "P(x)".parse().unwrap();
+            let formula: Fof = "P(x)".parse().unwrap();
             assert_debug_string!("P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "x = y".parse().unwrap();
+            let formula: Fof = "x = y".parse().unwrap();
             assert_debug_string!("x = y", nnf(&formula));
         }
         {
-            let formula: FOF = "~P(x)".parse().unwrap();
+            let formula: Fof = "~P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "P(x) & Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) & Q(y)".parse().unwrap();
             assert_debug_string!("P(x) & Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "P(x) | Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) | Q(y)".parse().unwrap();
             assert_debug_string!("P(x) | Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "P(x) -> Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) -> Q(y)".parse().unwrap();
             assert_debug_string!("~P(x) | Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "P(x) <=> Q(y)".parse().unwrap();
+            let formula: Fof = "P(x) <=> Q(y)".parse().unwrap();
             assert_debug_string!("(~P(x) | Q(y)) & (P(x) | ~Q(y))", nnf(&formula));
         }
         {
-            let formula: FOF = "?x. P(x)".parse().unwrap();
+            let formula: Fof = "?x. P(x)".parse().unwrap();
             assert_debug_string!("? x. P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "!x. P(x)".parse().unwrap();
+            let formula: Fof = "!x. P(x)".parse().unwrap();
             assert_debug_string!("! x. P(x)", nnf(&formula));
         }
         // sanity checking
         {
-            let formula: FOF = "~true".parse().unwrap();
+            let formula: Fof = "~true".parse().unwrap();
             assert_debug_string!("false", nnf(&formula));
         }
         {
-            let formula: FOF = "~false".parse().unwrap();
+            let formula: Fof = "~false".parse().unwrap();
             assert_debug_string!("true", nnf(&formula));
         }
         {
-            let formula: FOF = "~~P(x)".parse().unwrap();
+            let formula: Fof = "~~P(x)".parse().unwrap();
             assert_debug_string!("P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~~P(x)".parse().unwrap();
+            let formula: Fof = "~~~P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~~~P(x)".parse().unwrap();
+            let formula: Fof = "~~~~P(x)".parse().unwrap();
             assert_debug_string!("P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~x = y".parse().unwrap();
+            let formula: Fof = "~~x = y".parse().unwrap();
             assert_debug_string!("x = y", nnf(&formula));
         }
         {
-            let formula: FOF = "~(P(x) & Q(y))".parse().unwrap();
+            let formula: Fof = "~(P(x) & Q(y))".parse().unwrap();
             assert_debug_string!("~P(x) | ~Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(P(x) | Q(y))".parse().unwrap();
+            let formula: Fof = "~(P(x) | Q(y))".parse().unwrap();
             assert_debug_string!("~P(x) & ~Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(P(x) -> Q(y))".parse().unwrap();
+            let formula: Fof = "~(P(x) -> Q(y))".parse().unwrap();
             assert_debug_string!("P(x) & ~Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(P(x) <=> Q(y))".parse().unwrap();
+            let formula: Fof = "~(P(x) <=> Q(y))".parse().unwrap();
             assert_debug_string!("(P(x) & ~Q(y)) | (~P(x) & Q(y))", nnf(&formula));
         }
         {
-            let formula: FOF = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
+            let formula: Fof = "(P(x) | Q(y)) -> R(z)".parse().unwrap();
             assert_debug_string!("(~P(x) & ~Q(y)) | R(z)", nnf(&formula));
         }
         {
-            let formula: FOF = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
+            let formula: Fof = "(P(x) | Q(y)) <=> R(z)".parse().unwrap();
             assert_debug_string!(
                 "((~P(x) & ~Q(y)) | R(z)) & ((P(x) | Q(y)) | ~R(z))",
                 nnf(&formula),
             );
         }
         {
-            let formula: FOF = "~?x. P(x)".parse().unwrap();
+            let formula: Fof = "~?x. P(x)".parse().unwrap();
             assert_debug_string!("! x. ~P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "~!x. P(x)".parse().unwrap();
+            let formula: Fof = "~!x. P(x)".parse().unwrap();
             assert_debug_string!("? x. ~P(x)", nnf(&formula));
         }
         // recursive application
         {
-            let formula: FOF = "~~P(x) & ~~Q(y)".parse().unwrap();
+            let formula: Fof = "~~P(x) & ~~Q(y)".parse().unwrap();
             assert_debug_string!("P(x) & Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~P(x) | ~~Q(y)".parse().unwrap();
+            let formula: Fof = "~~P(x) | ~~Q(y)".parse().unwrap();
             assert_debug_string!("P(x) | Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~P(x) -> ~~Q(y)".parse().unwrap();
+            let formula: Fof = "~~P(x) -> ~~Q(y)".parse().unwrap();
             assert_debug_string!("~P(x) | Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~P(x) <=> ~~Q(y)".parse().unwrap();
+            let formula: Fof = "~~P(x) <=> ~~Q(y)".parse().unwrap();
             assert_debug_string!("(~P(x) | Q(y)) & (P(x) | ~Q(y))", nnf(&formula));
         }
         {
-            let formula: FOF = "?x. ~~P(x)".parse().unwrap();
+            let formula: Fof = "?x. ~~P(x)".parse().unwrap();
             assert_debug_string!("? x. P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "!x. ~~P(x)".parse().unwrap();
+            let formula: Fof = "!x. ~~P(x)".parse().unwrap();
             assert_debug_string!("! x. P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "~~~P(x)".parse().unwrap();
+            let formula: Fof = "~~~P(x)".parse().unwrap();
             assert_debug_string!("~P(x)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~P(x) & ~Q(y))".parse().unwrap();
+            let formula: Fof = "~(~P(x) & ~Q(y))".parse().unwrap();
             assert_debug_string!("P(x) | Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~P(x) | ~Q(y))".parse().unwrap();
+            let formula: Fof = "~(~P(x) | ~Q(y))".parse().unwrap();
             assert_debug_string!("P(x) & Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~P(x) -> ~Q(y))".parse().unwrap();
+            let formula: Fof = "~(~P(x) -> ~Q(y))".parse().unwrap();
             assert_debug_string!("~P(x) & Q(y)", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~(P(x) & Q(x)) & ~(P(y) & Q(y)))".parse().unwrap();
+            let formula: Fof = "~(~(P(x) & Q(x)) & ~(P(y) & Q(y)))".parse().unwrap();
             assert_debug_string!("(P(x) & Q(x)) | (P(y) & Q(y))", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~(P(x) & Q(x)) | ~(P(y) & Q(y)))".parse().unwrap();
+            let formula: Fof = "~(~(P(x) & Q(x)) | ~(P(y) & Q(y)))".parse().unwrap();
             assert_debug_string!("(P(x) & Q(x)) & (P(y) & Q(y))", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~(P(x) & Q(x)) -> ~(P(y) & Q(y)))".parse().unwrap();
+            let formula: Fof = "~(~(P(x) & Q(x)) -> ~(P(y) & Q(y)))".parse().unwrap();
             assert_debug_string!("(~P(x) | ~Q(x)) & (P(y) & Q(y))", nnf(&formula));
         }
         {
-            let formula: FOF = "~(~(P(x) & Q(x)) <=> ~(P(y) & Q(y)))".parse().unwrap();
+            let formula: Fof = "~(~(P(x) & Q(x)) <=> ~(P(y) & Q(y)))".parse().unwrap();
             assert_debug_string!(
                 "((~P(x) | ~Q(x)) & (P(y) & Q(y))) | ((P(x) & Q(x)) & (~P(y) | ~Q(y)))",
                 nnf(&formula),
             );
         }
         {
-            let formula: FOF = "~?x. !y. (P(x) -> Q(y))".parse().unwrap();
+            let formula: Fof = "~?x. !y. (P(x) -> Q(y))".parse().unwrap();
             assert_debug_string!("! x. (? y. (P(x) & ~Q(y)))", nnf(&formula));
         }
         {
-            let formula: FOF = "~((?x. P(x)) & (!y. Q(y)))".parse().unwrap();
+            let formula: Fof = "~((?x. P(x)) & (!y. Q(y)))".parse().unwrap();
             assert_debug_string!("(! x. ~P(x)) | (? y. ~Q(y))", nnf(&formula));
         }
     }
@@ -509,7 +509,7 @@ mod tests {
         };
         assert_eq!(
             fof!({!x. {? y. {[P(z, y)] | [~(Q(z))]}}} & {[~(R(z, z))] | [R(@c)]}),
-            FOF::from(nnf.transform_term(&f))
+            Fof::from(nnf.transform_term(&f))
         );
     }
 

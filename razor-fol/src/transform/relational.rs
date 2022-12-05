@@ -1,10 +1,10 @@
 /*! Defines a relational formula and implements an algorithm for transforming compatible formula types
 to [`Relational`].*/
-use super::{PcfSet, PCF};
+use super::{Pcf, PcfSet};
 use crate::syntax::{
     formula::*,
     term::{Complex, Variable},
-    Const, Error, Formula, Func, Pred, Sig, Var, FOF,
+    Const, Error, Fof, Formula, Func, Pred, Sig, Var,
 };
 use itertools::Itertools;
 use std::{collections::HashMap, iter::FromIterator, ops::Deref};
@@ -93,7 +93,7 @@ impl Formula for FlatClause {
     }
 }
 
-impl From<FlatLiteral> for FOF {
+impl From<FlatLiteral> for Fof {
     fn from(value: FlatLiteral) -> Self {
         match value {
             Atomic::Atom(this) => Atom::<Complex> {
@@ -110,26 +110,26 @@ impl From<FlatLiteral> for FOF {
     }
 }
 
-impl From<FlatClause> for FOF {
+impl From<FlatClause> for Fof {
     fn from(value: FlatClause) -> Self {
         value
             .into_literals()
             .into_iter()
-            .map(FOF::from)
+            .map(Fof::from)
             .fold1(|item, acc| item.and(acc))
-            .unwrap_or(FOF::Top)
+            .unwrap_or(Fof::Top)
     }
 }
 
 /// Represents a relational formula as a Disjunctive Normal Form (DNF) over positive
 /// literals with flat terms. The primary use-case of this type is to transform
-/// positive formulae in the head and body of a [`GNF`] to relational expressions
+/// positive formulae in the head and body of a [`Gnf`] to relational expressions
 /// as database queries.
 ///
 /// **Hint**: A relational formula contains only (flat) variable terms with
 /// no functions nor constants.
 ///
-/// [`GNF`]: crate::transform::GNF
+/// [`Gnf`]: crate::transform::Gnf
 #[derive(Clone, Debug)]
 pub struct Relational(Vec<FlatClause>);
 
@@ -238,12 +238,12 @@ pub trait ToRelational: Formula {
     ///
     /// **Example**:
     /// ```rust    
-    /// # use razor_fol::syntax::{FOF, Const, Var, Func};
+    /// # use razor_fol::syntax::{Fof, Const, Var, Func};
     /// # use std::convert::TryFrom;
-    /// use razor_fol::transform::{GNF, ToRelational};
+    /// use razor_fol::transform::{Gnf, ToRelational};
     ///
-    /// let fof = "P(x) & Q(g(x)) -> (P(f(x)) & Q('c)) | R(x)".parse::<FOF>().unwrap();
-    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let fof = "P(x) & Q(g(x)) -> (P(f(x)) & Q('c)) | R(x)".parse::<Fof>().unwrap();
+    /// let gnf = Gnf::try_from(fof).unwrap();
     ///
     /// // The body and head of a GNF can be relationalized:
     /// let gnf_body = gnf.body();
@@ -307,12 +307,12 @@ pub trait ToRelational: Formula {
     ///
     /// **Example**:
     /// ```rust
-    /// # use razor_fol::syntax::FOF;
+    /// # use razor_fol::syntax::Fof;
     /// # use std::convert::TryFrom;
-    /// use razor_fol::transform::{GNF, ToRelational};
+    /// use razor_fol::transform::{Gnf, ToRelational};
     ///
-    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<FOF>().unwrap();
-    /// let gnf = GNF::try_from(fof).unwrap();
+    /// let fof = "P(x) -> P(f(x)) & Q('c)".parse::<Fof>().unwrap();
+    /// let gnf = Gnf::try_from(fof).unwrap();
     /// let gnf_head = gnf.head();
     /// let transformed = gnf_head.relational();
     /// assert_eq!(
@@ -333,7 +333,7 @@ pub trait ToRelational: Formula {
     }
 }
 
-impl ToRelational for PCF {
+impl ToRelational for Pcf {
     fn relational_with<VG, CG, FG>(
         &self,
         var_generator: &mut VG,
@@ -411,18 +411,18 @@ impl Formula for Relational {
     }
 }
 
-impl From<Relational> for FOF {
+impl From<Relational> for Fof {
     fn from(value: Relational) -> Self {
         value
             .into_clauses()
             .into_iter()
-            .map(FOF::from)
+            .map(Fof::from)
             .fold1(|item, acc| item.or(acc))
-            .unwrap_or(FOF::Bottom)
+            .unwrap_or(Fof::Bottom)
     }
 }
 
-impl From<&Relational> for FOF {
+impl From<&Relational> for Fof {
     fn from(value: &Relational) -> Self {
         value.clone().into()
     }
@@ -430,7 +430,7 @@ impl From<&Relational> for FOF {
 
 impl std::fmt::Display for Relational {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        FOF::from(self).fmt(f)
+        Fof::from(self).fmt(f)
     }
 }
 
@@ -522,7 +522,7 @@ where
 
 // Applies top level flattening on the input clause set.
 fn flatten_clause<VG, CG, FG>(
-    clause: &PCF,
+    clause: &Pcf,
     context: &mut FlatteningContext<VG, CG, FG>,
 ) -> FlatClause
 where
@@ -638,26 +638,26 @@ fn simplify_equations(clause_set: &Relational, generated_variables: &mut [Var]) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transform::GNF;
+    use crate::transform::Gnf;
     use std::convert::TryFrom;
 
     use crate::{
         assert_eq_sorted_vecs, fof,
         syntax::{signature::PredSig, Sig, EQ_SYM},
         term,
-        transform::{ToGNF, PCF},
+        transform::{Pcf, ToGnf},
         v,
     };
 
     // Assumes the input in GNF
-    fn clause_set(fof: FOF) -> Vec<PcfSet> {
+    fn clause_set(fof: Fof) -> Vec<PcfSet> {
         fof.gnf()
             .into_iter()
             .map(|f| f.into_body_and_head().1)
             .collect()
     }
 
-    fn flatten(fof: FOF) -> String {
+    fn flatten(fof: Fof) -> String {
         let mut var_counter = 0;
         let mut var_generator = || {
             let name = format!("?{}", var_counter);
@@ -679,7 +679,7 @@ mod tests {
                     ),
                 )
             })
-            .map(FOF::from)
+            .map(Fof::from)
             .collect::<Vec<_>>();
         format!("{:?}", rels)
     }
@@ -763,14 +763,14 @@ mod tests {
     fn test_relationalize() {
         use crate::{syntax::formula::*, term};
         {
-            let clause_set = PcfSet::from(vec![PCF::from(Equals {
+            let clause_set = PcfSet::from(vec![Pcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(y),
             })]);
             assert_eq!("$f(x, y)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![PCF::from(Equals {
+            let clause_set = PcfSet::from(vec![Pcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(g(y)),
             })]);
@@ -778,11 +778,11 @@ mod tests {
         }
         {
             let clause_set = PcfSet::from(vec![
-                PCF::from(Equals {
+                Pcf::from(Equals {
                     left: term!(f(x)),
                     right: term!(g(y)),
                 }),
-                PCF::from(Equals {
+                Pcf::from(Equals {
                     left: term!(f(x)),
                     right: term!(y),
                 }),
@@ -793,28 +793,28 @@ mod tests {
             );
         }
         {
-            let clause_set = PcfSet::from(vec![PCF::from(Atom {
+            let clause_set = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: Pred::from("P"),
                 terms: vec![term!(x), term!(f(y))],
             })]);
             assert_eq!("$f(y, ?0) ∧ P(x, ?0)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![PCF::from(Atom {
+            let clause_set = PcfSet::from(vec![Pcf::from(Atom {
                 predicate: Pred::from("P"),
                 terms: vec![term!(x), term!(f(x))],
             })]);
             assert_eq!("$f(x, ?0) ∧ P(x, ?0)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![PCF::from(Equals {
+            let clause_set = PcfSet::from(vec![Pcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(f(x)),
             })]);
             assert_eq!("$f(x, ?1) ∧ $f(x, ?1)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![PCF::from(vec![
+            let clause_set = PcfSet::from(vec![Pcf::from(vec![
                 Atom {
                     predicate: Pred::from("P"),
                     terms: vec![term!(f(x, y))],
@@ -833,11 +833,11 @@ mod tests {
         }
         {
             let clause_set = PcfSet::from(vec![
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: Pred::from("P"),
                     terms: vec![term!(f(x, y))],
                 }),
-                PCF::from(Atom {
+                Pcf::from(Atom {
                     predicate: Pred::from("Q"),
                     terms: vec![term!(f(x, y))],
                 }),
@@ -852,7 +852,7 @@ mod tests {
     #[test]
     fn relational_free_vars() {
         {
-            let gnf = GNF::try_from(fof!({'|'} -> {_|_})).unwrap();
+            let gnf = Gnf::try_from(fof!({'|'} -> {_|_})).unwrap();
             let (body, head) = gnf.into_body_and_head();
             let body = body.relational();
             let head = head.relational();
@@ -861,7 +861,7 @@ mod tests {
         }
         {
             // !! make sure the test gnf is not getting simplified by the conversion algorithm.
-            let gnf = GNF::try_from(
+            let gnf = Gnf::try_from(
                 fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}),
             )
             .unwrap();
@@ -881,7 +881,7 @@ mod tests {
 
     #[test]
     fn relational_transform() {
-        let gnf = GNF::try_from(
+        let gnf = Gnf::try_from(
             fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}),
         )
         .unwrap();
@@ -901,11 +901,11 @@ mod tests {
         let head = head.relational();
         assert_eq!(
             fof!([[P(z)] & [P(z)]] & [Q(z, y)]),
-            FOF::from(body.transform_term(&f))
+            Fof::from(body.transform_term(&f))
         );
         assert_eq!(
             fof!([(P(z)) & ([z] = [y])] | [Q(z, y)]),
-            FOF::from(head.transform_term(&f))
+            Fof::from(head.transform_term(&f))
         );
     }
 
@@ -933,7 +933,7 @@ mod tests {
                 })
                 .unwrap();
 
-            let gnf = GNF::try_from(
+            let gnf = Gnf::try_from(
                 fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}),
             )
             .unwrap();
@@ -944,7 +944,7 @@ mod tests {
             assert_eq!(sig_head, head.signature().unwrap());
         }
         {
-            let gnf = GNF::try_from(
+            let gnf = Gnf::try_from(
                 fof!({[[P(x)] & [Q(x, y)]] & [P(z, z)]} -> {[(P(x)) & ([z] = [y])] | [P(x, y)]}),
             )
             .unwrap();

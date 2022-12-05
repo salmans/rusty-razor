@@ -211,7 +211,7 @@ mod test_batch {
         bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
     };
     use crate::test_prelude::*;
-    use razor_fol::syntax::{Theory, FOF};
+    use razor_fol::syntax::{Fof, Theory};
     use std::collections::HashSet;
 
     static IGNORE_TEST: [&'static str; 1] = ["thy24.raz"];
@@ -263,7 +263,7 @@ mod test_batch {
         }
     }
 
-    fn run(theory: &Theory<FOF>) -> Vec<ColModel> {
+    fn run(theory: &Theory<Fof>) -> Vec<ColModel> {
         use crate::chase::r#impl::collapse::ColPreProcessor;
         use crate::chase::PreProcessor;
 
