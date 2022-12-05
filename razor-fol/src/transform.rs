@@ -10,8 +10,8 @@ mod relational;
 mod simplify;
 mod snf;
 
-pub use cnf::{ToCNF, CNF};
-pub use dnf::{ToDNF, DNF};
+pub use cnf::{CNFClauseSet, ToCNF, ToCNFClauseSet, CNF};
+pub use dnf::{DNFClauseSet, ToDNF, ToDNFClauseSet, DNF};
 pub use gnf::{PcfSet, ToGNF, GNF, PCF};
 pub use nnf::{ToNNF, NNF};
 pub use pnf::{ToPNF, PNF};

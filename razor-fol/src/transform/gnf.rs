@@ -1,9 +1,9 @@
 /*! Defines formulae in Geometric Normal Form (GNF) and implements an algorithm for
-transforming a [`CNF`] to a [`GNF`].
+transforming a [`CNFClauseSet`] to a [`GNF`].
 
-[`CNF`]: crate::transform::CNF
+[`CNFClauseSet`]: crate::transform::CNFClauseSet
 */
-use super::{ToCNF, CNF};
+use super::{ToSNF, SNF};
 use crate::syntax::{
     formula::{
         clause::{Clause, Literal},
@@ -368,15 +368,18 @@ pub trait ToGNF: Formula {
     fn gnf(&self) -> Vec<GNF>;
 }
 
-impl ToGNF for CNF {
+impl ToGNF for SNF {
     fn gnf(&self) -> Vec<GNF> {
-        self.iter().map(gnf).collect()
+        use super::ToCNFClauseSet;
+
+        let clauses = self.cnf_clause_set();
+        clauses.iter().map(gnf).collect()
     }
 }
 
-impl<T: ToCNF> ToGNF for T {
+impl<T: ToSNF> ToGNF for T {
     fn gnf(&self) -> Vec<GNF> {
-        self.cnf().gnf()
+        self.snf().gnf()
     }
 }
 
