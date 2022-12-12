@@ -12,7 +12,7 @@ mod snf;
 
 pub use cnf::{Cnf, CnfClauseSet, ToCnf, ToCnfClauseSet};
 pub use dnf::{Dnf, DnfClauseSet, ToDnf, ToDnfClauseSet};
-pub use gnf::{Gnf, Pcf, PcfSet, ToGnf};
+pub use gnf::{gnf_from_cnf, gnf_from_dnf, Epcf, EpcfSet, Gnf, Pcf, ToGnf};
 pub use nnf::{Nnf, ToNnf};
 pub use pnf::{Pnf, ToPnf};
 pub use relational::{FlatClause, Relational, ToRelational};

@@ -154,13 +154,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{fof, syntax::Fof, transform::PcfSet};
+    use crate::{fof, syntax::Fof, transform::EpcfSet};
 
     // Assumes the input in GNF
-    fn clause_set(fof: Fof) -> PcfSet {
+    fn clause_set(fof: Fof) -> EpcfSet {
         use std::convert::TryFrom;
 
-        PcfSet::try_from(fof).unwrap()
+        EpcfSet::try_from(fof).unwrap()
     }
 
     fn linear(fof: Fof) -> String {

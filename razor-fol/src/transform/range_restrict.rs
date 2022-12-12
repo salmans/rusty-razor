@@ -60,15 +60,15 @@ mod test {
     use crate::{
         fof,
         syntax::{Fof, Var},
-        transform::PcfSet,
+        transform::EpcfSet,
         v,
     };
 
     // Assumes the input in GNF
-    fn clause_set(fof: Fof) -> PcfSet {
+    fn clause_set(fof: Fof) -> EpcfSet {
         use std::convert::TryFrom;
 
-        PcfSet::try_from(fof).unwrap()
+        EpcfSet::try_from(fof).unwrap()
     }
 
     fn rr(fof: Fof, range: &[Var]) -> String {

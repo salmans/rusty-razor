@@ -514,9 +514,16 @@ impl From<Gnf> for BasicSequent {
         let free_vars = gnf.free_vars().into_iter().cloned().collect();
 
         let body = gnf_body.iter().cloned().collect();
+        // FIXME: this shuld work for existential quantifiers
         let head = gnf_head
             .iter()
-            .map(|h| h.iter().cloned().collect())
+            .map(|h| {
+                if !h.variables().is_empty() {
+                    unimplemented!("existential quantifiers not supported")
+                } else {
+                    h.pcf().iter().cloned().collect()
+                }
+            })
             .collect();
 
         Self {

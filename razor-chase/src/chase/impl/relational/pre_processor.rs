@@ -3,7 +3,7 @@ use crate::chase::PreProcessor;
 use itertools::Itertools;
 use razor_fol::{
     syntax::{formula::*, term::Complex, Fof, Sig, Theory, Var},
-    transform::{Gnf, Pcf, PcfSet},
+    transform::{Epcf, EpcfSet, Gnf, Pcf},
 };
 
 /// Is a [`PreProcessor`] instance that converts the input theory to a vector of [`Sequent`].
@@ -105,7 +105,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<Gnf> {
         }
         .into();
 
-        let gnf: Gnf = (Pcf::from(vec![c_x, c_y]), PcfSet::from(Pcf::from(x_y))).into();
+        let gnf: Gnf = (Pcf::from(vec![c_x, c_y]), EpcfSet::from(Epcf::from(x_y))).into();
         result.push(gnf);
     }
 
@@ -144,7 +144,7 @@ fn integrity_axioms(sig: &Sig) -> Vec<Gnf> {
         }
         .into();
 
-        let gnf: Gnf = (Pcf::from(left), PcfSet::from(Pcf::from(right))).into();
+        let gnf: Gnf = (Pcf::from(left), EpcfSet::from(Epcf::from(right))).into();
         result.push(gnf);
     }
 

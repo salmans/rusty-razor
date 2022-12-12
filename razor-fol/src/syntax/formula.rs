@@ -95,6 +95,31 @@ pub trait Formula {
     }
 }
 
+impl<F> Formula for Vec<F>
+where
+    F: Formula,
+{
+    type Term = F::Term;
+
+    fn signature(&self) -> Result<Sig, Error> {
+        let mut sig = Sig::default();
+        for s in self {
+            sig = sig.merge(s.signature()?)?;
+        }
+        Ok(sig)
+    }
+
+    fn free_vars(&self) -> Vec<&Var> {
+        let mut vars: Vec<_> = self.iter().flat_map(Formula::free_vars).sorted();
+        vars.dedup();
+        vars
+    }
+
+    fn transform_term(&self, f: &impl Fn(&Self::Term) -> Self::Term) -> Self {
+        self.iter().map(|fmla| fmla.transform_term(f)).collect()
+    }
+}
+
 // Extension to `Formula` for internal use only.
 pub trait FormulaEx: Formula {
     // Precedence of the formula, used for parenthesizing pretty printing.

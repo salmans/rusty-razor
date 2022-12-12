@@ -1,6 +1,6 @@
 /*! Defines a relational formula and implements an algorithm for transforming compatible formula types
 to [`Relational`].*/
-use super::{Pcf, PcfSet};
+use super::{Epcf, EpcfSet, Pcf};
 use crate::syntax::{
     formula::*,
     term::{Complex, Variable},
@@ -361,7 +361,29 @@ impl ToRelational for Pcf {
     }
 }
 
-impl ToRelational for PcfSet {
+// FIXME: this should axxount for existential quantifiers
+impl ToRelational for Epcf {
+    fn relational_with<VG, CG, FG>(
+        &self,
+        var_generator: &mut VG,
+        const_generator: &mut CG,
+        fn_generator: &mut FG,
+    ) -> Relational
+    where
+        VG: FnMut() -> Var,
+        CG: FnMut(&Const) -> Pred,
+        FG: FnMut(&Func) -> Pred,
+    {
+        if !self.variables().is_empty() {
+            unimplemented!("existential quantifiers aren't supported yet")
+        } else {
+            self.pcf()
+                .relational_with(var_generator, const_generator, fn_generator)
+        }
+    }
+}
+
+impl ToRelational for EpcfSet {
     fn relational_with<VG, CG, FG>(
         &self,
         var_generator: &mut VG,
@@ -482,7 +504,7 @@ where
 
 // Applies top level flattening on the input clause set of type `PCFSet`.
 fn flatten_clause_set<VG, CG, FG>(
-    clause_set: &PcfSet,
+    clause_set: &EpcfSet,
     context: &mut FlatteningContext<VG, CG, FG>,
 ) -> Relational
 where
@@ -490,9 +512,19 @@ where
     CG: FnMut(&Const) -> Pred,
     FG: FnMut(&Func) -> Pred,
 {
+    // FIXME: support existential quantifiers.
     clause_set
         .iter()
-        .map(|clause| flatten_clause(clause, context))
+        .map(|clause| {
+            flatten_clause(
+                if !clause.variables().is_empty() {
+                    unimplemented!("existential quantifiers aren't supported yet")
+                } else {
+                    clause.pcf()
+                },
+                context,
+            )
+        })
         .collect()
 }
 
@@ -650,7 +682,7 @@ mod tests {
     };
 
     // Assumes the input in GNF
-    fn clause_set(fof: Fof) -> Vec<PcfSet> {
+    fn clause_set(fof: Fof) -> Vec<EpcfSet> {
         fof.gnf()
             .into_iter()
             .map(|f| f.into_body_and_head().1)
@@ -763,29 +795,30 @@ mod tests {
     fn test_relationalize() {
         use crate::{syntax::formula::*, term};
         {
-            let clause_set = PcfSet::from(vec![Pcf::from(Equals {
+            let clause_set = EpcfSet::from(vec![Epcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(y),
             })]);
             assert_eq!("$f(x, y)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![Pcf::from(Equals {
+            let clause_set = EpcfSet::from(vec![Epcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(g(y)),
             })]);
             assert_eq!("$f(x, ?1) ∧ $g(y, ?1)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![
-                Pcf::from(Equals {
+            let clause_set = EpcfSet::from(vec![
+                Epcf::from(Equals {
                     left: term!(f(x)),
                     right: term!(g(y)),
                 }),
                 Pcf::from(Equals {
                     left: term!(f(x)),
                     right: term!(y),
-                }),
+                })
+                .into(),
             ]);
             assert_eq!(
                 "$f(x, y) ∨ ($f(x, ?2) ∧ $g(y, ?2))",
@@ -793,28 +826,28 @@ mod tests {
             );
         }
         {
-            let clause_set = PcfSet::from(vec![Pcf::from(Atom {
+            let clause_set = EpcfSet::from(vec![Epcf::from(Atom {
                 predicate: Pred::from("P"),
                 terms: vec![term!(x), term!(f(y))],
             })]);
             assert_eq!("$f(y, ?0) ∧ P(x, ?0)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![Pcf::from(Atom {
+            let clause_set = EpcfSet::from(vec![Epcf::from(Atom {
                 predicate: Pred::from("P"),
                 terms: vec![term!(x), term!(f(x))],
             })]);
             assert_eq!("$f(x, ?0) ∧ P(x, ?0)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![Pcf::from(Equals {
+            let clause_set = EpcfSet::from(vec![Epcf::from(Equals {
                 left: term!(f(x)),
                 right: term!(f(x)),
             })]);
             assert_eq!("$f(x, ?1) ∧ $f(x, ?1)", clause_set.relational().to_string());
         }
         {
-            let clause_set = PcfSet::from(vec![Pcf::from(vec![
+            let clause_set = EpcfSet::from(vec![Epcf::from(vec![
                 Atom {
                     predicate: Pred::from("P"),
                     terms: vec![term!(f(x, y))],
@@ -832,15 +865,16 @@ mod tests {
             );
         }
         {
-            let clause_set = PcfSet::from(vec![
-                Pcf::from(Atom {
+            let clause_set = EpcfSet::from(vec![
+                Epcf::from(Atom {
                     predicate: Pred::from("P"),
                     terms: vec![term!(f(x, y))],
                 }),
                 Pcf::from(Atom {
                     predicate: Pred::from("Q"),
                     terms: vec![term!(f(x, y))],
-                }),
+                })
+                .into(),
             ]);
             assert_eq!(
                 "($f(x, y, ?0) ∧ P(?0)) ∨ ($f(x, y, ?1) ∧ Q(?1))",

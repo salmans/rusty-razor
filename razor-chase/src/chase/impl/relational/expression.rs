@@ -526,9 +526,9 @@ mod tests {
 
     // Assumes the input in GNF
     fn relational(fof: Fof) -> Relational {
-        use razor_fol::transform::{PcfSet, ToRelational};
+        use razor_fol::transform::{EpcfSet, ToRelational};
 
-        PcfSet::try_from(fof).unwrap().relational()
+        EpcfSet::try_from(fof).unwrap().relational()
     }
 
     #[test]

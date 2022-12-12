@@ -3,4 +3,5 @@ members = [
   "razor-fol",
   "razor-chase",
   "razor",
+  "geometrizer",
 ]
