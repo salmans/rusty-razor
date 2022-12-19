@@ -1,40 +1,60 @@
 mod utils;
 
-use anyhow::{anyhow, Error};
-use razor_fol::{
-    syntax::Fof,
-    transform::{gnf_from_cnf, gnf_from_dnf, ToCnf, ToDnf, ToGnf},
+use anyhow::Error;
+use razor_fol::transform::{
+    gnf_from_cnf, gnf_from_dnf, GnfFromCnfContext, GnfFromDnfContext, ToCnf, ToDnf, ToGnf,
 };
 use utils::*;
 
 fn main() -> Result<(), Error> {
-    let input = read_theory_from_file("formula.input")?;
-    let formula = input.first().ok_or(anyhow!("missing formula"))?;
-    println!("input:\n{}", formula);
+    let theory = read_theory_from_file("formula.input")?;
+    println!("input:\n{}", theory);
 
     println!("--------------------------------");
     println!("from DNF:");
 
-    let dnf = formula.dnf();
-    let theory = gnf_from_dnf(dnf)
-        .into_iter()
-        .map(Fof::from)
-        .collect::<Vec<_>>();
-    theory.iter().for_each(|f| println!("{}", f));
+    let mut p_counter = 0;
+    let mut context = GnfFromDnfContext::new(move || {
+        let pred = format!("P#{}", p_counter).into();
+        p_counter += 1;
+        pred
+    });
+
+    theory
+        .iter()
+        .flat_map(|f| gnf_from_dnf(f.dnf(), &mut context))
+        .for_each(|f| println!("{}", f));
 
     println!("--------------------------------");
     println!("from CNF:");
 
-    let cnf = formula.cnf();
-    let theory = gnf_from_cnf(cnf)
+    let mut p_counter = 0;
+    let mut t_counter = 0;
+    let mut context = GnfFromCnfContext::new(
+        move || {
+            let pred = format!("P#{}", p_counter).into();
+            p_counter += 1;
+            pred
+        },
+        move || {
+            let pred = format!("T#{}", t_counter).into();
+            t_counter += 1;
+            pred
+        },
+    );
+
+    theory
+        .iter()
+        .flat_map(|f| gnf_from_cnf(f.cnf(), &mut context))
         .into_iter()
-        .map(Fof::from)
-        .collect::<Vec<_>>();
-    theory.iter().for_each(|f| println!("{}", f));
+        .for_each(|f| println!("{}", f));
 
     println!("--------------------------------");
     println!("After Skolemization:");
-    let theory = formula.gnf();
-    theory.iter().for_each(|f| println!("{}", f));
+    theory
+        .iter()
+        .flat_map(|f| f.gnf())
+        .into_iter()
+        .for_each(|f| println!("{}", f));
     Ok(())
 }

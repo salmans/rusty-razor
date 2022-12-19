@@ -565,20 +565,33 @@ fn gnf(clause: &Clause<Complex>) -> Gnf {
 }
 
 use super::Dnf;
-pub fn gnf_from_dnf(dnf: Dnf) -> Vec<Gnf> {
-    let mut c_counter = 0;
-    let generator = || {
-        let c = c_counter;
-        c_counter += 1;
-        format!("P#{}", c).into()
-    };
+use std::collections::HashSet;
+
+pub struct GnfFromDnfContext {
+    pred_generator: Box<dyn FnMut() -> Pred>,
+    neg_set: HashSet<Pred>,
+}
+
+impl GnfFromDnfContext {
+    pub fn new<P>(pred_generator: P) -> Self
+    where
+        P: FnMut() -> Pred + 'static,
+    {
+        Self {
+            pred_generator: Box::new(pred_generator),
+            neg_set: HashSet::new(),
+        }
+    }
+}
+
+pub fn gnf_from_dnf(dnf: Dnf, context: &mut GnfFromDnfContext) -> Vec<Gnf> {
     gnf_from_dnf_helper(
         Pcf::default(),
         dnf,
         Vec::new(),
         Vec::new(),
         Vec::new(),
-        generator,
+        context,
     )
 }
 
@@ -588,11 +601,11 @@ fn gnf_from_dnf_helper(
     mut univ_vars: Vec<Var>,
     exist_vars: Vec<Var>,
     mut theory: Vec<Gnf>,
-    mut generator: impl FnMut() -> Pred,
+    context: &mut GnfFromDnfContext,
 ) -> Vec<Gnf> {
     match dnf {
         Dnf::Clauses(c) => {
-            let (thy, new_clauses) = dnf_clause_set(c);
+            let (thy, new_clauses) = dnf_clause_set(c, context);
             theory.extend(thy);
             let epcf_set = new_clauses
                 .into_iter()
@@ -610,7 +623,7 @@ fn gnf_from_dnf_helper(
             theory
         }
         Dnf::Exists(exists) => {
-            let pred = generator();
+            let pred = (context.pred_generator)();
             univ_vars.extend(exists.variables.clone());
             let atom: Atom<Complex> = pred.app(univ_vars.iter().map(Into::into).collect());
             let head_pcf: Pcf = atom.into();
@@ -625,30 +638,23 @@ fn gnf_from_dnf_helper(
                 univ_vars,
                 exists.variables,
                 theory,
-                generator,
+                context,
             )
         }
         Dnf::Forall(forall) => {
             univ_vars.extend(forall.variables);
-            gnf_from_dnf_helper(
-                body,
-                forall.formula,
-                univ_vars,
-                Vec::new(),
-                theory,
-                generator,
-            )
+            gnf_from_dnf_helper(body, forall.formula, univ_vars, Vec::new(), theory, context)
         }
     }
 }
 
 use crate::syntax::formula::clause::ClauseSet;
-fn dnf_clause_set(clauses: ClauseSet<Complex>) -> (Vec<Gnf>, Vec<Vec<Atomic<Complex>>>) {
-    use std::collections::HashSet;
-
+fn dnf_clause_set(
+    clauses: ClauseSet<Complex>,
+    context: &mut GnfFromDnfContext,
+) -> (Vec<Gnf>, Vec<Vec<Atomic<Complex>>>) {
     let mut theory = Vec::<Gnf>::new();
     let mut new_clauses = Vec::new();
-    let mut neg_set = HashSet::new();
 
     for clause in clauses {
         let mut new_clause = Vec::new();
@@ -658,7 +664,7 @@ fn dnf_clause_set(clauses: ClauseSet<Complex>) -> (Vec<Gnf>, Vec<Vec<Atomic<Comp
                 Literal::Neg(l) => match l {
                     Atomic::Atom(a) => {
                         let pred: Pred = format!("N#{}", a.predicate.to_string()).into();
-                        if !neg_set.contains(&pred) {
+                        if !context.neg_set.contains(&pred) {
                             let arity = a.terms.len();
                             let terms = (0..arity)
                                 .into_iter()
@@ -674,13 +680,13 @@ fn dnf_clause_set(clauses: ClauseSet<Complex>) -> (Vec<Gnf>, Vec<Vec<Atomic<Comp
                                 )
                                     .into(),
                             );
-                            neg_set.insert(pred.clone());
+                            context.neg_set.insert(pred.clone());
                         }
                         new_clause.push(pred.app(a.terms).into());
                     }
                     Atomic::Equals(e) => {
                         let pred: Pred = "Neq#".into();
-                        if !neg_set.contains(&pred) {
+                        if !context.neg_set.contains(&pred) {
                             theory.push(
                                 (
                                     Pcf::from(vec![
@@ -700,6 +706,7 @@ fn dnf_clause_set(clauses: ClauseSet<Complex>) -> (Vec<Gnf>, Vec<Vec<Atomic<Comp
                                 )
                                     .into(),
                             );
+                            context.neg_set.insert(pred.clone());
                         }
                         new_clause.push(pred.app(vec![e.left, e.right]).into());
                     }
@@ -712,20 +719,32 @@ fn dnf_clause_set(clauses: ClauseSet<Complex>) -> (Vec<Gnf>, Vec<Vec<Atomic<Comp
 }
 
 use super::Cnf;
-pub fn gnf_from_cnf(cnf: Cnf) -> Vec<Gnf> {
-    let mut c_counter = 0;
-    let generator = || {
-        let c = c_counter;
-        c_counter += 1;
-        format!("P#{}", c).into()
-    };
+pub struct GnfFromCnfContext {
+    pred_generator: Box<dyn FnMut() -> Pred>,
+    trigger_generator: Box<dyn FnMut() -> Pred>,
+}
+
+impl GnfFromCnfContext {
+    pub fn new<P, T>(pred_generator: P, trigger_generator: T) -> Self
+    where
+        P: FnMut() -> Pred + 'static,
+        T: FnMut() -> Pred + 'static,
+    {
+        Self {
+            pred_generator: Box::new(pred_generator),
+            trigger_generator: Box::new(trigger_generator),
+        }
+    }
+}
+
+pub fn gnf_from_cnf(cnf: Cnf, context: &mut GnfFromCnfContext) -> Vec<Gnf> {
     gnf_from_cnf_helper(
         Pcf::default(),
         cnf,
         Vec::new(),
         Vec::new(),
         Vec::new(),
-        generator,
+        context,
     )
 }
 
@@ -735,11 +754,11 @@ fn gnf_from_cnf_helper(
     mut univ_vars: Vec<Var>,
     exist_vars: Vec<Var>,
     mut theory: Vec<Gnf>,
-    mut generator: impl FnMut() -> Pred,
+    context: &mut GnfFromCnfContext,
 ) -> Vec<Gnf> {
     match cnf {
         Cnf::Clauses(c) => {
-            let (thy, new_clause) = cnf_clause_set(c);
+            let (thy, new_clause) = cnf_clause_set(c, context);
             theory.extend(thy);
             let epcf = Epcf {
                 variables: exist_vars,
@@ -749,7 +768,7 @@ fn gnf_from_cnf_helper(
             theory
         }
         Cnf::Exists(exists) => {
-            let pred = generator();
+            let pred = (context.pred_generator)();
             univ_vars.extend(exists.variables.clone());
             let atom: Atom<Complex> = pred.app(univ_vars.iter().map(Into::into).collect());
             let head_pcf: Pcf = atom.into();
@@ -764,32 +783,25 @@ fn gnf_from_cnf_helper(
                 univ_vars,
                 exists.variables,
                 theory,
-                generator,
+                context,
             )
         }
         Cnf::Forall(forall) => {
             univ_vars.extend(forall.variables);
-            gnf_from_cnf_helper(
-                body,
-                forall.formula,
-                univ_vars,
-                Vec::new(),
-                theory,
-                generator,
-            )
+            gnf_from_cnf_helper(body, forall.formula, univ_vars, Vec::new(), theory, context)
         }
     }
 }
 
-fn cnf_clause_set(clauses: ClauseSet<Complex>) -> (Vec<Gnf>, Vec<Atomic<Complex>>) {
+fn cnf_clause_set(
+    clauses: ClauseSet<Complex>,
+    context: &mut GnfFromCnfContext,
+) -> (Vec<Gnf>, Vec<Atomic<Complex>>) {
     let mut theory = Vec::<Gnf>::new();
     let mut triggers = Vec::new();
 
-    let mut counter = 0;
-
     for clause in clauses {
-        let trigger_pred: Pred = format!("N#{}", counter).into();
-        counter += 1;
+        let trigger_pred = (context.trigger_generator)();
         let trigger: Atomic<Complex> = trigger_pred
             .app(clause.free_vars().into_iter().map(Into::into).collect())
             .into();
