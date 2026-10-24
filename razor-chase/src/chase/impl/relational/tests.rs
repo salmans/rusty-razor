@@ -827,8 +827,9 @@ fn restricted_models_are_homomorphically_minimal_on_core_fixtures() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Differential testing on random geometric theories: within a domain bound, the restricted
-// chase and the basic implementation must return models of the theory that support each other. Only a run the bound did not cut is a set of support for all models.
+// Differential testing on random geometric and first-order theories: within a domain bound,
+// the restricted chase and the basic implementation must return models of the theory that
+// support each other. Only a run the bound did not cut is a set of support for all models.
 
 /// A seeded xorshift64* source of choices, so a theory is reproducible from its seed.
 struct Dice(u64);
@@ -856,19 +857,58 @@ impl Dice {
     }
 }
 
+/// The first-order shapes a draw may produce beyond geometric sequents. The default produces
+/// none of them, so a draw under it is a geometric theory.
+#[derive(Clone, Copy, Default)]
+struct Shapes {
+    /// A nested existential conjunct in a head: `exists z. (P(z) & exists w. Q(z, w))`.
+    nested_existentials: bool,
+    /// A universal conjunct in a head, also under an existential:
+    /// `exists z. (P(z) & forall u. (Q(u, z) | R(u)))`.
+    head_universals: bool,
+    /// An implication conjunct in a head, so an existential occurs negatively in its scope:
+    /// `exists z. (P(z) & (Q(z) -> R(z)))`.
+    head_implications: bool,
+    /// A formula with no body, so an existential may stand at its top: `exists z. P(z)`.
+    bodiless: bool,
+}
+
+impl Shapes {
+    /// Every shape on.
+    fn first_order() -> Self {
+        Self {
+            nested_existentials: true,
+            head_universals: true,
+            head_implications: true,
+            bodiless: true,
+        }
+    }
+}
+
+/// The variable an existential binds at each nesting depth, so no binder shadows another.
+const EXISTENTIALS: [&str; 2] = ["z", "w"];
+/// The variable a universal in a head binds.
+const UNIVERSAL: &str = "u";
+
 /// Draws a theory over predicates `P`, `Q`, `R` (each of arity 1 or 2, fixed per theory), the
-/// function `f/1`, the constants `'a`, `'b` and the variables `x`, `y` (universal) and `z`
-/// (existential, in heads only).
+/// function `f/1`, the constants `'a`, `'b`, the variables `x`, `y` (universal in a body), and
+/// in heads the variables of `EXISTENTIALS` and `UNIVERSAL`, nested at most one deep. `shapes`
+/// adds first-order shapes to the geometric sequents.
 struct TheoryDraw {
     dice: Dice,
     arity: [usize; 3],
+    shapes: Shapes,
 }
 
 impl TheoryDraw {
-    fn new(seed: u64) -> Self {
+    fn new(seed: u64, shapes: Shapes) -> Self {
         let mut dice = Dice::new(seed);
         let arity = [1 + dice.below(2), 1 + dice.below(2), 1 + dice.below(2)];
-        Self { dice, arity }
+        Self {
+            dice,
+            arity,
+            shapes,
+        }
     }
 
     /// A leaf of `leaves`, under `f` one time in four; the variables used go into `used`.
@@ -910,23 +950,108 @@ impl TheoryDraw {
         atoms.join(" & ")
     }
 
-    /// A conjunction over `vars`, existentially quantified over `z` half the time `z` occurs.
-    fn disjunct(&mut self, vars: &[&'static str]) -> String {
+    /// A conjunction over `vars` and the constants.
+    fn disjunct(&mut self, vars: &[&'static str], used: &mut BTreeSet<&'static str>) -> String {
         let mut leaves = vars.to_vec();
         leaves.extend(["'a", "'b"]);
+        self.existential(&leaves, 0, used)
+    }
+
+    /// A conjunction over `leaves`, existentially quantified over the existential of `depth`
+    /// half the time it occurs, with the conjuncts of `shapes` at the outer depth.
+    fn existential(
+        &mut self,
+        leaves: &[&'static str],
+        depth: usize,
+        used: &mut BTreeSet<&'static str>,
+    ) -> String {
+        let z = EXISTENTIALS[depth];
+        let mut leaves = leaves.to_vec();
         if self.dice.one_in(2) {
-            leaves.extend(["z", "z"]);
+            leaves.extend([z, z]);
         }
-        let mut used = BTreeSet::new();
-        let conjunction = self.conjunction(2, &leaves, &mut used);
-        if used.contains("z") {
-            format!("(exists z. ({}))", conjunction)
+        let mut inner = BTreeSet::new();
+        let mut conjuncts = vec![self.conjunction(2 - depth, &leaves, &mut inner)];
+        if depth == 0 {
+            conjuncts.extend(self.nested(&leaves, &mut inner));
+        }
+        let conjunction = conjuncts.join(" & ");
+        let bound = inner.remove(z);
+        used.extend(inner);
+        if bound {
+            format!("(exists {}. ({}))", z, conjunction)
         } else {
             format!("({})", conjunction)
         }
     }
 
-    fn sequent(&mut self) -> String {
+    /// The conjuncts `shapes` nests in a head over `leaves`, each drawn independently.
+    fn nested(
+        &mut self,
+        leaves: &[&'static str],
+        used: &mut BTreeSet<&'static str>,
+    ) -> Vec<String> {
+        let mut conjuncts = Vec::new();
+        if self.shapes.nested_existentials && self.dice.one_in(4) {
+            conjuncts.push(self.existential(leaves, 1, used));
+        }
+        if self.shapes.head_universals && self.dice.one_in(6) {
+            conjuncts.push(self.universal(leaves, used));
+        }
+        if self.shapes.head_implications && self.dice.one_in(4) {
+            let premise = self.atom(leaves, used);
+            let consequence = self.atom(leaves, used);
+            conjuncts.push(format!("({} -> {})", premise, consequence));
+        }
+        conjuncts
+    }
+
+    /// A disjunction of one or two existentials over `leaves` and a universal, quantified when
+    /// it occurs.
+    fn universal(&mut self, leaves: &[&'static str], used: &mut BTreeSet<&'static str>) -> String {
+        let u = UNIVERSAL;
+        let mut leaves = leaves.to_vec();
+        leaves.extend([u, u]);
+        let mut inner = BTreeSet::new();
+        let disjuncts: Vec<String> = (0..1 + self.dice.one_in(3) as usize)
+            .map(|_| self.existential(&leaves, 1, &mut inner))
+            .collect();
+        let disjunction = disjuncts.join(" | ");
+        let bound = inner.remove(u);
+        used.extend(inner);
+        if bound {
+            format!("(forall {}. ({}))", u, disjunction)
+        } else {
+            format!("({})", disjunction)
+        }
+    }
+
+    /// One or two disjuncts over `vars`; the free variables used go into `used`.
+    fn head(&mut self, vars: &[&'static str], used: &mut BTreeSet<&'static str>) -> String {
+        let head: Vec<String> = (0..1 + self.dice.below(2))
+            .map(|_| self.disjunct(vars, used))
+            .collect();
+        head.join(" | ")
+    }
+
+    /// `sentence` universally quantified over `vars`.
+    fn close(vars: &[&'static str], sentence: String) -> String {
+        if vars.is_empty() {
+            sentence
+        } else {
+            format!("forall {}. ({})", vars.join(", "), sentence)
+        }
+    }
+
+    /// A sequent, or one time in four under `shapes.bodiless`, a head on its own.
+    fn sentence(&mut self) -> String {
+        if self.shapes.bodiless && self.dice.one_in(4) {
+            let vars: &[&'static str] = if self.dice.one_in(2) { &["x"] } else { &[] };
+            let mut used = BTreeSet::new();
+            let head = self.head(vars, &mut used);
+            let used: Vec<&'static str> = used.into_iter().collect();
+            return Self::close(&used, head);
+        }
         let mut vars = BTreeSet::new();
         let body = match self.dice.below(3) {
             0 => "true".to_string(),
@@ -936,26 +1061,24 @@ impl TheoryDraw {
                 .join(" & "),
         };
         let vars: Vec<&'static str> = vars.into_iter().collect();
-        let head: Vec<String> = (0..1 + self.dice.below(2))
-            .map(|_| self.disjunct(&vars))
-            .collect();
-        let sequent = format!("{} -> {}", body, head.join(" | "));
-        if vars.is_empty() {
-            sequent
-        } else {
-            format!("forall {}. ({})", vars.join(", "), sequent)
-        }
+        let head = self.head(&vars, &mut BTreeSet::new());
+        Self::close(&vars, format!("{} -> {}", body, head))
     }
 
     fn theory(mut self) -> String {
         let n = 2 + self.dice.below(4);
-        (0..n).map(|_| self.sequent() + ";\n").collect()
+        (0..n).map(|_| self.sentence() + ";\n").collect()
     }
 }
 
-/// The text of the random theory of `seed`.
+/// The text of the random geometric theory of `seed`.
 fn random_theory(seed: u64) -> String {
-    TheoryDraw::new(seed).theory()
+    TheoryDraw::new(seed, Shapes::default()).theory()
+}
+
+/// The text of the random first-order theory of `seed`, with every shape of `Shapes`.
+fn random_first_order_theory(seed: u64) -> String {
+    TheoryDraw::new(seed, Shapes::first_order()).theory()
 }
 
 #[test]
@@ -1008,11 +1131,10 @@ impl Outcome {
     }
 }
 
-/// Checks that the restricted chase and basic agree on `text` within the domain bound, and
-/// tells whether neither run was cut by it.
-fn differential(text: &str) -> Result<bool, String> {
+/// Checks that the restricted chase and basic agree on `text` within `bound`, and tells
+/// whether neither run was cut by it.
+fn differential(text: &str, bound: DomainSize) -> Result<bool, String> {
     let theory: Theory<FOF> = text.parse().map_err(|e| format!("parse: {:?}", e))?;
-    let bound = DomainSize(4);
     let basic = Outcome::new("basic", &theory, run_basic_bounded(&theory, &bound))?;
     let restricted = Outcome::new("restricted", &theory, run_db(&theory, &bound))?;
     basic.supports(&restricted)?;
@@ -1033,16 +1155,16 @@ fn guarded<T: Send + 'static>(
     })
 }
 
-#[test]
-fn random_theories_agree_with_basic() {
-    const SEEDS: u64 = 300;
+/// Runs `differential` within `bound` on the theories `draw` gives seeds `0..seeds`, failing
+/// on any disagreement, panic or timeout.
+fn agree_with_basic(draw: fn(u64) -> String, seeds: u64, bound: DomainSize) {
     let mut failures = Vec::new();
     let mut uncut = 0;
-    for seed in 0..SEEDS {
-        let text = random_theory(seed);
+    for seed in 0..seeds {
+        let text = draw(seed);
         let theory = text.clone();
         let verdict = guarded(std::time::Duration::from_secs(10), move || {
-            differential(&theory)
+            differential(&theory, bound)
         });
         match verdict.and_then(|v| v) {
             Ok(whole) => uncut += whole as usize,
@@ -1051,11 +1173,67 @@ fn random_theories_agree_with_basic() {
     }
     println!(
         "{} of {} seeds agree, no engine was cut on {}",
-        SEEDS - failures.len() as u64,
-        SEEDS,
+        seeds - failures.len() as u64,
+        seeds,
         uncut
     );
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
+}
+
+#[test]
+fn random_theories_agree_with_basic() {
+    agree_with_basic(random_theory, 300, DomainSize(4));
+}
+
+#[test]
+fn random_first_order_theory_is_reproducible() {
+    assert_eq!(random_first_order_theory(7), random_first_order_theory(7));
+    assert_eq!(
+        "(Q('a) & (forall u. ((P(u)) | (exists w. (R(w)))))) | (exists z. (Q(f(z)) & ((z = z))));\n\
+         forall x. (R('b) & R(f(x)) -> (P('b) & (exists w. (Q(w))) & (Q(f('a)) -> Q('a))) | \
+         (exists z. (f(z) = z & (Q(z)) & ((exists w. (f(w) = z))))));\n",
+        random_first_order_theory(7)
+    );
+}
+
+/// Head universals branch once per element, so the bound is one smaller than for geometric
+/// theories to keep the oracle fast.
+///
+/// Ignored: Skolemization and the conversion to geometric form return models that do not
+/// satisfy the theory on seeds 47, 132 and 236 (`a_skolem_term_in_a_body_names_an_element`)
+/// and 7, 228 and 233 (`an_existential_beside_a_head_universal_fires_without_elements`).
+#[test]
+#[ignore]
+fn random_first_order_theories_agree_with_basic() {
+    agree_with_basic(random_first_order_theory, 300, DomainSize(3));
+}
+
+// Conversion bugs found by `random_first_order_theories_agree_with_basic`, reduced by hand.
+
+/// Panics unless both engines return only models of `text`.
+fn assert_both_satisfy(text: &str) {
+    let theory: Theory<FOF> = text.parse().unwrap();
+    check_all(text, &theory, &run_basic(&theory));
+    let (complete, incomplete) = run_db(&theory, &Unbounded);
+    assert!(incomplete.is_empty(), "{}", text);
+    check_all(text, &theory, &complete);
+}
+
+/// Skolemizing `exists z. (P(z) -> Q(z))` puts its Skolem constant only in a body, so no
+/// sequent ever creates the element and the model keeps `P('a)` without a witness.
+#[test]
+#[ignore]
+fn a_skolem_term_in_a_body_names_an_element() {
+    assert_both_satisfy("P('a); exists z. (P(z) -> Q(z));");
+}
+
+/// Prenexing scopes `exists z` under `forall u`, so `z` becomes a Skolem function of `u`, a
+/// variable of the head alone; with no elements the sequent never fires and the empty model
+/// is returned.
+#[test]
+#[ignore]
+fn an_existential_beside_a_head_universal_fires_without_elements() {
+    assert_both_satisfy("(R('a) & forall u. P(u)) | exists z. Q(z);");
 }
 
 // Engine bugs found by `random_theories_agree_with_basic`, reduced by hand.
