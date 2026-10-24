@@ -22,15 +22,10 @@ type FlatLiteral = Atomic<Variable>;
 ///
 /// [`Clause`]: crate::syntax::formula::clause::Clause
 /// [`BTreeSet`]: std::collections::BTreeSet
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FlatClause(Vec<FlatLiteral>);
 
 impl FlatClause {
-    /// Returns the list of literals of `self`.
-    pub fn literals(&self) -> &[FlatLiteral] {
-        &self.0
-    }
-
     /// Consumes `self` and returns its underlying list of literals.
     pub fn into_literals(self) -> Vec<FlatLiteral> {
         self.0
@@ -70,12 +65,6 @@ impl IntoIterator for FlatClause {
 impl From<Vec<FlatLiteral>> for FlatClause {
     fn from(value: Vec<FlatLiteral>) -> Self {
         Self(value)
-    }
-}
-
-impl Default for FlatClause {
-    fn default() -> Self {
-        Self(Vec::new())
     }
 }
 
@@ -122,7 +111,7 @@ impl From<FlatClause> for FOF {
             .into_literals()
             .into_iter()
             .map(FOF::from)
-            .fold1(|item, acc| item.and(acc))
+            .reduce(|item, acc| item.and(acc))
             .unwrap_or(FOF::Top)
     }
 }
@@ -168,11 +157,6 @@ impl From<Vec<FlatClause>> for Relational {
 }
 
 impl Relational {
-    /// Returns the clauses of `self`.
-    pub fn clauses(&self) -> &[FlatClause] {
-        &self.0
-    }
-
     /// Consumes `self` and returns its underlying clauses.
     pub fn into_clauses(self) -> Vec<FlatClause> {
         self.0
@@ -302,7 +286,7 @@ pub trait ToRelational: Formula {
     /// the following rewrites on `self`:
     ///   * A constant `'c` rewrites to a predicate `C(x)`.
     ///   * A complex term `f(x_1, ..., x_n)` rewrites to a fresh variable `v` and an atomic
-    /// formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
+    ///     formula `F(x_1, ..., x_n, v)` is conjoined with the input formula.
     ///
     /// In the resulting formula, the new (placeholder) variables are sorted topologically from
     /// left to right with the dependency between variables as the ordering relation as follows:
@@ -423,7 +407,7 @@ impl From<Relational> for FOF {
             .into_clauses()
             .into_iter()
             .map(FOF::from)
-            .fold1(|item, acc| item.or(acc))
+            .reduce(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
     }
 }
@@ -650,17 +634,13 @@ mod tests {
     use crate::{
         assert_eq_sorted_vecs, fof,
         syntax::{signature::PredSig, Sig, EQ_SYM},
-        term,
         transform::{ToGNF, PCF},
         v,
     };
 
     // Assumes the input in GNF
     fn clause_set(fof: FOF) -> Vec<PcfSet> {
-        fof.gnf()
-            .into_iter()
-            .map(|f| f.into_body_and_head().1)
-            .collect()
+        fof.gnf().into_iter().map(|f| f.head().clone()).collect()
     }
 
     fn flatten(fof: FOF) -> String {
@@ -859,7 +839,7 @@ mod tests {
     fn relational_free_vars() {
         {
             let gnf = GNF::try_from(fof!({'|'} -> {_|_})).unwrap();
-            let (body, head) = gnf.into_body_and_head();
+            let (body, head) = (gnf.body(), gnf.head());
             let body = body.relational();
             let head = head.relational();
             assert_eq!(Vec::<&Var>::new(), body.free_vars());
@@ -871,15 +851,15 @@ mod tests {
                 fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}),
             )
             .unwrap();
-            let (body, head) = gnf.into_body_and_head();
+            let (body, head) = (gnf.body(), gnf.head());
             let body = body.relational();
             let head = head.relational();
             assert_eq_sorted_vecs!(
-                vec![v!(x), v!(y), v!(z)].iter().collect::<Vec<_>>(),
+                [v!(x), v!(y), v!(z)].iter().collect::<Vec<_>>(),
                 body.free_vars()
             );
             assert_eq_sorted_vecs!(
-                vec![v!(x), v!(y), v!(z)].iter().collect::<Vec<_>>(),
+                [v!(x), v!(y), v!(z)].iter().collect::<Vec<_>>(),
                 head.free_vars()
             );
         }
@@ -892,17 +872,14 @@ mod tests {
         )
         .unwrap();
         let f = |t: &Variable| {
-            {
-                if *t == Var::from("x").into() {
-                    Var::from("z").into()
-                } else {
-                    t.clone()
-                }
+            if *t == Var::from("x").into() {
+                Var::from("z").into()
+            } else {
+                t.clone()
             }
-            .into()
         };
 
-        let (body, head) = gnf.into_body_and_head();
+        let (body, head) = (gnf.body(), gnf.head());
         let body = body.relational();
         let head = head.relational();
         assert_eq!(
@@ -943,7 +920,7 @@ mod tests {
                 fof!({[[P(x)] & [Q(x, y)]] & [P(z)]} -> {[(P(x)) & ([z] = [y])] | [Q(x, y)]}),
             )
             .unwrap();
-            let (body, head) = gnf.into_body_and_head();
+            let (body, head) = (gnf.body(), gnf.head());
             let body = body.relational();
             let head = head.relational();
             assert_eq!(sig_body, body.signature().unwrap());
@@ -954,7 +931,7 @@ mod tests {
                 fof!({[[P(x)] & [Q(x, y)]] & [P(z, z)]} -> {[(P(x)) & ([z] = [y])] | [P(x, y)]}),
             )
             .unwrap();
-            let (body, head) = gnf.into_body_and_head();
+            let (body, head) = (gnf.body(), gnf.head());
             let body = body.relational();
             let head = head.relational();
             assert!(body.signature().is_err());

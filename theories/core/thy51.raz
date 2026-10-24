@@ -1,0 +1,3 @@
+// Cyclic function applications in a body compile and terminate.
+P('a);
+f(g(x)) = y & g(f(x)) = y -> Q(y);

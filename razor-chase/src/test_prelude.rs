@@ -1,74 +1,10 @@
-use crate::chase::{r#impl::basic, r#impl::collapse, *};
+use crate::chase::{r#impl::basic, *};
 use itertools::Itertools;
-use razor_fol::syntax::{term::Complex, Const, Func, Pred, Theory, Var, FOF};
+use razor_fol::syntax::{Const, Func, Pred, Theory, FOF};
 use std::{fmt, fs::File, io::Read};
 
 pub fn equal_sets<T: Eq>(first: &[T], second: &[T]) -> bool {
     first.iter().all(|e| second.contains(e)) && second.iter().all(|e| first.contains(e))
-}
-
-// Variables
-pub fn _u() -> Var {
-    Var::from("u")
-}
-
-pub fn _v() -> Var {
-    Var::from("v")
-}
-
-pub fn _w() -> Var {
-    Var::from("w")
-}
-
-pub fn _x() -> Var {
-    Var::from("x")
-}
-
-pub fn _x_1() -> Var {
-    Var::from("x`")
-}
-
-pub fn _y() -> Var {
-    Var::from("y")
-}
-
-pub fn _z() -> Var {
-    Var::from("z")
-}
-
-#[allow(dead_code)]
-pub fn u() -> Complex {
-    Var::from("u").into()
-}
-
-#[allow(dead_code)]
-pub fn v() -> Complex {
-    Var::from("v").into()
-}
-
-#[allow(dead_code)]
-pub fn w() -> Complex {
-    Var::from("w").into()
-}
-
-#[allow(dead_code)]
-pub fn x() -> Complex {
-    Var::from("x").into()
-}
-
-#[allow(dead_code)]
-pub fn x_1() -> Complex {
-    Var::from("x`").into()
-}
-
-#[allow(dead_code)]
-pub fn y() -> Complex {
-    Var::from("y").into()
-}
-
-#[allow(dead_code)]
-pub fn z() -> Complex {
-    Var::from("z").into()
 }
 
 // Functions
@@ -78,11 +14,6 @@ pub fn f() -> Func {
 
 pub fn g() -> Func {
     Func::from("g")
-}
-
-#[allow(dead_code)]
-pub fn h() -> Func {
-    Func::from("h")
 }
 
 // Constants
@@ -100,21 +31,6 @@ pub fn _c() -> Const {
 
 pub fn _d() -> Const {
     Const::from("d")
-}
-
-#[allow(dead_code)]
-pub fn a() -> Complex {
-    Const::from("a").into()
-}
-
-#[allow(dead_code)]
-pub fn b() -> Complex {
-    Const::from("b").into()
-}
-
-#[allow(dead_code)]
-pub fn c() -> Complex {
-    Const::from("c").into()
 }
 
 // Elements
@@ -139,18 +55,6 @@ pub fn e_4() -> E {
 }
 
 // Predicates
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-pub fn P() -> Pred {
-    Pred::from("P")
-}
-
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-pub fn Q() -> Pred {
-    Pred::from("Q")
-}
-
 #[allow(non_snake_case)]
 pub fn R() -> Pred {
     Pred::from("R")
@@ -179,27 +83,16 @@ pub fn _S_() -> Rel {
 
 impl fmt::Debug for basic::BasicSequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
-#[allow(dead_code)]
-pub fn assert_eq_vectors<T: Ord + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> () {
-    assert!(first.iter().sorted() == second.iter().sorted());
-}
-
-pub fn assert_eq_sets<T: Eq + fmt::Debug>(first: &Vec<T>, second: &Vec<T>) -> () {
+pub fn assert_eq_sets<T: Eq + fmt::Debug>(first: &[T], second: &[T]) {
     assert!(equal_sets(first, second));
 }
 
 pub fn assert_debug_string<T: fmt::Debug>(expected: &str, value: T) {
     debug_assert_eq!(expected, format!("{:?}", value));
-}
-
-#[allow(dead_code)]
-pub fn assert_debug_strings<T: fmt::Debug>(expected: &str, value: Vec<T>) {
-    let mut strings = value.iter().map(|v| format!("{:?}", v));
-    debug_assert_eq!(expected, strings.join("\n"));
 }
 
 pub fn read_file(filename: &str) -> String {
@@ -221,7 +114,6 @@ pub fn print_basic_model(model: basic::BasicModel) -> String {
         .domain()
         .iter()
         .sorted()
-        .iter()
         .map(|e| {
             let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
             let witnesses = witnesses.into_iter().sorted();
@@ -229,32 +121,6 @@ pub fn print_basic_model(model: basic::BasicModel) -> String {
         })
         .collect();
     let domain: Vec<String> = model.domain().iter().map(|e| e.to_string()).collect();
-    let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
-    format!(
-        "Domain: {{{}}}\nFacts: {}\n{}",
-        domain.into_iter().sorted().join(", "),
-        facts.into_iter().sorted().join(", "),
-        elements.join("\n")
-    )
-}
-
-pub fn print_collapse_model(model: collapse::ColModel) -> String {
-    let elements: Vec<String> = model
-        .domain()
-        .iter()
-        .sorted()
-        .iter()
-        .map(|e| {
-            let witnesses: Vec<String> = model.witness(e).iter().map(|w| w.to_string()).collect();
-            let witnesses = witnesses.into_iter().sorted();
-            format!(
-                "{} -> {}",
-                witnesses.into_iter().sorted().join(", "),
-                e.get()
-            )
-        })
-        .collect();
-    let domain: Vec<String> = model.domain().iter().map(|e| e.get().to_string()).collect();
     let facts: Vec<String> = model.facts().iter().map(|e| e.to_string()).collect();
     format!(
         "Domain: {{{}}}\nFacts: {}\n{}",

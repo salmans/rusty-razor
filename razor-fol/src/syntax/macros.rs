@@ -169,13 +169,13 @@ macro_rules! terms {
 /// input with two differeces:
 ///
 /// 1. This macro requires subformulae at the same level of a complex formula to be wrapped
-/// in one of `(...)`, `[...]`, or `{...}`. This requirement also applies to the
-/// terms on the two sides of `=` in equalities. For example:
-/// `(<LEFT>) & (<RIGHT>)`, `[<LEFT>] | [<RIGHT>]`, and `{<LEFT>} = {<RIGHT>}` are
-/// all valid inputs. But `<LEFT> | <RIGHT>`, `?x . <FORMULA>`, and `(<LEFT>) & [<RIGHT>]`
-/// are invalid.
+///    in one of `(...)`, `[...]`, or `{...}`. This requirement also applies to the
+///    terms on the two sides of `=` in equalities. For example:
+///    `(<LEFT>) & (<RIGHT>)`, `[<LEFT>] | [<RIGHT>]`, and `{<LEFT>} = {<RIGHT>}` are
+///    all valid inputs. But `<LEFT> | <RIGHT>`, `?x . <FORMULA>`, and `(<LEFT>) & [<RIGHT>]`
+///    are invalid.
 /// 2. Unlike the textual form where constants are preceded by `'`, in the macro input,
-/// constants are preceded by `@`.
+///    constants are preceded by `@`.
 ///
 /// [`FOF`]: crate::syntax::FOF
 /// [compact]: https://salmans.github.io/rusty-razor/syntax/variations.html
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn test_macro() {
         assert_eq!("⊤", fof!('|').to_string());
-        assert_eq!("⟘", fof!(_|_).to_string());
+        assert_eq!("⟘", fof!(_ | _).to_string());
 
         assert_eq!("P()", fof!(P()).to_string());
         assert_eq!("P(x)", fof!(P(x)).to_string());

@@ -1,94 +1,84 @@
 use crate::terminal::Stylus;
 use crate::{constants::*, utils::*};
 use anyhow::Error;
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use razor_chase::{
     chase::{
-        bounder::DomainSize,
         chase_step,
         r#impl::relational::{RelEvaluator, RelPreProcessor},
         scheduler::Dispatch,
         strategy::{Bootstrap, FailFast, Fair},
-        Model, PreProcessor, Scheduler,
+        Bounder, Depth, DepthMode, DomainSize, Model, PreProcessor, Scheduler, Unbounded,
     },
     trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
 };
-use std::fs;
-use structopt::StructOpt;
+use std::{fs, path::PathBuf};
 
-#[derive(StructOpt)]
+/// A bound on the models constructed by the chase.
+#[derive(Clone, Debug)]
 enum BoundCommand {
-    #[structopt(about = "Bound models by their domain size.")]
+    /// Bound models by their domain size; models beyond the bound are reported incomplete.
     Domain { size: usize },
+    /// Bound the Skolem depth of elements. With `reuse` (the default) a term beyond the bound
+    /// denotes its deepest argument, so models stay complete; with `pure` the element is
+    /// created and the model is reported incomplete.
+    Depth { depth: u32, mode: DepthMode },
 }
 
 impl std::str::FromStr for BoundCommand {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let domain_str: &'static str = "domain=";
-        if s.to_lowercase().starts_with(&domain_str) {
-            let size_str = &s[domain_str.len()..];
-            if let Ok(size) = size_str.parse::<usize>() {
-                Ok(BoundCommand::Domain { size })
-            } else {
-                Err(format!("invalid bound size '{}'", &size_str))
-            }
+        let s = s.to_lowercase();
+        if let Some(size) = s.strip_prefix("domain=") {
+            size.parse::<usize>()
+                .map(|size| BoundCommand::Domain { size })
+                .map_err(|_| format!("invalid bound size '{}'", size))
+        } else if let Some(rest) = s.strip_prefix("depth=") {
+            let (depth, mode) = match rest.split_once(':') {
+                Some((d, "pure")) => (d, DepthMode::Pure),
+                Some((d, "reuse")) | Some((d, "")) => (d, DepthMode::Reuse),
+                Some((_, m)) => return Err(format!("invalid depth mode '{}'", m)),
+                None => (rest, DepthMode::Reuse),
+            };
+            depth
+                .parse::<u32>()
+                .map(|depth| BoundCommand::Depth { depth, mode })
+                .map_err(|_| format!("invalid depth '{}'", depth))
         } else {
-            Err(format!("invalid bound '{}'", s))
+            Err(format!(
+                "invalid bound '{}' (expected domain=N or depth=N[:pure|reuse])",
+                s
+            ))
         }
     }
 }
 
-#[derive(StructOpt)]
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum SchedulerOption {
-    #[structopt(about = "When branching, process new models first.")]
+    /// When branching, process new models first.
     Lifo,
-    #[structopt(about = "When branching, process new models last.")]
+    /// When branching, process new models last.
     Fifo,
 }
 
-impl std::str::FromStr for SchedulerOption {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if &s.to_lowercase() == "lifo" {
-            Ok(SchedulerOption::Lifo)
-        } else if &s.to_lowercase() == "fifo" {
-            Ok(SchedulerOption::Fifo)
-        } else {
-            Err("invalid scheduler")
-        }
-    }
-}
-
-#[derive(StructOpt)]
+#[derive(Subcommand)]
 enum ProcessCommand {
-    #[structopt(name = "solve", about = "Find models for the input theory")]
+    /// Find models for the input theory
     Solve {
-        #[structopt(
-            short = "i",
-            long = "input",
-            parse(from_os_str),
-            help = "Path to the input theory file"
-        )]
-        input: Option<std::path::PathBuf>,
-        #[structopt(long = "count", help = "Number of models to return")]
+        /// Path to the input theory file
+        #[arg(short = 'i', long = "input")]
+        input: Option<PathBuf>,
+        /// Number of models to return
+        #[arg(long = "count")]
         count: Option<i32>,
-        #[structopt(
-            short = "b",
-            long = "bound",
-            name = "bound",
-            help = "Bound the size of models."
-        )]
+        /// Bound the search: `domain=N` or `depth=N[:pure|reuse]`
+        #[arg(short = 'b', long = "bound", value_name = "bound")]
         bound: Option<BoundCommand>,
-        #[structopt(
-            long = "show-incomplete",
-            help = "Show incomplete models.",
-            parse(try_from_str),
-            default_value = "true"
-        )]
+        /// Show incomplete models
+        #[arg(long = "show-incomplete", default_value_t = true, action = ArgAction::Set)]
         show_incomplete: bool,
-        #[structopt(short = "s", long = "scheduler", default_value = "fifo")]
+        #[arg(short = 's', long = "scheduler", value_enum, default_value_t = SchedulerOption::Fifo)]
         scheduler: SchedulerOption,
     },
 }
@@ -118,14 +108,16 @@ impl ProcessCommand {
                 println!();
                 println!();
 
-                let pre_processor = RelPreProcessor::new(true);
-                let (sequents, init_model) = pre_processor.pre_process(&theory);
+                let (sequents, init_model) = RelPreProcessor.pre_process(&theory);
 
-                let evaluator = RelEvaluator;
+                let bound: Box<dyn Bounder> = match bound {
+                    None => Box::new(Unbounded),
+                    Some(BoundCommand::Domain { size }) => Box::new(DomainSize(size)),
+                    Some(BoundCommand::Depth { depth, mode }) => {
+                        Box::new(Depth { max: depth, mode })
+                    }
+                };
                 let strategy: Bootstrap<_, FailFast<_, Fair<_>>> = sequents.iter().collect();
-                let bounder = bound.map(|b| match b {
-                    BoundCommand::Domain { size } => DomainSize::from(size),
-                });
                 let mut complete_count = 0;
                 let mut incomplete_count = 0;
 
@@ -146,8 +138,8 @@ impl ProcessCommand {
                     }
                     chase_step(
                         &mut scheduler,
-                        &evaluator,
-                        bounder.as_ref(),
+                        &RelEvaluator,
+                        bound.as_ref(),
                         |m| print_model(m.finalize(), stylus, &mut complete_count),
                         |m| {
                             if show_incomplete {
@@ -171,24 +163,18 @@ impl ProcessCommand {
     }
 }
 
-#[derive(StructOpt)]
-#[structopt(
-    name = "Rusty Razor",
-    about = "A tool for exploring finite models of first-order theories"
-)]
-#[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
+/// A tool for exploring finite models of first-order theories
+#[derive(Parser)]
+#[command(name = "Rusty Razor")]
 pub(super) struct Command {
-    #[structopt(subcommand, name = "command")]
+    #[command(subcommand)]
     command: ProcessCommand,
-    #[structopt(long = "no-color", help = "Disable colored output.")]
+    /// Disable colored output.
+    #[arg(long = "no-color")]
     no_color: bool,
-    #[structopt(
-        short = "l",
-        long = "log",
-        parse(from_os_str),
-        help = "Path to the log file."
-    )]
-    log: Option<std::path::PathBuf>,
+    /// Path to the log file.
+    #[arg(short = 'l', long = "log")]
+    log: Option<PathBuf>,
 }
 
 impl Command {

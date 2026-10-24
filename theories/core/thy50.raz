@@ -1,0 +1,6 @@
+// An existential shared by different bodies is one element.
+P('a);
+R('a);
+Q('b);
+S('c);
+forall x. exists y. ((P(x) -> Q(y)) & (R(x) -> S(y)));

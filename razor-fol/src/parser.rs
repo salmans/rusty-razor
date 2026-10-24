@@ -93,9 +93,9 @@ impl<S: AsRef<str>> From<S> for TokenType {
     }
 }
 
-impl ToString for TokenType {
-    fn to_string(&self) -> String {
-        match self {
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
             Self::Comma => "`,`",
             Self::Dot => "`.`",
             Self::Semicolon => "`;`",
@@ -115,8 +115,8 @@ impl ToString for TokenType {
             Self::Upper => "`uppercase identifier`",
             Self::Const => "`constant identifier`",
             Self::Unknown => "`unknown token`",
-        }
-        .into()
+        };
+        f.write_str(text)
     }
 }
 
@@ -124,23 +124,23 @@ impl ToString for TokenType {
 #[derive(Error, PartialEq, Debug)]
 pub enum Error {
     #[error("found `{found:?}` at line {}, column {}; expecting {}",
-            (*.position).line,
-            (*.position).column,
-            Error::pretty_expected_tokens(&*.expected),
+            position.line,
+            position.column,
+            Error::pretty_expected_tokens(expected),
     )]
     UnrecognizedToken {
         position: Position,
         expected: Vec<TokenType>,
         found: String,
     },
-    #[error("invalid token at line {}, column {}", (*.position).line, (*.position).column)]
+    #[error("invalid token at line {}, column {}", position.line, position.column)]
     InvalidToken { position: Position },
     #[error("unexpected end of input at line {}, column {}; expecting {}",
-            (*.position).line,
-            (*.position).column,
-            Error::pretty_expected_tokens(&*.expected)
+            position.line,
+            position.column,
+            Error::pretty_expected_tokens(expected)
     )]
-    UnrecognizedEOF {
+    UnrecognizedEof {
         position: Position,
         expected: Vec<TokenType>,
     },
@@ -149,7 +149,7 @@ pub enum Error {
         #[from]
         source: crate::syntax::Error,
     },
-    #[error("unexpected token `{found:?}` at line {}, column {}", (*.position).line, (*.position).column)]
+    #[error("unexpected token `{found:?}` at line {}, column {}", position.line, position.column)]
     ExtraToken { position: Position, found: String },
 }
 
@@ -214,9 +214,9 @@ impl<'s> SourceInfo<'s> {
                     },
                 }
             }
-            ParseError::UnrecognizedEOF { location, expected } => {
+            ParseError::UnrecognizedEof { location, expected } => {
                 let pos = self.position(location);
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position {
                         line: pos.line,
                         column: pos.column,
@@ -1116,9 +1116,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x)".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 5 },
-                    expected: vec![And, Comma, Equal, Iff, Implies, Or, RParen, Semicolon]
+                    expected: vec![And, Iff, Implies, Or, Semicolon]
                 },
                 parsed.err().unwrap()
             );
@@ -1126,11 +1126,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 4 },
-                    expected: vec![
-                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
-                    ]
+                    expected: vec![LParen, RParen, Comma]
                 },
                 parsed.err().unwrap()
             );
@@ -1138,11 +1136,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "~P(x".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 5 },
-                    expected: vec![
-                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
-                    ]
+                    expected: vec![LParen, RParen, Comma]
                 },
                 parsed.err().unwrap()
             );
@@ -1150,9 +1146,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) and ".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 9 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen]
                 },
                 parsed.err().unwrap()
             );
@@ -1160,7 +1156,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) and X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position {
                         line: 1,
                         column: 11
@@ -1173,9 +1169,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) or ".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 8 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen]
                 },
                 parsed.err().unwrap()
             );
@@ -1183,7 +1179,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) or X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position {
                         line: 1,
                         column: 10
@@ -1196,9 +1192,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) -> ".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 8 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen]
                 },
                 parsed.err().unwrap()
             );
@@ -1206,7 +1202,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) -> X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position {
                         line: 1,
                         column: 10
@@ -1219,9 +1215,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) <=> ".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 9 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper]
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen]
                 },
                 parsed.err().unwrap()
             );
@@ -1229,7 +1225,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "P(x) <=> X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position {
                         line: 1,
                         column: 11
@@ -1244,9 +1240,7 @@ mod tests {
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 4 },
-                    expected: vec![
-                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
-                    ],
+                    expected: vec![Comma, Dot],
                     found: "P".into()
                 },
                 parsed.err().unwrap()
@@ -1257,7 +1251,7 @@ mod tests {
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 3 },
-                    expected: vec![Dot, Lower],
+                    expected: vec![Lower, Dot],
                     found: "P".into()
                 },
                 parsed.err().unwrap()
@@ -1266,9 +1260,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "!x . ".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 5 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper],
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen],
                 },
                 parsed.err().unwrap()
             );
@@ -1276,7 +1270,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "!x . X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 7 },
                     expected: vec![LParen,],
                 },
@@ -1286,7 +1280,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "∀x . X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 7 },
                     expected: vec![LParen,],
                 },
@@ -1298,9 +1292,7 @@ mod tests {
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 4 },
-                    expected: vec![
-                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
-                    ],
+                    expected: vec![Comma, Dot],
                     found: "P".into()
                 },
                 parsed.err().unwrap()
@@ -1311,7 +1303,7 @@ mod tests {
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 1, column: 3 },
-                    expected: vec![Dot, Lower],
+                    expected: vec![Lower, Dot],
                     found: "P".into()
                 },
                 parsed.err().unwrap()
@@ -1320,9 +1312,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "?x . ".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 5 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper],
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen],
                 },
                 parsed.err().unwrap()
             );
@@ -1330,7 +1322,7 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "?x . X".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 7 },
                     expected: vec![LParen,],
                 },
@@ -1340,11 +1332,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "x".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 2 },
-                    expected: vec![
-                        And, Comma, Dot, Equal, Iff, Implies, LParen, Or, RParen, Semicolon
-                    ],
+                    expected: vec![Equal, LParen],
                 },
                 parsed.err().unwrap()
             );
@@ -1363,9 +1353,9 @@ mod tests {
         {
             let parsed: Result<Theory<FOF>, Error> = "(P(x)".parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 1, column: 6 },
-                    expected: vec![And, Comma, Equal, Iff, Implies, Or, RParen, Semicolon],
+                    expected: vec![And, Iff, Implies, Or, RParen],
                 },
                 parsed.err().unwrap()
             );
@@ -1377,7 +1367,7 @@ Q(x) <=> R(x);"
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 2, column: 1 },
-                    expected: vec![And, Comma, Equal, Iff, Implies, Or, RParen, Semicolon],
+                    expected: vec![And, Iff, Implies, Or, Semicolon],
                     found: "Q".into(),
                 },
                 parsed.err().unwrap()
@@ -1391,7 +1381,7 @@ S(x) <=> Q(x);"
             assert_eq!(
                 Error::UnrecognizedToken {
                     position: Position { line: 2, column: 6 },
-                    expected: vec![And, Iff, Implies, Or, RParen, Semicolon],
+                    expected: vec![And, Iff, Implies, Or, Semicolon],
                     found: "=".into(),
                 },
                 parsed.err().unwrap()
@@ -1403,9 +1393,9 @@ Q(x) <=> R(x);
 S(x) and "
                 .parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position { line: 3, column: 9 },
-                    expected: vec![Const, Exists, False, Forall, Lower, LParen, Not, True, Upper],
+                    expected: vec![Const, Upper, Lower, Exists, False, Forall, Not, True, LParen],
                 },
                 parsed.err().unwrap()
             );
@@ -1416,7 +1406,7 @@ S(x) and "
 ∀x . /* comment 🪒 ♖♞♗♚♕♝♘♜ */ X"
                 .parse();
             assert_eq!(
-                Error::UnrecognizedEOF {
+                Error::UnrecognizedEof {
                     position: Position {
                         line: 3,
                         column: 32
@@ -1542,7 +1532,7 @@ P(x,y);"
             "found `\"Duchess\"` at line 42, column 11; expecting `uppercase identifier`, `lowercase identifier`, or `implies`"
         );
         assert_eq!(
-            Error::UnrecognizedEOF {
+            Error::UnrecognizedEof {
                 position: Position {
                     line: 42,
                     column: 11
@@ -1553,7 +1543,7 @@ P(x,y);"
             "unexpected end of input at line 42, column 11; expecting "
         );
         assert_eq!(
-            Error::UnrecognizedEOF {
+            Error::UnrecognizedEof {
                 position: Position {
                     line: 42,
                     column: 11
@@ -1564,7 +1554,7 @@ P(x,y);"
             "unexpected end of input at line 42, column 11; expecting `uppercase identifier`"
         );
         assert_eq!(
-            Error::UnrecognizedEOF {
+            Error::UnrecognizedEof {
                 position: Position{line: 42,
                                    column: 11},
                 expected: vec![TokenType::Upper, TokenType::Lower],
@@ -1573,7 +1563,7 @@ P(x,y);"
             "unexpected end of input at line 42, column 11; expecting `uppercase identifier` or `lowercase identifier`"
         );
         assert_eq!(
-            Error::UnrecognizedEOF {
+            Error::UnrecognizedEof {
                 position: Position{line: 42,
                                    column: 11},
                 expected: vec![TokenType::Upper, TokenType::Lower, TokenType::Implies],

@@ -8,13 +8,13 @@
 //! in GNF have the following shape:
 //!
 //! A<sub>1</sub> ∧ ... ∧ A<sub>m</sub> →
-//! (∃ x<sub>11</sub>, ..., x<sub>1j<sub>1</sub></sub> . A<sub>11</sub> ∧ ... ∧ A<sub>1n<sub>1</sub></sub>) </br>
+//! (∃ x<sub>11</sub>, ..., x<sub>1j<sub>1</sub></sub> . A<sub>11</sub> ∧ ... ∧ A<sub>1n<sub>1</sub></sub>) <br>
 //! > > &nbsp;&nbsp;&nbsp;
-//! ∨ (∃ x<sub>21</sub>, ..., x<sub>2j<sub>2</sub></sub> . A<sub>21</sub> ∧ ... ∧ A<sub>2n<sub>2</sub></sub>) </br>
+//! > > ∨ (∃ x<sub>21</sub>, ..., x<sub>2j<sub>2</sub></sub> . A<sub>21</sub> ∧ ... ∧ A<sub>2n<sub>2</sub></sub>) <br>
 //! > > &nbsp;&nbsp;&nbsp;
-//! ∨ ... </br>
+//! > > ∨ ... <br>
 //! > > &nbsp;&nbsp;&nbsp;
-//! ∨ (∃ x<sub>i1</sub>, ..., x<sub>ij<sub>i</sub></sub> . A<sub>i1</sub> ∧ ... ∧ A<sub>in<sub>i</sub></sub>)
+//! > > ∨ (∃ x<sub>i1</sub>, ..., x<sub>ij<sub>i</sub></sub> . A<sub>i1</sub> ∧ ... ∧ A<sub>in<sub>i</sub></sub>)
 //!
 //! where A<sub>k</sub>s are (positive) atomic formulae (possibly including equality) and free
 //! variables are assumed to be universally qualified over the entire formula.
@@ -43,7 +43,7 @@
 //! [the chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 //! [run of the chase]: self#chase_all
-//! [standard syntactic manipulation]: razor_fol::transform::CNF::gnf()
+//! [standard syntactic manipulation]: razor_fol::transform::ToGNF::gnf()
 //! [godel]: https://en.wikipedia.org/wiki/Gödel%27s_incompleteness_theorems
 //!
 //! ## The Chase
@@ -61,25 +61,25 @@
 //! Given a geometric theory and an existing model, a chase-step proceeds as follows:
 //!
 //! 1. A sequent from the theory is selected to be evaluated against the model. Razor uses an
-//! instance of [Strategy] to select the sequent.
+//!    instance of [Strategy] to select the sequent.
 //!
 //! 2. The selected sequent is evaluated against the model: given an assignment from the free
-//! variables of the sequent to the elements of the model, if the body of the sequent is true and
-//! its head is not true in the model, new observations are added to the model to make the
-//! sequent's head true. Instances of any type that implements [Evaluator] may be used to
-//! evaluate the sequent in the model.
+//!    variables of the sequent to the elements of the model, if the body of the sequent is true and
+//!    its head is not true in the model, new observations are added to the model to make the
+//!    sequent's head true. Instances of any type that implements [Evaluator] may be used to
+//!    evaluate the sequent in the model.
 //!
-//!     2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
-//! the chase fails on the given model.
+//!    2.1. If the sequent is headless, meaning its consequence is falsehood (an empty disjunction),
+//!    the chase fails on the given model.
 //!
-//!     2.2. If the head of the sequent contains more than one disjunct (with at least one
-//! non-trivial disjunction), the chase branches and satisfies each disjunct independently on clones
-//! of the model. Razor uses instances of [Scheduler] to schedule various branches of the chase
-//! for future chase steps.
+//!    2.2. If the head of the sequent contains more than one disjunct (with at least one
+//!    non-trivial disjunction), the chase branches and satisfies each disjunct independently on
+//!    clones of the model. Razor uses instances of [Scheduler] to schedule various branches of the
+//!    chase for future chase steps.
 //!
-//!     2.3. If no sequent can be found such that its body and head are respectively true and false
-//! in the model, the model already satisfies the theory and will be returned as an output of
-//! the chase.
+//!    2.3. If no sequent can be found such that its body and head are respectively true and false
+//!    in the model, the model already satisfies the theory and will be returned as an output of
+//!    the chase.
 //!
 //! ### Termination
 //! As a result of semi-decidability of geometric theories, it can be shown if a geometric theory
@@ -87,9 +87,11 @@
 //! a very very long time.
 //! However, when the theory is satisfiable, a run of the chase may not terminate, producing
 //! infinitely large models and/or infinitely many models that satisfy the theory. Nevertheless,
-//! in practice, Razor can *bound* the size of models created by the chase to guarantee termination.
-//! Razor uses instances of types that implement [Bounder] to implement various strategies to
-//! cap the size of search space for models.
+//! in practice, Razor can *bound* the models created by the chase to guarantee termination.
+//! A [Bounder] decides whether a model may grow by a new element: [DomainSize] caps the size of
+//! the domain, [Depth] caps the Skolem depth of elements, and [Unbounded] admits everything. Every
+//! [Evaluator] is handed the same bounder by [chase_step] and reports the models that reach it as
+//! incomplete.
 //!
 //! ## Implementation
 //! The primary motivation for implementing Razor is to study the chase and improve its performance
@@ -100,12 +102,12 @@
 //! the chase and devising various [strategies][Strategy] for selecting sequents. Also,
 //! because of theoretical and non-theoretical consequences of non-termination of the chase,
 //! Razor is going to explore a variety of ideas for limiting the search space by
-//! [bounding][Bounder] the size of models:
+//! [bounding][Bounder] models.
 //!
 //! Interesting combinations of these various options are constantly benchmarked and the
 //! configuration with the best average performance is used by the Rusty Razor application.
 //!
-pub mod bounder;
+mod bounder;
 pub mod r#impl;
 pub mod scheduler;
 pub mod strategy;
@@ -114,6 +116,8 @@ use razor_fol::syntax::*;
 use std::{fmt, iter::FromIterator};
 
 use either::Either;
+
+pub use bounder::{Admission, Bounder, Depth, DepthMode, DomainSize, Unbounded};
 
 /// Is a symbol to represent elements of first-order models. An element is identified by an index.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
@@ -149,7 +153,7 @@ impl fmt::Display for E {
 
 impl fmt::Debug for E {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -161,7 +165,6 @@ pub trait WitnessTerm: Clone + PartialEq + Eq + fmt::Display {
     ///
     /// **Note**: Although [`E`] is often the underlying symbol for representing elements,
     /// models may implement their own element types based on or independent from `E`.
-    /// See [`ColModel`](self::impl::collapse::ColModel) for an example.
     type ElementType;
 
     /// Returns an equational [`Observation`] between `self` and the give witness term.
@@ -222,29 +225,6 @@ impl Rel {
             terms: vec![first, second, third],
         }
     }
-
-    /// Applies the (4-ary) `self` on four witness terms.
-    pub fn app4<T: WitnessTerm>(self, first: T, second: T, third: T, fourth: T) -> Observation<T> {
-        Observation::Fact {
-            relation: self,
-            terms: vec![first, second, third, fourth],
-        }
-    }
-
-    /// Applies the (5-ary) `self` on five witness terms.
-    pub fn app5<T: WitnessTerm>(
-        self,
-        first: T,
-        second: T,
-        third: T,
-        fourth: T,
-        fifth: T,
-    ) -> Observation<T> {
-        Observation::Fact {
-            relation: self,
-            terms: vec![first, second, third, fourth, fifth],
-        }
-    }
 }
 
 impl<S: Into<String>> From<S> for Rel {
@@ -261,11 +241,11 @@ impl fmt::Display for Rel {
 
 impl fmt::Debug for Rel {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
-/// Represents positive units of information by which [`Model`][Model]s are
+/// Represents positive units of information by which [`Model`]s are
 /// constructed. Once a `Model` is augmented by an observation, the observation remains
 /// true in the model.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
@@ -293,7 +273,7 @@ impl<T: WitnessTerm> fmt::Display for Observation<T> {
 
 impl<T: WitnessTerm> fmt::Debug for Observation<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -384,21 +364,11 @@ where
 {
 }
 
-/// Bounder is the trait of algorithms for [bounding] the size of models generated by the chase.
-///
-/// [bounding]: self#termination
-pub trait Bounder {
-    /// Returns true if the given observation is outside of the bounds set for the given model
-    /// according to the algorithm implemented by `self`. If the result is true, the chase
-    /// stops processing the model.
-    fn bound<M: Model>(&self, model: &M, observation: &Observation<M::TermType>) -> bool;
-}
-
 /// Is the trait of algorithms that evaluate an implementation of [Sequent] in an
 /// implementation of [Model] within a [chase-step].
 ///
 /// [chase-step]: self#chase-step
-pub trait Evaluator<'s, Stg: Strategy<&'s Self::Sequent>, B: Bounder> {
+pub trait Evaluator<'s, Stg: Strategy<&'s Self::Sequent>> {
     /// The type of [sequents][Sequent] that are accepted by this evaluator.
     type Sequent: Sequent + 's;
 
@@ -407,18 +377,17 @@ pub trait Evaluator<'s, Stg: Strategy<&'s Self::Sequent>, B: Bounder> {
 
     /// Applies a [chase-step] by evaluating the sequents of `strategy` in `model` and produces
     /// extensions of `model`, corresponding to new branches of the chase. New models that do not
-    /// reach the bound provided by `bounder` are returned as `open_models` in the resulting
-    /// [`EvaluateResult`]. New models that reach the bound provided by `bounder` are returned
-    /// as `bounded_models` in the return value.
+    /// reach `bound` are returned as `open_models` in the resulting [`EvaluateResult`]. New
+    /// models that reach `bound` are returned as `bounded_models` in the return value.
     ///
     /// **Note**: The `open_models` in the return value will be scheduled for future chase-steps.
     ///
     /// [chase-step]: self#chase-step
-    fn evaluate(
+    fn evaluate<B: Bounder + ?Sized>(
         &self,
         model: &Self::Model,
         strategy: &mut Stg,
-        bounder: Option<&B>,
+        bound: &B,
     ) -> Option<EvaluateResult<Self::Model>>;
 }
 
@@ -520,20 +489,19 @@ pub trait Scheduler<S: Sequent, M: Model, Stg: Strategy<S>> {
     fn remove(&mut self) -> Option<(M, Stg)>;
 }
 
-/// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator] and possibly a
-/// [`bounder`][Bounder], runs an implementation independent run of [the chase] and
-/// returns *all* resulting models. The return value is empty if the theory is not satisfiable.
+/// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator] and a [`bound`][Bounder], runs an
+/// implementation independent run of [the chase] and returns *all* resulting models, the
+/// complete ones first. The return value is empty if the theory is not satisfiable.
 ///
 /// [the chase]: self#the-chase
 ///
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
-///     PreProcessor, Scheduler, Strategy, chase_all,
+///     Unbounded, PreProcessor, Scheduler, Strategy, chase_all,
 ///     r#impl::basic,
 ///     strategy::Linear,
 ///     scheduler::FIFO,
-///     bounder::DomainSize,
 /// };
 ///
 /// // parse the theory:
@@ -552,24 +520,19 @@ pub trait Scheduler<S: Sequent, M: Model, Stg: Strategy<S>> {
 /// let mut scheduler = FIFO::new();  // schedule branches in first-in-first-out manner
 ///
 /// // run unbounded model-finding (note that the chase terminates on the given theory):
-/// let bounder: Option<&DomainSize> = None;
 /// scheduler.add(init_model, strategy); // schedule the initial (empty) model
-/// let models = chase_all(&mut scheduler, &evaluator, bounder);
+/// let models = chase_all(&mut scheduler, &evaluator, &Unbounded);
 ///
 /// assert_eq!(2, models.len()); // two models are found
 /// ```
-pub fn chase_all<'s, S, M, Stg, Sch, E, B>(
-    scheduler: &mut Sch,
-    evaluator: &E,
-    bounder: Option<&B>,
-) -> Vec<M>
+pub fn chase_all<'s, S, M, Stg, Sch, E, B>(scheduler: &mut Sch, evaluator: &E, bound: &B) -> Vec<M>
 where
+    B: Bounder + ?Sized,
     S: 's + Sequent,
     M: Model + std::fmt::Debug,
     Stg: Strategy<&'s S>,
     Sch: Scheduler<&'s S, M, Stg>,
-    E: Evaluator<'s, Stg, B, Sequent = S, Model = M>,
-    B: Bounder,
+    E: Evaluator<'s, Stg, Sequent = S, Model = M>,
 {
     let mut complete = Vec::new();
     let mut incomplete = Vec::new();
@@ -577,7 +540,7 @@ where
         chase_step(
             scheduler,
             evaluator,
-            bounder,
+            bound,
             |m| complete.push(m.finalize()),
             |m| incomplete.push(m.finalize()),
         );
@@ -586,23 +549,20 @@ where
     complete
 }
 
-/// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator], possibly a
-/// [`bounder`][Bounder] and a `consumer` closure, runs an implementation independent
-/// [chase-step]. Satisfying models of the theory that are produced
-/// by the `chase-step` will be consumed by the `consumer`. In contrast, `incomplete_consumer`
-/// (if provided) consumes incomplete non-models of the theory that are rejected by the
-/// bounder.
+/// Given a [`scheduler`][Scheduler], an [`evaluator`][Evaluator], a [`bound`][Bounder] and a
+/// `consumer` closure, runs an implementation independent [chase-step]. Satisfying models of the
+/// theory that are produced by the `chase-step` will be consumed by the `consumer`. In contrast,
+/// `incomplete_consumer` consumes incomplete non-models of the theory that reach `bound`.
 ///
 /// [chase-step]: self#chase-step
 ///
 /// ```rust
 /// use razor_fol::syntax::{FOF, Theory};
 /// use razor_chase::chase::{
-///     PreProcessor, Scheduler, Strategy, chase_step,
+///     Unbounded, PreProcessor, Scheduler, Strategy, chase_step,
 ///     r#impl::basic,
 ///     strategy::Linear,
 ///     scheduler::FIFO,
-///     bounder::DomainSize,
 /// };
 /// use std::convert::TryInto;
 ///
@@ -622,7 +582,6 @@ where
 /// let mut scheduler = FIFO::new();  // schedule branches in first-in-first-out manner
 ///
 /// // run unbounded model-finding (note that the chase terminates on the given theory):
-/// let bounder: Option<&DomainSize> = None;
 /// scheduler.add(init_model, strategy); // schedule the initial (empty) model
 ///
 /// let mut counter = 0;       // a counter to count the number of models
@@ -630,7 +589,7 @@ where
 ///     let models = chase_step(
 ///         &mut scheduler,
 ///         &evaluator,
-///         bounder,
+///         &Unbounded,
 ///         |m| {counter += 1}, // the closure counts the models found
 ///         |_|{},               // ignore incomplete non-models
 ///     );
@@ -641,16 +600,16 @@ where
 pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
     scheduler: &mut Sch,
     evaluator: &E,
-    bounder: Option<&B>,
+    bound: &B,
     mut consumer: impl FnMut(M),
     mut incomplete_consumer: impl FnMut(M),
 ) where
+    B: Bounder + ?Sized,
     S: 's + Sequent,
     M: Model + std::fmt::Debug,
     Stg: Strategy<&'s S>,
     Sch: Scheduler<&'s S, M, Stg>,
-    E: Evaluator<'s, Stg, B, Sequent = S, Model = M>,
-    B: Bounder,
+    E: Evaluator<'s, Stg, Sequent = S, Model = M>,
 {
     let (base_model, mut strategy) = scheduler.remove().unwrap();
     let base_id = &base_model.get_id();
@@ -659,7 +618,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
         super::trace::CHASE_STEP,
         id = base_id
     );
-    let result = evaluator.evaluate(&base_model, &mut strategy, bounder);
+    let result = evaluator.evaluate(&base_model, &mut strategy, bound);
 
     if let Some(result) = result {
         if !result.empty() {
@@ -703,7 +662,7 @@ pub fn chase_step<'s, S, M, Stg, Sch, E, B>(
     }
 }
 
-//// Tests -------------------------------------
+/// Tests -------------------------------------
 #[cfg(test)]
 mod test_chase {
     use crate::test_prelude::*;

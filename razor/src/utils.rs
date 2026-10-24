@@ -80,7 +80,8 @@ pub(crate) fn print_model(model: RelModel, stylus: &Stylus, count: &mut i32) {
                 }
                 Observation::Identity { left, right } => format!("{} = {}", left, right),
             })
-            .sorted();
+            .sorted()
+            .collect();
 
         stylus.set(STYLE_INFO);
         println!("Facts:");

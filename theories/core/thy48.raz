@@ -1,0 +1,5 @@
+// Head equations merge elements.
+P('a);
+P('b);
+P(x) & P(y) -> x = y;
+R('a);

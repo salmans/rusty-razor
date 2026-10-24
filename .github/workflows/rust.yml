@@ -3,13 +3,28 @@ name: Rust
 on: [push, pull_request]
 
 jobs:
-  build:
-
+  check:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v1
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+        with:
+          path: rusty-razor
+      - uses: actions/checkout@v4
+        with:
+          repository: salmans/codd
+          path: codd
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Format
+        run: cargo fmt --all -- --check
+        working-directory: rusty-razor
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: rusty-razor
+      - name: Test
+        run: cargo test
+        working-directory: rusty-razor
+      - name: Benchmarks compile
+        run: cargo bench --no-run
+        working-directory: rusty-razor

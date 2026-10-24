@@ -15,8 +15,8 @@ use razor_fol::{
     transform::GNF,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    fmt, iter,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    fmt,
 };
 
 // Is a *positive* literal apearing in the body and the head of sequents
@@ -89,7 +89,7 @@ impl fmt::Display for BasicWitnessTerm {
 
 impl fmt::Debug for BasicWitnessTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self)
     }
 }
 
@@ -131,10 +131,10 @@ pub struct BasicModel {
     ///
     /// **Hint**: Flat (witness) terms are terms that do not contain any composite sub-terms,
     /// consisting of functions applications.
-    rewrites: HashMap<BasicWitnessTerm, E>,
+    rewrites: BTreeMap<BasicWitnessTerm, E>,
 
     /// Contains a list of relational facts that are true in this model.
-    facts: HashSet<Observation<BasicWitnessTerm>>,
+    facts: BTreeSet<Observation<BasicWitnessTerm>>,
 
     /// Maintains a list of rewrite rules from elements to elements with which they have been
     /// identified.
@@ -152,6 +152,9 @@ pub struct BasicModel {
     /// [observations]: crate::chase::Observation
     /// [chase-step]: crate::chase#chase-step
     equality_history: HashMap<E, E>,
+
+    /// The Skolem depth of every element: the depth of the shallowest term that names it.
+    depths: BTreeMap<E, u32>,
 }
 
 impl BasicModel {
@@ -160,15 +163,16 @@ impl BasicModel {
         Self {
             id: rand::random(),
             element_index: 0,
-            rewrites: HashMap::new(),
-            facts: HashSet::new(),
+            rewrites: BTreeMap::new(),
+            facts: BTreeSet::new(),
             equality_history: HashMap::new(),
+            depths: BTreeMap::new(),
         }
     }
 
     /// Returns references to the elements of this model.
     fn domain_ref(&self) -> Vec<&E> {
-        self.rewrites.values().into_iter().unique().collect()
+        self.rewrites.values().unique().collect()
     }
 
     /// Returns a reference to an element witnessed by the given witness term.
@@ -214,8 +218,76 @@ impl BasicModel {
     fn new_element(&mut self, witness: BasicWitnessTerm) -> E {
         let element = E(self.element_index);
         self.element_index += 1;
+        self.depths.insert(element, self.depth(&witness));
         self.rewrites.insert(witness, element);
         element
+    }
+
+    /// The Skolem depth of the element that `witness` denotes, or would denote once recorded:
+    /// a constant has depth 0 and an application one more than its deepest argument.
+    fn depth(&self, witness: &BasicWitnessTerm) -> u32 {
+        if let Some(element) = self.element_ref(witness) {
+            return self.depths[element];
+        }
+        match witness {
+            BasicWitnessTerm::Elem(element) => self.depths[&self.history(element)],
+            BasicWitnessTerm::Const(_) => 0,
+            BasicWitnessTerm::App { terms, .. } => {
+                terms.iter().map(|t| self.depth(t) + 1).max().unwrap_or(0)
+            }
+        }
+    }
+
+    /// Lowers the depth of every element named by a term over a lowered element, and so on to a
+    /// fixpoint. An element's depth is that of its shallowest name: after `f#0(e0) = e1` the
+    /// entry `'c = e1` makes `e1` depth 0, and every `f(…, e1, …)` output one shallower.
+    fn lower(&mut self, mut changed: Vec<E>) {
+        while let Some(e) = changed.pop() {
+            let entries: Vec<(u32, E)> = self
+                .rewrites
+                .iter()
+                .filter_map(|(key, out)| match key {
+                    BasicWitnessTerm::App { terms, .. }
+                        if terms.contains(&BasicWitnessTerm::Elem(e)) =>
+                    {
+                        let depth = terms.iter().map(|t| self.depth(t) + 1).max();
+                        Some((depth.unwrap_or(0), *out))
+                    }
+                    _ => None,
+                })
+                .collect();
+            for (depth, out) in entries {
+                let current = self
+                    .depths
+                    .get_mut(&out)
+                    .expect("every element has a depth");
+                if depth < *current {
+                    *current = depth;
+                    changed.push(out);
+                }
+            }
+        }
+    }
+
+    /// Would observing `observation` take `self` beyond `bound`? Every term that denotes no
+    /// element yet counts as one new element of its own depth.
+    fn exceeds<B: Bounder + ?Sized>(
+        &self,
+        bound: &B,
+        observation: &Observation<BasicWitnessTerm>,
+    ) -> bool {
+        let terms = match observation {
+            Observation::Fact { terms, .. } => terms.iter().collect(),
+            Observation::Identity { left, right } => vec![left, right],
+        };
+        let new: Vec<&BasicWitnessTerm> = terms
+            .into_iter()
+            .filter(|t| self.element_ref(t).is_none())
+            .collect();
+        let size = self.domain_ref().len();
+        new.iter()
+            .enumerate()
+            .any(|(index, t)| bound.admit(size + index, self.depth(t)) != Admission::Create)
     }
 
     /// Records the given `witness` in `self` and returns the element, denoted by
@@ -263,10 +335,14 @@ impl BasicModel {
     /// side of the identity (i.e., the element denoted by one [witness term]) with the other
     /// one.
     ///
+    /// Returns the pairs of elements that two rewrites, now over the same term, denote: by
+    /// congruence they must be identified too.
+    ///
     /// [`Observation`]: crate::chase::Observation
     /// [witness term]: crate::chase::WitnessTerm
-    fn reduce_rewrites(&mut self, from: &E, to: &E) {
-        let mut new_rewrite: HashMap<BasicWitnessTerm, E> = HashMap::new();
+    fn reduce_rewrites(&mut self, from: &E, to: &E) -> Vec<(E, E)> {
+        let mut congruent = Vec::new();
+        let mut new_rewrite: BTreeMap<BasicWitnessTerm, E> = BTreeMap::new();
         self.rewrites.iter().for_each(|(k, v)| {
             // k is a flat term and cannot be an element:
             let key = if let BasicWitnessTerm::App { function, terms } = k {
@@ -291,9 +367,14 @@ impl BasicModel {
             };
 
             let value = if v == to { *from } else { *v };
-            new_rewrite.insert(key, value);
+            if let Some(other) = new_rewrite.insert(key, value) {
+                if other != value {
+                    congruent.push((other, value));
+                }
+            }
         });
         self.rewrites = new_rewrite;
+        congruent
     }
 
     /// Replaces all instances of `from` with `to` in the `facts` of `self` and is used
@@ -355,21 +436,32 @@ impl BasicModel {
             Observation::Identity { left, right } => {
                 let left = self.record(left);
                 let right = self.record(right);
-                let (from, to) = if left > right {
-                    (right, left)
-                } else {
-                    (left, right)
-                };
-
-                // Since the underlying ElementType of the WitnessTerm, used for constructing this
-                // type of model is not a reference to an object (unlike chase::impl::reference),
-                // the following two steps are necessary to guarantee correctness:
-                self.reduce_rewrites(&from, &to);
-                self.reduce_facts(&from, &to);
-
-                self.equality_history.insert(to, from);
+                self.merge(left, right);
             }
         }
+    }
+
+    /// Identifies `a` and `b`, keeping the older element, and then every pair of elements that
+    /// congruence identifies in turn, until no two rewrites of one term disagree.
+    fn merge(&mut self, a: E, b: E) {
+        let mut pending = vec![(a, b)];
+        let mut winners = Vec::new();
+        while let Some((a, b)) = pending.pop() {
+            let (a, b) = (self.history(&a), self.history(&b));
+            if a == b {
+                continue;
+            }
+            let (from, to) = if a > b { (b, a) } else { (a, b) };
+            pending.extend(self.reduce_rewrites(&from, &to));
+            self.reduce_facts(&from, &to);
+            // the merged element is denoted by the terms of both, so it is the shallower:
+            let depth = self.depths.remove(&to).expect("every element has a depth");
+            self.depths.entry(from).and_modify(|d| *d = (*d).min(depth));
+            self.equality_history.insert(to, from);
+            winners.push(from);
+        }
+        let winners = winners.iter().map(|e| self.history(e)).collect();
+        self.lower(winners);
     }
 
     /// Returns true if `observation` is true in `self`; otherwise, returns false.
@@ -413,6 +505,7 @@ impl Clone for BasicModel {
             // In the `basic` implementation, a model is cloned after being processed in a
             // chase-step, so its `equality_history` does not need to persist after cloning it.
             equality_history: HashMap::new(),
+            depths: self.depths.clone(),
         }
     }
 }
@@ -429,13 +522,7 @@ impl Model for BasicModel {
     }
 
     fn facts(&self) -> Vec<Observation<Self::TermType>> {
-        self.facts
-            .clone()
-            .into_iter()
-            .sorted()
-            .into_iter()
-            .dedup()
-            .collect()
+        self.facts.clone().into_iter().sorted().dedup().collect()
     }
 
     fn witness(&self, element: &E) -> Vec<BasicWitnessTerm> {
@@ -463,7 +550,6 @@ impl fmt::Debug for BasicModel {
             .domain()
             .iter()
             .sorted()
-            .iter()
             .map(|e| {
                 let witnesses: Vec<String> =
                     self.witness(e).iter().map(|w| w.to_string()).collect();
@@ -596,19 +682,22 @@ impl PreProcessor for BasicPreProcessor {
 /// Is a reference implementation of [`Evaluator`] for evaluating a basic [`Sequent`] in a basic [`Model`]
 /// within a [chase-step].
 ///
+/// It honours every [`Bounder`], but never reuses elements: as the oracle it builds the partial
+/// model, so [`Admission::Reuse`] is treated as [`Admission::Overflow`].
+///
 /// [`Evaluator`]: crate::chase::Evaluator
 /// [chase-step]: crate::chase#chase-step
 pub struct BasicEvaluator;
 
-impl<'s, Stg: Strategy<&'s BasicSequent>, B: Bounder> Evaluator<'s, Stg, B> for BasicEvaluator {
+impl<'s, Stg: Strategy<&'s BasicSequent>> Evaluator<'s, Stg> for BasicEvaluator {
     type Sequent = BasicSequent;
     type Model = BasicModel;
 
-    fn evaluate(
+    fn evaluate<B: Bounder + ?Sized>(
         &self,
         initial_model: &BasicModel,
         strategy: &mut Stg,
-        bounder: Option<&B>,
+        bound: &B,
     ) -> Option<EvaluateResult<BasicModel>> {
         let domain: Vec<&E> = initial_model.domain_ref().clone();
         let domain_size = domain.len();
@@ -620,7 +709,7 @@ impl<'s, Stg: Strategy<&'s BasicSequent>, B: Bounder> Evaluator<'s, Stg, B> for 
             }
 
             // maintain a list of indices into the model elements to which variables are mapped
-            let mut assignment: Vec<usize> = iter::repeat(0).take(vars_size).collect();
+            let mut assignment: Vec<usize> = std::iter::repeat_n(0, vars_size).collect();
 
             // try all the variable assignments to the elements of the model
             // (notice the do-while pattern)
@@ -655,15 +744,9 @@ impl<'s, Stg: Strategy<&'s BasicSequent>, B: Bounder> Evaluator<'s, Stg, B> for 
                     if head.is_empty() {
                         return None; // the chase fails if the head is empty (false)
                     } else {
-                        // if there is a bounder, only extend models that are not out of the given bound:
+                        let extend = make_extend(bound, initial_model);
                         let models: Vec<Either<BasicModel, BasicModel>> =
-                            if let Some(bounder) = bounder {
-                                let extend = make_bounded_extend(bounder, initial_model);
-                                head.iter().map(extend).collect()
-                            } else {
-                                let extend = make_extend(initial_model);
-                                head.iter().map(extend).collect()
-                            };
+                            head.iter().map(extend).collect();
 
                         let result = EvaluateResult::from(models);
                         if !result.empty() {
@@ -683,30 +766,17 @@ impl<'s, Stg: Strategy<&'s BasicSequent>, B: Bounder> Evaluator<'s, Stg, B> for 
 }
 
 // Returns a closure that returns a cloned extension of the given model, extended by a given set of
-// observations.
-fn make_extend<'m>(
-    model: &'m BasicModel,
-) -> impl FnMut(&'m Vec<Observation<BasicWitnessTerm>>) -> Either<BasicModel, BasicModel> {
-    move |os: &'m Vec<Observation<BasicWitnessTerm>>| {
-        let mut model = model.clone();
-        os.iter().foreach(|o| model.observe(o));
-        Either::Left(model)
-    }
-}
-
-// Returns a closure that returns a cloned extension of the given model, extended by a given set of
-// observations. Unlike `make_extend`, `make_bounded_extend` extends the model with respect to a
-// bounder: a model wrapped in `Either::Right` has not reached the bounds while a model wrapped in
-// `Either::Left` has reached the bounds provided by `bounder`.
-fn make_bounded_extend<'m, B: Bounder>(
-    bounder: &'m B,
+// observations within `bound`: a model wrapped in `Either::Right` has reached `bound` and misses
+// the observations beyond it, while a model wrapped in `Either::Left` has not.
+fn make_extend<'m, B: Bounder + ?Sized>(
+    bound: &'m B,
     model: &'m BasicModel,
 ) -> impl FnMut(&'m Vec<Observation<BasicWitnessTerm>>) -> Either<BasicModel, BasicModel> {
     move |os: &Vec<Observation<BasicWitnessTerm>>| {
         let mut model = model.clone();
         let mut modified = false;
-        os.iter().foreach(|o| {
-            if bounder.bound(&model, o) {
+        os.iter().for_each(|o| {
+            if model.exceeds(bound, o) {
                 if !model.is_observed(o) {
                     modified = true;
                 }
@@ -751,7 +821,7 @@ fn make_observe_literal(
 // variables of a sequent. It mutates the given a list of indices, corresponding to mapping of each
 // position to an element of a domain to the next assignment. Returns true if a next assignment
 // exists and false otherwise.
-fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
+fn next_assignment(vec: &mut [usize], last: usize) -> bool {
     for item in vec.iter_mut() {
         if *item != last {
             *item += 1;
@@ -767,7 +837,8 @@ fn next_assignment(vec: &mut Vec<usize>, last: usize) -> bool {
 mod test_basic {
     use super::*;
     use crate::chase::{
-        bounder::DomainSize, chase_all, scheduler::FIFO, strategy::Linear, Scheduler,
+        chase_all, chase_step, scheduler::FIFO, strategy::Linear, Depth, DepthMode, DomainSize,
+        Scheduler, Unbounded,
     };
     use crate::test_prelude::*;
     use razor_fol::transform::ToGNF;
@@ -861,20 +932,14 @@ mod test_basic {
         {
             let mut model = BasicModel::new();
             model.observe(&_R_().app0());
-            assert_eq_sets(
-                &Vec::from_iter(vec![_R_().app0()].into_iter()),
-                &model.facts(),
-            );
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app0()]), &model.facts());
             assert!(model.is_observed(&_R_().app0()));
         }
         {
             let mut model = BasicModel::new();
             model.observe(&_R_().app1(_c_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
-            assert_eq_sets(
-                &Vec::from_iter(vec![_R_().app1(_e_0())].into_iter()),
-                &model.facts(),
-            );
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app1(_e_0())]), &model.facts());
             assert!(model.is_observed(&_R_().app1(_c_())));
             assert!(model.is_observed(&_R_().app1(_e_0())));
             assert!(!model.is_observed(&_R_().app1(_e_1())));
@@ -903,7 +968,7 @@ mod test_basic {
             model.observe(&_a_().equals(_b_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0()]), &model.domain());
             assert_eq_sets(
-                &Vec::from_iter(vec![_P_().app1(_e_0()), _Q_().app1(_e_0())].into_iter()),
+                &Vec::from_iter(vec![_P_().app1(_e_0()), _Q_().app1(_e_0())]),
                 &model.facts(),
             );
             assert!(model.is_observed(&_P_().app1(_e_0())));
@@ -918,10 +983,7 @@ mod test_basic {
             let mut model = BasicModel::new();
             model.observe(&_R_().app1(BasicWitnessTerm::apply(f(), vec![_c_()])));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
-            assert_eq_sets(
-                &Vec::from_iter(vec![_R_().app1(_e_1())].into_iter()),
-                &model.facts(),
-            );
+            assert_eq_sets(&Vec::from_iter(vec![_R_().app1(_e_1())]), &model.facts());
             assert!(model.is_observed(&_R_().app1(_e_1())));
             assert!(model.is_observed(&_R_().app1(BasicWitnessTerm::apply(f(), vec![_c_()]))));
             assert_eq_sets(&Vec::from_iter(vec![_c_()]), &model.witness(&e_0()));
@@ -935,7 +997,7 @@ mod test_basic {
             model.observe(&_R_().app2(_a_(), _b_()));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1()]), &model.domain());
             assert_eq_sets(
-                &Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())].into_iter()),
+                &Vec::from_iter(vec![_R_().app2(_e_0(), _e_1())]),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app2(_e_0(), _e_1())));
@@ -951,7 +1013,7 @@ mod test_basic {
             ));
             assert_eq_sets(&Vec::from_iter(vec![e_0(), e_1(), e_2()]), &model.domain());
             assert_eq_sets(
-                &Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())].into_iter()),
+                &Vec::from_iter(vec![_R_().app2(_e_1(), _e_2())]),
                 &model.facts(),
             );
             assert!(model.is_observed(&_R_().app2(_e_1(), _e_2())));
@@ -980,9 +1042,7 @@ mod test_basic {
                 &model.domain(),
             );
             assert_eq_sets(
-                &Vec::from_iter(
-                    vec![_R_().app2(_e_0(), _e_1()), _S_().app2(_e_2(), _e_3())].into_iter(),
-                ),
+                &Vec::from_iter(vec![_R_().app2(_e_0(), _e_1()), _S_().app2(_e_2(), _e_3())]),
                 &model.facts(),
             );
         }
@@ -1000,15 +1060,12 @@ mod test_basic {
                 &model.domain(),
             );
             assert_eq_sets(
-                &Vec::from_iter(
-                    vec![
-                        _R_().app2(_e_0(), _e_1()),
-                        _S_().app1(_e_4()),
-                        _S_().app1(_e_2()),
-                        _R_().app2(_e_3(), _e_2()),
-                    ]
-                    .into_iter(),
-                ),
+                &Vec::from_iter(vec![
+                    _R_().app2(_e_0(), _e_1()),
+                    _S_().app1(_e_4()),
+                    _S_().app1(_e_2()),
+                    _R_().app2(_e_3(), _e_2()),
+                ]),
                 &model.facts(),
             );
         }
@@ -1094,9 +1151,8 @@ mod test_basic {
         let strategy: Linear<_> = sequents.iter().collect();
 
         let mut scheduler = FIFO::new();
-        let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, &Unbounded)
     }
 
     fn run_domain_bounded(theory: &Theory<FOF>, bound: usize) -> Vec<BasicModel> {
@@ -1105,10 +1161,37 @@ mod test_basic {
         let evaluator = BasicEvaluator;
         let strategy: Linear<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
-        let bounder = DomainSize::from(bound);
-        let bounder: Option<&DomainSize> = Some(&bounder);
+        let bound = DomainSize(bound);
         scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, &bound)
+    }
+
+    #[test]
+    fn depth_bound_reports_partial_models() {
+        let theory: Theory<FOF> = "exists x. P(x); P(x) -> exists y. (R(x, y) & P(y));"
+            .parse()
+            .unwrap();
+        for mode in [DepthMode::Pure, DepthMode::Reuse] {
+            let (sequents, init_model) = BasicPreProcessor.pre_process(&theory);
+            let strategy: Linear<_> = sequents.iter().collect();
+            let mut scheduler = FIFO::new();
+            scheduler.add(init_model, strategy);
+            let bound = Depth { max: 2, mode };
+            let mut complete = Vec::new();
+            let mut incomplete = Vec::new();
+            while !scheduler.empty() {
+                chase_step(
+                    &mut scheduler,
+                    &BasicEvaluator,
+                    &bound,
+                    |m| complete.push(m),
+                    |m| incomplete.push(m),
+                );
+            }
+            assert!(complete.is_empty());
+            assert_eq!(1, incomplete.len());
+            assert_eq!(3, incomplete[0].domain().len());
+        }
     }
 
     #[test]
@@ -1116,19 +1199,16 @@ mod test_basic {
         std::fs::read_dir("../theories/core")
             .unwrap()
             .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| path.extension().is_some_and(|e| e == "raz"))
             .for_each(|path| {
                 let theory = read_theory_from_file(path.to_str().unwrap());
-                let expected: HashSet<String> =
+                let expected: BTreeSet<String> =
                     read_file(path.with_extension("model").to_str().unwrap())
                         .split("\n-- -- -- -- -- -- -- -- -- --\n")
                         .filter(|s| !s.is_empty())
                         .map(Into::into)
                         .collect();
-                let result: HashSet<_> = run(&theory)
-                    .into_iter()
-                    .map(|m| print_basic_model(m))
-                    .collect();
+                let result: BTreeSet<_> = run(&theory).into_iter().map(print_basic_model).collect();
                 assert_eq!(
                     expected,
                     result,
@@ -1143,21 +1223,21 @@ mod test_basic {
         std::fs::read_dir("../theories/bounded")
             .unwrap()
             .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| path.extension().is_some_and(|e| e == "raz"))
             .for_each(|path| {
                 let theory = read_theory_from_file(path.to_str().unwrap());
                 let config = read_file(path.with_extension("config").to_str().unwrap())
                     .parse::<usize>()
                     .unwrap();
-                let expected: HashSet<String> =
+                let expected: BTreeSet<String> =
                     read_file(path.with_extension("model").to_str().unwrap())
                         .split("\n-- -- -- -- -- -- -- -- -- --\n")
                         .filter(|s| !s.is_empty())
                         .map(Into::into)
                         .collect();
-                let result: HashSet<_> = run_domain_bounded(&theory, config)
+                let result: BTreeSet<_> = run_domain_bounded(&theory, config)
                     .into_iter()
-                    .map(|m| print_basic_model(m))
+                    .map(print_basic_model)
                     .collect();
                 assert_eq!(
                     expected,

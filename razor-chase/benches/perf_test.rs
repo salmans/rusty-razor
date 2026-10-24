@@ -1,14 +1,13 @@
 use criterion::{criterion_group, criterion_main, Bencher, Criterion};
 use itertools::Itertools;
 use razor_chase::chase::{
-    bounder::DomainSize,
     chase_all,
     r#impl::*,
     scheduler::FIFO,
     strategy::{Bootstrap, Fair},
-    PreProcessor, Scheduler, Strategy,
+    PreProcessor, Scheduler, Unbounded,
 };
-use razor_fol::syntax::Theory;
+use razor_fol::syntax::{Theory, FOF};
 use std::{fs, io::Read};
 
 macro_rules! read_theory {
@@ -18,7 +17,7 @@ macro_rules! read_theory {
         f.read_to_string(&mut contents)
             .expect("something went wrong reading the file");
 
-        contents.parse::<Theory>().unwrap()
+        contents.parse::<Theory<FOF>>().unwrap()
     }};
 }
 
@@ -26,25 +25,26 @@ macro_rules! run_unbounded {
     (
         $name: literal,
         pre_processor = $prep: expr,
-        evaluator = $eval: path,
+        evaluator = $eval: expr,
         sequent = $seq: path,
         model = $model: path,
         $crit: ident
     ) => {{
-        fn solve(theory: &Theory) -> Vec<$model> {
+        fn solve(theory: &Theory<FOF>) -> Vec<$model> {
             let (sequents, init_model) = $prep.pre_process(theory);
             let evaluator = $eval;
-            let selector: Bootstrap<$seq, Fair<$seq>> = Bootstrap::new(sequents.iter());
+            let selector: Bootstrap<&$seq, Fair<$seq>> = sequents.iter().collect();
             let mut strategy = FIFO::new();
-            let bounder: Option<&DomainSize> = None;
             strategy.add(init_model, selector);
-            chase_all(&mut strategy, &evaluator, bounder)
+            chase_all(&mut strategy, &evaluator, &Unbounded)
         }
 
         fn run_bench(b: &mut Bencher) {
             let theories = &fs::read_dir("../theories/core")
                 .unwrap()
-                .map(|item| read_theory!(item.unwrap().path().display().to_string()).gnf())
+                .map(|item| item.unwrap().path())
+                .filter(|p| p.extension().map_or(false, |e| e == "raz"))
+                .map(|p| read_theory!(p.display().to_string()))
                 .collect_vec();
 
             b.iter(|| {
@@ -57,21 +57,10 @@ macro_rules! run_unbounded {
     }};
 }
 
-fn bench_batch(c: &mut Criterion) {
-    run_unbounded!(
-        "batch",
-        pre_processor = collapse::ColPreProcessor,
-        evaluator = batch::BatchEvaluator,
-        sequent = collapse::ColSequent,
-        model = collapse::ColModel,
-        c
-    );
-}
-
 fn bench_relational(c: &mut Criterion) {
     run_unbounded!(
         "relational",
-        pre_processor = relational::RelPreProcessor::new(false),
+        pre_processor = relational::RelPreProcessor,
         evaluator = relational::RelEvaluator,
         sequent = relational::RelSequent,
         model = relational::RelModel,
@@ -79,21 +68,5 @@ fn bench_relational(c: &mut Criterion) {
     );
 }
 
-fn bench_relational_memoized(c: &mut Criterion) {
-    run_unbounded!(
-        "relational_memoized",
-        pre_processor = relational::RelPreProcessor::new(true),
-        evaluator = relational::RelEvaluator,
-        sequent = relational::RelSequent,
-        model = relational::RelModel,
-        c
-    );
-}
-
-criterion_group!(
-    benches,
-    bench_batch,
-    bench_relational,
-    bench_relational_memoized
-);
+criterion_group!(benches, bench_relational);
 criterion_main!(benches);

@@ -672,8 +672,7 @@ mod tests {
         assert_debug_string!(
             "? x``. (P(x``) & Q(x, x`))",
             pnf(&FOF::exists(vec![v!(x)], fof!(P(x)))
-                .and(pred!(Q).app(vec![term!(x), v_1!(x).into()]).into())
-                .into()),
+                .and(pred!(Q).app(vec![term!(x), v_1!(x).into()]).into())),
         );
         assert_debug_string!(
             "? x``. (P(x``, x`) & Q(x))",
@@ -747,8 +746,7 @@ mod tests {
                 vec![v!(x)],
                 pred!(P).app(vec![term!(x), v_1!(x).into()]).into()
             )
-            .or(pred!(Q).app(vec![term!(x)]).into())
-            .into())
+            .or(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``, x`. (Q(x) | P(x``))",
@@ -795,8 +793,7 @@ mod tests {
                 vec![v!(x), v_1!(x)],
                 FOF::from(pred!(P).app(vec![term!(x)]))
             )
-            .implies(pred!(Q).app(vec![term!(x)]).into())
-            .into())
+            .implies(pred!(Q).app(vec![term!(x)]).into()))
         );
         assert_debug_string!(
             "! x``. (P(x``) -> Q(x, x`))",
@@ -871,7 +868,6 @@ mod tests {
             pnf(
                 &FOF::exists(vec![v!(x)], FOF::from(pred!(P).app(vec![term!(x)])))
                     .iff(FOF::from(pred!(Q).app(vec![term!(x), v_1!(x).into()])))
-                    .into()
             )
         );
         assert_debug_string!(
@@ -884,12 +880,10 @@ mod tests {
         );
         assert_debug_string!(
             "! x``, x`. (? x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
-            pnf(&FOF::from(pred!(Q).app(vec![term!(x)]))
-                .iff(FOF::forall(
-                    vec![v!(x), v_1!(x)],
-                    pred!(P).app(vec![term!(x)]).into()
-                ))
-                .into())
+            pnf(&FOF::from(pred!(Q).app(vec![term!(x)])).iff(FOF::forall(
+                vec![v!(x), v_1!(x)],
+                pred!(P).app(vec![term!(x)]).into()
+            )))
         );
         assert_debug_string!(
             "? x``, x`. (! x```, x`. ((Q(x) -> P(x``)) & (P(x```) -> Q(x))))",
@@ -1081,10 +1075,7 @@ mod tests {
         {
             let pnf =
                 fof!(!x . {? y . {[[P(x, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(x, z)}]]}}).pnf();
-            assert_eq_sorted_vecs!(
-                vec![v!(w), v!(z)].iter().collect::<Vec<_>>(),
-                pnf.free_vars()
-            );
+            assert_eq_sorted_vecs!([v!(w), v!(z)].iter().collect::<Vec<_>>(), pnf.free_vars());
         }
     }
 
@@ -1093,14 +1084,11 @@ mod tests {
         let pnf =
             fof!(!x . {? y . {[[P(f(x), y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(f(x), z)}]]}}).pnf();
         let f = |t: &Complex| {
-            {
-                if t == &term!(f(x)) {
-                    term!(z)
-                } else {
-                    t.clone()
-                }
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
             }
-            .into()
         };
         assert_eq!(
             fof!(!x . {? y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),

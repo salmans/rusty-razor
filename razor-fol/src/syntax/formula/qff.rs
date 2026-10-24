@@ -219,7 +219,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Atom {
@@ -230,7 +230,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Atom {
@@ -241,7 +241,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(z)];
+            let expected = [v!(x), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Atom {
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn equals_free_vars() {
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Equals {
@@ -383,7 +383,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x)];
+            let expected = [v!(x)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Equals {
@@ -485,7 +485,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Not {
@@ -499,7 +499,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Not {
@@ -610,7 +610,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(And {
@@ -796,7 +796,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Or {
@@ -982,7 +982,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Implies {
@@ -1168,7 +1168,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 QFF::from(Iff {
