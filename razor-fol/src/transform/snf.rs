@@ -365,10 +365,7 @@ mod tests {
         {
             let snf =
                 fof!(!x . {! y . {[[P(x, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(x, z)}]]}}).snf();
-            assert_eq_sorted_vecs!(
-                vec![v!(w), v!(z)].iter().collect::<Vec<_>>(),
-                snf.free_vars()
-            );
+            assert_eq_sorted_vecs!([v!(w), v!(z)].iter().collect::<Vec<_>>(), snf.free_vars());
         }
     }
 
@@ -377,14 +374,11 @@ mod tests {
         let snf =
             fof!(!x . {! y . {[[P(f(x), y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(f(x), z)}]]}}).snf();
         let f = |t: &Complex| {
-            {
-                if t == &term!(f(x)) {
-                    term!(z)
-                } else {
-                    t.clone()
-                }
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
             }
-            .into()
         };
         assert_eq!(
             fof!(!x . {! y . {[[P(z, y)] & [Q(w)]] -> [[(x) = (z)] | [~{R(z, z)}]]}}),

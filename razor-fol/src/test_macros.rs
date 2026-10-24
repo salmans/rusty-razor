@@ -10,24 +10,6 @@ macro_rules! v_1 {
     }};
 }
 
-// Creates a variable with the given name followed by two '`'.
-#[macro_export]
-macro_rules! v_2 {
-    ($v:ident) => {{
-        let var = format!("{}``", stringify!($v));
-        $crate::syntax::Var::from(var)
-    }};
-}
-
-// Creates a variable with the given name followed by three '`'.
-#[macro_export]
-macro_rules! v_3 {
-    ($v:ident) => {{
-        let var = format!("{}```", stringify!($v));
-        $crate::syntax::Var::from(var)
-    }};
-}
-
 // Asserts equality between two vectors as multisets.
 #[macro_export]
 macro_rules! assert_eq_sorted_vecs {

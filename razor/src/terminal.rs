@@ -18,11 +18,6 @@ impl Stylus {
         self.styles.insert(id, style);
     }
 
-    #[allow(dead_code)]
-    pub fn delete_style(&mut self, id: StyleId) {
-        self.styles.remove(&id);
-    }
-
     pub fn set(&self, id: StyleId) {
         if let Some(s) = self.styles.get(&id) {
             self.set_style(s)
@@ -40,8 +35,12 @@ impl Stylus {
 
     fn apply(style: &Style) {
         let mut term = term::stdout();
-        style.color.map(|c| term.as_mut().unwrap().fg(c).unwrap());
-        style.attr.map(|a| term.as_mut().unwrap().attr(a).unwrap());
+        if let Some(c) = style.color {
+            term.as_mut().unwrap().fg(c).unwrap()
+        }
+        if let Some(a) = style.attr {
+            term.as_mut().unwrap().attr(a).unwrap()
+        }
     }
 }
 

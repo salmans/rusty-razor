@@ -1,4 +1,4 @@
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{fmt, fs::File, io::Write, sync::Mutex};
 use tracing::*;
 
@@ -112,15 +112,14 @@ struct ModelRecord {
 
 impl ModelRecord {
     fn try_from(value: Recorder) -> Result<Self, ()> {
-        if value.event.is_none() | value.model_id.is_none() | value.model.is_none() {
-            Err(())
-        } else {
-            Ok(ModelRecord {
-                event: value.event.unwrap(),
-                model_id: value.model_id.unwrap(),
+        match (value.event, value.model_id, value.model) {
+            (Some(event), Some(model_id), Some(model)) => Ok(ModelRecord {
+                event,
+                model_id,
                 parent: value.parent,
-                model: value.model.unwrap(),
-            })
+                model,
+            }),
+            _ => Err(()),
         }
     }
 }
@@ -135,13 +134,12 @@ struct EvaluateRecord {
 
 impl EvaluateRecord {
     fn try_from(value: Recorder) -> Result<Self, ()> {
-        if value.sequent.is_none() {
-            Err(())
-        } else {
-            Ok(EvaluateRecord {
-                sequent: value.sequent.unwrap(),
-                mapping: value.mapping.unwrap_or_else(|| "".into()),
-            })
+        match value.sequent {
+            Some(sequent) => Ok(EvaluateRecord {
+                sequent,
+                mapping: value.mapping.unwrap_or_default(),
+            }),
+            None => Err(()),
         }
     }
 }

@@ -62,6 +62,7 @@ pub trait Term {
     /// let s = t.rename_var(&renaming); // s = f(a, z, g(a, b, a))
     /// assert_eq!("f(a, z, g(a, b, a))", s.to_string())
     /// ```
+    #[allow(clippy::only_used_in_recursion)] // default method that recurses through `transform`
     fn rename_var(&self, renaming: &impl Renaming) -> Self
     where
         Self: Sized,
@@ -99,6 +100,7 @@ pub trait Term {
     /// let s = t.substitute(&x_to_c); // s = f('c, g('c, y, 'c))
     /// assert_eq!("f('c, g('c, y, 'c))", s.to_string())
     /// ```
+    #[allow(clippy::only_used_in_recursion)] // default method that recurses through `transform`
     fn substitute(&self, sub: &impl Substitution<Self>) -> Self
     where
         Self: Sized,
@@ -223,12 +225,9 @@ impl Term for Complex {
         match self {
             Complex::Var(v) => vec![v],
             Complex::Const(_) => vec![],
-            Complex::App { function: _, terms } => terms
-                .iter()
-                .flat_map(|t| t.vars())
-                .into_iter()
-                .unique()
-                .collect(),
+            Complex::App { function: _, terms } => {
+                terms.iter().flat_map(|t| t.vars()).unique().collect()
+            }
         }
     }
 
@@ -395,7 +394,7 @@ mod tests {
             assert_eq_sorted_vecs!(expected, fmla.vars());
         }
         {
-            let expected = vec![v!(x)];
+            let expected = [v!(x)];
             let term = term!(f(x));
             assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.vars());
         }
@@ -405,12 +404,12 @@ mod tests {
             assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.vars());
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             let term = term!(f(x, y, x));
             assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.vars());
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             let term = term!(f(g(x), h(y, f(g(z)))));
             assert_eq_sorted_vecs!(expected.iter().collect::<Vec<_>>(), term.vars(),);
         }
@@ -489,9 +488,7 @@ mod tests {
         assert_eq!(
             term!(f(z, z)),
             term!(f(x, y)).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(z)
-                } else if *v == v!(y) {
+                if *v == v!(x) || *v == v!(y) {
                     v!(z)
                 } else {
                     v.clone()
@@ -704,9 +701,7 @@ mod tests {
         assert_eq!(
             fof!((z) = (z)),
             fof!((x) = (y)).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(z)
-                } else if *v == v!(y) {
+                if *v == v!(x) || *v == v!(y) {
                     v!(z)
                 } else {
                     v.clone()
@@ -760,9 +755,7 @@ mod tests {
         assert_eq!(
             fof!((P(z)) & (Q(z))),
             fof!((P(x)) & (Q(y))).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(z)
-                } else if *v == v!(y) {
+                if *v == v!(x) || *v == v!(y) {
                     v!(z)
                 } else {
                     v.clone()
@@ -772,9 +765,7 @@ mod tests {
         assert_eq!(
             fof!((P(z)) | (Q(z))),
             fof!((P(x)) | (Q(y))).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(z)
-                } else if *v == v!(y) {
+                if *v == v!(x) || *v == v!(y) {
                     v!(z)
                 } else {
                     v.clone()
@@ -784,9 +775,7 @@ mod tests {
         assert_eq!(
             fof!((P(z)) -> (Q(z))),
             fof!((P(x)) -> (Q(y))).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(z)
-                } else if *v == v!(y) {
+                if *v == v!(x) || *v == v!(y) {
                     v!(z)
                 } else {
                     v.clone()
@@ -796,9 +785,7 @@ mod tests {
         assert_eq!(
             fof!((P(z)) <=> (Q(z))),
             fof!((P(x)) <=> (Q(y))).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(z)
-                } else if *v == v!(y) {
+                if *v == v!(x) || *v == v!(y) {
                     v!(z)
                 } else {
                     v.clone()
@@ -808,9 +795,7 @@ mod tests {
         assert_eq!(
             fof!(? x, y. (P(y, y, y))),
             fof!(? x, y. (P(x, y, z))).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(y)
-                } else if *v == v!(z) {
+                if *v == v!(x) || *v == v!(z) {
                     v!(y)
                 } else {
                     v.clone()
@@ -820,9 +805,7 @@ mod tests {
         assert_eq!(
             fof!(! x, y. (P(y, y, y))),
             fof!(! x, y. (P(x, y, z))).rename_var(&|v: &Var| {
-                if *v == v!(x) {
-                    v!(y)
-                } else if *v == v!(z) {
+                if *v == v!(x) || *v == v!(z) {
                     v!(y)
                 } else {
                     v.clone()

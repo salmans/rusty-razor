@@ -2,7 +2,7 @@
 name = "razor"
 version = "0.1.0"
 authors = ["Salman Saghafi <salman.saghafi@me.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = "razor is a command-line tool for constructing finite models for first-order theories."
 documentation = "https://salmans.github.io/rusty-razor/intro.html"
@@ -14,10 +14,10 @@ categories = ["mathematics", "command-line-utilities"]
 [dependencies]
 razor-fol = { path = "../razor-fol", version = "0.1.0" }
 razor-chase = { path = "../razor-chase", version = "0.1.0" }
-itertools = "0.7"
+itertools = "0.13"
 anyhow = "^1.0.31"
-structopt = "0.2"
-term = "0.2"
+clap = { version = "4", features = ["derive"] }
+term = "0.7"
 tracing = "0.1"
 
 [[bin]]

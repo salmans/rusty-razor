@@ -2,7 +2,7 @@
 name = "razor-fol"
 version = "0.1.0"
 authors = ["Salman Saghafi <salman.saghafi@me.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = "razor-fol is a library for parsing and syntactic manipulation of first-order theories."
 documentation = "https://salmans.github.io/rusty-razor/intro.html"
@@ -13,13 +13,12 @@ categories = ["parser-implementations", "mathematics"]
 build = "build.rs"
 
 [dependencies]
-itertools = "^0.7"
-thiserror = "^1.0"
-lalrpop-util = "^0.19"
+itertools = "0.13"
+thiserror = "2"
+lalrpop-util = { version = "0.22", features = ["lexer", "unicode"] }
 
 [build-dependencies]
-lalrpop = "^0.19"
-regex = "1"
+lalrpop = "0.22"
 
 [lib]
 name = "razor_fol"

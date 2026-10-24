@@ -1,0 +1,4 @@
+// Functionality merges the outputs of one application.
+f('a) = 'b;
+f('a) = 'c;
+P('b);

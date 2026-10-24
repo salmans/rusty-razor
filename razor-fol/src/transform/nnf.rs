@@ -487,10 +487,7 @@ mod tests {
         }
         {
             let nnf = fof!({!x. {? y. {[P(x, y)] | [~(Q(z))]}}} & {[~(R(x, z))] | [R(@c)]}).nnf();
-            assert_eq_sorted_vecs!(
-                vec![v!(x), v!(z)].iter().collect::<Vec<_>>(),
-                nnf.free_vars()
-            );
+            assert_eq_sorted_vecs!([v!(x), v!(z)].iter().collect::<Vec<_>>(), nnf.free_vars());
         }
     }
 
@@ -498,14 +495,11 @@ mod tests {
     fn nnf_transform() {
         let nnf = fof!({!x. {? y. {[P(f(x), y)] | [~(Q(z))]}}} & {[~(R(f(x), z))] | [R(@c)]}).nnf();
         let f = |t: &Complex| {
-            {
-                if t == &term!(f(x)) {
-                    term!(z)
-                } else {
-                    t.clone()
-                }
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
             }
-            .into()
         };
         assert_eq!(
             fof!({!x. {? y. {[P(z, y)] | [~(Q(z))]}}} & {[~(R(z, z))] | [R(@c)]}),

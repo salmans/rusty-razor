@@ -84,20 +84,13 @@ impl<T: Term> FormulaEx for Literal<T> {
 ///
 /// **Note:**
 /// The interpretation of a clause depends on its syntactic context.
-/// For example, a [`CNF`] clause is interpreted as disjunction of literals whereas
-/// a [`DNF`] clause corresponds to a conjunction of literals.
+/// For example, a [`CNF`] clause is interpreted as disjunction of literals.
 ///
 /// [`CNF`]: crate::transform::CNF
-/// [`DNF`]: crate::transform::DNF
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Clause<T: Term>(BTreeSet<Literal<T>>);
 
 impl<T: Term> Clause<T> {
-    /// Returns the literals of `self` clause.
-    pub fn literals(&self) -> &BTreeSet<Literal<T>> {
-        &self.0
-    }
-
     /// Consumes `self` and returns its underlying list of [`Literal`]s.
     pub fn into_literals(self) -> BTreeSet<Literal<T>> {
         self.0
@@ -187,11 +180,9 @@ impl<T: Term + Ord> Formula for Clause<T> {
 /// **Note:**
 /// The interpretation of a clause set depends on its syntactic context. For example,
 /// a [`CNF`] is a clause set that is interpreted as a conjunction of clauses where each
-/// clause is a disjunction of literals. In contrast, a [`DNF`] is a clause set that
-/// corresponds to a disjunction of clauses where each clause is a conjunction of literals.
+/// clause is a disjunction of literals.
 ///
 /// [`CNF`]: crate::transform::CNF
-/// [`DNF`]: crate::transform::DNF
 #[derive(PartialEq, Clone, Debug)]
 pub struct ClauseSet<T: Term>(BTreeSet<Clause<T>>);
 
@@ -233,11 +224,6 @@ where
 }
 
 impl<T: Term> ClauseSet<T> {
-    /// Returns the clauses of `self`.
-    pub fn clauses(&self) -> &BTreeSet<Clause<T>> {
-        &self.0
-    }
-
     /// Consumes `self` and returns its underlying set of clauses.
     pub fn into_clauses(self) -> BTreeSet<Clause<T>> {
         self.0
@@ -248,24 +234,6 @@ impl<T: Term + Ord + Clone> ClauseSet<T> {
     /// Returns a clause set, containing all clauses in `self` and `other`.
     pub fn union(&self, other: &Self) -> Self {
         self.0.union(&other.0).cloned().collect()
-    }
-
-    /// Returns a new clause set obtained by removing clauses that are proper supersets of
-    /// some other clauses in the clause set.
-    pub fn minimize(&self) -> Self {
-        self.iter()
-            .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_subset(c1)))
-            .cloned()
-            .collect()
-    }
-
-    /// Returns a new clause set obtained by removing clauses that are proper subsets of
-    /// some other clauses in the clause set.
-    pub fn maximize(&self) -> Self {
-        self.iter()
-            .filter(|c1| !self.iter().any(|c2| *c1 != c2 && c2.is_superset(c1)))
-            .cloned()
-            .collect()
     }
 }
 
@@ -322,7 +290,7 @@ mod tests {
     #[test]
     fn literal_free_vars() {
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Literal::from(Atom {
@@ -333,7 +301,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Literal::from(Equals {
@@ -344,7 +312,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Literal::from(Not {
@@ -357,7 +325,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Literal::from(Not {
@@ -380,14 +348,11 @@ mod tests {
             }
             .into();
             let f = |t: &Complex| {
-                {
-                    if t == &term!(f(x)) {
-                        term!(z)
-                    } else {
-                        t.clone()
-                    }
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
                 }
-                .into()
             };
             assert_eq!(
                 Literal::from(Atom {
@@ -406,14 +371,11 @@ mod tests {
             }
             .into();
             let f = |t: &Complex| {
-                {
-                    if t == &term!(f(x)) {
-                        term!(z)
-                    } else {
-                        t.clone()
-                    }
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
                 }
-                .into()
             };
             assert_eq!(
                 Literal::from(Not {
@@ -599,7 +561,7 @@ mod tests {
 
     #[test]
     fn clause_free_vars() {
-        let expected = vec![v!(x), v!(y)];
+        let expected = [v!(x), v!(y)];
         let clause: Clause<_> = vec![
             Literal::from(Atom {
                 predicate: "P".into(),
@@ -698,14 +660,11 @@ mod tests {
             .into();
 
             let f = |t: &Complex| {
-                {
-                    if t == &term!(f(x)) {
-                        term!(z)
-                    } else {
-                        t.clone()
-                    }
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
                 }
-                .into()
             };
             assert_eq!(expected, clause.transform_term(&f));
         }
@@ -777,7 +736,7 @@ mod tests {
 
     #[test]
     fn clause_set_free_vars() {
-        let expected = vec![v!(x), v!(y)];
+        let expected = [v!(x), v!(y)];
         let clause: ClauseSet<_> = vec![
             Clause::from(Literal::from(Atom {
                 predicate: "P".into(),
@@ -819,14 +778,11 @@ mod tests {
             .into();
 
             let f = |t: &Complex| {
-                {
-                    if t == &term!(f(x)) {
-                        term!(z)
-                    } else {
-                        t.clone()
-                    }
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
                 }
-                .into()
             };
             assert_eq!(expected, clause_set.transform_term(&f));
         }
@@ -950,126 +906,6 @@ mod tests {
 
             assert_eq!(expected, first.union(&second));
             assert_eq!(expected, second.union(&first));
-        }
-    }
-
-    #[test]
-    fn clause_set_minimize() {
-        {
-            let clause_set = ClauseSet::<Complex>::default();
-            assert_eq!(clause_set, clause_set.minimize());
-        }
-        {
-            let clause_set: ClauseSet<_> = vec![Clause::from(vec![Literal::from(Atom {
-                predicate: "P".into(),
-                terms: vec![term!(x)],
-            })])]
-            .into();
-            assert_eq!(clause_set, clause_set.minimize());
-        }
-        {
-            let clause_set: ClauseSet<_> = vec![
-                Clause::from(vec![
-                    Literal::from(Atom {
-                        predicate: "P".into(),
-                        terms: vec![term!(x)],
-                    }),
-                    Literal::from(Atom {
-                        predicate: "Q".into(),
-                        terms: vec![term!(x)],
-                    }),
-                ]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "P".into(),
-                    terms: vec![term!(x)],
-                })]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "R".into(),
-                    terms: vec![term!(x)],
-                })]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "Q".into(),
-                    terms: vec![term!(x)],
-                })]),
-            ]
-            .into();
-            let expected: ClauseSet<_> = vec![
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "P".into(),
-                    terms: vec![term!(x)],
-                })]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "Q".into(),
-                    terms: vec![term!(x)],
-                })]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "R".into(),
-                    terms: vec![term!(x)],
-                })]),
-            ]
-            .into();
-            assert_eq!(expected, clause_set.minimize());
-        }
-    }
-
-    #[test]
-    fn clause_set_maximize() {
-        {
-            let clause_set = ClauseSet::<Complex>::default();
-            assert_eq!(clause_set, clause_set.maximize());
-        }
-        {
-            let clause_set: ClauseSet<_> = vec![Clause::from(vec![Literal::from(Atom {
-                predicate: "P".into(),
-                terms: vec![term!(x)],
-            })])]
-            .into();
-            assert_eq!(clause_set, clause_set.maximize());
-        }
-        {
-            let clause_set: ClauseSet<_> = vec![
-                Clause::from(vec![
-                    Literal::from(Atom {
-                        predicate: "P".into(),
-                        terms: vec![term!(x)],
-                    }),
-                    Literal::from(Atom {
-                        predicate: "Q".into(),
-                        terms: vec![term!(x)],
-                    }),
-                ]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "P".into(),
-                    terms: vec![term!(x)],
-                })]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "R".into(),
-                    terms: vec![term!(x)],
-                })]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "Q".into(),
-                    terms: vec![term!(x)],
-                })]),
-            ]
-            .into();
-            let expected: ClauseSet<_> = vec![
-                Clause::from(vec![
-                    Literal::from(Atom {
-                        predicate: "P".into(),
-                        terms: vec![term!(x)],
-                    }),
-                    Literal::from(Atom {
-                        predicate: "Q".into(),
-                        terms: vec![term!(x)],
-                    }),
-                ]),
-                Clause::from(vec![Literal::from(Atom {
-                    predicate: "R".into(),
-                    terms: vec![term!(x)],
-                })]),
-            ]
-            .into();
-            assert_eq!(expected, clause_set.maximize());
         }
     }
 }

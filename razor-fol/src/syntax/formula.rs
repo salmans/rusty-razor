@@ -65,7 +65,7 @@ pub trait Formula {
     /// let z = v!(z);
     ///
     /// let formula: FOF = "(P(x) & Q(x, f(g(x), y))) |  'c = g(z)".parse().unwrap();
-    /// assert_eq!(vec![&x, &y, &z].iter().sorted(), formula.free_vars().iter().sorted());
+    /// assert_eq!(vec![&x, &y, &z], formula.free_vars().into_iter().sorted().collect::<Vec<_>>());
     ///
     /// let formula: FOF = "forall x. P(x, y)".parse().unwrap();
     /// assert_eq!(vec![&y], formula.free_vars());
@@ -149,14 +149,14 @@ impl<T: Term> FormulaEx for Atom<T> {
 impl<T: Term + fmt::Display> fmt::Display for Atom<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ts = self.terms.iter().map(|t| t.to_string()).collect_vec();
-        write!(f, "{}({})", self.predicate.to_string(), ts.join(", "))
+        write!(f, "{}({})", self.predicate, ts.join(", "))
     }
 }
 
 impl<T: Term + fmt::Debug> fmt::Debug for Atom<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ts = self.terms.iter().map(|t| format!("{:?}", t)).collect_vec();
-        write!(f, "{}({})", self.predicate.to_string(), ts.join(", "))
+        write!(f, "{}({})", self.predicate, ts.join(", "))
     }
 }
 
@@ -764,7 +764,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Atom {
@@ -775,7 +775,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Atom {
@@ -786,7 +786,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(z)];
+            let expected = [v!(x), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Atom {
@@ -911,7 +911,7 @@ mod tests {
     #[test]
     fn equals_free_vars() {
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Equals {
@@ -922,7 +922,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x)];
+            let expected = [v!(x)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Equals {
@@ -1016,7 +1016,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Not {
@@ -1026,7 +1026,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Not {
@@ -1103,7 +1103,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 And {
@@ -1212,7 +1212,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Or {
@@ -1321,7 +1321,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Implies {
@@ -1430,7 +1430,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y), v!(z)];
+            let expected = [v!(x), v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Iff {
@@ -1580,7 +1580,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(y)];
+            let expected = [v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Exists {
@@ -1591,7 +1591,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(y)];
+            let expected = [v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Exists {
@@ -1602,7 +1602,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(y), v!(z)];
+            let expected = [v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Exists {
@@ -1680,7 +1680,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(y)];
+            let expected = [v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Forall {
@@ -1691,7 +1691,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(y)];
+            let expected = [v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Forall {
@@ -1702,7 +1702,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(y), v!(z)];
+            let expected = [v!(y), v!(z)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Forall {
@@ -1781,7 +1781,7 @@ mod tests {
     #[test]
     fn atomic_free_vars() {
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Atomic::from(Atom {
@@ -1792,7 +1792,7 @@ mod tests {
             );
         }
         {
-            let expected = vec![v!(x), v!(y)];
+            let expected = [v!(x), v!(y)];
             assert_eq_sorted_vecs!(
                 expected.iter().collect::<Vec<_>>(),
                 Atomic::from(Equals {
@@ -1813,14 +1813,11 @@ mod tests {
             }
             .into();
             let f = |t: &Complex| {
-                {
-                    if t == &term!(f(x)) {
-                        term!(z)
-                    } else {
-                        t.clone()
-                    }
+                if t == &term!(f(x)) {
+                    term!(z)
+                } else {
+                    t.clone()
                 }
-                .into()
             };
             assert_eq!(
                 Atomic::from(Atom {

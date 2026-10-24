@@ -21,7 +21,7 @@ pub struct Linear<S: Sequent> {
     index: usize,
 }
 
-impl<'s, S: Sequent> Linear<S> {
+impl<S: Sequent> Linear<S> {
     #[inline(always)]
     fn reset(&mut self) {
         self.index = 0;
@@ -37,7 +37,7 @@ impl<S: Sequent> Iterator for Linear<S> {
     }
 }
 
-impl<'s, S: Sequent> Clone for Linear<S> {
+impl<S: Sequent> Clone for Linear<S> {
     fn clone(&self) -> Self {
         Self {
             sequents: self.sequents.clone(),
@@ -200,12 +200,11 @@ impl<S: Sequent, Stg: Strategy<S>> Iterator for FailFast<S, Stg> {
 #[cfg(test)]
 mod test_fair {
     use crate::chase::{
-        bounder::DomainSize,
         chase_all,
         r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         scheduler::FIFO,
         strategy::Fair,
-        PreProcessor, Scheduler,
+        PreProcessor, Scheduler, Unbounded,
     };
     use crate::test_prelude::{print_basic_model, read_file, read_theory_from_file};
     use razor_fol::syntax::{Theory, FOF};
@@ -217,9 +216,8 @@ mod test_fair {
         let evaluator = BasicEvaluator;
         let strategy: Fair<_> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
-        let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, &Unbounded)
     }
 
     #[test]
@@ -227,7 +225,7 @@ mod test_fair {
         std::fs::read_dir("../theories/core")
             .unwrap()
             .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| path.extension().is_some_and(|e| e == "raz"))
             .for_each(|path| {
                 let theory = read_theory_from_file(path.to_str().unwrap());
                 let expected: HashSet<String> =
@@ -236,10 +234,7 @@ mod test_fair {
                         .filter(|s| !s.is_empty())
                         .map(Into::into)
                         .collect();
-                let result: HashSet<_> = run(&theory)
-                    .into_iter()
-                    .map(|m| print_basic_model(m))
-                    .collect();
+                let result: HashSet<_> = run(&theory).into_iter().map(print_basic_model).collect();
                 assert_eq!(
                     expected,
                     result,
@@ -254,11 +249,10 @@ mod test_fair {
 mod test_bootstrap {
     use crate::chase::scheduler::FIFO;
     use crate::chase::{
-        bounder::DomainSize,
         chase_all,
         r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         strategy::{Bootstrap, Fair},
-        PreProcessor, Scheduler,
+        PreProcessor, Scheduler, Unbounded,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -270,9 +264,8 @@ mod test_bootstrap {
         let evaluator = BasicEvaluator;
         let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
-        let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, &Unbounded)
     }
 
     #[test]
@@ -280,7 +273,7 @@ mod test_bootstrap {
         std::fs::read_dir("../theories/core")
             .unwrap()
             .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| path.extension().is_some_and(|e| e == "raz"))
             .for_each(|path| {
                 let theory = read_theory_from_file(path.to_str().unwrap());
                 let expected: HashSet<String> =
@@ -289,10 +282,7 @@ mod test_bootstrap {
                         .filter(|s| !s.is_empty())
                         .map(Into::into)
                         .collect();
-                let result: HashSet<_> = run(&theory)
-                    .into_iter()
-                    .map(|m| print_basic_model(m))
-                    .collect();
+                let result: HashSet<_> = run(&theory).into_iter().map(print_basic_model).collect();
                 assert_eq!(
                     expected,
                     result,
@@ -307,11 +297,10 @@ mod test_bootstrap {
 mod test_fail_fast {
     use crate::chase::scheduler::FIFO;
     use crate::chase::{
-        bounder::DomainSize,
         chase_all,
         r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         strategy::{FailFast, Fair},
-        PreProcessor, Scheduler,
+        PreProcessor, Scheduler, Unbounded,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -323,9 +312,8 @@ mod test_fail_fast {
         let evaluator = BasicEvaluator;
         let strategy: FailFast<_, Fair<_>> = sequents.iter().collect();
         let mut scheduler = FIFO::new();
-        let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, &Unbounded)
     }
 
     #[test]
@@ -333,7 +321,7 @@ mod test_fail_fast {
         std::fs::read_dir("../theories/core")
             .unwrap()
             .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| path.extension().is_some_and(|e| e == "raz"))
             .for_each(|path| {
                 let theory = read_theory_from_file(path.to_str().unwrap());
                 let expected: HashSet<String> =
@@ -342,10 +330,7 @@ mod test_fail_fast {
                         .filter(|s| !s.is_empty())
                         .map(Into::into)
                         .collect();
-                let result: HashSet<_> = run(&theory)
-                    .into_iter()
-                    .map(|m| print_basic_model(m))
-                    .collect();
+                let result: HashSet<_> = run(&theory).into_iter().map(print_basic_model).collect();
                 assert_eq!(
                     expected,
                     result,

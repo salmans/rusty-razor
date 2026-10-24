@@ -193,11 +193,10 @@ where
 mod test_lifo {
     use crate::chase::scheduler::LIFO;
     use crate::chase::{
-        bounder::DomainSize,
         chase_all,
         r#impl::basic::{BasicEvaluator, BasicModel, BasicPreProcessor},
         strategy::Linear,
-        PreProcessor, Scheduler,
+        PreProcessor, Scheduler, Unbounded,
     };
     use crate::test_prelude::*;
     use razor_fol::syntax::{Theory, FOF};
@@ -209,9 +208,8 @@ mod test_lifo {
         let evaluator = BasicEvaluator;
         let strategy: Linear<_> = sequents.iter().collect();
         let mut scheduler = LIFO::new();
-        let bounder: Option<&DomainSize> = None;
         scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
+        chase_all(&mut scheduler, &evaluator, &Unbounded)
     }
 
     #[test]
@@ -219,7 +217,7 @@ mod test_lifo {
         std::fs::read_dir("../theories/core")
             .unwrap()
             .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
+            .filter(|path| path.extension().is_some_and(|e| e == "raz"))
             .for_each(|path| {
                 let theory = read_theory_from_file(path.to_str().unwrap());
                 let expected: HashSet<String> =
@@ -228,10 +226,7 @@ mod test_lifo {
                         .filter(|s| !s.is_empty())
                         .map(Into::into)
                         .collect();
-                let result: HashSet<_> = run(&theory)
-                    .into_iter()
-                    .map(|m| print_basic_model(m))
-                    .collect();
+                let result: HashSet<_> = run(&theory).into_iter().map(print_basic_model).collect();
                 assert_eq!(
                     expected,
                     result,

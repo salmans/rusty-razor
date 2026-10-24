@@ -43,12 +43,24 @@ non-finite models -- it can be shown that a run of Razor on an unsatisfiable the
 is guaranteed to terminate (although it might take a very very long time).This is a direct consequence of
 semi-decidability of first-order logic.
 
-To guarantee termination, limit the size of the resulting models by the number of their elements using the `--bound`
-option with a value for the `domain` parameter:
+To guarantee termination, limit the search with the `--bound` option. A *domain* bound limits the number of
+elements; models that would need more are reported as incomplete:
 
 ```
 razor solve -i <input> --bound domain=<number>
 ```
+
+A *depth* bound limits the Skolem depth of elements (the nesting of the witnessing terms that name them). By
+default a term beyond the bound denotes its deepest argument instead of a new element (*controlled reuse*), so
+the models returned are complete models of the theory within the bound; with `:pure` the element is created and
+the model is reported incomplete:
+
+```
+razor solve -i <input> --bound depth=<number>
+razor solve -i <input> --bound depth=<number>:pure
+```
+
+Razor runs the *restricted* chase: an existential in a head is satisfied by any element that already works.
 
 #### Model-Finding Scheduler
 

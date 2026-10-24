@@ -73,12 +73,6 @@ impl<T: ToCNF> From<T> for CNF {
 }
 
 impl CNF {
-    /// Returns the clauses of `self`.
-    #[inline(always)]
-    pub fn clauses(&self) -> &BTreeSet<CNFClause> {
-        &self.0
-    }
-
     /// Consumes `self` and returns the underlying set of clauses.
     pub fn into_clauses(self) -> BTreeSet<CNFClause> {
         self.0.into_clauses()
@@ -89,7 +83,6 @@ impl CNF {
             .into_literals()
             .into_iter()
             .sorted()
-            .into_iter()
             .map(|clause| match clause {
                 Literal::Pos(pos) => match pos {
                     Atomic::Atom(this) => this.into(),
@@ -100,7 +93,7 @@ impl CNF {
                     Atomic::Equals(this) => FOF::not(this.into()),
                 },
             })
-            .fold1(|item, acc| item.or(acc))
+            .reduce(|item, acc| item.or(acc))
             .unwrap_or(FOF::Bottom)
     }
 }
@@ -147,9 +140,8 @@ impl From<CNF> for FOF {
             .into_clauses()
             .into_iter()
             .sorted()
-            .into_iter()
             .map(CNF::clause_to_fof)
-            .fold1(|item, acc| item.and(acc))
+            .reduce(|item, acc| item.and(acc))
             .unwrap_or(FOF::Top)
     }
 }
@@ -435,7 +427,7 @@ mod tests {
         }
         {
             let cnf = fof!({P(x, @c)} & {[Q(x)] & [ [Q(y)] | [R()] ]}).cnf();
-            assert_eq_sorted_vecs!(vec![v!(x), v!(y)].iter().collect_vec(), cnf.free_vars());
+            assert_eq_sorted_vecs!([v!(x), v!(y)].iter().collect_vec(), cnf.free_vars());
         }
     }
 
@@ -443,14 +435,11 @@ mod tests {
     fn cnf_transform() {
         let cnf = fof!({ P(y, f(x)) } & { [Q(f(x))] & [[R(f(x))] | [R(y)]] }).cnf();
         let f = |t: &Complex| {
-            {
-                if t == &term!(f(x)) {
-                    term!(z)
-                } else {
-                    t.clone()
-                }
+            if t == &term!(f(x)) {
+                term!(z)
+            } else {
+                t.clone()
             }
-            .into()
         };
         assert_eq!(
             fof!({ [P(y, z)] & [Q(z)] } & { [R(y)] | [R(z)] }),

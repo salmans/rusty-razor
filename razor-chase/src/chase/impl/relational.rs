@@ -1,138 +1,79 @@
-//! Provides an implementation of the chase based on relational algebra.
-mod attribute;
-mod constants;
+//! The relational chase: models are `codd` databases, sequents are incrementally maintained
+//! views of their *active triggers*, and equality is a union-find over elements.
+//!
+//! * A model is a database of canonical tuples together with a persistent union-find over its
+//!   elements and a table of function applications. Every structure is persistent, so forking a
+//!   model is cheap.
+//! * The active triggers of a sequent (the `body` environments for which no head disjunct holds)
+//!   are a stored antijoin view, maintained incrementally as the model grows or merges elements.
+//! * Equality is not a relation. A head equation merges two classes and rewrites the tuples that
+//!   mention the loser. Repeated body variables are plain selections and joins, so no sequent
+//!   joins through an equality table.
+//! * Functions and constants are relations `$f(x̄, y)` and `@c(y)`, and functionality is
+//!   enforced when a fact is inserted: a second output for the same arguments is merged with
+//!   the first.
+//! * The Skolem symbols that stand for a head's existentials are *witnesses* (the pre-processor
+//!   states the rule that decides which): they name the elements a disjunct creates but are
+//!   left out of the head's truth test, and have no relation: only the table of function
+//!   applications records them. The chase is then the restricted chase of the original theory.
+//!   Every other Skolem symbol is an ordinary function.
+//! * A symbol or variable the prover introduces is recorded where it is minted (Skolem symbols
+//!   by Skolemization, placeholders and function relations by the compilation of a sequent) and
+//!   looked up there; its name only displays it and is never parsed.
+//! * A sequent with one disjunct fires on each of its current triggers in turn, and skips the
+//!   triggers that an earlier firing in the same step already satisfied. A disjunctive
+//!   sequent fires on one trigger and forks the model once per disjunct.
+//! * The search can be bounded by domain size or by the Skolem depth of elements. Under a depth
+//!   bound, *controlled reuse* keeps models complete within the bound.
+//!
+//! The modules mirror the framework: `sequent` compiles a sequent, `model` holds a model,
+//! `evaluator` runs a chase step and `pre_processor` turns a theory into both; `union_find` is
+//! the union-find they share.
 mod evaluator;
-mod expression;
 mod model;
 mod pre_processor;
-mod rewrite;
 mod sequent;
-mod symbol;
+#[cfg(test)]
+mod tests;
+mod union_find;
 
 pub use evaluator::RelEvaluator;
 pub use model::RelModel;
 pub use pre_processor::RelPreProcessor;
 pub use sequent::RelSequent;
 
-use razor_fol::syntax::{formula::Atom, term::Variable};
-use std::collections::HashMap;
-use thiserror::Error;
+use crate::chase::E;
+use codd::expression::{Mono, View};
+use razor_fol::syntax::{Const, Func, Pred};
 
-/// Is the type of unnamed tuples used in database instances.
-type Tuple = Vec<crate::chase::E>;
+/// Tuples of elements stored in the database.
+pub type Tuple = Vec<E>;
 
-/// Is a named tuple where every element is identified by an attribute.
-type NamedTuple<'a> = HashMap<&'a attribute::Attribute, crate::chase::E>;
+/// A stored view over tuples of elements.
+pub type ViewExpr = View<Tuple, Mono<Tuple>>;
 
-/// Returns an empty named tuple.
-fn empty_named_tuple<'a>() -> NamedTuple<'a> {
-    HashMap::new()
+/// Symbols of the signature as stored in the database.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Symbol {
+    /// A predicate of the theory.
+    Pred(Pred),
+    /// A function of the theory (or a Skolem function); stored with its output as the last column.
+    Func(Func),
+    /// A constant of the theory (or a Skolem constant); stored as a unary relation.
+    Const(Const),
+    /// The domain of the model.
+    Domain,
 }
 
-/// Is the type of errors arising from inconsistencies in the syntax of formulae.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Is returned when an unsupported operation is performed on an expression.
-    #[error("missing symbol `{symbol:?}`")]
-    MissingSymbol { symbol: String },
-
-    /// Is a wrapper around the underlying database error.
-    #[error("database error")]
-    DatabaseError {
-        #[from]
-        source: codd::Error,
-    },
-
-    /// Is returned when a witness term cannot be constructed.
-    #[error("cannot create witness term for symbol `{symbol:?}`")]
-    BadWitnessTerm { symbol: String },
-
-    /// Is returned when a relational attribute cannot be constructed.
-    #[error("invalid attribute name `{name:?}`")]
-    BadAttributeName { name: String },
-
-    /// Is returned when a relationalized atom is of a wrong arity.
-    #[error("invalid relational function application `{atom:?}`")]
-    BadRelationalAtom { atom: Atom<Variable> },
-
-    /// Is returned when an existential variable is not the output
-    /// of one of the previous functional literals in the head of a sequent.
-    #[error("existential variable with no origin `{var:?}`")]
-    BadExistentialVariable { var: Variable },
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        chase::{
-            bounder::DomainSize,
-            chase_all,
-            scheduler::FIFO,
-            strategy::{Bootstrap, Fair},
-            PreProcessor, Scheduler,
-        },
-        test_prelude::*,
-    };
-    use razor_fol::syntax::{Theory, FOF};
-
-    fn run(theory: &Theory<FOF>, pre_processor: &RelPreProcessor) -> Vec<RelModel> {
-        let (sequents, init_model) = pre_processor.pre_process(theory);
-
-        let evaluator = RelEvaluator;
-        let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
-        let mut scheduler = FIFO::new();
-        let bounder: Option<&DomainSize> = None;
-        scheduler.add(init_model, strategy);
-        chase_all(&mut scheduler, &evaluator, bounder)
-    }
-
-    #[test]
-    fn test() {
-        std::fs::read_dir("../theories/core")
-            .unwrap()
-            .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
-            .for_each(|path| {
-                let theory = read_theory_from_file(path.to_str().unwrap());
-                let expected_len = read_file(path.with_extension("model").to_str().unwrap())
-                    .split("\n-- -- -- -- -- -- -- -- -- --\n")
-                    .filter(|s| !s.is_empty())
-                    .map(|_| ())
-                    .collect::<Vec<_>>()
-                    .len();
-                let result_len = run(&theory, &RelPreProcessor::new(false)).len();
-                assert_eq!(
-                    expected_len,
-                    result_len,
-                    "invalid result for theory {}",
-                    path.with_extension("").to_str().unwrap()
-                );
-            });
-    }
-
-    #[test]
-    fn test_materialized() {
-        std::fs::read_dir("../theories/core")
-            .unwrap()
-            .map(|item| item.unwrap().path())
-            .filter(|path| path.ends_with(".raz"))
-            .for_each(|path| {
-                let theory = read_theory_from_file(path.to_str().unwrap());
-                let expected = run(&theory, &RelPreProcessor::new(false))
-                    .into_iter()
-                    .map(|m| format!("{:?}", m))
-                    .collect::<Vec<_>>();
-                let result = run(&theory, &RelPreProcessor::new(true))
-                    .into_iter()
-                    .map(|m| format!("{:?}", m))
-                    .collect::<Vec<_>>();
-                assert_eq!(
-                    expected,
-                    result,
-                    "invalid result for theory {}",
-                    path.with_extension("").to_str().unwrap()
-                );
-            });
+impl Symbol {
+    /// The name of the database relation for this symbol: a key into the database, never
+    /// parsed back into the symbol.
+    pub fn relation_name(&self) -> String {
+        match self {
+            Symbol::Pred(p) => p.name().to_string(),
+            Symbol::Func(f) => format!("${}", f.name()),
+            Symbol::Const(c) => format!("@{}", c.name()),
+            Symbol::Domain => "$$domain".to_string(),
+        }
     }
 }

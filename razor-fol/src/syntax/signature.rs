@@ -334,7 +334,7 @@ mod tests {
             .unwrap();
             sig.add_constant(Const::from("c"));
             sig.add_constant(Const::from("d"));
-            let formulae = vec![
+            let formulae = [
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "Q(g('d), z)".parse::<FOF>().unwrap(),
             ];
@@ -363,7 +363,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formulae = vec![
+            let formulae = [
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c), y)".parse::<FOF>().unwrap(),
             ];
@@ -392,7 +392,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formulae = vec![
+            let formulae = [
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c, d), y)".parse::<FOF>().unwrap(),
             ];
@@ -418,7 +418,7 @@ mod tests {
             })
             .unwrap();
             sig.add_constant(Const::from("c"));
-            let formulae = vec![
+            let formulae = [
                 "P(f('c), y)".parse::<FOF>().unwrap(),
                 "P(f('c), y, z)".parse::<FOF>().unwrap(),
             ];
