@@ -12,7 +12,7 @@ use crate::{
     },
     test_prelude::read_theory_from_file,
 };
-use razor_fol::syntax::{Const, Pred, Theory, FOF};
+use razor_fol::syntax::{Const, Pred, Theory, EQ_SYM, FOF};
 use std::collections::BTreeSet;
 
 /// A model reduced to its structure over element indices.
@@ -1117,15 +1117,228 @@ impl Outcome {
     }
 }
 
-/// Checks that the restricted chase and basic agree on `text` within `bound`, and tells
-/// whether neither run was cut by it.
-fn differential(text: &str, bound: DomainSize) -> Result<bool, String> {
+// ---------------------------------------------------------------------------------------------
+// A brute-force oracle: the structures with one or two elements over a theory's signature,
+// with total functions as in first-order logic. A theory with such a model is satisfiable, so a
+// run the bound did not cut must return a model of it.
+
+/// The most structures `tiny_model_exists` enumerates for one theory.
+const TINY_BUDGET: usize = 100_000;
+
+/// A symbol entry a structure decides: a tuple of a predicate (in or out), the output of a
+/// function on a tuple, or the element of a constant.
+enum Slot {
+    Fact(String, Vec<usize>),
+    Entry(String, Vec<usize>),
+    Constant(String),
+}
+
+impl Slot {
+    /// The number of ways to decide `self` over `size` elements.
+    fn radix(&self, size: usize) -> usize {
+        match self {
+            Slot::Fact(..) => 2,
+            Slot::Entry(..) | Slot::Constant(_) => size,
+        }
+    }
+}
+
+/// The tuples of `arity` elements of a domain of `size`.
+fn tuples(size: usize, arity: usize) -> Vec<Vec<usize>> {
+    (0..arity).fold(vec![Vec::new()], |tuples, _| {
+        tuples
+            .into_iter()
+            .flat_map(|t| {
+                (0..size).map(move |e| {
+                    let mut t = t.clone();
+                    t.push(e);
+                    t
+                })
+            })
+            .collect()
+    })
+}
+
+/// The structures over `size` elements for a signature, enumerated as the digits of a
+/// mixed-radix counter with one digit per [`Slot`].
+struct Structures {
+    size: usize,
+    slots: Vec<Slot>,
+    digits: Option<Vec<usize>>,
+}
+
+impl Structures {
+    fn new(size: usize, theory: &Theory<FOF>) -> Self {
+        let sig = theory.signature().expect("invalid signature");
+        let facts = sig
+            .predicates()
+            .values()
+            .filter(|p| p.symbol.name() != EQ_SYM)
+            .flat_map(|p| {
+                let name = p.symbol.name().to_string();
+                tuples(size, p.arity as usize)
+                    .into_iter()
+                    .map(move |t| Slot::Fact(name.clone(), t))
+            });
+        let entries = sig.functions().values().flat_map(|f| {
+            let name = f.symbol.name().to_string();
+            tuples(size, f.arity as usize)
+                .into_iter()
+                .map(move |t| Slot::Entry(name.clone(), t))
+        });
+        let constants = sig
+            .constants()
+            .iter()
+            .map(|c| Slot::Constant(c.name().to_string()));
+        let slots: Vec<Slot> = facts.chain(entries).chain(constants).collect();
+        let digits = Some(vec![0; slots.len()]);
+        Self {
+            size,
+            slots,
+            digits,
+        }
+    }
+
+    /// The number of structures, if it is at most `budget`.
+    fn count(&self, budget: usize) -> Option<usize> {
+        self.slots.iter().try_fold(1usize, |count, slot| {
+            count
+                .checked_mul(slot.radix(self.size))
+                .filter(|c| *c <= budget)
+        })
+    }
+
+    fn shape(&self, digits: &[usize]) -> Shape {
+        let mut shape = fact_shape(self.size, &[]);
+        for (slot, digit) in self.slots.iter().zip(digits) {
+            match slot {
+                Slot::Fact(p, t) if *digit == 1 => {
+                    shape.facts.insert((p.clone(), t.clone()));
+                }
+                Slot::Fact(..) => {}
+                Slot::Entry(f, t) => {
+                    shape.functions.insert((f.clone(), t.clone(), *digit));
+                }
+                Slot::Constant(c) => {
+                    shape.constants.insert((c.clone(), *digit));
+                }
+            }
+        }
+        shape
+    }
+}
+
+impl Iterator for Structures {
+    type Item = Shape;
+
+    fn next(&mut self) -> Option<Shape> {
+        let digits = self.digits.take()?;
+        let shape = self.shape(&digits);
+        let mut next = digits;
+        let carried = next.iter_mut().zip(&self.slots).all(|(digit, slot)| {
+            *digit += 1;
+            if *digit == slot.radix(self.size) {
+                *digit = 0;
+                true
+            } else {
+                false
+            }
+        });
+        if !carried {
+            self.digits = Some(next);
+        }
+        Some(shape)
+    }
+}
+
+/// Does `theory` have a model with one or two elements? `None` when there are more than
+/// [`TINY_BUDGET`] structures to try.
+fn tiny_model_exists(theory: &Theory<FOF>) -> Option<bool> {
+    let sizes = [Structures::new(1, theory), Structures::new(2, theory)];
+    sizes
+        .iter()
+        .try_fold(0, |total, s| s.count(TINY_BUDGET).map(|c| total + c))
+        .filter(|total| *total <= TINY_BUDGET)?;
+    Some(
+        sizes
+            .into_iter()
+            .flatten()
+            .any(|s| satisfies(&s, theory).is_ok()),
+    )
+}
+
+#[test]
+fn tiny_models_are_found_and_missed() {
+    let theory = |text: &str| text.parse::<Theory<FOF>>().unwrap();
+    assert_eq!(
+        Some(true),
+        tiny_model_exists(&theory("P('a); P(x) -> Q(f(x));"))
+    );
+    assert_eq!(
+        Some(true),
+        tiny_model_exists(&theory("~('a = 'b); P('a); ~P('b);"))
+    );
+    assert_eq!(
+        Some(false),
+        tiny_model_exists(&theory("~('a = 'b); ~('b = 'c); ~('a = 'c);"))
+    );
+    assert_eq!(Some(false), tiny_model_exists(&theory("P('a); ~P('a);")));
+    assert_eq!(
+        None,
+        tiny_model_exists(&theory("R(x, y) & S(x, y) & T(x, y) & U(x, y) & V(x, y);"))
+    );
+}
+
+/// What the brute-force oracle said about a theory in a differential run.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tiny {
+    /// Some engine returned a model, or was cut, so the oracle was not asked.
+    Unasked,
+    /// No structure with one or two elements is a model.
+    Checked,
+    /// The signature has more than [`TINY_BUDGET`] tiny structures.
+    OverBudget,
+}
+
+/// The verdict of a differential run that found no disagreement.
+struct Verdict {
+    /// Was neither run cut by the bound?
+    uncut: bool,
+    tiny: Tiny,
+}
+
+/// Checks that the restricted chase and basic agree on `text` within `bound`, and that an
+/// engine that returned no model without being cut is right that `text` has no model with
+/// one or two elements.
+fn differential(text: &str, bound: DomainSize) -> Result<Verdict, String> {
     let theory: Theory<FOF> = text.parse().map_err(|e| format!("parse: {:?}", e))?;
     let basic = Outcome::new("basic", &theory, run_basic_bounded(&theory, &bound))?;
     let restricted = Outcome::new("restricted", &theory, run_db(&theory, &bound))?;
     basic.supports(&restricted)?;
     restricted.supports(&basic)?;
-    Ok(!(basic.cut || restricted.cut))
+    let empty: Vec<&str> = [&basic, &restricted]
+        .iter()
+        .filter(|o| !o.cut && o.models.is_empty())
+        .map(|o| o.engine)
+        .collect();
+    let tiny = if empty.is_empty() {
+        Tiny::Unasked
+    } else {
+        match tiny_model_exists(&theory) {
+            Some(true) => {
+                return Err(format!(
+                    "{} returned no model, but one with at most two elements exists",
+                    empty.join(" and ")
+                ))
+            }
+            Some(false) => Tiny::Checked,
+            None => Tiny::OverBudget,
+        }
+    };
+    Ok(Verdict {
+        uncut: !(basic.cut || restricted.cut),
+        tiny,
+    })
 }
 
 /// Runs `run` on a thread, reporting a panic or a run longer than `limit`.
@@ -1145,7 +1358,7 @@ fn guarded<T: Send + 'static>(
 /// on any disagreement, panic or timeout.
 fn agree_with_basic(draw: fn(u64) -> String, seeds: u64, bound: DomainSize) {
     let mut failures = Vec::new();
-    let mut uncut = 0;
+    let mut verdicts = Vec::new();
     for seed in 0..seeds {
         let text = draw(seed);
         let theory = text.clone();
@@ -1153,15 +1366,19 @@ fn agree_with_basic(draw: fn(u64) -> String, seeds: u64, bound: DomainSize) {
             differential(&theory, bound)
         });
         match verdict.and_then(|v| v) {
-            Ok(whole) => uncut += whole as usize,
+            Ok(verdict) => verdicts.push(verdict),
             Err(why) => failures.push(format!("seed {}:\n{}{}", seed, text, why)),
         }
     }
+    let tiny = |t: Tiny| verdicts.iter().filter(|v| v.tiny == t).count();
     println!(
-        "{} of {} seeds agree, no engine was cut on {}",
+        "{} of {} seeds agree, no engine was cut on {}; the tiny-model oracle confirmed {} \
+         empty runs and skipped {} over budget",
         seeds - failures.len() as u64,
         seeds,
-        uncut
+        verdicts.iter().filter(|v| v.uncut).count(),
+        tiny(Tiny::Checked),
+        tiny(Tiny::OverBudget)
     );
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
 }
@@ -1184,17 +1401,13 @@ fn random_first_order_theory_is_reproducible() {
 
 /// Head universals branch once per element, so the bound is one smaller than for geometric
 /// theories to keep the oracle fast.
-///
-/// Ignored: Skolemization and the conversion to geometric form return models that do not
-/// satisfy the theory on seeds 47, 132 and 236 (`a_skolem_term_in_a_body_names_an_element`)
-/// and 7, 228 and 233 (`an_existential_beside_a_head_universal_fires_without_elements`).
 #[test]
-#[ignore]
 fn random_first_order_theories_agree_with_basic() {
     agree_with_basic(random_first_order_theory, 300, DomainSize(3));
 }
 
-// Conversion bugs found by `random_first_order_theories_agree_with_basic`, reduced by hand.
+// Conversion bugs found by `random_first_order_theories_agree_with_basic` (seeds 47, 132, 236
+// and 7, 228, 233 of the conversion through prenex and Skolem normal form), reduced by hand.
 
 /// Panics unless both engines return only models of `text`.
 fn assert_both_satisfy(text: &str) {
@@ -1205,19 +1418,18 @@ fn assert_both_satisfy(text: &str) {
     check_all(text, &theory, &complete);
 }
 
-/// Skolemizing `exists z. (P(z) -> Q(z))` puts its Skolem constant only in a body, so no
-/// sequent ever creates the element and the model keeps `P('a)` without a witness.
+/// Skolemizing `exists z. ~P(z)` puts its Skolem constant only in a body; without the claim
+/// that the constant denotes an element, no sequent creates it and the model keeps `P('a)`
+/// without a witness.
 #[test]
-#[ignore]
 fn a_skolem_term_in_a_body_names_an_element() {
     assert_both_satisfy("P('a); exists z. (P(z) -> Q(z));");
 }
 
-/// Prenexing scopes `exists z` under `forall u`, so `z` becomes a Skolem function of `u`, a
-/// variable of the head alone; with no elements the sequent never fires and the empty model
-/// is returned.
+/// Prenexing scoped `exists z` under `forall u`, so `z` became a Skolem function of `u`, a
+/// variable of the head alone; with no elements the sequent never fired and the empty model
+/// was returned. Without prenexing, the witness of `z` depends on no variable.
 #[test]
-#[ignore]
 fn an_existential_beside_a_head_universal_fires_without_elements() {
     assert_both_satisfy("(R('a) & forall u. P(u)) | exists z. Q(z);");
 }

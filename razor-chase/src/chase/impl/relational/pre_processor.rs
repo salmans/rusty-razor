@@ -34,27 +34,3 @@ impl PreProcessor for RelPreProcessor {
         (sequents, model)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::super::{
-        sequent::{Function, SymbolicAtom},
-        Symbol,
-    };
-    use super::*;
-    use razor_fol::syntax::{term::Complex, Const, Pred};
-
-    #[test]
-    fn a_user_constant_named_like_a_skolem_constant_is_a_function() {
-        let fact = Pred::from("P").app(vec![Complex::from(Const::from("c#9"))]);
-        let theory: Theory<FOF> = std::iter::once(FOF::from(fact)).collect();
-        let (sequents, _) = RelPreProcessor.pre_process(&theory);
-        assert!(matches!(
-            &sequents[0].branches[0].atoms[0],
-            SymbolicAtom::Function {
-                function: Function::Symbol(Symbol::Const(c)),
-                ..
-            } if c.name() == "c#9"
-        ));
-    }
-}
