@@ -37,9 +37,9 @@ use std::{
 pub(super) struct Witness(Symbol);
 
 impl Witness {
-    /// A fresh witness over `universals`: a function of them, or a constant when there are none.
-    fn mint(skolemizer: &mut Skolemizer, universals: &[Var]) -> Self {
-        Witness(if universals.is_empty() {
+    /// A fresh witness over `scope`: a function of it, or a constant when it is empty.
+    fn mint(skolemizer: &mut Skolemizer, scope: &[Var]) -> Self {
+        Witness(if scope.is_empty() {
             Symbol::Const(skolemizer.constant())
         } else {
             Symbol::Func(skolemizer.function())
@@ -142,7 +142,8 @@ pub struct RelSequent {
 
 impl RelSequent {
     /// Compiles `sequent`, storing its views in `db`. `skolemizer` mints one witness for every
-    /// existential of the head, in order, whether or not it becomes a binder. Returns `None`
+    /// existential of the head, in order, over the variables it depends on
+    /// ([`Geometric::scopes`]), whether or not it becomes a binder. Returns `None`
     /// when the sequent can never have a trigger (a disjunct of its head is `⊤`).
     pub(super) fn compile(
         sequent: &Geometric,
@@ -153,16 +154,16 @@ impl RelSequent {
         let universals = &vocabulary.universals;
         let body = Conjunction::from_flat(&body, &vocabulary);
         let head: Vec<HeadClause> = sequent
-            .head()
-            .iter()
+            .scopes()
             .zip(&head)
-            .map(|(disjunct, clause)| {
+            .map(|((disjunct, scope), clause)| {
+                let scope: Vec<Var> = scope.into_iter().cloned().collect();
                 let witnesses = disjunct
                     .existentials()
                     .iter()
-                    .map(|v| (Witness::mint(skolemizer, universals), v.clone()))
+                    .map(|v| (Witness::mint(skolemizer, &scope), v.clone()))
                     .collect();
-                HeadClause::new(clause, witnesses, &vocabulary)
+                HeadClause::new(clause, witnesses, &scope, &vocabulary)
             })
             .collect();
 
@@ -451,11 +452,11 @@ impl Conjunction {
     }
 }
 
-/// `∃ var`, named by `witness` applied to the sequent's universals when the chase has to
-/// create it.
+/// `∃ var`, named by `witness(args)` when the chase has to create it.
 #[derive(Clone, Debug)]
 struct Binder {
     witness: Witness,
+    args: Vec<ClauseVar>,
     var: ClauseVar,
 }
 
@@ -466,12 +467,18 @@ struct HeadClause {
 }
 
 impl HeadClause {
-    /// Reads a flat head clause whose existentials come with the `witnesses` minted for them.
+    /// Reads a flat head clause whose existentials come with the `witnesses` minted for them
+    /// over the universals of `scope`.
     /// An existential becomes a binder unless a function application of the clause produces it
     /// from the universals and the existentials bound before it. When several are left, the
     /// first that no application outputs is bound, so `∃y, z. y = f(z)` binds `z` alone; when
     /// every one is an output, the applications form a cycle and the first one is bound.
-    fn new(clause: &FlatClause, witnesses: Vec<(Witness, Var)>, vocabulary: &Vocabulary) -> Self {
+    fn new(
+        clause: &FlatClause,
+        witnesses: Vec<(Witness, Var)>,
+        scope: &[Var],
+        vocabulary: &Vocabulary,
+    ) -> Self {
         let (mut aliases, atoms) = Aliases::read(clause, vocabulary);
         let atoms = aliases.share_applications(atoms);
         let mut unbound: Vec<(Witness, ClauseVar)> = witnesses
@@ -499,7 +506,8 @@ impl HeadClause {
                 .unwrap_or(0);
             let (witness, var) = unbound.remove(first);
             known.bind(var.clone());
-            binders.push(Binder { witness, var });
+            let args = scope.iter().map(|v| vocabulary.var(v)).collect();
+            binders.push(Binder { witness, args, var });
         }
         Self {
             binders,
@@ -548,7 +556,11 @@ impl HeadClause {
 
         let binders = self.binders.iter().map(|binder| SymbolicAtom::Function {
             function: Function::Witness(binder.witness.clone()),
-            args: (0..universals.len()).map(Attribute::Body).collect(),
+            args: binder
+                .args
+                .iter()
+                .map(|v| attr(v, &mut existentials))
+                .collect(),
             out: attr(&binder.var, &mut existentials),
         });
         let mut pending: Vec<SymbolicAtom> = binders.collect();

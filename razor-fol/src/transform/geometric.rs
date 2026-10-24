@@ -243,6 +243,40 @@ impl Geometric {
         &self.head
     }
 
+    /// Returns the disjuncts of the head of `self`, each with the variables of `self` that its
+    /// existentials depend on, in the order of [`Formula::free_vars`]: those of the body, so
+    /// that every trigger of the sequent has its own witnesses, and those of the disjunct. A
+    /// variable that only other disjuncts mention is left out: its quantifier can be pushed
+    /// into them, so it never scopes over the existentials, and a witness over it would name a
+    /// new element for every element of the domain.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::ToGeometric;
+    ///
+    /// let formula: FOF = "P(x) -> Q(u) | exists z. R(x, z)".parse().unwrap();
+    /// let sequent = &formula.geometric()[0];
+    /// let scopes: Vec<String> = sequent
+    ///     .scopes()
+    ///     .map(|(_, vars)| vars.iter().map(|v| v.to_string()).collect())
+    ///     .collect();
+    /// assert_eq!(vec!["xu".to_string(), "x".to_string()], scopes);
+    /// ```
+    pub fn scopes(&self) -> impl Iterator<Item = (&Disjunct, Vec<&Var>)> {
+        let universals = self.free_vars();
+        let body = self.body.free_vars();
+        self.head.iter().map(move |disjunct| {
+            let seen = disjunct.free_vars();
+            let scope = universals
+                .iter()
+                .filter(|v| body.contains(v) || seen.contains(v))
+                .copied()
+                .collect();
+            (disjunct, scope)
+        })
+    }
+
     // Returns the sequents `⊢ ⋁ disjuncts`: none when a disjunct is `⊤`.
     fn claim(disjuncts: Vec<Disjunct>) -> Vec<Self> {
         if disjuncts.iter().any(Disjunct::is_top) {
