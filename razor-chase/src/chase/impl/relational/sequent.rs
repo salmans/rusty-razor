@@ -23,7 +23,7 @@ use razor_fol::{
         formula::{Atom, Atomic},
         Const, Formula, Func, Pred, Var, FOF,
     },
-    transform::{FlatClause, Geometric, Skolemizer, ToRelational, PCF},
+    transform::{FlatClause, Skolemizer, ToRelational, GNF, PCF},
 };
 use std::{
     cell::RefCell,
@@ -143,10 +143,10 @@ pub struct RelSequent {
 impl RelSequent {
     /// Compiles `sequent`, storing its views in `db`. `skolemizer` mints one witness for every
     /// existential of the head, in order, over the variables it depends on
-    /// ([`Geometric::scopes`]), whether or not it becomes a binder. Returns `None`
+    /// ([`GNF::scopes`]), whether or not it becomes a binder. Returns `None`
     /// when the sequent can never have a trigger (a disjunct of its head is `⊤`).
     pub(super) fn compile(
-        sequent: &Geometric,
+        sequent: &GNF,
         db: &mut Database,
         skolemizer: &mut Skolemizer,
     ) -> Option<Self> {
@@ -246,7 +246,7 @@ struct Vocabulary {
 impl Vocabulary {
     /// Relationalizes the body and every head disjunct of `sequent`, recording what it mints. A
     /// placeholder is named `?N` for display only.
-    fn relationalize(sequent: &Geometric) -> (Self, FlatClause, Vec<FlatClause>) {
+    fn relationalize(sequent: &GNF) -> (Self, FlatClause, Vec<FlatClause>) {
         let mut counter = 0u32;
         let mut var_generator = || {
             let name = format!("?{}", counter);

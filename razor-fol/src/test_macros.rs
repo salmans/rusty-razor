@@ -1,15 +1,5 @@
 /*! Provides a number of macros for testing purposes. */
 
-// Creates a variable with the given name followed by one (otherwise illegal) '`'.
-// Internal variable renaming in PNF transformation appends '`' to variables.
-#[macro_export]
-macro_rules! v_1 {
-    ($v:ident) => {{
-        let var = format!("{}`", stringify!($v));
-        $crate::syntax::Var::from(var)
-    }};
-}
-
 // Asserts equality between two vectors as multisets.
 #[macro_export]
 macro_rules! assert_eq_sorted_vecs {
@@ -39,22 +29,5 @@ macro_rules! assert_debug_string {
     }};
     ($expected:expr, $value:expr ,) => {
         $crate::assert_debug_string!($expected, $value)
-    };
-}
-
-// Asserts that the debug representation of the items in an input iterator `value`
-// separated by newline is equal to `expected`.
-#[macro_export]
-macro_rules! assert_debug_strings {
-    ($expected:expr, $value:expr) => {{
-        match (&$expected, &$value) {
-            (expected_val, val) => {
-                let mut strings = val.iter().map(|v| format!("{:?}", v));
-                assert_eq!(*expected_val, strings.join("\n"))
-            }
-        }
-    }};
-    ($expected:expr, $value:expr ,) => {
-        $crate::assert_debug_strings!($expected, $value)
     };
 }

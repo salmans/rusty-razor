@@ -16,7 +16,7 @@ use razor_fol::{
         term::Complex,
         Formula, FOF,
     },
-    transform::{Geometric, Skolemizer},
+    transform::{Skolemizer, GNF},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -602,10 +602,10 @@ pub struct BasicSequent {
 impl BasicSequent {
     /// Reads `sequent`, replacing every existential of its head by a fresh witness term that
     /// `skolemizer` mints, in order, over the variables the existential depends on
-    /// ([`Geometric::scopes`]). The evaluator creates the element of a witness term when the
+    /// ([`GNF::scopes`]). The evaluator creates the element of a witness term when the
     /// disjunct must hold, and an existential that occurs in no atom keeps the equation `t = t`
     /// of its term `t`, so the element is still created.
-    pub fn new(sequent: &Geometric, skolemizer: &mut Skolemizer) -> Self {
+    pub fn new(sequent: &GNF, skolemizer: &mut Skolemizer) -> Self {
         let free_vars: Vec<Var> = sequent.free_vars().into_iter().cloned().collect();
         let body = sequent.body().iter().cloned().collect();
         let head = sequent
@@ -674,7 +674,7 @@ impl Sequent for BasicSequent {
 }
 
 /// A simple instance of [`PreProcessor`] that converts the input theory to a vector of [`Sequent`] following
-/// the standard conversion to geometric normal form. Also provides the empty [`Model`];
+/// the conversion to geometric normal form. Also provides the empty [`Model`];
 ///
 /// [`PreProcessor`]: crate::chase::PreProcessor
 pub struct BasicPreProcessor;
@@ -685,11 +685,8 @@ impl PreProcessor for BasicPreProcessor {
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         let mut skolemizer = Skolemizer::default();
-        let geometric: Vec<Geometric> = theory
-            .iter()
-            .flat_map(|f| skolemizer.geometric(f))
-            .collect();
-        let sequents = geometric
+        let gnfs: Vec<GNF> = theory.iter().flat_map(|f| skolemizer.gnf(f)).collect();
+        let sequents = gnfs
             .iter()
             .map(|sequent| BasicSequent::new(sequent, &mut skolemizer))
             .collect();

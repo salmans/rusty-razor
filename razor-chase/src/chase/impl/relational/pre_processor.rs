@@ -3,7 +3,7 @@ use super::{model::RelModel, sequent::RelSequent};
 use crate::chase::PreProcessor;
 use razor_fol::{
     syntax::{Formula, Theory, FOF},
-    transform::{Geometric, Skolemizer},
+    transform::{Skolemizer, GNF},
 };
 
 /// Converts a theory to geometric sequents and compiles every one.
@@ -21,13 +21,10 @@ impl PreProcessor for RelPreProcessor {
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
         let mut skolemizer = Skolemizer::default();
-        let geometric: Theory<Geometric> = theory
-            .iter()
-            .flat_map(|f| skolemizer.geometric(f))
-            .collect();
-        let signature = geometric.signature().expect("invalid theory signature");
+        let gnfs: Theory<GNF> = theory.iter().flat_map(|f| skolemizer.gnf(f)).collect();
+        let signature = gnfs.signature().expect("invalid theory signature");
         let mut model = RelModel::new(&signature);
-        let sequents = geometric
+        let sequents = gnfs
             .formulae()
             .iter()
             .filter_map(|sequent| {
