@@ -1,5 +1,6 @@
 /*! Implements a number of common transformations on first-order terms and formulae. */
 mod cnf;
+mod geometric;
 mod gnf;
 mod nnf;
 mod pnf;
@@ -7,6 +8,7 @@ mod relational;
 mod snf;
 
 pub use cnf::{ToCNF, CNF};
+pub use geometric::{Disjunct, Geometric, ToGeometric};
 pub use gnf::{PcfSet, ToGNF, GNF, PCF};
 pub use nnf::{ToNNF, NNF};
 pub use pnf::{ToPNF, PNF};
