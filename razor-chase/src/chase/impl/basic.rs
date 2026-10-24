@@ -11,8 +11,12 @@ use crate::chase::*;
 use either::Either;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::Atomic, term::Complex, Formula, FOF},
-    transform::GNF,
+    syntax::{
+        formula::{Atomic, Equals},
+        term::Complex,
+        Formula, FOF,
+    },
+    transform::{Skolemizer, GNF},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -595,24 +599,51 @@ pub struct BasicSequent {
     head_fof: FOF,
 }
 
-impl From<GNF> for BasicSequent {
-    fn from(gnf: GNF) -> Self {
-        let gnf_body = gnf.body();
-        let gnf_head = gnf.head();
-        let free_vars = gnf.free_vars().into_iter().cloned().collect();
-
-        let body = gnf_body.iter().cloned().collect();
-        let head = gnf_head
-            .iter()
-            .map(|h| h.iter().cloned().collect())
+impl BasicSequent {
+    /// Reads `sequent`, replacing every existential of its head by a fresh witness term that
+    /// `skolemizer` mints, in order, over the variables the existential depends on
+    /// ([`GNF::scopes`]). The evaluator creates the element of a witness term when the
+    /// disjunct must hold, and an existential that occurs in no atom keeps the equation `t = t`
+    /// of its term `t`, so the element is still created.
+    pub fn new(sequent: &GNF, skolemizer: &mut Skolemizer) -> Self {
+        let free_vars: Vec<Var> = sequent.free_vars().into_iter().cloned().collect();
+        let body = sequent.body().iter().cloned().collect();
+        let head = sequent
+            .scopes()
+            .map(|(disjunct, scope)| {
+                let scope: Vec<Var> = scope.into_iter().cloned().collect();
+                let witnesses: Vec<(Var, Complex)> = disjunct
+                    .existentials()
+                    .iter()
+                    .map(|v| (v.clone(), skolemizer.term(&scope)))
+                    .collect();
+                let occurring = disjunct.atoms().free_vars();
+                let unmentioned = witnesses
+                    .iter()
+                    .filter(|(v, _)| !occurring.contains(&v))
+                    .map(|(_, t)| {
+                        Literal::from(Equals {
+                            left: t.clone(),
+                            right: t.clone(),
+                        })
+                    });
+                let substitution: HashMap<Var, Complex> = witnesses.iter().cloned().collect();
+                disjunct
+                    .atoms()
+                    .substitute(&substitution)
+                    .iter()
+                    .cloned()
+                    .chain(unmentioned)
+                    .collect()
+            })
             .collect();
 
         Self {
             free_vars,
             body,
             head,
-            body_fof: gnf_body.into(),
-            head_fof: gnf_head.into(),
+            body_fof: sequent.body().into(),
+            head_fof: sequent.head().into(),
         }
     }
 }
@@ -643,7 +674,7 @@ impl Sequent for BasicSequent {
 }
 
 /// A simple instance of [`PreProcessor`] that converts the input theory to a vector of [`Sequent`] following
-/// the standard conversion to geometric normal form. Also provides the empty [`Model`];
+/// the conversion to geometric normal form. Also provides the empty [`Model`];
 ///
 /// [`PreProcessor`]: crate::chase::PreProcessor
 pub struct BasicPreProcessor;
@@ -653,29 +684,13 @@ impl PreProcessor for BasicPreProcessor {
     type Model = BasicModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use razor_fol::transform::ToGNF;
-        use razor_fol::transform::ToSNF;
-
-        let mut c_counter: u32 = 0;
-        let mut f_counter: u32 = 0;
-        let mut const_generator = || {
-            let name = format!("c#{}", c_counter);
-            c_counter += 1;
-            name.into()
-        };
-        let mut fn_generator = || {
-            let name = format!("f#{}", f_counter);
-            f_counter += 1;
-            name.into()
-        };
-
-        let geo_theory = theory
+        let mut skolemizer = Skolemizer::default();
+        let gnfs: Vec<GNF> = theory.iter().flat_map(|f| skolemizer.gnf(f)).collect();
+        let sequents = gnfs
             .iter()
-            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
-            .flat_map(|f| f.gnf())
-            .map(BasicSequent::from)
+            .map(|sequent| BasicSequent::new(sequent, &mut skolemizer))
             .collect();
-        (geo_theory, BasicModel::new())
+        (sequents, BasicModel::new())
     }
 }
 
@@ -841,7 +856,6 @@ mod test_basic {
         Scheduler, Unbounded,
     };
     use crate::test_prelude::*;
-    use razor_fol::transform::ToGNF;
     use std::iter::FromIterator;
 
     // Witness Elements
@@ -1078,69 +1092,44 @@ mod test_basic {
         model.observe(&_R_().app1(_e_0()));
     }
 
-    // Assumes that `fof` is in GNF, so it converts to a single GNF
-    fn sequents(gnfs: Vec<GNF>) -> Vec<BasicSequent> {
-        gnfs.into_iter().map(BasicSequent::from).collect()
+    // The sequents of the theory of the single formula `text`.
+    fn sequents(text: &str) -> Vec<BasicSequent> {
+        let theory: Theory<FOF> = format!("{};", text).parse().unwrap();
+        BasicPreProcessor.pre_process(&theory).0
     }
 
     #[test]
     fn test_build_sequent() {
-        assert_debug_string("[]", sequents("true -> true".parse::<FOF>().unwrap().gnf()));
+        assert_debug_string("[]", sequents("true -> true"));
+        assert_debug_string("[]", sequents("true -> true & true"));
+        assert_debug_string("[]", sequents("true -> true | true"));
+        assert_debug_string("[[] -> []]", sequents("true -> false"));
+        assert_debug_string("[[] -> []]", sequents("true -> false & true"));
+        assert_debug_string("[[] -> []]", sequents("true -> true & false"));
+        assert_debug_string("[]", sequents("true -> true | false"));
+        assert_debug_string("[]", sequents("true -> false | true"));
+        assert_debug_string("[[P(x)] -> [[Q(x)]]]", sequents("P(x) -> Q(x)"));
         assert_debug_string(
-            "[]",
-            sequents("true -> true & true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[]",
-            sequents("true -> true | true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[] -> []]",
-            sequents("true -> false".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[] -> []]",
-            sequents("true -> false & true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[] -> []]",
-            sequents("true -> true & false".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[]",
-            sequents("true -> true | false".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[]",
-            sequents("true -> false | true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[P(x)] -> [[Q(x)]]]",
-            sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            // Note: only range restricted geometric formulae get contracted
             "[[P(x), Q(x)] -> [[Q(y)]]]",
-            sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
+            sequents("P(x) & Q(x) -> Q(y)"),
         );
         assert_debug_string(
             "[[P(x, z), Q(x)] -> [[Q(x)], [R(z)]], [P(x, z), Q(x)] -> [[Q(x)], [S(z)]]]",
-            sequents(
-                "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
-                    .parse::<FOF>()
-                    .unwrap()
-                    .gnf(),
-            ),
+            sequents("P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"),
         );
         assert_debug_string(
-"[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [P(z)], [Q(y)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[P(y)], [P(z)], [Q(x)]], [D(x, y, z)] -> [[P(y)], [Q(x)], [Q(z)]], [D(x, y, z)] -> [[P(z)], [Q(x)], [Q(y)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
-            sequents(
-                "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
-                    .parse::<FOF>()
-                    .unwrap()
-                    .gnf(),
-            ),
+"[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[Q(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[Q(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [P(z)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
+            sequents("D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"),
         );
+    }
+
+    #[test]
+    fn existentials_become_witness_terms_over_the_universals() {
+        assert_debug_string(
+            "[[P(x)] -> [[Q(x, f#0(x))]]]",
+            sequents("P(x) -> exists y. Q(x, y)"),
+        );
+        assert_debug_string("[[] -> [['c#0 = 'c#0]]]", sequents("exists y. y = y"));
     }
 
     fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {

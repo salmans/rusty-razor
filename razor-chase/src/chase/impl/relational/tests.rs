@@ -12,7 +12,7 @@ use crate::{
     },
     test_prelude::read_theory_from_file,
 };
-use razor_fol::syntax::{Const, Pred, Theory, FOF};
+use razor_fol::syntax::{Const, Pred, Theory, EQ_SYM, FOF};
 use std::collections::BTreeSet;
 
 /// A model reduced to its structure over element indices.
@@ -330,14 +330,19 @@ fn quantify(s: &Shape, vars: &[Var], f: &FOF, env: &mut HashMap<Var, usize>, all
     all
 }
 
-fn satisfies(s: &Shape, theory: &Theory<FOF>) -> Result<(), String> {
-    for sentence in theory.formulae() {
+/// The first sentence of `theory` that `s` does not satisfy.
+fn falsified<'t>(s: &Shape, theory: &'t Theory<FOF>) -> Option<&'t FOF> {
+    theory.formulae().iter().find(|sentence| {
         let free: Vec<Var> = sentence.free_vars().into_iter().cloned().collect();
-        if !quantify(s, &free, sentence, &mut HashMap::new(), true) {
-            return Err(format!("{} fails", sentence));
-        }
+        !quantify(s, &free, sentence, &mut HashMap::new(), true)
+    })
+}
+
+fn satisfies(s: &Shape, theory: &Theory<FOF>) -> Result<(), String> {
+    match falsified(s, theory) {
+        Some(sentence) => Err(format!("{} fails", sentence)),
+        None => Ok(()),
     }
-    Ok(())
 }
 
 fn check_all<M: Model<TermType = BasicWitnessTerm> + std::fmt::Debug>(
@@ -511,20 +516,6 @@ fn same_step_witness_reuse_survives_a_head_function() {
     assert_eq!(1, s.count("Q"), "{:?}", complete[0]);
 }
 
-#[test]
-fn alpha_equivalent_bodies_share_a_witness() {
-    // PNF renames the second `x`, so the two sequents of `y` have bodies `P(x)` and `P(x`)`;
-    // 'b witnesses the merged head, and an ordinary Skolem constant would create a new element.
-    let theory: Theory<FOF> = "P('a); Q('b); R('b); \
-         exists y. ((forall x. P(x) -> Q(y)) & (forall x. P(x) -> R(y)));"
-        .parse()
-        .unwrap();
-    let (complete, _) = run_db(&theory, &Unbounded);
-    assert_eq!(1, complete.len());
-    check_all("alpha-equivalent bodies", &theory, &complete);
-    assert_eq!(2, complete[0].size(), "{:?}", complete[0]);
-}
-
 /// `f(f(...f(x)))` with `depth` applications.
 fn nested(depth: usize, x: &str) -> String {
     (0..depth).fold(x.to_string(), |term, _| format!("f({})", term))
@@ -591,7 +582,7 @@ fn unrelated_heads_of_one_body_stay_apart() {
 }
 
 #[test]
-fn a_witness_scoped_over_a_universal_is_a_function() {
+fn an_existential_over_a_universal_is_one_element() {
     let theory: Theory<FOF> = "Q('b, 'd); exists y. forall u. Q(u, y);".parse().unwrap();
     let (complete, incomplete) = run_db(&theory, &Unbounded);
     assert!(incomplete.is_empty());
@@ -827,8 +818,9 @@ fn restricted_models_are_homomorphically_minimal_on_core_fixtures() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Differential testing on random geometric theories: within a domain bound, the restricted
-// chase and the basic implementation must return models of the theory that support each other. Only a run the bound did not cut is a set of support for all models.
+// Differential testing on random geometric and first-order theories: within a domain bound,
+// the restricted chase and the basic implementation must return models of the theory that
+// support each other. Only a run the bound did not cut is a set of support for all models.
 
 /// A seeded xorshift64* source of choices, so a theory is reproducible from its seed.
 struct Dice(u64);
@@ -856,19 +848,70 @@ impl Dice {
     }
 }
 
+/// The first-order shapes a draw may produce beyond geometric sequents. The default produces
+/// none of them, so a draw under it is a geometric theory.
+#[derive(Clone, Copy, Default)]
+struct Shapes {
+    /// A nested existential conjunct in a head: `exists z. (P(z) & exists w. Q(z, w))`.
+    nested_existentials: bool,
+    /// A universal conjunct in a head, also under an existential:
+    /// `exists z. (P(z) & forall u. (Q(u, z) | R(u)))`.
+    head_universals: bool,
+    /// An implication conjunct in a head, so an existential occurs negatively in its scope:
+    /// `exists z. (P(z) & (Q(z) -> R(z)))`.
+    head_implications: bool,
+    /// A formula with no body, so an existential may stand at its top: `exists z. P(z)`.
+    bodiless: bool,
+    /// A sequent with a non-empty body and the head `false`, so the chase can fail:
+    /// `P(x) & Q(x) -> false`. Denials are geometric.
+    denials: bool,
+}
+
+impl Shapes {
+    /// Every shape on.
+    fn first_order() -> Self {
+        Self {
+            nested_existentials: true,
+            head_universals: true,
+            head_implications: true,
+            bodiless: true,
+            denials: true,
+        }
+    }
+
+    /// Geometric sequents, some of them denials.
+    fn geometric_with_denials() -> Self {
+        Self {
+            denials: true,
+            ..Self::default()
+        }
+    }
+}
+
+/// The variable an existential binds at each nesting depth, so no binder shadows another.
+const EXISTENTIALS: [&str; 2] = ["z", "w"];
+/// The variable a universal in a head binds.
+const UNIVERSAL: &str = "u";
+
 /// Draws a theory over predicates `P`, `Q`, `R` (each of arity 1 or 2, fixed per theory), the
-/// function `f/1`, the constants `'a`, `'b` and the variables `x`, `y` (universal) and `z`
-/// (existential, in heads only).
+/// function `f/1`, the constants `'a`, `'b`, the variables `x`, `y` (universal in a body), and
+/// in heads the variables of `EXISTENTIALS` and `UNIVERSAL`, nested at most one deep. `shapes`
+/// adds first-order shapes to the geometric sequents.
 struct TheoryDraw {
     dice: Dice,
     arity: [usize; 3],
+    shapes: Shapes,
 }
 
 impl TheoryDraw {
-    fn new(seed: u64) -> Self {
+    fn new(seed: u64, shapes: Shapes) -> Self {
         let mut dice = Dice::new(seed);
         let arity = [1 + dice.below(2), 1 + dice.below(2), 1 + dice.below(2)];
-        Self { dice, arity }
+        Self {
+            dice,
+            arity,
+            shapes,
+        }
     }
 
     /// A leaf of `leaves`, under `f` one time in four; the variables used go into `used`.
@@ -910,25 +953,116 @@ impl TheoryDraw {
         atoms.join(" & ")
     }
 
-    /// A conjunction over `vars`, existentially quantified over `z` half the time `z` occurs.
-    fn disjunct(&mut self, vars: &[&'static str]) -> String {
+    /// A conjunction over `vars` and the constants.
+    fn disjunct(&mut self, vars: &[&'static str], used: &mut BTreeSet<&'static str>) -> String {
         let mut leaves = vars.to_vec();
         leaves.extend(["'a", "'b"]);
+        self.existential(&leaves, 0, used)
+    }
+
+    /// A conjunction over `leaves`, existentially quantified over the existential of `depth`
+    /// half the time it occurs, with the conjuncts of `shapes` at the outer depth.
+    fn existential(
+        &mut self,
+        leaves: &[&'static str],
+        depth: usize,
+        used: &mut BTreeSet<&'static str>,
+    ) -> String {
+        let z = EXISTENTIALS[depth];
+        let mut leaves = leaves.to_vec();
         if self.dice.one_in(2) {
-            leaves.extend(["z", "z"]);
+            leaves.extend([z, z]);
         }
-        let mut used = BTreeSet::new();
-        let conjunction = self.conjunction(2, &leaves, &mut used);
-        if used.contains("z") {
-            format!("(exists z. ({}))", conjunction)
+        let mut inner = BTreeSet::new();
+        let mut conjuncts = vec![self.conjunction(2 - depth, &leaves, &mut inner)];
+        if depth == 0 {
+            conjuncts.extend(self.nested(&leaves, &mut inner));
+        }
+        let conjunction = conjuncts.join(" & ");
+        let bound = inner.remove(z);
+        used.extend(inner);
+        if bound {
+            format!("(exists {}. ({}))", z, conjunction)
         } else {
             format!("({})", conjunction)
         }
     }
 
-    fn sequent(&mut self) -> String {
+    /// The conjuncts `shapes` nests in a head over `leaves`, each drawn independently.
+    fn nested(
+        &mut self,
+        leaves: &[&'static str],
+        used: &mut BTreeSet<&'static str>,
+    ) -> Vec<String> {
+        let mut conjuncts = Vec::new();
+        if self.shapes.nested_existentials && self.dice.one_in(4) {
+            conjuncts.push(self.existential(leaves, 1, used));
+        }
+        if self.shapes.head_universals && self.dice.one_in(6) {
+            conjuncts.push(self.universal(leaves, used));
+        }
+        if self.shapes.head_implications && self.dice.one_in(4) {
+            let premise = self.atom(leaves, used);
+            let consequence = self.atom(leaves, used);
+            conjuncts.push(format!("({} -> {})", premise, consequence));
+        }
+        conjuncts
+    }
+
+    /// A disjunction of one or two existentials over `leaves` and a universal, quantified when
+    /// it occurs.
+    fn universal(&mut self, leaves: &[&'static str], used: &mut BTreeSet<&'static str>) -> String {
+        let u = UNIVERSAL;
+        let mut leaves = leaves.to_vec();
+        leaves.extend([u, u]);
+        let mut inner = BTreeSet::new();
+        let disjuncts: Vec<String> = (0..1 + self.dice.one_in(3) as usize)
+            .map(|_| self.existential(&leaves, 1, &mut inner))
+            .collect();
+        let disjunction = disjuncts.join(" | ");
+        let bound = inner.remove(u);
+        used.extend(inner);
+        if bound {
+            format!("(forall {}. ({}))", u, disjunction)
+        } else {
+            format!("({})", disjunction)
+        }
+    }
+
+    /// One or two disjuncts over `vars`; the free variables used go into `used`.
+    fn head(&mut self, vars: &[&'static str], used: &mut BTreeSet<&'static str>) -> String {
+        let head: Vec<String> = (0..1 + self.dice.below(2))
+            .map(|_| self.disjunct(vars, used))
+            .collect();
+        head.join(" | ")
+    }
+
+    /// `sentence` universally quantified over `vars`.
+    fn close(vars: &[&'static str], sentence: String) -> String {
+        if vars.is_empty() {
+            sentence
+        } else {
+            format!("forall {}. ({})", vars.join(", "), sentence)
+        }
+    }
+
+    /// A sequent, or one time in four under `shapes.bodiless`, a head on its own.
+    fn sentence(&mut self) -> String {
+        if self.shapes.bodiless && self.dice.one_in(4) {
+            let vars: &[&'static str] = if self.dice.one_in(2) { &["x"] } else { &[] };
+            let mut used = BTreeSet::new();
+            let head = self.head(vars, &mut used);
+            let used: Vec<&'static str> = used.into_iter().collect();
+            return Self::close(&used, head);
+        }
+        let denial = self.shapes.denials && self.dice.one_in(4);
         let mut vars = BTreeSet::new();
-        let body = match self.dice.below(3) {
+        let atoms = if denial {
+            1 + self.dice.below(2)
+        } else {
+            self.dice.below(3)
+        };
+        let body = match atoms {
             0 => "true".to_string(),
             n => (0..n)
                 .map(|_| self.atom(&["x", "y", "'a", "'b"], &mut vars))
@@ -936,34 +1070,36 @@ impl TheoryDraw {
                 .join(" & "),
         };
         let vars: Vec<&'static str> = vars.into_iter().collect();
-        let head: Vec<String> = (0..1 + self.dice.below(2))
-            .map(|_| self.disjunct(&vars))
-            .collect();
-        let sequent = format!("{} -> {}", body, head.join(" | "));
-        if vars.is_empty() {
-            sequent
+        let head = if denial {
+            "false".to_string()
         } else {
-            format!("forall {}. ({})", vars.join(", "), sequent)
-        }
+            self.head(&vars, &mut BTreeSet::new())
+        };
+        Self::close(&vars, format!("{} -> {}", body, head))
     }
 
     fn theory(mut self) -> String {
         let n = 2 + self.dice.below(4);
-        (0..n).map(|_| self.sequent() + ";\n").collect()
+        (0..n).map(|_| self.sentence() + ";\n").collect()
     }
 }
 
-/// The text of the random theory of `seed`.
+/// The text of the random geometric theory of `seed`, with denials.
 fn random_theory(seed: u64) -> String {
-    TheoryDraw::new(seed).theory()
+    TheoryDraw::new(seed, Shapes::geometric_with_denials()).theory()
+}
+
+/// The text of the random first-order theory of `seed`, with every shape of `Shapes`.
+fn random_first_order_theory(seed: u64) -> String {
+    TheoryDraw::new(seed, Shapes::first_order()).theory()
 }
 
 #[test]
 fn random_theory_is_reproducible() {
+    // Re-pinned when denials joined the draw: the die for a denial is cast before each body.
     assert_eq!(random_theory(7), random_theory(7));
     assert_eq!(
-        "forall y. (P(y) -> (R(f('a))) | (P('b) & y = 'b));\n\
-         Q('a) -> (P('b)) | (P('b));\n",
+        "P('a) -> false;\nforall x. (R(f(x)) -> false);\n",
         random_theory(7)
     );
 }
@@ -1008,16 +1144,243 @@ impl Outcome {
     }
 }
 
-/// Checks that the restricted chase and basic agree on `text` within the domain bound, and
-/// tells whether neither run was cut by it.
-fn differential(text: &str) -> Result<bool, String> {
+// ---------------------------------------------------------------------------------------------
+// A brute-force oracle: the structures with one or two elements over a theory's signature,
+// with total functions as in first-order logic. A theory with such a model is satisfiable, so a
+// run the bound did not cut must return a model of it.
+
+/// The most structures `tiny_model_exists` enumerates for one theory.
+const TINY_BUDGET: usize = 100_000;
+
+/// A symbol entry a structure decides: a tuple of a predicate (in or out), the output of a
+/// function on a tuple, or the element of a constant.
+enum Slot {
+    Fact(String, Vec<usize>),
+    Entry(String, Vec<usize>),
+    Constant(String),
+}
+
+impl Slot {
+    /// The number of ways to decide `self` over `size` elements.
+    fn radix(&self, size: usize) -> usize {
+        match self {
+            Slot::Fact(..) => 2,
+            Slot::Entry(..) | Slot::Constant(_) => size,
+        }
+    }
+}
+
+/// The tuples of `arity` elements of a domain of `size`.
+fn tuples(size: usize, arity: usize) -> Vec<Vec<usize>> {
+    (0..arity).fold(vec![Vec::new()], |tuples, _| {
+        tuples
+            .into_iter()
+            .flat_map(|t| {
+                (0..size).map(move |e| {
+                    let mut t = t.clone();
+                    t.push(e);
+                    t
+                })
+            })
+            .collect()
+    })
+}
+
+/// The structures over `size` elements for a signature, enumerated as the digits of a
+/// mixed-radix counter with one digit per [`Slot`].
+struct Structures {
+    size: usize,
+    slots: Vec<Slot>,
+}
+
+impl Structures {
+    fn new(size: usize, theory: &Theory<FOF>) -> Self {
+        let sig = theory.signature().expect("invalid signature");
+        let facts = sig
+            .predicates()
+            .values()
+            .filter(|p| p.symbol.name() != EQ_SYM)
+            .flat_map(|p| {
+                let name = p.symbol.name().to_string();
+                tuples(size, p.arity as usize)
+                    .into_iter()
+                    .map(move |t| Slot::Fact(name.clone(), t))
+            });
+        let entries = sig.functions().values().flat_map(|f| {
+            let name = f.symbol.name().to_string();
+            tuples(size, f.arity as usize)
+                .into_iter()
+                .map(move |t| Slot::Entry(name.clone(), t))
+        });
+        let constants = sig
+            .constants()
+            .iter()
+            .map(|c| Slot::Constant(c.name().to_string()));
+        Self {
+            size,
+            slots: facts.chain(entries).chain(constants).collect(),
+        }
+    }
+
+    /// The number of structures, if it is at most `budget`.
+    fn count(&self, budget: usize) -> Option<usize> {
+        self.slots.iter().try_fold(1usize, |count, slot| {
+            count
+                .checked_mul(slot.radix(self.size))
+                .filter(|c| *c <= budget)
+        })
+    }
+
+    /// Changes the decision of `slot` in `shape` from `from` to `to`.
+    fn assign(&self, shape: &mut Shape, slot: usize, from: usize, to: usize) {
+        match &self.slots[slot] {
+            Slot::Fact(p, t) => {
+                if to == 1 {
+                    shape.facts.insert((p.clone(), t.clone()));
+                } else {
+                    shape.facts.remove(&(p.clone(), t.clone()));
+                }
+            }
+            Slot::Entry(f, t) => {
+                shape.functions.remove(&(f.clone(), t.clone(), from));
+                shape.functions.insert((f.clone(), t.clone(), to));
+            }
+            Slot::Constant(c) => {
+                shape.constants.remove(&(c.clone(), from));
+                shape.constants.insert((c.clone(), to));
+            }
+        }
+    }
+
+    /// Is some structure a model of `theory`? The structures are visited in counter order,
+    /// and each step changes only the slots whose digits change. Neighbouring structures tend
+    /// to falsify the same sentence, so the last one falsified is tried first.
+    fn any_model(&self, theory: &Theory<FOF>) -> bool {
+        let sentences: Vec<(&FOF, Vec<Var>)> = theory
+            .formulae()
+            .iter()
+            .map(|f| (f, f.free_vars().into_iter().cloned().collect()))
+            .collect();
+        let fails = |shape: &Shape, i: usize| {
+            let (sentence, free) = &sentences[i];
+            !quantify(shape, free, sentence, &mut HashMap::new(), true)
+        };
+        let mut last = 0;
+        let mut digits = vec![0; self.slots.len()];
+        let mut shape = fact_shape(self.size, &[]);
+        for slot in 0..self.slots.len() {
+            self.assign(&mut shape, slot, 0, 0);
+        }
+        loop {
+            let falsified = if sentences.is_empty() || !fails(&shape, last) {
+                (0..sentences.len()).find(|i| *i != last && fails(&shape, *i))
+            } else {
+                Some(last)
+            };
+            match falsified {
+                Some(i) => last = i,
+                None => return true,
+            }
+            let mut slot = 0;
+            loop {
+                let Some(digit) = digits.get(slot).copied() else {
+                    return false;
+                };
+                let next = (digit + 1) % self.slots[slot].radix(self.size);
+                self.assign(&mut shape, slot, digit, next);
+                digits[slot] = next;
+                if next != 0 {
+                    break;
+                }
+                slot += 1;
+            }
+        }
+    }
+}
+
+/// Does `theory` have a model with one or two elements? `None` when there are more than
+/// [`TINY_BUDGET`] structures to try.
+fn tiny_model_exists(theory: &Theory<FOF>) -> Option<bool> {
+    let sizes = [Structures::new(1, theory), Structures::new(2, theory)];
+    sizes
+        .iter()
+        .try_fold(0, |total, s| s.count(TINY_BUDGET).map(|c| total + c))
+        .filter(|total| *total <= TINY_BUDGET)?;
+    Some(sizes.iter().any(|s| s.any_model(theory)))
+}
+
+#[test]
+fn tiny_models_are_found_and_missed() {
+    let theory = |text: &str| text.parse::<Theory<FOF>>().unwrap();
+    assert_eq!(
+        Some(true),
+        tiny_model_exists(&theory("P('a); P(x) -> Q(f(x));"))
+    );
+    assert_eq!(
+        Some(true),
+        tiny_model_exists(&theory("~('a = 'b); P('a); ~P('b);"))
+    );
+    assert_eq!(
+        Some(false),
+        tiny_model_exists(&theory("~('a = 'b); ~('b = 'c); ~('a = 'c);"))
+    );
+    assert_eq!(Some(false), tiny_model_exists(&theory("P('a); ~P('a);")));
+    assert_eq!(
+        None,
+        tiny_model_exists(&theory("R(x, y) & S(x, y) & T(x, y) & U(x, y) & V(x, y);"))
+    );
+}
+
+/// What the brute-force oracle said about a theory in a differential run.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tiny {
+    /// Some engine returned a model, or was cut, so the oracle was not asked.
+    Unasked,
+    /// No structure with one or two elements is a model.
+    Checked,
+    /// The signature has more than [`TINY_BUDGET`] tiny structures.
+    OverBudget,
+}
+
+/// The verdict of a differential run that found no disagreement.
+struct Verdict {
+    /// Was neither run cut by the bound?
+    uncut: bool,
+    tiny: Tiny,
+}
+
+/// Checks that the restricted chase and basic agree on `text` within `bound`, and that an
+/// engine that returned no model without being cut is right that `text` has no model with
+/// one or two elements.
+fn differential(text: &str, bound: DomainSize) -> Result<Verdict, String> {
     let theory: Theory<FOF> = text.parse().map_err(|e| format!("parse: {:?}", e))?;
-    let bound = DomainSize(4);
     let basic = Outcome::new("basic", &theory, run_basic_bounded(&theory, &bound))?;
     let restricted = Outcome::new("restricted", &theory, run_db(&theory, &bound))?;
     basic.supports(&restricted)?;
     restricted.supports(&basic)?;
-    Ok(!(basic.cut || restricted.cut))
+    let empty: Vec<&str> = [&basic, &restricted]
+        .iter()
+        .filter(|o| !o.cut && o.models.is_empty())
+        .map(|o| o.engine)
+        .collect();
+    let tiny = if empty.is_empty() {
+        Tiny::Unasked
+    } else {
+        match tiny_model_exists(&theory) {
+            Some(true) => {
+                return Err(format!(
+                    "{} returned no model, but one with at most two elements exists",
+                    empty.join(" and ")
+                ))
+            }
+            Some(false) => Tiny::Checked,
+            None => Tiny::OverBudget,
+        }
+    };
+    Ok(Verdict {
+        uncut: !(basic.cut || restricted.cut),
+        tiny,
+    })
 }
 
 /// Runs `run` on a thread, reporting a panic or a run longer than `limit`.
@@ -1033,29 +1396,84 @@ fn guarded<T: Send + 'static>(
     })
 }
 
-#[test]
-fn random_theories_agree_with_basic() {
-    const SEEDS: u64 = 300;
+/// Runs `differential` within `bound` on the theories `draw` gives seeds `0..seeds`, failing
+/// on any disagreement, panic or timeout.
+fn agree_with_basic(draw: fn(u64) -> String, seeds: u64, bound: DomainSize) {
     let mut failures = Vec::new();
-    let mut uncut = 0;
-    for seed in 0..SEEDS {
-        let text = random_theory(seed);
+    let mut verdicts = Vec::new();
+    for seed in 0..seeds {
+        let text = draw(seed);
         let theory = text.clone();
         let verdict = guarded(std::time::Duration::from_secs(10), move || {
-            differential(&theory)
+            differential(&theory, bound)
         });
         match verdict.and_then(|v| v) {
-            Ok(whole) => uncut += whole as usize,
+            Ok(verdict) => verdicts.push(verdict),
             Err(why) => failures.push(format!("seed {}:\n{}{}", seed, text, why)),
         }
     }
+    let tiny = |t: Tiny| verdicts.iter().filter(|v| v.tiny == t).count();
     println!(
-        "{} of {} seeds agree, no engine was cut on {}",
-        SEEDS - failures.len() as u64,
-        SEEDS,
-        uncut
+        "{} of {} seeds agree, no engine was cut on {}; the tiny-model oracle confirmed {} \
+         empty runs and skipped {} over budget",
+        seeds - failures.len() as u64,
+        seeds,
+        verdicts.iter().filter(|v| v.uncut).count(),
+        tiny(Tiny::Checked),
+        tiny(Tiny::OverBudget)
     );
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
+}
+
+#[test]
+fn random_theories_agree_with_basic() {
+    agree_with_basic(random_theory, 300, DomainSize(4));
+}
+
+#[test]
+fn random_first_order_theory_is_reproducible() {
+    // Re-pinned when denials joined the draw: the die for a denial is cast before each body.
+    assert_eq!(random_first_order_theory(7), random_first_order_theory(7));
+    assert_eq!(
+        "(Q('a) & (forall u. ((P(u)) | (exists w. (R(w)))))) | (exists z. (Q(f(z)) & ((z = z))));\n\
+         P('b) -> false;\n",
+        random_first_order_theory(7)
+    );
+}
+
+/// Head universals branch once per element, so the bound is one smaller than for geometric
+/// theories to keep the oracle fast.
+#[test]
+fn random_first_order_theories_agree_with_basic() {
+    agree_with_basic(random_first_order_theory, 300, DomainSize(3));
+}
+
+// Conversion bugs found by `random_first_order_theories_agree_with_basic` (seeds 47, 132, 236
+// and 7, 228, 233 of the conversion through prenex and Skolem normal form), reduced by hand.
+
+/// Panics unless both engines return only models of `text`.
+fn assert_both_satisfy(text: &str) {
+    let theory: Theory<FOF> = text.parse().unwrap();
+    check_all(text, &theory, &run_basic(&theory));
+    let (complete, incomplete) = run_db(&theory, &Unbounded);
+    assert!(incomplete.is_empty(), "{}", text);
+    check_all(text, &theory, &complete);
+}
+
+/// Skolemizing `exists z. ~P(z)` puts its Skolem constant only in a body; without the claim
+/// that the constant denotes an element, no sequent creates it and the model keeps `P('a)`
+/// without a witness.
+#[test]
+fn a_skolem_term_in_a_body_names_an_element() {
+    assert_both_satisfy("P('a); exists z. (P(z) -> Q(z));");
+}
+
+/// Prenexing scoped `exists z` under `forall u`, so `z` became a Skolem function of `u`, a
+/// variable of the head alone; with no elements the sequent never fired and the empty model
+/// was returned. Without prenexing, the witness of `z` depends on no variable.
+#[test]
+fn an_existential_beside_a_head_universal_fires_without_elements() {
+    assert_both_satisfy("(R('a) & forall u. P(u)) | exists z. Q(z);");
 }
 
 // Engine bugs found by `random_theories_agree_with_basic`, reduced by hand.

@@ -1,5 +1,5 @@
 /*! Defines the syntax of first-order formulae with equality.*/
-use super::{qff::QFF, Sig, Var, *};
+use super::{Sig, Var, *};
 use crate::syntax::term::Complex;
 use std::fmt;
 
@@ -93,38 +93,6 @@ impl From<Exists<FOF>> for FOF {
 impl From<Forall<FOF>> for FOF {
     fn from(value: Forall<FOF>) -> Self {
         Self::Forall(Box::new(value))
-    }
-}
-
-impl From<QFF> for FOF {
-    fn from(value: QFF) -> Self {
-        match value {
-            QFF::Top => Self::Top,
-            QFF::Bottom => Self::Bottom,
-            QFF::Atom(this) => Self::Atom(this),
-            QFF::Equals(this) => Self::Equals(this),
-            QFF::Not(this) => FOF::not(this.formula.into()),
-            QFF::And(this) => {
-                let left: FOF = this.left.into();
-                let right: FOF = this.right.into();
-                left.and(right)
-            }
-            QFF::Or(this) => {
-                let left: FOF = this.left.into();
-                let right: FOF = this.right.into();
-                left.or(right)
-            }
-            QFF::Implies(this) => {
-                let pre: FOF = this.premise.into();
-                let cons: FOF = this.consequence.into();
-                pre.implies(cons)
-            }
-            QFF::Iff(this) => {
-                let left: FOF = this.left.into();
-                let right: FOF = this.right.into();
-                left.iff(right)
-            }
-        }
     }
 }
 

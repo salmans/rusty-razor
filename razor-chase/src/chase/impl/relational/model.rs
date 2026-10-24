@@ -1,9 +1,5 @@
 //! A model as a `codd` database plus a union-find over its elements.
-use super::{
-    pre_processor::{Witness, Witnesses},
-    union_find::UnionFind,
-    Symbol, Tuple, ViewExpr,
-};
+use super::{sequent::Witness, union_find::UnionFind, Symbol, Tuple, ViewExpr};
 use crate::chase::{
     r#impl::basic::BasicWitnessTerm, Admission, Bounder, Model, Observation, Rel, E,
 };
@@ -34,9 +30,9 @@ pub struct RelModel {
 }
 
 impl RelModel {
-    /// Creates an empty model over `signature`. The `witnesses` get no relation: no view reads
-    /// them, so the function table alone records the elements they name.
-    pub(super) fn new(signature: &Sig, witnesses: &Witnesses) -> Self {
+    /// Creates an empty model over `signature`. Witnesses are not in it and get no relation: no
+    /// view reads them, so the function table alone records the elements they name.
+    pub(super) fn new(signature: &Sig) -> Self {
         let constants = signature
             .constants()
             .iter()
@@ -52,7 +48,6 @@ impl RelModel {
         let mut db = Database::new();
         let relations: HashMap<Symbol, Relation<Tuple>> = constants
             .chain(functions)
-            .filter(|symbol| witnesses.get(symbol).is_none())
             .chain(predicates)
             .chain(std::iter::once(Symbol::Domain))
             .map(|symbol| {

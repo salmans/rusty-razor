@@ -1,20 +1,16 @@
 //! A geometric sequent compiled into trigger views and the symbolic atoms of its head.
 //!
-//! A function application in a head means one of two things. A user function `g(x)` names a
-//! specific element that other sequents refer to, so the head's truth test checks the value of
-//! `g(x)`. A witness `f#0(x)` comes from an `∃y` that nothing else refers to, so only existence
-//! is tested: the head view asks whether *some* element satisfies the disjunct, and the witness
-//! names the element the chase creates when none does. A witness application is therefore a
-//! [`Binder`] of its disjunct, never an atom of its truth test.
+//! A head disjunct `∃ȳ. φ` asks only that *some* elements satisfy `φ`, so its truth test
+//! projects the existentials away. When none do, the chase creates them: an existential that a
+//! function application of `φ` outputs (`∃y. y = g(x)`) is that application's value, and every
+//! other one is a [`Binder`], whose [`Witness`] (minted here, over the sequent's universals)
+//! names the element the chase creates. A function in a head, Skolem or not, always names a
+//! specific element that other sequents may refer to, so the truth test checks its value.
 //!
 //! Relationalizing a sequent mints placeholder variables and the relations of its functions and
 //! constants; a [`Vocabulary`] of the sequent's universals and the minted relations reads its
 //! clauses back, so no name is parsed.
-use super::{
-    pre_processor::{Witness, Witnesses},
-    union_find::UnionFind,
-    Symbol, Tuple, ViewExpr,
-};
+use super::{union_find::UnionFind, Symbol, Tuple, ViewExpr};
 use crate::chase::Sequent;
 use codd::{
     expression::{
@@ -27,12 +23,33 @@ use razor_fol::{
         formula::{Atom, Atomic},
         Const, Formula, Func, Pred, Var, FOF,
     },
-    transform::{FlatClause, Relational, ToRelational, GNF},
+    transform::{FlatClause, Skolemizer, ToRelational, GNF, PCF},
 };
 use std::{
     cell::RefCell,
-    collections::{btree_map::Entry, BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
 };
+
+/// The symbol that names the elements a [`Binder`] creates. It takes no part in any truth
+/// test, so the database holds no relation for it: only the model's function table records the
+/// elements it names.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(super) struct Witness(Symbol);
+
+impl Witness {
+    /// A fresh witness over `scope`: a function of it, or a constant when it is empty.
+    fn mint(skolemizer: &mut Skolemizer, scope: &[Var]) -> Self {
+        Witness(if scope.is_empty() {
+            Symbol::Const(skolemizer.constant())
+        } else {
+            Symbol::Func(skolemizer.function())
+        })
+    }
+
+    pub(super) fn symbol(&self) -> &Symbol {
+        &self.0
+    }
+}
 
 /// Where the value of a head variable comes from when a disjunct is applied.
 #[derive(Clone, Copy, Debug)]
@@ -124,16 +141,30 @@ pub struct RelSequent {
 }
 
 impl RelSequent {
-    /// Compiles `gnf`, storing its views in `db`. Applications of the `witnesses` in the head
-    /// are binders, not atoms of its truth test. Returns `None` when the sequent can never have
-    /// a trigger (a disjunct of its head is `⊤`).
-    pub(super) fn compile(gnf: &GNF, db: &mut Database, witnesses: &Witnesses) -> Option<Self> {
-        let (vocabulary, body, head) = Vocabulary::relationalize(gnf);
+    /// Compiles `sequent`, storing its views in `db`. `skolemizer` mints one witness for every
+    /// existential of the head, in order, over the variables it depends on
+    /// ([`GNF::scopes`]), whether or not it becomes a binder. Returns `None`
+    /// when the sequent can never have a trigger (a disjunct of its head is `⊤`).
+    pub(super) fn compile(
+        sequent: &GNF,
+        db: &mut Database,
+        skolemizer: &mut Skolemizer,
+    ) -> Option<Self> {
+        let (vocabulary, body, head) = Vocabulary::relationalize(sequent);
         let universals = &vocabulary.universals;
-        let body = Conjunction::from_flat(&body[0], &vocabulary);
-        let head: Vec<HeadClause> = head
-            .iter()
-            .map(|clause| HeadClause::from_flat(clause, &vocabulary, witnesses))
+        let body = Conjunction::from_flat(&body, &vocabulary);
+        let head: Vec<HeadClause> = sequent
+            .scopes()
+            .zip(&head)
+            .map(|((disjunct, scope), clause)| {
+                let scope: Vec<Var> = scope.into_iter().cloned().collect();
+                let witnesses = disjunct
+                    .existentials()
+                    .iter()
+                    .map(|v| (Witness::mint(skolemizer, &scope), v.clone()))
+                    .collect();
+                HeadClause::new(clause, witnesses, &scope, &vocabulary)
+            })
             .collect();
 
         if head.iter().any(HeadClause::is_top) {
@@ -154,8 +185,8 @@ impl RelSequent {
         Some(Self {
             triggers,
             branches: head.iter().map(|c| c.branch(universals)).collect(),
-            body_formula: gnf.body().into(),
-            head_formula: gnf.head().into(),
+            body_formula: sequent.body().into(),
+            head_formula: sequent.head().into(),
         })
     }
 
@@ -213,9 +244,9 @@ struct Vocabulary {
 }
 
 impl Vocabulary {
-    /// Relationalizes the body and the head of `gnf`, recording what it mints. A placeholder is
-    /// named `?N` for display only.
-    fn relationalize(gnf: &GNF) -> (Self, Relational, Relational) {
+    /// Relationalizes the body and every head disjunct of `sequent`, recording what it mints. A
+    /// placeholder is named `?N` for display only.
+    fn relationalize(sequent: &GNF) -> (Self, FlatClause, Vec<FlatClause>) {
         let mut counter = 0u32;
         let mut var_generator = || {
             let name = format!("?{}", counter);
@@ -230,14 +261,21 @@ impl Vocabulary {
         };
         let mut const_generator = |c: &Const| relation(Symbol::Const(c.clone()));
         let mut fn_generator = |f: &Func| relation(Symbol::Func(f.clone()));
-        let body =
-            gnf.body()
-                .relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
-        let head =
-            gnf.head()
-                .relational_with(&mut var_generator, &mut const_generator, &mut fn_generator);
+        let mut flatten = |conjunction: &PCF| {
+            conjunction
+                .relational_with(&mut var_generator, &mut const_generator, &mut fn_generator)
+                .into_clauses()
+                .pop()
+                .expect("a conjunction relationalizes to one clause")
+        };
+        let body = flatten(sequent.body());
+        let head = sequent
+            .head()
+            .iter()
+            .map(|disjunct| flatten(disjunct.atoms()))
+            .collect();
         let vocabulary = Vocabulary {
-            universals: gnf.free_vars().into_iter().cloned().collect(),
+            universals: sequent.free_vars().into_iter().cloned().collect(),
             relations: relations.into_inner(),
         };
         (vocabulary, body, head)
@@ -415,7 +453,7 @@ impl Conjunction {
 }
 
 /// `∃ var`, named by `witness(args)` when the chase has to create it.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 struct Binder {
     witness: Witness,
     args: Vec<ClauseVar>,
@@ -429,39 +467,48 @@ struct HeadClause {
 }
 
 impl HeadClause {
-    /// Reads a flat head clause. An application of a witness becomes a binder rather than an
-    /// atom, and all mentions of one application are one binder with one variable.
-    fn from_flat(clause: &FlatClause, vocabulary: &Vocabulary, witnesses: &Witnesses) -> Self {
+    /// Reads a flat head clause whose existentials come with the `witnesses` minted for them
+    /// over the universals of `scope`.
+    /// An existential becomes a binder unless a function application of the clause produces it
+    /// from the universals and the existentials bound before it. When several are left, the
+    /// first that no application outputs is bound, so `∃y, z. y = f(z)` binds `z` alone; when
+    /// every one is an output, the applications form a cycle and the first one is bound.
+    fn new(
+        clause: &FlatClause,
+        witnesses: Vec<(Witness, Var)>,
+        scope: &[Var],
+        vocabulary: &Vocabulary,
+    ) -> Self {
         let (mut aliases, atoms) = Aliases::read(clause, vocabulary);
-        let mut bound: BTreeMap<(Witness, Vec<ClauseVar>), ClauseVar> = BTreeMap::new();
-        let mut rest = Vec::new();
-        for atom in atoms {
-            match atom {
-                ClauseAtom::Function { symbol, args, out } => match witnesses.get(&symbol) {
-                    Some(witness) => {
-                        let args = args.iter().map(|v| aliases.find(v)).collect();
-                        match bound.entry((witness.clone(), args)) {
-                            Entry::Occupied(first) => aliases.identify(first.get(), &out),
-                            Entry::Vacant(slot) => {
-                                slot.insert(out);
-                            }
-                        }
-                    }
-                    None => rest.push(ClauseAtom::Function { symbol, args, out }),
-                },
-                relation @ ClauseAtom::Relation { .. } => rest.push(relation),
-            }
-        }
-        let atoms = aliases.share_applications(rest);
-        let mut binders: Vec<Binder> = bound
+        let atoms = aliases.share_applications(atoms);
+        let mut unbound: Vec<(Witness, ClauseVar)> = witnesses
             .into_iter()
-            .map(|((witness, args), var)| Binder {
-                witness,
-                args: args.iter().map(|v| aliases.find(v)).collect(),
-                var: aliases.find(&var),
+            .map(|(witness, v)| (witness, aliases.find(&vocabulary.var(&v))))
+            .collect();
+        let outputs: BTreeSet<&ClauseVar> = atoms
+            .iter()
+            .filter_map(|atom| match atom {
+                ClauseAtom::Function { out, .. } => Some(out),
+                ClauseAtom::Relation { .. } => None,
             })
             .collect();
-        binders.sort();
+        let mut known = Known::default();
+        let mut binders = Vec::new();
+        loop {
+            known.produce(&atoms);
+            unbound.retain(|(_, v)| !known.contains(v));
+            if unbound.is_empty() {
+                break;
+            }
+            let first = unbound
+                .iter()
+                .position(|(_, v)| !outputs.contains(v))
+                .unwrap_or(0);
+            let (witness, var) = unbound.remove(first);
+            known.bind(var.clone());
+            let args = scope.iter().map(|v| vocabulary.var(v)).collect();
+            binders.push(Binder { witness, args, var });
+        }
         Self {
             binders,
             conjunction: Conjunction::new(atoms, aliases),
@@ -578,6 +625,39 @@ impl HeadClause {
     }
 }
 
+/// The clause variables whose elements are known while a disjunct is applied: the universals,
+/// and the existentials bound or produced so far.
+#[derive(Default)]
+struct Known(BTreeSet<ClauseVar>);
+
+impl Known {
+    fn contains(&self, v: &ClauseVar) -> bool {
+        match v {
+            ClauseVar::Universal(_) => true,
+            ClauseVar::Existential(_) => self.0.contains(v),
+        }
+    }
+
+    fn bind(&mut self, v: ClauseVar) {
+        self.0.insert(v);
+    }
+
+    /// Adds the outputs of the function applications of `atoms` whose arguments are known, to a
+    /// fixpoint.
+    fn produce(&mut self, atoms: &[ClauseAtom]) {
+        while let Some(out) = atoms.iter().find_map(|atom| match atom {
+            ClauseAtom::Function { args, out, .. }
+                if !self.contains(out) && args.iter().all(|a| self.contains(a)) =>
+            {
+                Some(out.clone())
+            }
+            _ => None,
+        }) {
+            self.0.insert(out);
+        }
+    }
+}
+
 /// The aliases of one clause: the clause variables that its equalities and shared
 /// applications equate. Existentials are renamed to the variables they equal, so universals are
 /// always roots and an identification of two universals remains as an equality.
@@ -633,9 +713,7 @@ impl Aliases {
     /// Rewrites `atoms` so that applications of one function to the same arguments share one
     /// output. Relationalization gives every occurrence of a term its own output variable.
     /// Functionality already makes those outputs equal in every model, so sharing is only an
-    /// optimization: it saves joins in the views and atoms in the branches. (Witness
-    /// applications, whose outputs nothing else ties together, are shared by the binders of
-    /// [`HeadClause::from_flat`].)
+    /// optimization: it saves joins in the views and atoms in the branches.
     ///
     /// Each round rewrites the atoms through the aliases, groups the function applications by
     /// symbol and arguments, identifies the outputs of each group with its first one and keeps

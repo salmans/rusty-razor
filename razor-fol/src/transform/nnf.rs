@@ -4,7 +4,7 @@ transforming an [`FOF`] to an [`NNF`].
 [`FOF`]: crate::syntax::FOF
 */
 use crate::syntax::{
-    formula::{clause::Literal, *},
+    formula::{literal::Literal, *},
     term::Complex,
     Error, Sig, Var, FOF,
 };
