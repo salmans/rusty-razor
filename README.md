@@ -60,7 +60,9 @@ razor solve -i <input> --bound depth=<number>
 razor solve -i <input> --bound depth=<number>:pure
 ```
 
-Razor runs the *restricted* chase: an existential in a head is satisfied by any element that already works.
+Razor runs the *restricted* chase: an existential in a head is satisfied by any element that already works. The
+theory is converted to geometric sequents without prenex or Skolem normal form: an existential stays in the head of its
+sequent, and only one whose scope is not positive (such as `exists y. ~P(y)`) is replaced by a Skolem term.
 
 #### Model-Finding Scheduler
 

@@ -25,7 +25,12 @@
 //!
 //! ### Satisfiability of Geometric Theories
 //! It turns out that every first-order theory can be transformed to a geometric theory that is
-//! *equisatisfiable* to the original theory via [standard syntactic manipulation].
+//! *equisatisfiable* to the original theory via [a syntactic conversion]. Razor converts each
+//! formula from negation normal form straight to sequents: an existential stays in a head
+//! wherever its scope is positive, and only one whose scope is not (`∃y. ¬P(y)`, or `∃y. ∀u. …`)
+//! is replaced by a Skolem term, which the conversion also claims to denote an element where
+//! the existential must hold. No formula is put in prenex or Skolem normal form, so an
+//! existential never depends on a universal it was not in the scope of.
 //! In fact, for every model *N* of the original theory, there exists a model *M* of the geometric
 //! theory such that there is a homomorphism from *M* to *N*. This is an important result that
 //! enables Razor to utilize the chase to construct homomorphically minimal models of a given
@@ -43,7 +48,7 @@
 //! [the chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 //! [run of the chase]: self#chase_all
-//! [standard syntactic manipulation]: razor_fol::transform::ToGNF::gnf()
+//! [a syntactic conversion]: razor_fol::transform::ToGNF::gnf()
 //! [godel]: https://en.wikipedia.org/wiki/Gödel%27s_incompleteness_theorems
 //!
 //! ## The Chase
