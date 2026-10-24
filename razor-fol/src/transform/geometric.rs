@@ -26,6 +26,9 @@ Starting from the sequent `⊤ ⊢ φ` over the free variables of an [`NNF`] `φ
 5. `∃ȳ. (α ∨ β)` whose scope is not a PEF becomes `∃ȳ. α ∨ ∃ȳ. β`. Any other `∃y. α` whose
    scope is not a PEF replaces `y` by a Skolem term over the sequent's variables in scope, a
    constant when there are none, and continues with `α`. Skolem symbols arise nowhere else.
+   Each Skolem term `t` minted over `x̄` also yields the *totality* sequent `⊤ ⊢x̄ ∃y. y = t`:
+   a Skolem function is total, but the chase only creates the elements a head asks for, so a
+   term that occurs only in bodies would otherwise never denote an element.
 6. A body only receives atoms, through rule 3, so it never holds `∃` or `∨`.
 7. `⊥` as the head leaves a failure sequent with an empty head. A sequent whose head is `⊤`,
    or has a `⊤` disjunct, is true and is dropped. Equations `t = t` and `⊥` disjuncts are
@@ -221,6 +224,19 @@ impl Geometric {
         }]
     }
 
+    // Returns the sequent `⊤ ⊢ ∃y. y = term` over `universals`, the variables of `term`.
+    fn total(term: Complex, universals: &[Var]) -> Self {
+        let y = Var::from("y").apart(|v| universals.contains(v));
+        let equation = Atomic::from(Equals {
+            left: Complex::from(y.clone()),
+            right: term,
+        });
+        Self {
+            body: PCF::default(),
+            head: vec![Disjunct::from(equation).exists(&[y])],
+        }
+    }
+
     // Returns the sequent `atomic ⊢ ⊥`.
     fn deny(atomic: Atomic<Complex>) -> Self {
         Self {
@@ -385,14 +401,16 @@ impl ToGeometric for NNF {
             fn_generator,
             universals: universals.iter().cloned().collect(),
             existentials: HashSet::new(),
+            totality: Vec::new(),
         };
         let scope = Scope {
             universals,
             env: HashMap::new(),
         };
-        converter
-            .sequents(self, &scope)
+        let sequents = converter.sequents(self, &scope);
+        sequents
             .into_iter()
+            .chain(converter.totality)
             .unique()
             .collect()
     }
@@ -443,12 +461,14 @@ impl Scope {
 
 // Converts a formula outside every existential quantifier. Universals are named apart from every
 // variable named before them, and existentials from every universal, so sequents and disjuncts
-// combine without renaming.
+// combine without renaming. The totality sequents of the Skolem terms are kept apart, since they
+// hold unconditionally and never join a disjunction.
 struct Converter<'g, CG, FG> {
     const_generator: &'g mut CG,
     fn_generator: &'g mut FG,
     universals: HashSet<Var>,
     existentials: HashSet<Var>,
+    totality: Vec<Geometric>,
 }
 
 impl<CG, FG> Converter<'_, CG, FG>
@@ -529,11 +549,14 @@ where
     }
 
     fn skolem_term(&mut self, universals: &[Var]) -> Complex {
-        if universals.is_empty() {
+        let term: Complex = if universals.is_empty() {
             (self.const_generator)().into()
         } else {
             (self.fn_generator)().app(universals.iter().map(Complex::from).collect())
-        }
+        };
+        self.totality
+            .push(Geometric::total(term.clone(), universals));
+        term
     }
 }
 
@@ -637,7 +660,7 @@ impl AtomicEx for Atomic<Complex> {
 mod tests {
     use super::*;
     use crate::{
-        syntax::Theory,
+        syntax::{Theory, EQ_SYM},
         transform::{ToGNF, PCF},
     };
     use std::{fs, path::PathBuf};
@@ -700,6 +723,7 @@ mod tests {
         let predicates = sig
             .predicates()
             .values()
+            .filter(|p| p.symbol.name() != EQ_SYM)
             .map(|p| format!("{}/{}", p.symbol, p.arity));
         constants
             .chain(functions)
@@ -847,21 +871,48 @@ mod tests {
 
     #[test]
     fn exists_over_universal_is_skolemized_to_a_constant() {
-        assert_eq!("⊤ → Q(u, 'c#0)", geometric("exists y. forall u. Q(u, y)"));
+        assert_eq!(
+            "⊤ → Q(u, 'c#0)\n⊤ → (∃ y. y = 'c#0)",
+            geometric("exists y. forall u. Q(u, y)")
+        );
     }
 
     #[test]
     fn exists_over_negative_literal_is_skolemized_over_universals() {
         assert_eq!(
-            "⊤ → P(x, f#0(x))\nQ(f#0(x)) → R(f#0(x))",
+            "⊤ → P(x, f#0(x))\nQ(f#0(x)) → R(f#0(x))\n⊤ → (∃ y. y = f#0(x))",
             geometric("forall x. exists y. (P(x, y) & (Q(y) -> R(y)))")
+        );
+    }
+
+    #[test]
+    fn a_skolem_term_only_in_a_body_is_total() {
+        assert_eq!(
+            "P('c#0) → (∃ z. Q(z))\n⊤ → (∃ y. y = 'c#0)",
+            geometric("exists z. (P(z) -> Q(z))")
+        );
+    }
+
+    #[test]
+    fn totality_names_its_existential_apart_from_the_universals() {
+        assert_eq!(
+            "Q(y, f#0(y)) → ⟘\n⊤ → (∃ y`. y` = f#0(y))",
+            geometric("forall y. exists z. ~Q(y, z)")
+        );
+    }
+
+    #[test]
+    fn totality_never_joins_a_disjunction() {
+        assert_eq!(
+            "⊤ → (P('a) ∨ Q('c#0, u))\n⊤ → (∃ y. y = 'c#0)",
+            geometric("P('a) | exists z. forall u. Q(z, u)")
         );
     }
 
     #[test]
     fn exists_skolemizes_only_the_non_positive_disjunct() {
         assert_eq!(
-            "⊤ → ((∃ y. P(y)) ∨ Q(u, 'c#0))",
+            "⊤ → ((∃ y. P(y)) ∨ Q(u, 'c#0))\n⊤ → (∃ y. y = 'c#0)",
             geometric("exists y. (P(y) | forall u. Q(u, y))")
         );
     }
@@ -903,7 +954,10 @@ mod tests {
     fn geometric_with_names_skolem_symbols() {
         let formula: FOF = "forall x. exists y. ~P(x, y)".parse().unwrap();
         let sequents = formula.geometric_with(&mut || "c".into(), &mut || "sk".into());
-        assert_eq!("P(x, sk(x)) → ⟘", sequents.iter().join("\n"));
+        assert_eq!(
+            "P(x, sk(x)) → ⟘\n⊤ → (∃ y. y = sk(x))",
+            sequents.iter().join("\n")
+        );
     }
 
     #[test]
@@ -926,14 +980,13 @@ mod tests {
     }
 
     #[test]
-    fn fixtures_keep_the_signature_and_never_add_sequents() {
+    fn fixtures_keep_the_signature() {
         for (path, theory) in all_fixtures() {
             let mut sequents = 0;
             let mut gnfs = 0;
             for formula in theory.iter() {
                 let new = formula.geometric();
                 let old = formula.gnf();
-                assert!(new.len() <= old.len(), "{} in {:?}", formula, path);
                 assert_eq!(
                     user_signature(old.iter().map(FOF::from)),
                     user_signature(new.iter().cloned().map(FOF::from)),
