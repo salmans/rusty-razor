@@ -330,14 +330,19 @@ fn quantify(s: &Shape, vars: &[Var], f: &FOF, env: &mut HashMap<Var, usize>, all
     all
 }
 
-fn satisfies(s: &Shape, theory: &Theory<FOF>) -> Result<(), String> {
-    for sentence in theory.formulae() {
+/// The first sentence of `theory` that `s` does not satisfy.
+fn falsified<'t>(s: &Shape, theory: &'t Theory<FOF>) -> Option<&'t FOF> {
+    theory.formulae().iter().find(|sentence| {
         let free: Vec<Var> = sentence.free_vars().into_iter().cloned().collect();
-        if !quantify(s, &free, sentence, &mut HashMap::new(), true) {
-            return Err(format!("{} fails", sentence));
-        }
+        !quantify(s, &free, sentence, &mut HashMap::new(), true)
+    })
+}
+
+fn satisfies(s: &Shape, theory: &Theory<FOF>) -> Result<(), String> {
+    match falsified(s, theory) {
+        Some(sentence) => Err(format!("{} fails", sentence)),
+        None => Ok(()),
     }
-    Ok(())
 }
 
 fn check_all<M: Model<TermType = BasicWitnessTerm> + std::fmt::Debug>(
@@ -857,6 +862,9 @@ struct Shapes {
     head_implications: bool,
     /// A formula with no body, so an existential may stand at its top: `exists z. P(z)`.
     bodiless: bool,
+    /// A sequent with a non-empty body and the head `false`, so the chase can fail:
+    /// `P(x) & Q(x) -> false`. Denials are geometric.
+    denials: bool,
 }
 
 impl Shapes {
@@ -867,6 +875,15 @@ impl Shapes {
             head_universals: true,
             head_implications: true,
             bodiless: true,
+            denials: true,
+        }
+    }
+
+    /// Geometric sequents, some of them denials.
+    fn geometric_with_denials() -> Self {
+        Self {
+            denials: true,
+            ..Self::default()
         }
     }
 }
@@ -1038,8 +1055,14 @@ impl TheoryDraw {
             let used: Vec<&'static str> = used.into_iter().collect();
             return Self::close(&used, head);
         }
+        let denial = self.shapes.denials && self.dice.one_in(4);
         let mut vars = BTreeSet::new();
-        let body = match self.dice.below(3) {
+        let atoms = if denial {
+            1 + self.dice.below(2)
+        } else {
+            self.dice.below(3)
+        };
+        let body = match atoms {
             0 => "true".to_string(),
             n => (0..n)
                 .map(|_| self.atom(&["x", "y", "'a", "'b"], &mut vars))
@@ -1047,7 +1070,11 @@ impl TheoryDraw {
                 .join(" & "),
         };
         let vars: Vec<&'static str> = vars.into_iter().collect();
-        let head = self.head(&vars, &mut BTreeSet::new());
+        let head = if denial {
+            "false".to_string()
+        } else {
+            self.head(&vars, &mut BTreeSet::new())
+        };
         Self::close(&vars, format!("{} -> {}", body, head))
     }
 
@@ -1057,9 +1084,9 @@ impl TheoryDraw {
     }
 }
 
-/// The text of the random geometric theory of `seed`.
+/// The text of the random geometric theory of `seed`, with denials.
 fn random_theory(seed: u64) -> String {
-    TheoryDraw::new(seed, Shapes::default()).theory()
+    TheoryDraw::new(seed, Shapes::geometric_with_denials()).theory()
 }
 
 /// The text of the random first-order theory of `seed`, with every shape of `Shapes`.
@@ -1069,10 +1096,10 @@ fn random_first_order_theory(seed: u64) -> String {
 
 #[test]
 fn random_theory_is_reproducible() {
+    // Re-pinned when denials joined the draw: the die for a denial is cast before each body.
     assert_eq!(random_theory(7), random_theory(7));
     assert_eq!(
-        "forall y. (P(y) -> (R(f('a))) | (P('b) & y = 'b));\n\
-         Q('a) -> (P('b)) | (P('b));\n",
+        "P('a) -> false;\nforall x. (R(f(x)) -> false);\n",
         random_theory(7)
     );
 }
@@ -1164,7 +1191,6 @@ fn tuples(size: usize, arity: usize) -> Vec<Vec<usize>> {
 struct Structures {
     size: usize,
     slots: Vec<Slot>,
-    digits: Option<Vec<usize>>,
 }
 
 impl Structures {
@@ -1190,12 +1216,9 @@ impl Structures {
             .constants()
             .iter()
             .map(|c| Slot::Constant(c.name().to_string()));
-        let slots: Vec<Slot> = facts.chain(entries).chain(constants).collect();
-        let digits = Some(vec![0; slots.len()]);
         Self {
             size,
-            slots,
-            digits,
+            slots: facts.chain(entries).chain(constants).collect(),
         }
     }
 
@@ -1208,46 +1231,70 @@ impl Structures {
         })
     }
 
-    fn shape(&self, digits: &[usize]) -> Shape {
-        let mut shape = fact_shape(self.size, &[]);
-        for (slot, digit) in self.slots.iter().zip(digits) {
-            match slot {
-                Slot::Fact(p, t) if *digit == 1 => {
+    /// Changes the decision of `slot` in `shape` from `from` to `to`.
+    fn assign(&self, shape: &mut Shape, slot: usize, from: usize, to: usize) {
+        match &self.slots[slot] {
+            Slot::Fact(p, t) => {
+                if to == 1 {
                     shape.facts.insert((p.clone(), t.clone()));
-                }
-                Slot::Fact(..) => {}
-                Slot::Entry(f, t) => {
-                    shape.functions.insert((f.clone(), t.clone(), *digit));
-                }
-                Slot::Constant(c) => {
-                    shape.constants.insert((c.clone(), *digit));
+                } else {
+                    shape.facts.remove(&(p.clone(), t.clone()));
                 }
             }
+            Slot::Entry(f, t) => {
+                shape.functions.remove(&(f.clone(), t.clone(), from));
+                shape.functions.insert((f.clone(), t.clone(), to));
+            }
+            Slot::Constant(c) => {
+                shape.constants.remove(&(c.clone(), from));
+                shape.constants.insert((c.clone(), to));
+            }
         }
-        shape
     }
-}
 
-impl Iterator for Structures {
-    type Item = Shape;
-
-    fn next(&mut self) -> Option<Shape> {
-        let digits = self.digits.take()?;
-        let shape = self.shape(&digits);
-        let mut next = digits;
-        let carried = next.iter_mut().zip(&self.slots).all(|(digit, slot)| {
-            *digit += 1;
-            if *digit == slot.radix(self.size) {
-                *digit = 0;
-                true
-            } else {
-                false
-            }
-        });
-        if !carried {
-            self.digits = Some(next);
+    /// Is some structure a model of `theory`? The structures are visited in counter order,
+    /// and each step changes only the slots whose digits change. Neighbouring structures tend
+    /// to falsify the same sentence, so the last one falsified is tried first.
+    fn any_model(&self, theory: &Theory<FOF>) -> bool {
+        let sentences: Vec<(&FOF, Vec<Var>)> = theory
+            .formulae()
+            .iter()
+            .map(|f| (f, f.free_vars().into_iter().cloned().collect()))
+            .collect();
+        let fails = |shape: &Shape, i: usize| {
+            let (sentence, free) = &sentences[i];
+            !quantify(shape, free, sentence, &mut HashMap::new(), true)
+        };
+        let mut last = 0;
+        let mut digits = vec![0; self.slots.len()];
+        let mut shape = fact_shape(self.size, &[]);
+        for slot in 0..self.slots.len() {
+            self.assign(&mut shape, slot, 0, 0);
         }
-        Some(shape)
+        loop {
+            let falsified = if sentences.is_empty() || !fails(&shape, last) {
+                (0..sentences.len()).find(|i| *i != last && fails(&shape, *i))
+            } else {
+                Some(last)
+            };
+            match falsified {
+                Some(i) => last = i,
+                None => return true,
+            }
+            let mut slot = 0;
+            loop {
+                let Some(digit) = digits.get(slot).copied() else {
+                    return false;
+                };
+                let next = (digit + 1) % self.slots[slot].radix(self.size);
+                self.assign(&mut shape, slot, digit, next);
+                digits[slot] = next;
+                if next != 0 {
+                    break;
+                }
+                slot += 1;
+            }
+        }
     }
 }
 
@@ -1259,12 +1306,7 @@ fn tiny_model_exists(theory: &Theory<FOF>) -> Option<bool> {
         .iter()
         .try_fold(0, |total, s| s.count(TINY_BUDGET).map(|c| total + c))
         .filter(|total| *total <= TINY_BUDGET)?;
-    Some(
-        sizes
-            .into_iter()
-            .flatten()
-            .any(|s| satisfies(&s, theory).is_ok()),
-    )
+    Some(sizes.iter().any(|s| s.any_model(theory)))
 }
 
 #[test]
@@ -1390,11 +1432,11 @@ fn random_theories_agree_with_basic() {
 
 #[test]
 fn random_first_order_theory_is_reproducible() {
+    // Re-pinned when denials joined the draw: the die for a denial is cast before each body.
     assert_eq!(random_first_order_theory(7), random_first_order_theory(7));
     assert_eq!(
         "(Q('a) & (forall u. ((P(u)) | (exists w. (R(w)))))) | (exists z. (Q(f(z)) & ((z = z))));\n\
-         forall x. (R('b) & R(f(x)) -> (P('b) & (exists w. (Q(w))) & (Q(f('a)) -> Q('a))) | \
-         (exists z. (f(z) = z & (Q(z)) & ((exists w. (f(w) = z))))));\n",
+         P('b) -> false;\n",
         random_first_order_theory(7)
     );
 }
