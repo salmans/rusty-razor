@@ -8,7 +8,7 @@ mod relational;
 mod snf;
 
 pub use cnf::{ToCNF, CNF};
-pub use geometric::{Disjunct, Geometric, ToGeometric};
+pub use geometric::{Disjunct, Geometric, Skolemizer, ToGeometric};
 pub use gnf::{PcfSet, ToGNF, GNF, PCF};
 pub use nnf::{ToNNF, NNF};
 pub use pnf::{ToPNF, PNF};

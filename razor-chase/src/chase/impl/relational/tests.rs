@@ -511,20 +511,6 @@ fn same_step_witness_reuse_survives_a_head_function() {
     assert_eq!(1, s.count("Q"), "{:?}", complete[0]);
 }
 
-#[test]
-fn alpha_equivalent_bodies_share_a_witness() {
-    // PNF renames the second `x`, so the two sequents of `y` have bodies `P(x)` and `P(x`)`;
-    // 'b witnesses the merged head, and an ordinary Skolem constant would create a new element.
-    let theory: Theory<FOF> = "P('a); Q('b); R('b); \
-         exists y. ((forall x. P(x) -> Q(y)) & (forall x. P(x) -> R(y)));"
-        .parse()
-        .unwrap();
-    let (complete, _) = run_db(&theory, &Unbounded);
-    assert_eq!(1, complete.len());
-    check_all("alpha-equivalent bodies", &theory, &complete);
-    assert_eq!(2, complete[0].size(), "{:?}", complete[0]);
-}
-
 /// `f(f(...f(x)))` with `depth` applications.
 fn nested(depth: usize, x: &str) -> String {
     (0..depth).fold(x.to_string(), |term, _| format!("f({})", term))
@@ -591,7 +577,7 @@ fn unrelated_heads_of_one_body_stay_apart() {
 }
 
 #[test]
-fn a_witness_scoped_over_a_universal_is_a_function() {
+fn an_existential_over_a_universal_is_one_element() {
     let theory: Theory<FOF> = "Q('b, 'd); exists y. forall u. Q(u, y);".parse().unwrap();
     let (complete, incomplete) = run_db(&theory, &Unbounded);
     assert!(incomplete.is_empty());

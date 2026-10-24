@@ -26,13 +26,23 @@ Starting from the sequent `⊤ ⊢ φ` over the free variables of an [`NNF`] `φ
 5. `∃ȳ. (α ∨ β)` whose scope is not a PEF becomes `∃ȳ. α ∨ ∃ȳ. β`. Any other `∃y. α` whose
    scope is not a PEF replaces `y` by a Skolem term over the sequent's variables in scope, a
    constant when there are none, and continues with `α`. Skolem symbols arise nowhere else.
-   Each Skolem term `t` minted over `x̄` also yields the *totality* sequent `⊤ ⊢x̄ ∃y. y = t`:
-   a Skolem function is total, but the chase only creates the elements a head asks for, so a
-   term that occurs only in bodies would otherwise never denote an element.
+   A Skolem term `t` minted over `x̄` that is a constant, or occurs in a body of the sequents
+   of `α`, also yields the *totality* claim `⊢x̄ ∃y. y = t`, conjoined to the conversion of
+   `α` so that the negative literals of the enclosing disjunctions become its body. A Skolem
+   function is total, but the chase only creates the elements a head asks for, so a term in a
+   body alone would never denote an element, and a constant in a head alone would leave the
+   domain empty when no body holds. A term that occurs only in heads needs no claim: the chase
+   creates it wherever a head that mentions it must hold, and anywhere else any element
+   witnesses `∃y. α`. Claiming no more than that keeps the chase from building every term of
+   a function over the whole domain.
 6. A body only receives atoms, through rule 3, so it never holds `∃` or `∨`.
 7. `⊥` as the head leaves a failure sequent with an empty head. A sequent whose head is `⊤`,
-   or has a `⊤` disjunct, is true and is dropped. Equations `t = t` and `⊥` disjuncts are
-   dropped.
+   or has a `⊤` disjunct (one whose atoms are all equations `x = x`), is true and is dropped.
+   `⊥` disjuncts and equations `y = y` over an existential are dropped. Any other equation
+   `t = t` stays: over a variable `x` of the sequent it keeps `x` among the sequent's
+   variables, so the sequent still ranges over the domain (and holds vacuously when it is
+   empty); over a constant or a function application it claims that `t` denotes an element,
+   since functions are partial in the chase.
 
 [glics]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 [`NNF`]: crate::transform::NNF
@@ -44,7 +54,10 @@ use crate::syntax::{
     Const, Error, Func, Sig, Var, FOF,
 };
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
 
 /// Is a disjunct in the head of a [`Geometric`] sequent: a list of existentially quantified
 /// variables over a conjunction of atoms.
@@ -71,8 +84,9 @@ impl Disjunct {
         &self.atoms
     }
 
+    // Is `self` true under every assignment of the sequent's variables?
     fn is_top(&self) -> bool {
-        self.existentials.is_empty() && self.atoms.is_empty()
+        self.existentials.is_empty() && self.atoms.iter().all(AtomicEx::is_reflexive)
     }
 
     fn and(&self, other: &Self) -> Self {
@@ -89,16 +103,17 @@ impl Disjunct {
         }
     }
 
-    // Substitutes away the existentials equated to a variable, then drops reflexive equations
-    // and the existentials that no longer occur.
+    // Substitutes away the existentials equated to a variable, then drops the equations `v = v`
+    // that `self` does not need and the existentials that no longer occur.
     fn simplify(mut self) -> Self {
         while let Some((gone, kept)) = self.equated() {
             self = self.substitute_existential(&gone, kept);
         }
         let atoms: PCF = self
             .atoms
-            .into_iter()
-            .filter(|a| !a.is_reflexive())
+            .iter()
+            .filter(|a| !self.redundant(a))
+            .cloned()
             .collect();
         let witness = self.existentials.first().cloned();
         let occurring: HashSet<&Var> = atoms.free_vars().into_iter().collect();
@@ -110,6 +125,21 @@ impl Disjunct {
         Self {
             existentials,
             atoms,
+        }
+    }
+
+    // Is `atomic` an equation `v = v` that adds nothing: `v` is an existential, or occurs in
+    // another atom? An equation `x = x` alone keeps the sequent's variable `x`.
+    fn redundant(&self, atomic: &Atomic<Complex>) -> bool {
+        match atomic.variable_equation() {
+            Some((v, w)) if v == w => {
+                self.existentials.contains(v)
+                    || self
+                        .atoms
+                        .iter()
+                        .any(|other| other != atomic && other.free_vars().contains(&v))
+            }
+            _ => false,
         }
     }
 
@@ -224,7 +254,7 @@ impl Geometric {
         }]
     }
 
-    // Returns the sequent `⊤ ⊢ ∃y. y = term` over `universals`, the variables of `term`.
+    // Returns the claim `⊢ ∃y. y = term` over `universals`, the variables of `term`.
     fn total(term: Complex, universals: &[Var]) -> Self {
         let y = Var::from("y").apart(|v| universals.contains(v));
         let equation = Atomic::from(Equals {
@@ -237,10 +267,17 @@ impl Geometric {
         }
     }
 
+    // Does `term` occur in a body of `sequents`?
+    fn mention(sequents: &[Self], term: &Complex) -> bool {
+        sequents
+            .iter()
+            .any(|s| s.body.iter().any(|atomic| atomic.mentions(term)))
+    }
+
     // Returns the sequent `atomic ⊢ ⊥`.
     fn deny(atomic: Atomic<Complex>) -> Self {
         Self {
-            body: [atomic].into_iter().filter(|a| !a.is_reflexive()).collect(),
+            body: atomic.into(),
             head: Vec::new(),
         }
     }
@@ -303,14 +340,21 @@ impl std::fmt::Display for Geometric {
     }
 }
 
-impl From<Geometric> for FOF {
-    fn from(value: Geometric) -> Self {
-        let head = value
-            .head
-            .into_iter()
+impl From<&[Disjunct]> for FOF {
+    /// The disjunction of `value`, `⊥` when it is empty: the head of a [`Geometric`] sequent.
+    fn from(value: &[Disjunct]) -> Self {
+        value
+            .iter()
+            .cloned()
             .map(FOF::from)
             .reduce(|left, right| left.or(right))
-            .unwrap_or(FOF::Bottom);
+            .unwrap_or(FOF::Bottom)
+    }
+}
+
+impl From<Geometric> for FOF {
+    fn from(value: Geometric) -> Self {
+        let head = FOF::from(value.head.as_slice());
         FOF::from(value.body).implies(head)
     }
 }
@@ -354,8 +398,8 @@ pub trait ToGeometric: Formula {
 
     /// Transforms `self` to a list of standard geometric sequents whose conjunction is
     /// equisatisfiable to `self`, and equivalent to it when no Skolem symbol is needed. The free
-    /// variables of `self` are read as universally quantified, and Skolem symbols are named
-    /// `c#N` (constants) and `f#N` (functions).
+    /// variables of `self` are read as universally quantified, and Skolem symbols are named by
+    /// a fresh [`Skolemizer`].
     ///
     /// **Example**:
     /// ```rust
@@ -368,20 +412,62 @@ pub trait ToGeometric: Formula {
     /// assert_eq!("P(x) → (∃ y. (Q(x, y) ∧ R(y)))", sequents[0].to_string());
     /// ```
     fn geometric(&self) -> Vec<Geometric> {
-        let mut c_counter = 0;
-        let mut f_counter = 0;
-        let mut const_generator = || {
-            let name = format!("c#{}", c_counter);
-            c_counter += 1;
-            name.into()
-        };
-        let mut fn_generator = || {
-            let name = format!("f#{}", f_counter);
-            f_counter += 1;
-            name.into()
-        };
+        Skolemizer::default().geometric(self)
+    }
+}
 
-        self.geometric_with(&mut const_generator, &mut fn_generator)
+/// Mints the Skolem symbols of a theory: constants `c#N` and functions `f#N`, numbered in the
+/// order they are minted. `#` is not an identifier character, so a minted symbol never collides
+/// with a parsed one. One `Skolemizer` shared by every formula of a theory, and by whatever names
+/// elements after the conversion, keeps all their symbols apart.
+#[derive(Clone, Debug, Default)]
+pub struct Skolemizer {
+    constants: usize,
+    functions: usize,
+}
+
+impl Skolemizer {
+    /// A fresh Skolem constant.
+    pub fn constant(&mut self) -> Const {
+        self.constants += 1;
+        format!("c#{}", self.constants - 1).into()
+    }
+
+    /// A fresh Skolem function.
+    pub fn function(&mut self) -> Func {
+        self.functions += 1;
+        format!("f#{}", self.functions - 1).into()
+    }
+
+    /// A fresh Skolem term over `universals`: a function applied to them, or a constant when
+    /// there are none.
+    pub fn term(&mut self, universals: &[Var]) -> Complex {
+        if universals.is_empty() {
+            self.constant().into()
+        } else {
+            self.function()
+                .app(universals.iter().map(Complex::from).collect())
+        }
+    }
+
+    /// Converts `formula` with [`ToGeometric::geometric_with`], naming its Skolem symbols.
+    ///
+    /// **Example**:
+    /// ```rust
+    /// # use razor_fol::syntax::FOF;
+    /// use razor_fol::transform::Skolemizer;
+    ///
+    /// let mut skolemizer = Skolemizer::default();
+    /// let first: FOF = "exists x. forall y. P(x, y)".parse().unwrap();
+    /// let second: FOF = "exists x. forall y. Q(x, y)".parse().unwrap();
+    /// assert_eq!("⊤ → P('c#0, y)", skolemizer.geometric(&first)[0].to_string());
+    /// assert_eq!("⊤ → Q('c#1, y)", skolemizer.geometric(&second)[0].to_string());
+    /// ```
+    pub fn geometric<F: ToGeometric + ?Sized>(&mut self, formula: &F) -> Vec<Geometric> {
+        let skolemizer = RefCell::new(self);
+        formula.geometric_with(&mut || skolemizer.borrow_mut().constant(), &mut || {
+            skolemizer.borrow_mut().function()
+        })
     }
 }
 
@@ -401,16 +487,14 @@ impl ToGeometric for NNF {
             fn_generator,
             universals: universals.iter().cloned().collect(),
             existentials: HashSet::new(),
-            totality: Vec::new(),
         };
         let scope = Scope {
             universals,
             env: HashMap::new(),
         };
-        let sequents = converter.sequents(self, &scope);
-        sequents
+        converter
+            .sequents(self, &scope)
             .into_iter()
-            .chain(converter.totality)
             .unique()
             .collect()
     }
@@ -461,14 +545,12 @@ impl Scope {
 
 // Converts a formula outside every existential quantifier. Universals are named apart from every
 // variable named before them, and existentials from every universal, so sequents and disjuncts
-// combine without renaming. The totality sequents of the Skolem terms are kept apart, since they
-// hold unconditionally and never join a disjunction.
+// combine without renaming.
 struct Converter<'g, CG, FG> {
     const_generator: &'g mut CG,
     fn_generator: &'g mut FG,
     universals: HashSet<Var>,
     existentials: HashSet<Var>,
-    totality: Vec<Geometric>,
 }
 
 impl<CG, FG> Converter<'_, CG, FG>
@@ -522,8 +604,15 @@ where
                 Geometric::or(&left, &right)
             }
             _ => {
-                let scope = self.skolemize(&variables, formula, scope);
-                self.sequents(formula, &scope)
+                let (scope, terms) = self.skolemize(&variables, formula, scope);
+                let mut sequents = self.sequents(formula, &scope);
+                let claims: Vec<Geometric> = terms
+                    .into_iter()
+                    .filter(|t| matches!(t, Complex::Const(_)) || Geometric::mention(&sequents, t))
+                    .map(|t| Geometric::total(t, &scope.universals))
+                    .collect();
+                sequents.extend(claims);
+                sequents
             }
         }
     }
@@ -535,28 +624,33 @@ where
     }
 
     // Binds the variables of `variables` that `formula` refers to (the last binding of a repeated
-    // variable shadows the others) to Skolem terms over the universals in scope.
-    fn skolemize(&mut self, variables: &[Var], formula: &NNF, scope: &Scope) -> Scope {
+    // variable shadows the others) to Skolem terms over the universals in scope, and returns the
+    // terms.
+    fn skolemize(
+        &mut self,
+        variables: &[Var],
+        formula: &NNF,
+        scope: &Scope,
+    ) -> (Scope, Vec<Complex>) {
         let free = formula.free_vars();
-        variables
-            .iter()
-            .enumerate()
-            .filter(|(i, v)| free.contains(v) && !variables[i + 1..].contains(v))
-            .fold(scope.clone(), |scope, (_, v)| {
+        let mut scope = scope.clone();
+        let mut terms = Vec::new();
+        for (i, v) in variables.iter().enumerate() {
+            if free.contains(&v) && !variables[i + 1..].contains(v) {
                 let term = self.skolem_term(&scope.universals);
-                scope.bind(v, term)
-            })
+                terms.push(term.clone());
+                scope = scope.bind(v, term);
+            }
+        }
+        (scope, terms)
     }
 
     fn skolem_term(&mut self, universals: &[Var]) -> Complex {
-        let term: Complex = if universals.is_empty() {
+        if universals.is_empty() {
             (self.const_generator)().into()
         } else {
             (self.fn_generator)().app(universals.iter().map(Complex::from).collect())
-        };
-        self.totality
-            .push(Geometric::total(term.clone(), universals));
-        term
+        }
     }
 }
 
@@ -634,15 +728,35 @@ impl VarEx for Var {
     }
 }
 
+trait ComplexEx {
+    fn contains(&self, term: &Complex) -> bool;
+}
+
+impl ComplexEx for Complex {
+    fn contains(&self, term: &Complex) -> bool {
+        self == term
+            || matches!(self, Complex::App { terms, .. } if terms.iter().any(|t| t.contains(term)))
+    }
+}
+
 trait AtomicEx {
     fn is_reflexive(&self) -> bool;
+
+    fn mentions(&self, term: &Complex) -> bool;
 
     fn variable_equation(&self) -> Option<(&Var, &Var)>;
 }
 
 impl AtomicEx for Atomic<Complex> {
     fn is_reflexive(&self) -> bool {
-        matches!(self, Atomic::Equals(this) if this.left == this.right)
+        matches!(self.variable_equation(), Some((left, right)) if left == right)
+    }
+
+    fn mentions(&self, term: &Complex) -> bool {
+        match self {
+            Atomic::Atom(this) => this.terms.iter().any(|t| t.contains(term)),
+            Atomic::Equals(this) => this.left.contains(term) || this.right.contains(term),
+        }
     }
 
     fn variable_equation(&self) -> Option<(&Var, &Var)> {
@@ -888,7 +1002,7 @@ mod tests {
     #[test]
     fn a_skolem_term_only_in_a_body_is_total() {
         assert_eq!(
-            "P('c#0) → (∃ z. Q(z))\n⊤ → (∃ y. y = 'c#0)",
+            "P('c#0) → (∃ z. Q(z))\n⊤ → ((∃ y. y = 'c#0) ∨ (∃ z. Q(z)))",
             geometric("exists z. (P(z) -> Q(z))")
         );
     }
@@ -902,17 +1016,29 @@ mod tests {
     }
 
     #[test]
-    fn totality_never_joins_a_disjunction() {
+    fn totality_is_claimed_where_the_existential_must_hold() {
         assert_eq!(
-            "⊤ → (P('a) ∨ Q('c#0, u))\n⊤ → (∃ y. y = 'c#0)",
+            "⊤ → (P('a) ∨ Q('c#0, u))\n⊤ → (P('a) ∨ (∃ y. y = 'c#0))",
             geometric("P('a) | exists z. forall u. Q(z, u)")
+        );
+        assert_eq!(
+            "(P(x) ∧ Q(x, f#0(x))) → ⟘\nP(x) → (∃ y. y = f#0(x))",
+            geometric("forall x. (P(x) -> exists z. ~Q(x, z))")
+        );
+    }
+
+    #[test]
+    fn a_skolem_function_only_in_heads_is_not_claimed() {
+        assert_eq!(
+            "P(x) → Q(f#0(x))\nR(x) → S(f#0(x))",
+            geometric("forall x. exists y. ((P(x) -> Q(y)) & (R(x) -> S(y)))")
         );
     }
 
     #[test]
     fn exists_skolemizes_only_the_non_positive_disjunct() {
         assert_eq!(
-            "⊤ → ((∃ y. P(y)) ∨ Q(u, 'c#0))\n⊤ → (∃ y. y = 'c#0)",
+            "⊤ → ((∃ y. P(y)) ∨ Q(u, 'c#0))\n⊤ → ((∃ y. P(y)) ∨ (∃ y. y = 'c#0))",
             geometric("exists y. (P(y) | forall u. Q(u, y))")
         );
     }
@@ -920,7 +1046,7 @@ mod tests {
     #[test]
     fn bottom_head_is_a_failure_sequent() {
         assert_eq!("⊤ → ⟘", geometric("false"));
-        assert_eq!("⊤ → ⟘", geometric("~(x = x)"));
+        assert_eq!("x = x → ⟘", geometric("~(x = x)"));
         assert_eq!("P(x) → ⟘", geometric("P(x) -> exists y. false"));
     }
 
@@ -932,12 +1058,29 @@ mod tests {
     }
 
     #[test]
-    fn bottom_disjunct_and_reflexive_equation_are_dropped() {
+    fn bottom_disjunct_and_existential_reflexive_equation_are_dropped() {
         assert_eq!("P(x) → Q(x)", geometric("P(x) -> Q(x) | false"));
         assert_eq!(
-            "(P(x) ∧ x = y) → Q(x)",
-            geometric("P(x) & x = x & x = y -> Q(x)")
+            "P(x) → (∃ y. Q(y))",
+            geometric("P(x) -> exists y. (y = y & Q(y))")
         );
+    }
+
+    #[test]
+    fn reflexive_equation_over_a_universal_keeps_its_variable() {
+        assert_eq!("y = y → P('a)", geometric("forall y. (y = y -> P('a))"));
+        assert_eq!(
+            "⊤ → (P('a) ∧ x = x)",
+            geometric("exists y. (y = y & x = x & P('a))")
+        );
+        assert_eq!("⊤ → P(x)", geometric("exists y. (y = x & P(y))"));
+    }
+
+    #[test]
+    fn reflexive_equation_over_a_term_claims_it_exists() {
+        assert_eq!("'b = 'b → P('a)", geometric("'b = 'b -> P('a)"));
+        assert_eq!("⊤ → ('a = 'a ∨ P('b))", geometric("'a = 'a | P('b)"));
+        assert_eq!("⊤ → f(x) = f(x)", geometric("f(x) = f(x)"));
     }
 
     #[test]
