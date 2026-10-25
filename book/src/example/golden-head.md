@@ -27,7 +27,7 @@ Baratheon(x) -> BlackOfHair(x);
 ```
 
 We can verify Ned's conclusion by running Razor on this theory
-[golden-lion.raz](https://github.com/salmans/rusty-razor/blob/master/theories/examples/golden-lion.raz), asking for a
+[golden-lion.raz](https://github.com/salmans/rusty-razor/blob/main/theories/examples/golden-lion.raz), asking for a
 scenario (i.e., model of the theory) that justifies Joffrey's golden head:
 
 ```

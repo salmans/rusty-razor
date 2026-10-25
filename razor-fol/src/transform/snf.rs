@@ -166,6 +166,10 @@ impl<T: ToSNF> From<T> for SNF {
 }
 
 impl SNF {
+    // Skolemizes `pnf` under the universals `skolem_vars` in scope, where a binder shadows an
+    // earlier universal of its name. The Skolem term of an existential takes the universals in
+    // scope that no later binder of the prefix rebinds: a rebound universal never reaches the
+    // matrix, and the rebinding binder would capture it as an argument.
     fn new<CG, FG>(
         pnf: PNF,
         mut skolem_vars: Vec<Var>,
@@ -179,7 +183,8 @@ impl SNF {
         match pnf {
             PNF::Forall(this) => {
                 let variables = this.variables;
-                skolem_vars.append(&mut variables.to_vec());
+                skolem_vars.retain(|v| !variables.contains(v));
+                skolem_vars.extend(variables.iter().cloned());
                 SNF::forall(
                     variables.to_vec(),
                     Self::new(this.formula, skolem_vars, const_generator, fn_generator),
@@ -187,19 +192,26 @@ impl SNF {
             }
             PNF::Exists(this) => {
                 let variables = this.variables;
-                let mut map: HashMap<&Var, Complex> = HashMap::new();
+                skolem_vars.retain(|v| !variables.contains(v));
+                let rebound = this.formula.binders();
+                let args: Vec<Complex> = skolem_vars
+                    .iter()
+                    .filter(|v| !rebound.contains(v))
+                    .map(Complex::from)
+                    .collect();
+                let map: HashMap<&Var, Complex> = variables
+                    .iter()
+                    .map(|v| {
+                        let term = if args.is_empty() {
+                            const_generator().into()
+                        } else {
+                            fn_generator().app(args.clone())
+                        };
+                        (v, term)
+                    })
+                    .collect();
 
-                variables.iter().for_each(|v| {
-                    if skolem_vars.is_empty() {
-                        map.insert(v, const_generator().into());
-                    } else {
-                        let vars: Vec<Complex> =
-                            skolem_vars.iter().map(|v| v.clone().into()).collect();
-                        map.insert(v, fn_generator().app(vars));
-                    }
-                });
-
-                let substituted = this.formula.substitute(&map);
+                let substituted = this.formula.substitute_free(&map);
                 Self::new(substituted, skolem_vars, const_generator, fn_generator)
             }
             PNF::QFF(this) => this.into(),
@@ -295,6 +307,49 @@ mod tests {
         FG: FnMut() -> Func,
     {
         formula.pnf().snf_with(const_generator, fn_generator).into()
+    }
+
+    #[test]
+    fn skolemizing_substitutes_only_free_occurrences() {
+        let snf = |text: &str| text.parse::<FOF>().unwrap().pnf().snf().to_string();
+        assert_eq!(
+            "∀ y`. (P('c#0, 'c#1, 'c#2) ∧ y` = 'a)",
+            snf("(exists y. exists w. exists z. P(y, w, z)) & (forall y. y = 'a)")
+        );
+        // Simplifying drops the vacuous `∃ z`, so the prefix is built by hand.
+        let exists = |variable: Var, formula: PNF| -> PNF {
+            let variables = vec![variable];
+            Exists { variables, formula }.into()
+        };
+        let forall = |variable: Var, formula: PNF| -> PNF {
+            let variables = vec![variable];
+            Forall { variables, formula }.into()
+        };
+        let scope = "Q(z, y)".parse::<FOF>().unwrap().pnf();
+        let pnf = forall(v!(x), exists(v!(z), forall(v!(z), exists(v!(y), scope))));
+        assert_eq!("∀ x. (∀ z. Q(z, f#1(x, z)))", pnf.snf().to_string());
+    }
+
+    #[test]
+    fn skolemizing_ignores_a_shadowed_prefix_universal() {
+        // Simplifying drops the vacuous outer `∀ x`, so the prefix is built by hand.
+        let scope = "Q(x, y)".parse::<FOF>().unwrap().pnf();
+        let inner: PNF = Forall {
+            variables: vec![v!(x)],
+            formula: scope,
+        }
+        .into();
+        let exists: PNF = Exists {
+            variables: vec![v!(y)],
+            formula: inner,
+        }
+        .into();
+        let pnf: PNF = Forall {
+            variables: vec![v!(x)],
+            formula: exists,
+        }
+        .into();
+        assert_eq!("∀ x. (∀ x. Q(x, 'c#0))", pnf.snf().to_string());
     }
 
     #[test]

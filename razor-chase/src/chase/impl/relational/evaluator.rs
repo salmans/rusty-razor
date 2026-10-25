@@ -1,7 +1,8 @@
 //! A chase step over database models.
 use super::{
     model::RelModel,
-    sequent::{Attribute, Branch, Function, RelSequent, SymbolicAtom},
+    sequent::{Attribute, Branch, RelSequent, SymbolicAtom},
+    Function,
 };
 use crate::chase::{Admission, Bounder, EvaluateResult, Evaluator, Strategy, E};
 use either::Either;
@@ -120,7 +121,7 @@ impl<'a, B: Bounder + ?Sized> Balance<'a, B> {
                         let args = state.resolve_all(args);
                         match out {
                             Attribute::Exist(j) if state.exist[*j].is_none() => {
-                                if let Some(e) = state.model.lookup(function.symbol(), &args) {
+                                if let Some(e) = state.model.lookup(function, &args) {
                                     state.exist[*j] = Some(e);
                                     progress = true;
                                 } else {
@@ -174,7 +175,7 @@ impl<'a, B: Bounder + ?Sized> Balance<'a, B> {
     fn record(&mut self, function: &Function, args: Vec<E>, out: E) {
         match function {
             Function::Symbol(symbol) => self.model.define(symbol, args, out),
-            Function::Witness(witness) => self.model.name(witness, args, out),
+            Function::Witness(witness) => self.model.name(*witness, args, out),
         }
     }
 

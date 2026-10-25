@@ -6,7 +6,7 @@ moment that he saves Bran's life. Indeed, because of this defining moment in his
 
 #### Linear Time
 The theory below describes Hodor's journey assuming that time progresses linearly
-[hodor-linear.raz](https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-linear.raz)
+[hodor-linear.raz](https://github.com/salmans/rusty-razor/blob/main/theories/examples/hodor-linear.raz)
 
 ```
 // Wyllis hears "Hold the Door" (at time `t`), then he becomes Hodor in the next
@@ -69,7 +69,7 @@ theory, however, is infinitely large.
 
 Next, we model time as a "big ball of wibbly wobbly timey wimey stuff!" To make it simple, let's assume that time-loops
 can only happen at the moment that Hodor heard a voice from the future, namely `'t_hodor`, changing our rules of
-time progression ([hodor-time-loop.raz](https://github.com/salmans/rusty-razor/blob/master/theories/examples/hodor-time-loop.raz)):
+time progression ([hodor-time-loop.raz](https://github.com/salmans/rusty-razor/blob/main/theories/examples/hodor-time-loop.raz)):
 
 ```
 HoldTheDoor(t) -> Hodor(next(t));

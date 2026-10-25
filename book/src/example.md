@@ -7,4 +7,4 @@ All examples are inspired by the events of Game of Thrones (_spoiler alert!!_).
 - [Golden Head](./example/golden-head.html): runs Razor over an unsatisfiable theory for which no models exist.
 - [Hold the Door](./example/hold-the-door.html): covers more advanced features of Razor on theories with infinite models.
 
-For more examples, see Razor's [example theories](https://github.com/salmans/rusty-razor/tree/master/theories/examples).
+For more examples, see Razor's [example theories](https://github.com/salmans/rusty-razor/tree/main/theories/examples).

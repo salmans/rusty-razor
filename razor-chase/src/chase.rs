@@ -25,7 +25,12 @@
 //!
 //! ### Satisfiability of Geometric Theories
 //! It turns out that every first-order theory can be transformed to a geometric theory that is
-//! *equisatisfiable* to the original theory via [standard syntactic manipulation].
+//! *equisatisfiable* to the original theory via [a syntactic conversion]. Razor converts each
+//! formula from negation normal form to sequents: an existential stays in a head
+//! wherever its scope is positive, and only one whose scope is not (`∃y. ¬P(y)`, or `∃y. ∀u. …`)
+//! is replaced by a Skolem term, which the conversion also claims to denote an element where
+//! the existential must hold. No formula is put in prenex or Skolem normal form, so an
+//! existential never depends on a universal it was not in the scope of.
 //! In fact, for every model *N* of the original theory, there exists a model *M* of the geometric
 //! theory such that there is a homomorphism from *M* to *N*. This is an important result that
 //! enables Razor to utilize the chase to construct homomorphically minimal models of a given
@@ -43,7 +48,7 @@
 //! [the chase]: https://en.wikipedia.org/wiki/Chase_(algorithm)
 //! [geometric theories]: https://www.cs.bham.ac.uk/~sjv/GLiCS.pdf
 //! [run of the chase]: self#chase_all
-//! [standard syntactic manipulation]: razor_fol::transform::ToGNF::gnf()
+//! [a syntactic conversion]: razor_fol::transform::ToGNF::gnf()
 //! [godel]: https://en.wikipedia.org/wiki/Gödel%27s_incompleteness_theorems
 //!
 //! ## The Chase
@@ -53,6 +58,9 @@
 //! Razor's implementation, instances of any type that implements [Model] can serve as a
 //! first-order model. Also, inspired by [Steven Vickers][vickers], we refer to the units of
 //! information that augment models as [observation][Observation]s.
+//!
+//! Functions and constants are partial: a term denotes an element only once the chase has
+//! created one for it, so `~(f('a) = 'a)` is satisfied by a model in which `f('a)` is undefined.
 //!
 //! [chase-step]: self#chase-step
 //! [vickers]: https://www.cs.bham.ac.uk/~sjv/GeoZ.pdf
@@ -111,6 +119,7 @@ mod bounder;
 pub mod r#impl;
 pub mod scheduler;
 pub mod strategy;
+mod witness;
 
 use razor_fol::syntax::*;
 use std::{fmt, iter::FromIterator};
@@ -118,6 +127,8 @@ use std::{fmt, iter::FromIterator};
 use either::Either;
 
 pub use bounder::{Admission, Bounder, Depth, DepthMode, DomainSize, Unbounded};
+pub(crate) use witness::Witnesses;
+pub use witness::{Origin, Witness};
 
 /// Is a symbol to represent elements of first-order models. An element is identified by an index.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
@@ -186,6 +197,11 @@ pub trait WitnessTerm: Clone + PartialEq + Eq + fmt::Display {
 pub struct Rel(String);
 
 impl Rel {
+    /// The name of the predicate `self` interprets.
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
     /// Applies `self` to a list of witness terms.
     pub fn app<T: WitnessTerm>(self, terms: Vec<T>) -> Observation<T> {
         Observation::Fact {
@@ -512,7 +528,7 @@ pub trait Scheduler<S: Sequent, M: Model, Stg: Strategy<S>> {
 /// "#.parse().unwrap();
 ///
 /// // preprocess the theory to get geometric sequents and an initial (empty) model:
-/// let pre_processor = basic::BasicPreProcessor;
+/// let pre_processor = basic::BasicPreProcessor::default();
 /// let (sequents, init_model) = pre_processor.pre_process(&theory);
 ///
 /// let evaluator = basic::BasicEvaluator {};
@@ -574,7 +590,7 @@ where
 /// "#.parse().unwrap();
 ///
 /// // preprocess the theory to get geometric sequents and an initial (empty) model:
-/// let pre_processor = basic::BasicPreProcessor;
+/// let pre_processor = basic::BasicPreProcessor::default();
 /// let (sequents, init_model) = pre_processor.pre_process(&theory);
 ///
 /// let evaluator = basic::BasicEvaluator {};
