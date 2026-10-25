@@ -1,11 +1,7 @@
 //! A model as a `codd` database plus a union-find over its elements.
-use super::{
-    pre_processor::{Witness, Witnesses},
-    union_find::UnionFind,
-    Symbol, Tuple, ViewExpr,
-};
+use super::{union_find::UnionFind, Function, Symbol, Tuple, ViewExpr};
 use crate::chase::{
-    r#impl::basic::BasicWitnessTerm, Admission, Bounder, Model, Observation, Rel, E,
+    r#impl::basic::BasicWitnessTerm, Admission, Bounder, Model, Observation, Rel, Witness, E,
 };
 use codd::{expression::Relation, Database, Tuples};
 use itertools::Itertools;
@@ -28,15 +24,14 @@ pub struct RelModel {
     relations: Rc<HashMap<Symbol, Relation<Tuple>>>,
     equality: UnionFind<E>,
     /// Function applications on canonical arguments and their canonical outputs.
-    functions: im::HashMap<(Symbol, Tuple), E>,
+    functions: im::HashMap<(Function, Tuple), E>,
     elements: im::HashMap<E, ElementInfo>,
     next_element: i32,
 }
 
 impl RelModel {
-    /// Creates an empty model over `signature`. The `witnesses` get no relation: no view reads
-    /// them, so the function table alone records the elements they name.
-    pub(super) fn new(signature: &Sig, witnesses: &Witnesses) -> Self {
+    /// Creates an empty model with a relation for every symbol of `signature`.
+    pub(super) fn new(signature: &Sig) -> Self {
         let constants = signature
             .constants()
             .iter()
@@ -52,7 +47,6 @@ impl RelModel {
         let mut db = Database::new();
         let relations: HashMap<Symbol, Relation<Tuple>> = constants
             .chain(functions)
-            .filter(|symbol| witnesses.get(symbol).is_none())
             .chain(predicates)
             .chain(std::iter::once(Symbol::Domain))
             .map(|symbol| {
@@ -74,6 +68,14 @@ impl RelModel {
     /// The database, for compiling views into it before the first fork.
     pub(super) fn database_mut(&mut self) -> &mut Database {
         &mut self.db
+    }
+
+    /// Every entry of the table of applications: a function, its canonical arguments and its
+    /// canonical output.
+    pub fn applications(&self) -> impl Iterator<Item = (&Function, &[E], E)> {
+        self.functions
+            .iter()
+            .map(|((function, args), out)| (function, args.as_slice(), self.canon(*out)))
     }
 
     /// The canonical representative of `e`.
@@ -106,7 +108,7 @@ impl RelModel {
     }
 
     /// The canonical output of `function` on canonical `args`, if defined.
-    pub(super) fn lookup(&self, function: &Symbol, args: &[E]) -> Option<E> {
+    pub(super) fn lookup(&self, function: &Function, args: &[E]) -> Option<E> {
         self.functions
             .get(&(function.clone(), args.to_vec()))
             .map(|e| self.canon(*e))
@@ -128,7 +130,7 @@ impl RelModel {
     pub(super) fn define(&mut self, function: &Symbol, args: Vec<E>, out: E) {
         let mut tuple = args.clone();
         tuple.push(out);
-        if self.tabulate(function, args, out) {
+        if self.tabulate(Function::Symbol(function.clone()), args, out) {
             self.db
                 .insert(self.relation(function), vec![tuple].into())
                 .unwrap();
@@ -137,21 +139,21 @@ impl RelModel {
 
     /// Records that `witness(args)` names `e`, for canonical `args` and `e`. If the witness
     /// already named another element on `args`, the two are merged.
-    pub(super) fn name(&mut self, witness: &Witness, args: Vec<E>, e: E) {
-        self.tabulate(witness.symbol(), args, e);
+    pub(super) fn name(&mut self, witness: Witness, args: Vec<E>, e: E) {
+        self.tabulate(Function::Witness(witness), args, e);
     }
 
-    /// Enters `symbol(args) = out` in the function table. Returns false, after merging the two
-    /// outputs, if `symbol` was already defined on `args`.
-    fn tabulate(&mut self, symbol: &Symbol, args: Vec<E>, out: E) -> bool {
-        if let Some(existing) = self.lookup(symbol, &args) {
+    /// Enters `function(args) = out` in the function table. Returns false, after merging the two
+    /// outputs, if `function` was already defined on `args`.
+    fn tabulate(&mut self, function: Function, args: Vec<E>, out: E) -> bool {
+        if let Some(existing) = self.lookup(&function, &args) {
             if existing != out {
                 self.merge(existing, out);
             }
             return false;
         }
         let depth = self.depth(&args);
-        self.functions.insert((symbol.clone(), args), out);
+        self.functions.insert((function, args), out);
         if let Some(info) = self
             .elements
             .get_mut(&out)
@@ -247,24 +249,24 @@ impl RelModel {
             }
 
             // rewrite the function table; collisions are new merges:
-            let touched: Vec<((Symbol, Tuple), E)> = self
+            let touched: Vec<((Function, Tuple), E)> = self
                 .functions
                 .iter()
                 .filter(|((_, args), out)| args.contains(&loser) || **out == loser)
                 .map(|(k, v)| (k.clone(), *v))
                 .collect();
-            for ((symbol, args), out) in touched {
-                self.functions.remove(&(symbol.clone(), args.clone()));
+            for ((function, args), out) in touched {
+                self.functions.remove(&(function.clone(), args.clone()));
                 let args: Tuple = args
                     .iter()
                     .map(|e| if *e == loser { winner } else { *e })
                     .collect();
                 let out = if out == loser { winner } else { out };
-                match self.functions.get(&(symbol.clone(), args.clone())) {
+                match self.functions.get(&(function.clone(), args.clone())) {
                     Some(other) if *other != out => pending.push((*other, out)),
                     Some(_) => {}
                     None => {
-                        self.functions.insert((symbol, args), out);
+                        self.functions.insert((function, args), out);
                     }
                 }
             }
@@ -290,22 +292,6 @@ impl RelModel {
             .evaluate(self.relation(symbol))
             .unwrap()
             .into_tuples()
-    }
-
-    /// Function applications (over elements) that denote `e`, as witness terms.
-    fn applications(&self, e: E) -> Vec<BasicWitnessTerm> {
-        self.functions
-            .iter()
-            .filter(|(_, out)| self.canon(**out) == e)
-            .map(|((symbol, args), _)| match symbol {
-                Symbol::Const(c) => BasicWitnessTerm::Const(c.clone()),
-                Symbol::Func(f) => BasicWitnessTerm::App {
-                    function: f.clone(),
-                    terms: args.iter().map(|a| BasicWitnessTerm::Elem(*a)).collect(),
-                },
-                _ => unreachable!(),
-            })
-            .collect()
     }
 }
 
@@ -336,17 +322,9 @@ impl Model for RelModel {
                 Symbol::Domain => {}
             }
         }
-        for ((symbol, args), out) in self.functions.iter() {
-            let left = match symbol {
-                Symbol::Const(c) => BasicWitnessTerm::Const(c.clone()),
-                Symbol::Func(f) => BasicWitnessTerm::App {
-                    function: f.clone(),
-                    terms: args.iter().map(|a| BasicWitnessTerm::Elem(*a)).collect(),
-                },
-                _ => unreachable!(),
-            };
+        for ((function, args), out) in self.functions.iter() {
             result.push(Observation::Identity {
-                left,
+                left: function.term(args),
                 right: BasicWitnessTerm::Elem(self.canon(*out)),
             });
         }
@@ -355,7 +333,11 @@ impl Model for RelModel {
     }
 
     fn witness(&self, element: &E) -> Vec<BasicWitnessTerm> {
-        self.applications(self.canon(*element))
+        let element = self.canon(*element);
+        self.applications()
+            .filter(|(_, _, out)| *out == element)
+            .map(|(function, args, _)| function.term(args))
+            .collect()
     }
 
     fn element(&self, witness: &BasicWitnessTerm) -> Option<E> {
@@ -364,10 +346,16 @@ impl Model for RelModel {
                 let e = self.canon(*e);
                 self.elements.contains_key(&e).then_some(e)
             }
-            BasicWitnessTerm::Const(c) => self.lookup(&Symbol::Const(c.clone()), &[]),
+            BasicWitnessTerm::Const(c) => {
+                self.lookup(&Function::Symbol(Symbol::Const(c.clone())), &[])
+            }
             BasicWitnessTerm::App { function, terms } => {
                 let args: Option<Vec<E>> = terms.iter().map(|t| self.element(t)).collect();
-                self.lookup(&Symbol::Func(function.clone()), &args?)
+                self.lookup(&Function::Symbol(Symbol::Func(function.clone())), &args?)
+            }
+            BasicWitnessTerm::Witness { witness, terms } => {
+                let args: Option<Vec<E>> = terms.iter().map(|t| self.element(t)).collect();
+                self.lookup(&Function::Witness(*witness), &args?)
             }
         }
     }

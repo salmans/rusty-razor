@@ -203,7 +203,7 @@ mod test_lifo {
     use std::collections::HashSet;
 
     pub fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
-        let pre_processor = BasicPreProcessor;
+        let pre_processor = BasicPreProcessor::default();
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
         let strategy: Linear<_> = sequents.iter().collect();

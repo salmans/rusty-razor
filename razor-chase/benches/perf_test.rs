@@ -7,7 +7,10 @@ use razor_chase::chase::{
     strategy::{Bootstrap, Fair},
     PreProcessor, Scheduler, Unbounded,
 };
-use razor_fol::syntax::{Theory, FOF};
+use razor_fol::{
+    syntax::{Theory, FOF},
+    transform::Geometrization,
+};
 use std::{fs, io::Read};
 
 macro_rules! read_theory {
@@ -20,6 +23,10 @@ macro_rules! read_theory {
         contents.parse::<Theory<FOF>>().unwrap()
     }};
 }
+
+/// The core fixtures every bench skips: thy50 does not terminate under
+/// `Geometrization::Define`, and the sets must be equal for the benches to be comparable.
+const SKIPPED: [&str; 1] = ["thy50.raz"];
 
 macro_rules! run_unbounded {
     (
@@ -44,6 +51,7 @@ macro_rules! run_unbounded {
                 .unwrap()
                 .map(|item| item.unwrap().path())
                 .filter(|p| p.extension().map_or(false, |e| e == "raz"))
+                .filter(|p| !SKIPPED.iter().any(|s| p.ends_with(s)))
                 .map(|p| read_theory!(p.display().to_string()))
                 .collect_vec();
 
@@ -53,14 +61,30 @@ macro_rules! run_unbounded {
                 }
             })
         }
-        $crit.bench_function(stringify!($name), run_bench);
+        $crit.bench_function($name, run_bench);
     }};
 }
 
 fn bench_relational(c: &mut Criterion) {
     run_unbounded!(
-        "relational",
-        pre_processor = relational::RelPreProcessor,
+        "relational_skolemize",
+        pre_processor = relational::RelPreProcessor::new(Geometrization::Skolemize),
+        evaluator = relational::RelEvaluator,
+        sequent = relational::RelSequent,
+        model = relational::RelModel,
+        c
+    );
+    run_unbounded!(
+        "relational_define",
+        pre_processor = relational::RelPreProcessor::new(Geometrization::Define),
+        evaluator = relational::RelEvaluator,
+        sequent = relational::RelSequent,
+        model = relational::RelModel,
+        c
+    );
+    run_unbounded!(
+        "relational_hybrid",
+        pre_processor = relational::RelPreProcessor::new(Geometrization::default()),
         evaluator = relational::RelEvaluator,
         sequent = relational::RelSequent,
         model = relational::RelModel,

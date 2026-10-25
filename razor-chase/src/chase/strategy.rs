@@ -211,7 +211,7 @@ mod test_fair {
     use std::collections::HashSet;
 
     fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
-        let preprocessor = BasicPreProcessor;
+        let preprocessor = BasicPreProcessor::default();
         let (sequents, init_model) = preprocessor.pre_process(theory);
         let evaluator = BasicEvaluator;
         let strategy: Fair<_> = sequents.iter().collect();
@@ -259,7 +259,7 @@ mod test_bootstrap {
     use std::collections::HashSet;
 
     fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
-        let pre_processor = BasicPreProcessor;
+        let pre_processor = BasicPreProcessor::default();
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
         let strategy: Bootstrap<_, Fair<_>> = sequents.iter().collect();
@@ -307,7 +307,7 @@ mod test_fail_fast {
     use std::collections::HashSet;
 
     fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
-        let pre_processor = BasicPreProcessor;
+        let pre_processor = BasicPreProcessor::default();
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
         let strategy: FailFast<_, Fair<_>> = sequents.iter().collect();

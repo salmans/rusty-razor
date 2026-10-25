@@ -11,7 +11,7 @@ forall x. (Man(x) implies MustDie(x));
 Man('gregor);
 ```
 
-Run Razor on the previous theory [valar-morghulis.raz](https://github.com/salmans/rusty-razor/blob/master/theories/examples/valar-morghulis.raz):
+Run Razor on the previous theory [valar-morghulis.raz](https://github.com/salmans/rusty-razor/blob/main/theories/examples/valar-morghulis.raz):
 
 ```
 razor solve -i theories/examples/valar-morghulis.raz

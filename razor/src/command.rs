@@ -12,6 +12,7 @@ use razor_chase::{
     },
     trace::{subscriber::JsonLogger, DEFAULT_JSON_LOG_FILE, EXTEND},
 };
+use razor_fol::{syntax::Formula, transform::Geometrization};
 use std::{fs, path::PathBuf};
 
 /// A bound on the models constructed by the chase.
@@ -62,6 +63,30 @@ enum SchedulerOption {
     Fifo,
 }
 
+/// How the conversion to geometric form removes an existential whose scope is not positive.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum GeometrizeOption {
+    /// Replace it by a Skolem term over the variables in scope.
+    Skolemize,
+    /// Name its scope by a fresh predicate and define the predicate. Can run forever on a
+    /// theory whose removed scope is unconditional, such as `forall x. exists y. ((P(x) -> Q(y))
+    /// & (R(x) -> S(y)))` (core fixture thy50), which claims a new element for every element.
+    Define,
+    /// Skolemize where the Skolem term occurs only in heads, and define elsewhere. The default,
+    /// as it terminates wherever Skolemizing does.
+    Hybrid,
+}
+
+impl GeometrizeOption {
+    fn policy(self) -> Geometrization {
+        match self {
+            GeometrizeOption::Skolemize => Geometrization::Skolemize,
+            GeometrizeOption::Define => Geometrization::Define,
+            GeometrizeOption::Hybrid => Geometrization::Hybrid,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum ProcessCommand {
     /// Find models for the input theory
@@ -80,6 +105,10 @@ enum ProcessCommand {
         show_incomplete: bool,
         #[arg(short = 's', long = "scheduler", value_enum, default_value_t = SchedulerOption::Fifo)]
         scheduler: SchedulerOption,
+        /// Remove an existential whose scope is not positive by Skolemizing, by definition, or by
+        /// Skolemizing where its term occurs only in heads and defining elsewhere
+        #[arg(long = "geometrize", value_enum, default_value_t = GeometrizeOption::Hybrid)]
+        geometrize: GeometrizeOption,
     },
 }
 
@@ -92,6 +121,7 @@ impl ProcessCommand {
                 bound,
                 show_incomplete,
                 scheduler,
+                geometrize,
             } => {
                 let theory = if let Some(input) = input {
                     read_theory_from_file(input.to_str().unwrap_or("."))?
@@ -108,7 +138,9 @@ impl ProcessCommand {
                 println!();
                 println!();
 
-                let (sequents, init_model) = RelPreProcessor.pre_process(&theory);
+                let signature = theory.signature()?;
+                let (sequents, init_model) =
+                    RelPreProcessor::new(geometrize.policy()).pre_process(&theory);
 
                 let bound: Box<dyn Bounder> = match bound {
                     None => Box::new(Unbounded),
@@ -140,10 +172,24 @@ impl ProcessCommand {
                         &mut scheduler,
                         &RelEvaluator,
                         bound.as_ref(),
-                        |m| print_model(m.finalize(), stylus, &mut complete_count),
+                        |m| {
+                            print_model(
+                                m.finalize(),
+                                &sequents,
+                                &signature,
+                                stylus,
+                                &mut complete_count,
+                            )
+                        },
                         |m| {
                             if show_incomplete {
-                                print_model(m.finalize(), stylus, &mut incomplete_count);
+                                print_model(
+                                    m.finalize(),
+                                    &sequents,
+                                    &signature,
+                                    stylus,
+                                    &mut incomplete_count,
+                                );
                             }
                         },
                     )

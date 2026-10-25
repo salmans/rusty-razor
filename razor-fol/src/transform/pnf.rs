@@ -4,6 +4,7 @@ an [`FOF`] to a [`PNF`].
 [`FOF`]: crate::syntax::FOF
 */
 use crate::syntax::{formula::qff::QFF, formula::*, term::Complex, Var, FOF};
+use std::collections::HashMap;
 
 /// Represents a formula in Prenex Normal Form (PNF).
 ///
@@ -98,9 +99,10 @@ pub trait ToPNF: Formula {
     fn pnf(&self) -> PNF;
 }
 
+/// Simplifies the formula ([`FOF::simplify`]) and moves its quantifiers to the front.
 impl ToPNF for FOF {
     fn pnf(&self) -> PNF {
-        pnf(self)
+        pnf(&self.simplify())
     }
 }
 
@@ -124,6 +126,62 @@ impl PNF {
     #[inline(always)]
     fn forall(variables: Vec<Var>, formula: Self) -> Self {
         Forall { variables, formula }.into()
+    }
+
+    // Replaces the free occurrences in `self` of the variables of `map`: a quantifier binding
+    // one of them shadows it in its scope.
+    pub(super) fn substitute_free(&self, map: &HashMap<&Var, Complex>) -> Self {
+        let inner = |variables: &[Var]| -> HashMap<&Var, Complex> {
+            map.iter()
+                .filter(|(v, _)| !variables.contains(v))
+                .map(|(v, t)| (*v, t.clone()))
+                .collect()
+        };
+        match self {
+            PNF::QFF(this) => this.substitute(map).into(),
+            PNF::Exists(this) => PNF::exists(
+                this.variables.clone(),
+                this.formula.substitute_free(&inner(&this.variables)),
+            ),
+            PNF::Forall(this) => PNF::forall(
+                this.variables.clone(),
+                this.formula.substitute_free(&inner(&this.variables)),
+            ),
+        }
+    }
+
+    // The variables the quantifier prefix of `self` binds, outermost first.
+    pub(super) fn binders(&self) -> Vec<&Var> {
+        match self {
+            PNF::QFF(_) => Vec::new(),
+            PNF::Exists(this) => this
+                .variables
+                .iter()
+                .chain(this.formula.binders())
+                .collect(),
+            PNF::Forall(this) => this
+                .variables
+                .iter()
+                .chain(this.formula.binders())
+                .collect(),
+        }
+    }
+
+    // The variables of `self`, bound or free.
+    fn variables(&self) -> Vec<&Var> {
+        match self {
+            PNF::QFF(this) => this.free_vars(),
+            PNF::Exists(this) => this
+                .variables
+                .iter()
+                .chain(this.formula.variables())
+                .collect(),
+            PNF::Forall(this) => this
+                .variables
+                .iter()
+                .chain(this.formula.variables())
+                .collect(),
+        }
     }
 }
 
@@ -195,43 +253,42 @@ impl From<&PNF> for FOF {
     }
 }
 
-// Appends a postfix to the input variable until the result is not no longer in the list of
-// no collision variables.
-fn rename(variable: &Var, no_collision_variables: &[&Var]) -> Var {
+// Appends backticks to `variable` until it is none of `taken`.
+fn rename(variable: &Var, taken: &[Var]) -> Var {
     let mut name = variable.name().to_string();
-    let mut names = no_collision_variables.iter().map(|v| v.name());
-    while names.any(|x| x == name.as_str()) {
+    while taken.iter().any(|v| v.name() == name) {
         name.push('`')
     }
     Var::from(&name)
 }
 
-// helper for transforming formulae with binary operands
-#[inline]
+// Renames the variables `vars` bound over `formula` that occur free in `other` apart from every
+// variable of both, bound or free, and from each other, so that pulling the quantifier over
+// `other` captures nothing; only the occurrences `vars` bind in `formula` are renamed, so a
+// nested quantifier of the same name keeps its own.
 fn binary_helper(vars: &[Var], formula: &PNF, other: &PNF) -> (Vec<Var>, PNF) {
-    let formula_vars = formula.free_vars();
-    let other_vars = other.free_vars();
+    let other_free = other.free_vars();
+    let mut used: Vec<Var> = vars
+        .iter()
+        .chain(formula.variables())
+        .chain(other.variables())
+        .cloned()
+        .collect();
+    let mut map: HashMap<&Var, Complex> = HashMap::new();
+    let renamed = vars
+        .iter()
+        .map(|v| {
+            if !other_free.contains(&v) {
+                return v.clone();
+            }
+            let fresh = rename(v, &used);
+            used.push(fresh.clone());
+            map.insert(v, fresh.clone().into());
+            fresh
+        })
+        .collect();
 
-    let intersect: Vec<&Var> = vars.iter().filter(|v| other_vars.contains(v)).collect();
-    let union = {
-        let mut union = Vec::new();
-        union.extend(vars.iter());
-        union.extend(formula_vars);
-        union.extend(other_vars);
-        union
-    };
-
-    let renaming = |v: &Var| {
-        if intersect.contains(&v) {
-            rename(v, &union)
-        } else {
-            v.clone()
-        }
-    };
-    let vars: Vec<Var> = vars.iter().map(&renaming).collect();
-    let fmla = formula.rename_var(&renaming);
-
-    (vars, fmla)
+    (renamed, formula.substitute_free(&map))
 }
 
 // The transforming function as a helper
@@ -369,8 +426,31 @@ mod tests {
         term, v, v_1,
     };
 
+    // Prenexes `formula` without simplifying it first.
     fn pnf(formula: &FOF) -> FOF {
-        formula.pnf().into()
+        super::pnf(formula).into()
+    }
+
+    #[test]
+    fn prenexing_renames_apart_from_every_taken_name() {
+        let x = |ticks: usize| Complex::from(Var::from(format!("x{}", "`".repeat(ticks))));
+        let scope: FOF = pred!(P).app(vec![x(0), x(2), x(1)]).into();
+        let formula = FOF::exists(vec![v!(x)], scope).and(pred!(Q).app(vec![x(0)]).into());
+        assert_eq!(
+            "∃ x```. (P(x```, x``, x`) ∧ Q(x))",
+            formula.pnf().to_string()
+        );
+    }
+
+    #[test]
+    fn prenexing_renames_apart_from_a_bound_variable() {
+        let formula: FOF = "(forall x. P(x)) | (forall x. R(x)) | Q(x, x)"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            "∀ x``. (∀ x`. ((P(x``) ∨ R(x`)) ∨ Q(x, x)))",
+            formula.pnf().to_string()
+        );
     }
 
     #[test]

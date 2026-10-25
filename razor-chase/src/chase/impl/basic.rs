@@ -11,8 +11,12 @@ use crate::chase::*;
 use either::Either;
 use itertools::Itertools;
 use razor_fol::{
-    syntax::{formula::Atomic, term::Complex, Formula, FOF},
-    transform::GNF,
+    syntax::{
+        formula::{Atomic, Equals},
+        term::Complex,
+        Const, Formula, Func, Var, FOF,
+    },
+    transform::{Geometrization, Symbols, ToGNF, GNF},
 };
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -45,15 +49,19 @@ pub enum BasicWitnessTerm {
     ///
     /// [`Func`]: razor_fol::syntax::Func
     App { function: Func, terms: Vec<Self> },
+
+    /// Corresponds to the element that a [`Witness`] names for the witness terms of the
+    /// universals its existential depends on.
+    Witness { witness: Witness, terms: Vec<Self> },
 }
 
 impl BasicWitnessTerm {
-    /// Given a `term` and an assignment function `assign` from variables of the term to elements
-    /// of a [`Model`], constructs a [`WitnessTerm`].
-    fn witness(term: &Complex, assign: &impl Fn(&Var) -> E) -> Self {
+    /// Given a `term` and an assignment function `assign` from variables of the term to witness
+    /// terms of a [`Model`], constructs a [`WitnessTerm`].
+    fn witness(term: &Complex, assign: &impl Fn(&Var) -> Self) -> Self {
         match term {
             Complex::Const(c) => Self::Const(c.clone()),
-            Complex::Var(v) => Self::Elem(assign(v)),
+            Complex::Var(v) => assign(v),
             Complex::App { function, terms } => {
                 let terms = terms.iter().map(|t| Self::witness(t, assign)).collect();
                 Self::App {
@@ -67,6 +75,29 @@ impl BasicWitnessTerm {
     /// Builds a term by applying `function` on `args` as arguments.
     pub fn apply(function: Func, terms: Vec<Self>) -> Self {
         BasicWitnessTerm::App { function, terms }
+    }
+
+    /// The arguments of `self`: none for an element or a constant.
+    fn terms(&self) -> &[Self] {
+        match self {
+            Self::Elem(_) | Self::Const(_) => &[],
+            Self::App { terms, .. } | Self::Witness { terms, .. } => terms,
+        }
+    }
+
+    /// `self` with `terms` as its arguments; an element or a constant has none to replace.
+    fn with_terms(&self, terms: Vec<Self>) -> Self {
+        match self {
+            Self::Elem(_) | Self::Const(_) => self.clone(),
+            Self::App { function, .. } => Self::App {
+                function: function.clone(),
+                terms,
+            },
+            Self::Witness { witness, .. } => Self::Witness {
+                witness: *witness,
+                terms,
+            },
+        }
     }
 }
 
@@ -82,6 +113,11 @@ impl fmt::Display for BasicWitnessTerm {
             Self::App { function, terms } => {
                 let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
                 write!(f, "{}({})", function, ts.join(", "))
+            }
+            Self::Witness { witness, terms } if terms.is_empty() => write!(f, "{}", witness),
+            Self::Witness { witness, terms } => {
+                let ts: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+                write!(f, "{}({})", witness, ts.join(", "))
             }
         }
     }
@@ -181,19 +217,13 @@ impl BasicModel {
             BasicWitnessTerm::Elem(element) => {
                 self.domain_ref().into_iter().find(|e| e.eq(&element))
             }
-            BasicWitnessTerm::Const(_) => self.rewrites.get(witness),
-            BasicWitnessTerm::App { function, terms } => {
-                let terms: Vec<Option<&E>> = terms.iter().map(|t| self.element_ref(t)).collect();
-                if terms.iter().any(|e| e.is_none()) {
-                    None
-                } else {
-                    let terms: Vec<BasicWitnessTerm> =
-                        terms.into_iter().map(|e| (*e.unwrap()).into()).collect();
-                    self.rewrites.get(&BasicWitnessTerm::App {
-                        function: (*function).clone(),
-                        terms,
-                    })
-                }
+            _ => {
+                let terms: Option<Vec<BasicWitnessTerm>> = witness
+                    .terms()
+                    .iter()
+                    .map(|t| self.element_ref(t).map(|e| (*e).into()))
+                    .collect();
+                self.rewrites.get(&witness.with_terms(terms?))
             }
         }
     }
@@ -231,11 +261,14 @@ impl BasicModel {
         }
         match witness {
             BasicWitnessTerm::Elem(element) => self.depths[&self.history(element)],
-            BasicWitnessTerm::Const(_) => 0,
-            BasicWitnessTerm::App { terms, .. } => {
-                terms.iter().map(|t| self.depth(t) + 1).max().unwrap_or(0)
-            }
+            _ => self.depth_over(witness.terms()),
         }
+    }
+
+    /// The Skolem depth of an application to `terms`: one more than its deepest argument, or 0
+    /// with none.
+    fn depth_over(&self, terms: &[BasicWitnessTerm]) -> u32 {
+        terms.iter().map(|t| self.depth(t) + 1).max().unwrap_or(0)
     }
 
     /// Lowers the depth of every element named by a term over a lowered element, and so on to a
@@ -246,15 +279,8 @@ impl BasicModel {
             let entries: Vec<(u32, E)> = self
                 .rewrites
                 .iter()
-                .filter_map(|(key, out)| match key {
-                    BasicWitnessTerm::App { terms, .. }
-                        if terms.contains(&BasicWitnessTerm::Elem(e)) =>
-                    {
-                        let depth = terms.iter().map(|t| self.depth(t) + 1).max();
-                        Some((depth.unwrap_or(0), *out))
-                    }
-                    _ => None,
-                })
+                .filter(|(key, _)| key.terms().contains(&BasicWitnessTerm::Elem(e)))
+                .map(|(key, out)| (self.depth_over(key.terms()), *out))
                 .collect();
             for (depth, out) in entries {
                 let current = self
@@ -305,20 +331,13 @@ impl BasicModel {
                     unreachable!("missing element `{}`", element)
                 }
             }
-            BasicWitnessTerm::Const(_) => {
-                if let Some(e) = self.rewrites.get(witness) {
-                    *e
-                } else {
-                    self.new_element(witness.clone())
-                }
-            }
-            BasicWitnessTerm::App { function, terms } => {
-                let terms: Vec<BasicWitnessTerm> =
-                    terms.iter().map(|t| self.record(t).into()).collect();
-                let witness = BasicWitnessTerm::App {
-                    function: function.clone(),
-                    terms,
-                };
+            _ => {
+                let terms: Vec<BasicWitnessTerm> = witness
+                    .terms()
+                    .iter()
+                    .map(|t| self.record(t).into())
+                    .collect();
+                let witness = witness.with_terms(terms);
                 if let Some(e) = self.rewrites.get(&witness) {
                     *e
                 } else {
@@ -344,27 +363,18 @@ impl BasicModel {
         let mut congruent = Vec::new();
         let mut new_rewrite: BTreeMap<BasicWitnessTerm, E> = BTreeMap::new();
         self.rewrites.iter().for_each(|(k, v)| {
-            // k is a flat term and cannot be an element:
-            let key = if let BasicWitnessTerm::App { function, terms } = k {
-                let mut new_terms: Vec<BasicWitnessTerm> = Vec::new();
-                terms.iter().for_each(|t| {
-                    if let BasicWitnessTerm::Elem(element) = t {
-                        if element == to {
-                            new_terms.push(BasicWitnessTerm::Elem(*from));
-                        } else {
-                            new_terms.push(t.clone());
-                        }
-                    } else {
-                        new_terms.push(t.clone());
+            // k is a flat term over elements:
+            let terms = k
+                .terms()
+                .iter()
+                .map(|t| match t {
+                    BasicWitnessTerm::Elem(element) if element == to => {
+                        BasicWitnessTerm::Elem(*from)
                     }
-                });
-                BasicWitnessTerm::App {
-                    function: function.clone(),
-                    terms: new_terms,
-                }
-            } else {
-                k.clone()
-            };
+                    _ => t.clone(),
+                })
+                .collect();
+            let key = k.with_terms(terms);
 
             let value = if v == to { *from } else { *v };
             if let Some(other) = new_rewrite.insert(key, value) {
@@ -568,7 +578,7 @@ impl fmt::Debug for BasicModel {
     }
 }
 
-/// Is represented by a list of [`Literal`]s in the body and a list of list of `Literal`s in the
+/// Is represented by a list of [`Literal`]s in the body and a list of [`BasicDisjunct`]s in the
 /// head.
 #[derive(Clone)]
 pub struct BasicSequent {
@@ -582,37 +592,60 @@ pub struct BasicSequent {
     /// of geometric sequents.
     pub body: Vec<Literal>,
 
-    /// Represents the head of the sequent as a list of list of [`Literal`]s. The literals in
-    /// each sublist of `head_literals` are assumed to be conjoined where the sublists are
-    /// disjointed with each other.
+    /// Represents the head of the sequent as a list of disjuncts.
     ///
     /// **Note**: See [here](crate::chase#background) for more information about the structure
     /// of geometric sequents.
-    pub head: Vec<Vec<Literal>>,
+    pub head: Vec<BasicDisjunct>,
 
     // other fields:
     body_fof: FOF,
     head_fof: FOF,
 }
 
-impl From<GNF> for BasicSequent {
-    fn from(gnf: GNF) -> Self {
-        let gnf_body = gnf.body();
-        let gnf_head = gnf.head();
-        let free_vars = gnf.free_vars().into_iter().cloned().collect();
-
-        let body = gnf_body.iter().cloned().collect();
-        let head = gnf_head
+impl BasicSequent {
+    /// Reads `sequent`, introducing one witness from `witnesses` for every existential of its
+    /// head, in order, over its dependencies ([`GNF::dependencies`]).
+    fn new(sequent: &GNF, witnesses: &mut Witnesses) -> Self {
+        let free_vars: Vec<Var> = sequent.free_vars().into_iter().cloned().collect();
+        let body = sequent.body().iter().cloned().collect();
+        let head = sequent
+            .head()
             .iter()
-            .map(|h| h.iter().cloned().collect())
+            .map(|disjunct| {
+                let scope = sequent.dependencies(disjunct);
+                let origins: Vec<Origin> = disjunct
+                    .existentials()
+                    .iter()
+                    .map(|v| witnesses.fresh(v.clone(), scope.clone()))
+                    .collect();
+                let occurring = disjunct.atoms().free_vars();
+                let unmentioned = origins
+                    .iter()
+                    .filter(|o| !occurring.contains(&&o.existential))
+                    .map(|o| {
+                        let v = Complex::from(o.existential.clone());
+                        Literal::from(Equals {
+                            left: v.clone(),
+                            right: v,
+                        })
+                    });
+                let literals = disjunct
+                    .atoms()
+                    .iter()
+                    .cloned()
+                    .chain(unmentioned)
+                    .collect();
+                BasicDisjunct { literals, origins }
+            })
             .collect();
 
         Self {
             free_vars,
             body,
             head,
-            body_fof: gnf_body.into(),
-            head_fof: gnf_head.into(),
+            body_fof: sequent.body().into(),
+            head_fof: sequent.head().into(),
         }
     }
 }
@@ -620,15 +653,80 @@ impl From<GNF> for BasicSequent {
 impl fmt::Display for BasicSequent {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         let body: Vec<String> = self.body.iter().map(|l| l.to_string()).collect();
-        let head: Vec<String> = self
-            .head
+        let head: Vec<String> = self.head.iter().map(|d| d.to_string()).collect();
+        write!(f, "[{}] -> [{}]", body.join(", "), head.join(", "))
+    }
+}
+
+/// A disjunct of a sequent's head: conjoined [`Literal`]s over the universals of the sequent
+/// and the existentials of the disjunct, each existential named by the witness of its
+/// [`Origin`]. The evaluator creates the element of a witness when the disjunct must hold, and
+/// an existential that occurs in no atom keeps the equation `y = y`, so its element is still
+/// created.
+#[derive(Clone)]
+pub struct BasicDisjunct {
+    /// The conjoined literals of the disjunct.
+    pub literals: Vec<Literal>,
+
+    /// The witnesses of the existentials of the disjunct.
+    pub origins: Vec<Origin>,
+}
+
+impl BasicDisjunct {
+    /// The origin of `variable` when it is an existential of the disjunct.
+    fn origin(&self, variable: &Var) -> Option<&Origin> {
+        self.origins.iter().find(|o| &o.existential == variable)
+    }
+
+    /// The witness term of `variable` when the universals denote the elements `assign` gives
+    /// them: an existential is its witness applied to the elements of its arguments.
+    fn term(&self, variable: &Var, assign: &impl Fn(&Var) -> E) -> BasicWitnessTerm {
+        match self.origin(variable) {
+            Some(origin) => BasicWitnessTerm::Witness {
+                witness: origin.witness,
+                terms: origin.args.iter().map(|v| assign(v).into()).collect(),
+            },
+            None => assign(variable).into(),
+        }
+    }
+
+    /// `term` with every existential displayed as its witness applied to its arguments.
+    fn show(&self, term: &Complex) -> String {
+        match term {
+            Complex::Var(v) => match self.origin(v) {
+                Some(origin) if origin.args.is_empty() => origin.witness.to_string(),
+                Some(origin) => format!("{}({})", origin.witness, origin.args.iter().join(", ")),
+                None => v.to_string(),
+            },
+            Complex::Const(c) => c.to_string(),
+            Complex::App { function, terms } => {
+                format!(
+                    "{}({})",
+                    function,
+                    terms.iter().map(|t| self.show(t)).join(", ")
+                )
+            }
+        }
+    }
+}
+
+impl fmt::Display for BasicDisjunct {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let literals: Vec<String> = self
+            .literals
             .iter()
-            .map(|ls| {
-                let ls: Vec<String> = ls.iter().map(|l| l.to_string()).collect();
-                format!("[{}]", ls.join(", "))
+            .map(|l| match l {
+                Atomic::Atom(atom) => format!(
+                    "{}({})",
+                    atom.predicate,
+                    atom.terms.iter().map(|t| self.show(t)).join(", ")
+                ),
+                Atomic::Equals(equals) => {
+                    format!("{} = {}", self.show(&equals.left), self.show(&equals.right))
+                }
             })
             .collect();
-        write!(f, "[{}] -> [{}]", body.join(", "), head.join(", "))
+        write!(f, "[{}]", literals.join(", "))
     }
 }
 
@@ -643,39 +741,38 @@ impl Sequent for BasicSequent {
 }
 
 /// A simple instance of [`PreProcessor`] that converts the input theory to a vector of [`Sequent`] following
-/// the standard conversion to geometric normal form. Also provides the empty [`Model`];
+/// the conversion to geometric normal form, removing existentials by its [`Geometrization`].
+/// Also provides the empty [`Model`];
 ///
 /// [`PreProcessor`]: crate::chase::PreProcessor
-pub struct BasicPreProcessor;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BasicPreProcessor {
+    geometrization: Geometrization,
+}
+
+impl BasicPreProcessor {
+    /// A pre-processor that removes existentials by `geometrization`.
+    pub fn new(geometrization: Geometrization) -> Self {
+        Self { geometrization }
+    }
+}
 
 impl PreProcessor for BasicPreProcessor {
     type Sequent = BasicSequent;
     type Model = BasicModel;
 
     fn pre_process(&self, theory: &Theory<FOF>) -> (Vec<Self::Sequent>, Self::Model) {
-        use razor_fol::transform::ToGNF;
-        use razor_fol::transform::ToSNF;
-
-        let mut c_counter: u32 = 0;
-        let mut f_counter: u32 = 0;
-        let mut const_generator = || {
-            let name = format!("c#{}", c_counter);
-            c_counter += 1;
-            name.into()
-        };
-        let mut fn_generator = || {
-            let name = format!("f#{}", f_counter);
-            f_counter += 1;
-            name.into()
-        };
-
-        let geo_theory = theory
+        let mut symbols = Symbols::default();
+        let gnfs: Vec<GNF> = theory
             .iter()
-            .map(|f| f.snf_with(&mut const_generator, &mut fn_generator))
-            .flat_map(|f| f.gnf())
-            .map(BasicSequent::from)
+            .flat_map(|f| f.gnf_with(self.geometrization, &mut symbols))
             .collect();
-        (geo_theory, BasicModel::new())
+        let mut witnesses = Witnesses::new(&symbols);
+        let sequents = gnfs
+            .iter()
+            .map(|sequent| BasicSequent::new(sequent, &mut witnesses))
+            .collect();
+        (sequents, BasicModel::new())
     }
 }
 
@@ -722,16 +819,21 @@ impl<'s, Stg: Strategy<&'s BasicSequent>> Evaluator<'s, Stg> for BasicEvaluator 
                 // construct a "characteristic function" for the assignment map
                 let assignment_func = |v: &Var| *assignment_map.get(v).unwrap();
 
-                // lift the variable assignments to literals (used to create observations)
-                let observe_literal = make_observe_literal(assignment_func);
-
                 // build body and head observations
-                let body: Vec<Observation<BasicWitnessTerm>> =
-                    sequent.body.iter().map(&observe_literal).collect();
+                let body: Vec<Observation<BasicWitnessTerm>> = sequent
+                    .body
+                    .iter()
+                    .map(|l| observe_literal(l, &|v| assignment_func(v).into()))
+                    .collect();
                 let head: Vec<Vec<Observation<BasicWitnessTerm>>> = sequent
                     .head
                     .iter()
-                    .map(|l| l.iter().map(&observe_literal).collect())
+                    .map(|d| {
+                        d.literals
+                            .iter()
+                            .map(|l| observe_literal(l, &|v| d.term(v, &assignment_func)))
+                            .collect()
+                    })
                     .collect();
 
                 // if all body observations are true in the model but not all the head observations
@@ -751,7 +853,7 @@ impl<'s, Stg: Strategy<&'s BasicSequent>> Evaluator<'s, Stg> for BasicEvaluator 
                         let result = EvaluateResult::from(models);
                         if !result.empty() {
                             // this evaluator instantiates the first matching sequent with the first
-                            // matching assignment (unlike impl::batch.rs)
+                            // matching assignment
                             return Some(result);
                         }
                     }
@@ -792,17 +894,17 @@ fn make_extend<'m, B: Bounder + ?Sized>(
     }
 }
 
-// Given an function from variables to elements of a model, returns a closure that lift the variable
-// assignments to literals of a sequent, returning observations.
-fn make_observe_literal(
-    assignment_func: impl Fn(&Var) -> E,
-) -> impl Fn(&Literal) -> Observation<BasicWitnessTerm> {
-    move |lit: &Literal| match lit {
+// The observation of `lit` when its variables denote the witness terms `assign` gives them.
+fn observe_literal(
+    lit: &Literal,
+    assign: &impl Fn(&Var) -> BasicWitnessTerm,
+) -> Observation<BasicWitnessTerm> {
+    match lit {
         Atomic::Atom(this) => {
             let terms = this
                 .terms
                 .iter()
-                .map(|t| BasicWitnessTerm::witness(t, &assignment_func))
+                .map(|t| BasicWitnessTerm::witness(t, assign))
                 .collect();
             Observation::Fact {
                 relation: Rel::from(this.predicate.name()),
@@ -810,8 +912,8 @@ fn make_observe_literal(
             }
         }
         Atomic::Equals(this) => {
-            let left = BasicWitnessTerm::witness(&this.left, &assignment_func);
-            let right = BasicWitnessTerm::witness(&this.right, &assignment_func);
+            let left = BasicWitnessTerm::witness(&this.left, assign);
+            let right = BasicWitnessTerm::witness(&this.right, assign);
             Observation::Identity { left, right }
         }
     }
@@ -841,7 +943,6 @@ mod test_basic {
         Scheduler, Unbounded,
     };
     use crate::test_prelude::*;
-    use razor_fol::transform::ToGNF;
     use std::iter::FromIterator;
 
     // Witness Elements
@@ -1078,73 +1179,48 @@ mod test_basic {
         model.observe(&_R_().app1(_e_0()));
     }
 
-    // Assumes that `fof` is in GNF, so it converts to a single GNF
-    fn sequents(gnfs: Vec<GNF>) -> Vec<BasicSequent> {
-        gnfs.into_iter().map(BasicSequent::from).collect()
+    // The sequents of the theory of the single formula `text`.
+    fn sequents(text: &str) -> Vec<BasicSequent> {
+        let theory: Theory<FOF> = format!("{};", text).parse().unwrap();
+        BasicPreProcessor::default().pre_process(&theory).0
     }
 
     #[test]
     fn test_build_sequent() {
-        assert_debug_string("[]", sequents("true -> true".parse::<FOF>().unwrap().gnf()));
+        assert_debug_string("[]", sequents("true -> true"));
+        assert_debug_string("[]", sequents("true -> true & true"));
+        assert_debug_string("[]", sequents("true -> true | true"));
+        assert_debug_string("[[] -> []]", sequents("true -> false"));
+        assert_debug_string("[[] -> []]", sequents("true -> false & true"));
+        assert_debug_string("[[] -> []]", sequents("true -> true & false"));
+        assert_debug_string("[]", sequents("true -> true | false"));
+        assert_debug_string("[]", sequents("true -> false | true"));
+        assert_debug_string("[[P(x)] -> [[Q(x)]]]", sequents("P(x) -> Q(x)"));
         assert_debug_string(
-            "[]",
-            sequents("true -> true & true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[]",
-            sequents("true -> true | true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[] -> []]",
-            sequents("true -> false".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[] -> []]",
-            sequents("true -> false & true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[] -> []]",
-            sequents("true -> true & false".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[]",
-            sequents("true -> true | false".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[]",
-            sequents("true -> false | true".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            "[[P(x)] -> [[Q(x)]]]",
-            sequents("P(x) -> Q(x)".parse::<FOF>().unwrap().gnf()),
-        );
-        assert_debug_string(
-            // Note: only range restricted geometric formulae get contracted
             "[[P(x), Q(x)] -> [[Q(y)]]]",
-            sequents("P(x) & Q(x) -> Q(y)".parse::<FOF>().unwrap().gnf()),
+            sequents("P(x) & Q(x) -> Q(y)"),
         );
         assert_debug_string(
             "[[P(x, z), Q(x)] -> [[Q(x)], [R(z)]], [P(x, z), Q(x)] -> [[Q(x)], [S(z)]]]",
-            sequents(
-                "P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"
-                    .parse::<FOF>()
-                    .unwrap()
-                    .gnf(),
-            ),
+            sequents("P(x, z) & Q(x) -> Q(x) | (R(z) & S(z))"),
         );
         assert_debug_string(
-"[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [P(z)], [Q(y)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[P(y)], [P(z)], [Q(x)]], [D(x, y, z)] -> [[P(y)], [Q(x)], [Q(z)]], [D(x, y, z)] -> [[P(z)], [Q(x)], [Q(y)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
-            sequents(
-                "D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"
-                    .parse::<FOF>()
-                    .unwrap()
-                    .gnf(),
-            ),
+"[[D(x, y, z)] -> [[P(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [P(z)]], [D(x, y, z)] -> [[P(x)], [Q(y)], [Q(z)]], [D(x, y, z)] -> [[Q(x)], [P(y)], [P(z)]], [D(x, y, z)] -> [[Q(x)], [P(y)], [Q(z)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [P(z)]], [D(x, y, z)] -> [[Q(x)], [Q(y)], [Q(z)]]]",
+            sequents("D(x, y, z) -> (P(x) & Q(x)) | (P(y) & Q(y)) | (P(z) & Q(z))"),
         );
     }
 
+    #[test]
+    fn existentials_become_witness_terms_over_the_universals() {
+        assert_debug_string(
+            "[[P(x)] -> [[Q(x, f#0(x))]]]",
+            sequents("P(x) -> exists y. Q(x, y)"),
+        );
+        assert_debug_string("[[] -> [['c#0 = 'c#0]]]", sequents("exists y. y = y"));
+    }
+
     fn run(theory: &Theory<FOF>) -> Vec<BasicModel> {
-        let pre_processor = BasicPreProcessor;
+        let pre_processor = BasicPreProcessor::default();
         let (sequents, init_model) = pre_processor.pre_process(theory);
 
         let evaluator = BasicEvaluator;
@@ -1156,7 +1232,7 @@ mod test_basic {
     }
 
     fn run_domain_bounded(theory: &Theory<FOF>, bound: usize) -> Vec<BasicModel> {
-        let pre_processor = BasicPreProcessor;
+        let pre_processor = BasicPreProcessor::default();
         let (sequents, init_model) = pre_processor.pre_process(theory);
         let evaluator = BasicEvaluator;
         let strategy: Linear<_> = sequents.iter().collect();
@@ -1172,7 +1248,7 @@ mod test_basic {
             .parse()
             .unwrap();
         for mode in [DepthMode::Pure, DepthMode::Reuse] {
-            let (sequents, init_model) = BasicPreProcessor.pre_process(&theory);
+            let (sequents, init_model) = BasicPreProcessor::default().pre_process(&theory);
             let strategy: Linear<_> = sequents.iter().collect();
             let mut scheduler = FIFO::new();
             scheduler.add(init_model, strategy);

@@ -2,7 +2,9 @@
 
 Rusty Razor is a tool for constructing finite models for first-order theories. The model-finding algorithm is inspired
 by [the chase](https://en.wikipedia.org/wiki/Chase_(algorithm)) for database systems. Given a first-order theory,
-Razor constructs a set of *homomorphically minimal* models for the theory.
+Razor constructs a set of *homomorphically minimal* models for the theory. Functions and constants are partial in
+these models: a term denotes an element only once the chase has created one for it, so `~(f('a) = 'a)` is satisfied
+by a model in which `f('a)` is undefined.
 
 Check out Razor's [documentation](https://salmans.github.io/rusty-razor/intro.html) for more information about the project and introductory examples.
 
@@ -60,7 +62,21 @@ razor solve -i <input> --bound depth=<number>
 razor solve -i <input> --bound depth=<number>:pure
 ```
 
-Razor runs the *restricted* chase: an existential in a head is satisfied by any element that already works.
+Razor runs the *restricted* chase: an existential in a head is satisfied by any element that already works. The
+theory is converted to geometric sequents without prenex or Skolem normal form: an existential stays in the head of its
+sequent, and only one whose scope is not positive (such as `exists y. ~P(y)`) is removed. The `--geometrize` option
+chooses how: `skolemize` replaces it by a Skolem term, `define` names its scope by a fresh predicate `p#N` that
+one direction of a definition constrains, and `hybrid` Skolemizes where the Skolem term occurs only in heads and
+defines elsewhere. Models are printed over the theory's own signature, so no introduced symbol (`c#N`, `f#N`,
+`p#N`) is shown; instead a provenance line says where the chase introduced each element that only such a
+symbol names: `e#2 ⟵ ∃y of «P(x) → (∃ y. Q(x, y))» with x = e#0` for an element created for an existential, and
+`e#1 ⟵ Skolem term f#0(e#0)` for one that a Skolem term denotes.
+
+```
+razor solve -i <input> --geometrize <skolemize/define/hybrid>
+```
+
+The default is `hybrid`, which terminates wherever `skolemize` does and needs no claim that a Skolem term denotes.
 
 #### Model-Finding Scheduler
 
@@ -87,7 +103,7 @@ Cat('duchess);   // Duchess is a cat
 Squishy('ducky); // Ducky is a squishy
 ```
 
-You can download the example file [here](https://github.com/salmans/rusty-razor/blob/master/theories/examples/toy.raz) and run the `razor` command-line tool on it:
+You can download the example file [here](https://github.com/salmans/rusty-razor/blob/main/theories/examples/toy.raz) and run the `razor` command-line tool on it:
 
 ```
 razor solve -i theories/examples/toy.raz
